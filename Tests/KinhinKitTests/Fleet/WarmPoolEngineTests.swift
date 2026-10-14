@@ -70,4 +70,60 @@ final class WarmPoolEngineTests: XCTestCase {
         XCTAssertEqual(warm.image, "xcode")
         XCTAssertEqual(tart.cloneCalls.last?.source, "xcode", "the warm instance is cloned from its own image")
     }
+
+    /// An engine whose `xcode` image keeps one warm VM. The image is prepared up front (a clone of the base
+    /// stands in for `kinhin image prepare`), so the warm pool has something to clone.
+    private func makeXcodeEngine(tart: FakeTart, github: FakeGitHub) async throws -> FleetEngine {
+        try await tart.clone(source: "tahoe-base", to: "xcode")
+        var config = makeTestConfig()
+        config.images = [.init(name: "xcode", labels: ["xcode"], warmPool: 1)]
+        return FleetEngine(
+            config: config, github: github, tart: tart, store: makeTestStore(), ssh: FakeSSH(), host: testHost,
+            dependencies: .init(tokenLoader: { _, _ in "test-token" }, exitWatchInterval: .milliseconds(20)))
+    }
+
+    func testAnXcodeJobClaimsTheXcodeWarmInstance() async throws {
+        let tart = FakeTart()
+        let github = FakeGitHub()
+        let engine = try await makeXcodeEngine(tart: tart, github: github)
+
+        try await engine.reconcileOnce()
+        try await waitUntil(timeout: 10) { await engine.status().records.contains { $0.phase == .warm } }
+        let warmStatus = await engine.status()
+        let warmID = try XCTUnwrap(warmStatus.records.first { $0.phase == .warm }?.id)
+        let clonesBeforeJob = tart.cloneCalls.count
+
+        // A queued job that asks for the xcode label, routed to the xcode image.
+        github.queueExtraLabels = ["xcode"]
+        github.queueDepth = 1
+        try await engine.reconcileOnce()
+        try await waitUntil(timeout: 10) {
+            await engine.status().records.first(where: { $0.id == warmID })?.phase == .ready
+        }
+
+        let claimedStatus = await engine.status()
+        let claimed = try XCTUnwrap(claimedStatus.records.first { $0.id == warmID })
+        XCTAssertEqual(claimed.image, "xcode")
+        XCTAssertNotNil(claimed.platform, "claiming binds the warm instance to the account")
+        XCTAssertEqual(tart.cloneCalls.count, clonesBeforeJob, "the job claims the warm VM instead of cloning")
+    }
+
+    func testABaseJobLeavesTheXcodeWarmInstanceAlone() async throws {
+        let tart = FakeTart()
+        let github = FakeGitHub()
+        let engine = try await makeXcodeEngine(tart: tart, github: github)
+
+        try await engine.reconcileOnce()
+        try await waitUntil(timeout: 10) { await engine.status().records.contains { $0.phase == .warm } }
+        let warmStatus = await engine.status()
+        let warmID = try XCTUnwrap(warmStatus.records.first { $0.phase == .warm }?.id)
+
+        // A plain job, with no xcode label: it runs on the base image and must not take the xcode VM.
+        github.queueDepth = 1
+        try await engine.reconcileOnce()
+        try await waitUntil(timeout: 10) { tart.cloneCalls.contains { $0.source == "tahoe-base" } }
+
+        let status = await engine.status()
+        XCTAssertEqual(status.records.first { $0.id == warmID }?.phase, .warm, "the xcode warm VM stays unclaimed")
+    }
 }

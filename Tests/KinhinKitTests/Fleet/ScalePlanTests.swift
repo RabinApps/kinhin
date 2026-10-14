@@ -216,6 +216,17 @@ final class ScalePlanTests: XCTestCase {
         XCTAssertEqual(result.blocked?.neededGB, 70)
     }
 
+    func testANamedImageCostsItsOwnDisk() {
+        // A 100 GB image takes 120 of 130 GB; the 50 GB base clone then no longer fits (10 left).
+        let slots = [
+            ScalePlan.Slot(account: "github", runtime: .tart, image: "xcode"),
+            ScalePlan.Slot(account: "github", runtime: .tart),
+        ]
+        let result = ScalePlan.admitByDisk(slots, freeDiskGB: 130, reserveGB: 20) { $0.image == "xcode" ? 100 : 50 }
+        XCTAssertEqual(result.admitted.map(\.image), ["xcode"])
+        XCTAssertEqual(result.blocked?.neededGB, 70)
+    }
+
     func testHostSlotsCostNoDisk() {
         let slots = [
             ScalePlan.Slot(account: "github", runtime: .host), ScalePlan.Slot(account: "github", runtime: .tart),

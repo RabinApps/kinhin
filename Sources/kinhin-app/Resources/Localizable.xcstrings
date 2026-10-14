@@ -542,6 +542,9 @@
     "Boot" : {
       "comment" : "Benchmark suite name"
     },
+    "Booted VMs that wait for a job, so it skips the clone and boot. 0 is off." : {
+      "comment" : "row in CapacityView"
+    },
     "Build" : {
       "comment" : "Text in VideosView"
     },
@@ -1714,6 +1717,9 @@
     "Now serving %@ on %@ ✓" : {
       "comment" : "Forge card status; first is the repository or org, second the forge"
     },
+    "Off" : {
+      "comment" : "String(localized:) in MacToolsView"
+    },
     "Off by default: a repo file chooses what is installed on this Mac." : {
       "comment" : "Toolchains guide example note"
     },
@@ -2616,11 +2622,17 @@
     "VMs" : {
       "comment" : "Status-bar menu section header above the VM list"
     },
+    "VMs kept ready" : {
+      "comment" : "Text in MacToolsView"
+    },
     "Volumes" : {
       "comment" : "FormCard in ContainersView"
     },
     "Want your logo here?" : {
       "comment" : "HintText in SponsorSheet"
+    },
+    "Warm VMs kept ready (base image)" : {
+      "comment" : "row in CapacityView"
     },
     "warm, waiting to be claimed" : {
       "comment" : "VoiceOver phase description"

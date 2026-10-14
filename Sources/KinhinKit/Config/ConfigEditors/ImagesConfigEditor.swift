@@ -13,7 +13,8 @@ public enum ImagesConfigEditor {
         let partial = try YAMLDecoder().decode(PartialConfig.self, from: yaml)
         return (partial.images ?? []).compactMap { entry in
             guard let name = entry.name else { return nil }
-            return KinhinConfig.ImageConfig(name: name, baseImage: entry.baseImage, labels: entry.labels)
+            return KinhinConfig.ImageConfig(
+                name: name, baseImage: entry.baseImage, labels: entry.labels, warmPool: entry.warmPool ?? 0)
         }
     }
 
@@ -27,6 +28,7 @@ public enum ImagesConfigEditor {
             if let labels = image.labels, !labels.isEmpty {
                 lines.append("    labels: [\(labels.map(YAMLText.quoted).joined(separator: ", "))]")
             }
+            if image.warmPool > 0 { lines.append("    warm_pool: \(image.warmPool)") }
         }
         return lines.joined(separator: "\n")
     }

@@ -162,7 +162,9 @@ final class MacToolsModel: ConfigFormModel {
         let image = snapshot?.image ?? "tahoe-base"
         let extra = snapshot?.images ?? []
         namedImages.rows = extra.map {
-            .init(name: $0.name, baseImage: $0.baseImage, labels: $0.labels ?? [], present: false)
+            .init(
+                name: $0.name, baseImage: $0.baseImage, labels: $0.labels ?? [], warmPool: $0.warmPool,
+                present: false)
         }
         // `tart_path:` is authoritative, exactly like the CLI, doctor and the
         // daemon: a configured binary that is not there reads as missing (the
@@ -227,7 +229,7 @@ final class MacToolsModel: ConfigFormModel {
             self.imagePresent = present
             self.namedImages.rows = extra.map {
                 .init(
-                    name: $0.name, baseImage: $0.baseImage, labels: $0.labels ?? [],
+                    name: $0.name, baseImage: $0.baseImage, labels: $0.labels ?? [], warmPool: $0.warmPool,
                     present: preparedNames.contains($0.name))
             }
             // Offered even when the image exists: after picking another base image

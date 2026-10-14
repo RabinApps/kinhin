@@ -78,6 +78,18 @@ final class ImagesConfigTests: XCTestCase {
         XCTAssertTrue(text.contains("max_runners: 2"), "keys after the section survive removal")
     }
 
+    func testEditorKeepsWarmPoolThroughAnEdit() throws {
+        let url = try file("\(Self.head)\n")
+        let xcode = KinhinConfig.ImageConfig(name: "xcode", labels: ["xcode"], warmPool: 2)
+        try ImagesConfigEditor.apply([xcode], to: url)
+        XCTAssertEqual(try ConfigLoader.load(from: url).images, [xcode])
+        // Renaming a base or changing labels goes through the same rewrite; the warm count must survive it.
+        let rebased = KinhinConfig.ImageConfig(
+            name: "xcode", baseImage: "ghcr.io/x:latest", labels: ["xcode"], warmPool: 2)
+        try ImagesConfigEditor.apply([rebased], to: url)
+        XCTAssertEqual(try ConfigLoader.load(from: url).images, [rebased])
+    }
+
     func testEditorRefusesAnInvalidNameWithoutWriting() throws {
         let url = try file(Self.head + "\n")
         let before = try String(contentsOf: url, encoding: .utf8)

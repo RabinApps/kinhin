@@ -317,17 +317,17 @@ struct ScalePlan: Equatable {
 
     // MARK: - Disk
 
-    /// The leading slots the disk can hold. Each slot costs its runtime's
-    /// per-instance disk plus the reserve (host slots cost none); the first
-    /// slot that does not fit ends the list and is reported.
+    /// The leading slots the disk can hold. Each slot costs its per-instance disk plus the reserve
+    /// (host slots cost none); the first slot that does not fit ends the list and is reported.
+    /// The disk is per slot, not per runtime, because a named Tart image can be larger than the base.
     static func admitByDisk(
-        _ slots: [Slot], freeDiskGB: Int, reserveGB: Int, diskPerInstanceGB: (RuntimeID) -> Int
+        _ slots: [Slot], freeDiskGB: Int, reserveGB: Int, diskPerInstanceGB: (Slot) -> Int
     ) -> (admitted: [Slot], blocked: (runtime: RuntimeID, availableGB: Int, neededGB: Int)?) {
         var free = freeDiskGB
         var admitted: [Slot] = []
         for slot in slots {
             if slot.runtime != .host {
-                let perVM = diskPerInstanceGB(slot.runtime)
+                let perVM = diskPerInstanceGB(slot)
                 let needed = perVM + reserveGB
                 if free < needed { return (admitted, (slot.runtime, free, needed)) }
                 free -= perVM

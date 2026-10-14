@@ -86,6 +86,14 @@ final class GeneralConfigEditorTests: XCTestCase {
 
     // MARK: - Targeted surgery
 
+    func testWarmPoolEditWritesTheBaseImageCount() throws {
+        try write(Self.sample)
+        _ = try GeneralConfigEditor.apply(.warmPool(2), to: file)
+        let updated = try String(contentsOf: file, encoding: .utf8)
+        XCTAssertTrue(updated.contains("warm_pool: 2"), updated)
+        XCTAssertEqual(try ConfigLoader.load(from: file).warmPool, 2)
+    }
+
     func testScalarEditPreservesCommentsAndNeighbors() throws {
         try write(Self.sample)
         _ = try GeneralConfigEditor.apply(.minRunners(1), to: file)

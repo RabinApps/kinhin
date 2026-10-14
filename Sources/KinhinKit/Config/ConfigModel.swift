@@ -203,7 +203,7 @@ public struct KinhinConfig: Sendable, Equatable {
         /// reference, or local VM name); nil = the default macOS base.
         public var baseImage: String?
         /// Runner labels this image advertises on top of the fleet `labels:`.
-        /// Parsed and kept now; routing jobs by them is a later stage.
+        /// A job that requests these labels runs on this image (see `ImageRouting`).
         public var labels: [String]?
         /// Booted, unregistered clones of this image kept ready for its jobs; 0 = off.
         public var warmPool: Int

@@ -27,6 +27,7 @@ public enum GeneralConfigEditor {
     public enum Field: Equatable, Sendable {
         case labels([String])
         case minRunners(Int)
+        case warmPool(Int)
         case maxRunners(Int)
         case runnersPerVM(Int)
         case pollInterval(Int)
@@ -58,6 +59,7 @@ public enum GeneralConfigEditor {
         switch field {
         case .labels: return .top("labels")
         case .minRunners: return .top("min_runners")
+        case .warmPool: return .top("warm_pool")
         case .maxRunners: return .top("max_runners")
         case .runnersPerVM: return .top("runners_per_vm")
         case .pollInterval: return .top("poll_interval")
@@ -80,10 +82,11 @@ public enum GeneralConfigEditor {
         switch field {
         case .labels(let list):
             return "[" + list.map { quoted($0.trimmingCharacters(in: .whitespaces)) }.joined(separator: ", ") + "]"
-        case .minRunners, .maxRunners, .runnersPerVM,
+        case .minRunners, .warmPool, .maxRunners, .runnersPerVM,
             .pollInterval, .vmCPU, .vmMemoryGB,
             .reserveCPU, .reserveMemoryGB:
             if case .minRunners(let n) = field { return intText(n) }
+            if case .warmPool(let n) = field { return intText(n) }
             if case .maxRunners(let n) = field { return intText(n) }
             if case .runnersPerVM(let n) = field { return intText(n) }
             if case .pollInterval(let n) = field { return intText(n) }

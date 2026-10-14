@@ -365,9 +365,10 @@ extension FleetEngine {
         var slots = plan.slots
         var diskPressureMessage: String?
         if slots.contains(where: { $0.runtime != .host }) {
+            let listed = slots.contains { $0.image != nil } ? await listedTartVMs() : []
             let admission = ScalePlan.admitByDisk(
                 slots, freeDiskGB: hostProbe().freeDiskGB, reserveGB: config.reserve.diskGB,
-                diskPerInstanceGB: { ResourceProbe.effectiveDiskPerVMGB(diskGB: config.diskGB, runtime: $0) })
+                diskPerInstanceGB: { diskPerInstanceGB($0, listed: listed) })
             slots = admission.admitted
             if let blocked = admission.blocked {
                 diskPressureMessage =
@@ -411,13 +412,32 @@ extension FleetEngine {
         }
     }
 
+    /// The Tart VMs on this Mac, with their disk sizes. A failed `tart list` returns none, so a named
+    /// image is then treated as not prepared (its warm pool is skipped) rather than guessed at.
+    func listedTartVMs() async -> [TartVM] {
+        (try? await tart.list()) ?? []
+    }
+
+    /// Disk a new instance of `slot` takes. A Tart clone of a named image costs that image's own disk
+    /// size, as `tart list` reports it; the base image, other runtimes, and an unknown size use the
+    /// configured VM disk.
+    func diskPerInstanceGB(_ slot: ScalePlan.Slot, listed: [TartVM]) -> Int {
+        guard slot.runtime == .tart else {
+            return ResourceProbe.effectiveDiskPerVMGB(diskGB: config.diskGB, runtime: slot.runtime)
+        }
+        let size = slot.image.flatMap { name in listed.first { $0.name == name }?.diskGB }
+        return ResourceProbe.effectiveDiskPerVMGB(diskGB: size ?? config.diskGB, runtime: .tart)
+    }
+
     /// Starts the warm instances planned per image (cloned and booted, never registered) unless the
     /// disk is short. A named image that is not prepared yet has nothing to clone, so it is skipped.
     func topUpWarmPool(_ spawns: [String: Int], diskBlocked: Bool) async {
         guard !spawns.isEmpty, !diskBlocked else { return }
         var wanted = spawns
+        var listed: [TartVM] = []
         if spawns.keys.contains(where: { !$0.isEmpty }) {
-            let prepared = Set((try? await tart.list())?.map(\.name) ?? [])
+            listed = await listedTartVMs()
+            let prepared = Set(listed.map(\.name))
             for image in spawns.keys where !image.isEmpty && !prepared.contains(image) {
                 wanted[image] = nil
                 Log.warn("engine", "warm pool for image \(image) skipped: it is not prepared")
@@ -430,9 +450,9 @@ extension FleetEngine {
         }
         guard !planned.isEmpty else { return }
         let free = hostProbe().freeDiskGB
-        let perVM = ResourceProbe.effectiveDiskPerVMGB(diskGB: config.diskGB, runtime: .tart)
         let slots = ScalePlan.admitByDisk(
-            planned, freeDiskGB: free, reserveGB: config.reserve.diskGB, diskPerInstanceGB: { _ in perVM }
+            planned, freeDiskGB: free, reserveGB: config.reserve.diskGB,
+            diskPerInstanceGB: { diskPerInstanceGB($0, listed: listed) }
         ).admitted
         for slot in slots {
             var record = VMRecord(id: VMRecord.newName(), phase: .cloning)

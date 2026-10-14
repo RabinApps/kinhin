@@ -126,6 +126,11 @@ struct MacToolsView: View {
                             pinDigest: { reference in await BaseImageChoice.pin(reference, in: .tartVM) }
                         )
                     }
+                    formRow(Text("VMs kept ready")) {
+                        WarmPoolStepper(
+                            count: row.warmPool, id: row.name,
+                            commit: { model.namedImages.setWarmPool($0, for: row.name) })
+                    }
                 }
             }
             HStack(spacing: 8) {
@@ -354,6 +359,27 @@ struct MacToolsView: View {
             .controlSize(.small)
             .disabled(model.busy)
             .accessibilityIdentifier(id)
+    }
+}
+
+/// How many VMs of one extra image stay warm. Each step saves the config (and restarts the engine).
+private struct WarmPoolStepper: View {
+    let count: Int
+    let id: String
+    let commit: (Int) -> Void
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Stepper(
+                value: Binding(get: { count }, set: { commit($0) }), in: 0...8
+            ) {
+                Text(count == 0 ? String(localized: "Off", bundle: .l10n) : "\(count)")
+                    .font(.system(size: 12))
+                    .monospacedDigit()
+            }
+            .controlSize(.small)
+            .accessibilityIdentifier("mac-image-warm-\(id)")
+        }
     }
 }
 
