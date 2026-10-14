@@ -50,4 +50,46 @@ final class RunControlTests: XCTestCase {
             XCTFail("unexpected \(error)")
         }
     }
+
+    // MARK: - Status extras
+
+    private struct TartBroke: LocalizedError {
+        var errorDescription: String? { "tart list failed: boom" }
+    }
+
+    func testOrphanScanReportsAFailingTartInsteadOfNoOrphans() async throws {
+        let scan = try await RunCommands.orphanScan { throw TartBroke() }
+        XCTAssertEqual(scan.lines, [])
+        XCTAssertEqual(scan.warning, "could not check for orphaned VMs: tart list failed: boom")
+    }
+
+    func testOrphanScanListsOnlyKinhinVMs() async throws {
+        let scan = try await RunCommands.orphanScan {
+            [
+                TartVM(name: "kinhin-1", source: "local", status: "running"),
+                TartVM(name: "tahoe-base", source: "local", status: "stopped"),
+            ]
+        }
+        XCTAssertEqual(scan.lines, ["orphaned kinhin VMs (daemon not managing them):", "  kinhin-1  running"])
+        XCTAssertNil(scan.warning)
+        let none = try await RunCommands.orphanScan(nil)
+        XCTAssertEqual(none.lines, [])
+        XCTAssertNil(none.warning, "no tart at all means nothing can be orphaned")
+    }
+
+    func testOrphanScanLetsCancellationThrough() async {
+        do {
+            _ = try await RunCommands.orphanScan { throw CancellationError() }
+            XCTFail("cancellation must propagate")
+        } catch {
+            XCTAssertTrue(error is CancellationError)
+        }
+    }
+
+    func testWatchFrameTellsADaemonErrorFromNoDaemon() {
+        XCTAssertEqual(
+            RunCommands.watchFrame(.failure(RPCError.connectionFailed("/tmp/s"))), "daemon not running…")
+        let frame = RunCommands.watchFrame(.failure(RPCError.timeout))
+        XCTAssertTrue(frame.hasPrefix("daemon error: daemon did not answer in time"), frame)
+    }
 }

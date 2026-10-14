@@ -63,11 +63,16 @@ public struct ImageInventory: Sendable, Equatable, Codable {
         public let runtime: Runtime
         /// Why this runtime's images could not be listed; nil = they were.
         public let unavailable: String?
+        /// Why the runtime's instances could not be listed, so no entry's
+        /// `usedBy` can be trusted; nil = they were. Delete and prune never
+        /// touch such a section's images: "nobody uses it" is unknown.
+        public let usageUnknown: String?
         public let entries: [Entry]
 
-        public init(runtime: Runtime, unavailable: String?, entries: [Entry]) {
+        public init(runtime: Runtime, unavailable: String?, usageUnknown: String? = nil, entries: [Entry]) {
             self.runtime = runtime
             self.unavailable = unavailable
+            self.usageUnknown = usageUnknown
             self.entries = entries
         }
 
@@ -94,16 +99,20 @@ public struct ImageInventory: Sendable, Equatable, Codable {
         public let sources: [String: String]
         /// Runner VM ids / container ids of this runtime.
         public let instances: [String]
+        /// nil = `instances` is the real list; a string = listing them
+        /// failed (and says why), so `instances` is empty but not "unused".
+        public let usageUnknown: String?
 
         public init(
             unavailable: String? = nil, names: [String] = [], sizesGB: [String: Int] = [:],
-            sources: [String: String] = [:], instances: [String] = []
+            sources: [String: String] = [:], instances: [String] = [], usageUnknown: String? = nil
         ) {
             self.unavailable = unavailable
             self.names = names
             self.sizesGB = sizesGB
             self.sources = sources
             self.instances = instances
+            self.usageUnknown = usageUnknown
         }
 
         /// The listing shape for tart's `list` output — name, source and
@@ -184,7 +193,7 @@ public struct ImageInventory: Sendable, Equatable, Codable {
     /// kinhin stores (fleet VMs, derived-image index). `only` restricts both
     /// the probing and the result — a filtered listing never shells out to
     /// the runtimes it was not asked about.
-    public static func probe(config: KinhinConfig, only: Set<Runtime>? = nil) async -> ImageInventory {
+    public static func probe(config: KinhinConfig, only: Set<Runtime>? = nil) async throws -> ImageInventory {
         let fleet = FleetStore().all
         let records = ProjectImageStore().all
         let tart =
@@ -194,8 +203,8 @@ public struct ImageInventory: Sendable, Equatable, Codable {
         return build(
             config: config,
             tart: tart,
-            container: requested(.container, in: only) ? await probeContainer(config) : nil,
-            docker: requested(.docker, in: only) ? await probeDocker(config) : nil,
+            container: requested(.container, in: only) ? try await probeContainer(config) : nil,
+            docker: requested(.docker, in: only) ? try await probeDocker(config) : nil,
             fleet: fleet, projectRecords: records, only: only)
     }
 
@@ -204,13 +213,12 @@ public struct ImageInventory: Sendable, Equatable, Codable {
     /// runtime sections, so no surface ships its own copy of "list the
     /// images". Deliberately no health check: the checklist and the doctor
     /// report readiness as their own row and list only when it is green.
-    /// `instances` adds who is running from those images (one more CLI
-    /// call), which only the full inventory needs. `sizes` adds each image's
-    /// disk usage (one more CLI call) for the same reason: the inventory's
-    /// per-runtime totals, not the checklist's image-present row.
+    /// Who is running from those images is `withInstances`, used only by
+    /// the full inventory. `sizes` adds each image's disk usage (one more
+    /// CLI call) for the same reason: the inventory's per-runtime totals,
+    /// not the checklist's image-present row.
     public static func listing(
-        runtime: Runtime, config: KinhinConfig?, instances: Bool = false, fleet: [VMRecord] = [],
-        sizes: Bool = false
+        runtime: Runtime, config: KinhinConfig?, fleet: [VMRecord] = [], sizes: Bool = false
     ) async -> RuntimeImages {
         switch runtime {
         case .tart:
@@ -218,27 +226,46 @@ public struct ImageInventory: Sendable, Equatable, Codable {
         case .container:
             let container = AppleContainerRuntime()
             let names = await container.localImageNames()
-            let users =
-                instances
-                ? (((try? await container.existingInstanceIDs()) ?? []).filter { $0.hasPrefix("kinhin-") }) : []
-            return RuntimeImages(
-                names: names, sizesGB: sizes ? await container.localImageSizes() : [:], instances: users)
+            return RuntimeImages(names: names, sizesGB: sizes ? await container.localImageSizes() : [:])
         case .docker:
             let docker = DockerRuntime(image: config?.docker?.image ?? "kinhin-ci-linux")
             let names = await docker.localImageNames()
-            let users =
-                instances
-                ? (((try? await docker.existingInstanceIDs()) ?? []).filter { $0.hasPrefix("kinhin-") }) : []
-            return RuntimeImages(
-                names: names, sizesGB: sizes ? await docker.localImageSizes() : [:], instances: users)
+            return RuntimeImages(names: names, sizesGB: sizes ? await docker.localImageSizes() : [:])
         }
+    }
+
+    /// `images` plus the kinhin instances `list` reports. A failed listing
+    /// does not read as "nothing is running": the result carries
+    /// `usageUnknown`, which keeps delete and prune away from the runtime's
+    /// images. Cancellation propagates.
+    static func withInstances(
+        _ images: RuntimeImages, runtime: Runtime, list: () async throws -> [String]
+    ) async throws -> RuntimeImages {
+        let users: [String]
+        let usageUnknown: String?
+        do {
+            users = try await list().filter { $0.hasPrefix("kinhin-") }
+            usageUnknown = nil
+        } catch let cancelled as CancellationError {
+            throw cancelled
+        } catch {
+            users = []
+            usageUnknown = "could not list \(runtime.rawValue) instances: \(error.localizedDescription)"
+        }
+        return RuntimeImages(
+            unavailable: images.unavailable, names: images.names, sizesGB: images.sizesGB,
+            sources: images.sources, instances: users, usageUnknown: usageUnknown)
     }
 
     /// `tart list` as a listing: names, sources, sizes — plus the fleet's VM
     /// ids as this runtime's instances (they came from that listing too).
     private static func listTart(_ config: KinhinConfig?, fleet: [VMRecord]) async -> RuntimeImages {
-        guard let tart = try? TartController(configuredPath: config?.tartPath) else {
-            return RuntimeImages(unavailable: "tart is not installed — \(TartHealthProbe.installCommand)")
+        let tart: TartController
+        do {
+            tart = try TartController(configuredPath: config?.tartPath)
+        } catch {
+            // The error names the configured `tart_path:` (or PATH) and the install command.
+            return RuntimeImages(unavailable: error.localizedDescription)
         }
         do {
             return RuntimeImages(tartEntries: try await tart.list(), instances: fleet.map(\.id))
@@ -249,11 +276,14 @@ public struct ImageInventory: Sendable, Equatable, Codable {
 
     /// The apple-container section, or nil when the runtime is neither
     /// configured nor installed (nothing to say about it).
-    private static func probeContainer(_ config: KinhinConfig) async -> RuntimeImages? {
+    private static func probeContainer(_ config: KinhinConfig) async throws -> RuntimeImages? {
         guard config.container != nil || Paths.findExecutable(named: "container") != nil else { return nil }
         switch await AppleContainerRuntime().health() {
         case .ready:
-            return await listing(runtime: .container, config: config, instances: true, sizes: true)
+            let images = await listing(runtime: .container, config: config, sizes: true)
+            return try await withInstances(images, runtime: .container) {
+                try await AppleContainerRuntime().existingInstanceIDs()
+            }
         case .missing(_, let fix):
             return RuntimeImages(unavailable: "the container CLI is not installed — \(fix)")
         case .broken(let why):
@@ -263,11 +293,13 @@ public struct ImageInventory: Sendable, Equatable, Codable {
 
     /// The Docker section, or nil when the runtime is neither configured nor
     /// installed. Same shape as `probeContainer`.
-    private static func probeDocker(_ config: KinhinConfig) async -> RuntimeImages? {
+    private static func probeDocker(_ config: KinhinConfig) async throws -> RuntimeImages? {
         guard config.docker != nil || Paths.findExecutable(named: "docker") != nil else { return nil }
-        switch await DockerRuntime(image: config.docker?.image ?? "kinhin-ci-linux").health() {
+        let docker = DockerRuntime(image: config.docker?.image ?? "kinhin-ci-linux")
+        switch await docker.health() {
         case .ready:
-            return await listing(runtime: .docker, config: config, instances: true, sizes: true)
+            let images = await listing(runtime: .docker, config: config, sizes: true)
+            return try await withInstances(images, runtime: .docker) { try await docker.existingInstanceIDs() }
         case .missing(_, let fix):
             return RuntimeImages(unavailable: "docker is not available — \(fix)")
         case .broken(let why):
@@ -351,7 +383,9 @@ public struct ImageInventory: Sendable, Equatable, Codable {
         if let wanted, images.unavailable == nil, !listed.contains(where: { ociMatches(name: $0, wanted: wanted) }) {
             entries.append(Entry(name: wanted, runtime: runtime, role: .base, present: false))
         }
-        return Section(runtime: runtime, unavailable: images.unavailable, entries: sorted(entries))
+        return Section(
+            runtime: runtime, unavailable: images.unavailable, usageUnknown: images.usageUnknown,
+            entries: sorted(entries))
     }
 
     /// The `name:tag` form a configured image reference can match (`x` also

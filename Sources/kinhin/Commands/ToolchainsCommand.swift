@@ -127,17 +127,30 @@ enum ToolchainsCommand {
             return
         }
         // Sizes are cosmetic, but they must come from the fleet's tart:
-        // honor `tart_path:` like every other tart call (a config that won't
-        // load only costs the sizes, never the listing).
-        let tartPath = (try? ConfigLoader.load())?.tartPath
-        let sizes = ((try? await TartController(configuredPath: tartPath).list()) ?? []).reduce(into: [String: Int]()) {
-            $0[$1.name] = $1.diskGB
+        // honor `tart_path:` like every other tart call. A config or tart
+        // that fails costs the sizes (with a warning), never the listing.
+        var sizes: [String: Int]?
+        do {
+            let tartPath = try loadConfigIfPresent()?.tartPath
+            sizes = try await TartController(configuredPath: tartPath).list().reduce(into: [String: Int]()) {
+                $0[$1.name] = $1.diskGB
+            }
+        } catch {
+            warn("could not list tart images (\(error.localizedDescription)); sizes are not shown")
         }
         for record in records {
-            let size = sizes[record.name].map { "\($0) GB disk" } ?? "not on disk"
+            let size = sizeLabel(record.name, sizes: sizes)
             let used = record.lastUsedAt.formatted(date: .abbreviated, time: .shortened)
             print("\(record.name)  \(record.summary)  [\(size)] last used \(used)")
         }
+    }
+
+    /// One derived image's size column: its disk size, "not on disk", or
+    /// "size unknown" when tart could not be listed (`sizes` nil) — never
+    /// "not on disk" for an image that may well be there.
+    static func sizeLabel(_ name: String, sizes: [String: Int]?) -> String {
+        guard let sizes else { return "size unknown" }
+        return sizes[name].map { "\($0) GB disk" } ?? "not on disk"
     }
 
     /// `kinhin toolchains helper [--linux]`: the per-job helper script as
@@ -149,9 +162,14 @@ enum ToolchainsCommand {
     /// `kinhin toolchains prune [--dry-run]`.
     static func prune(_ args: [String]) async {
         let dryRun = hasFlag("--dry-run", in: args)
-        // A broken config degrades to the default prune policy; the prune
-        // report itself is still fully accurate.
-        let cfg = try? ConfigLoader.load()
+        // No config means the default prune policy; a broken one fails the
+        // prune instead of deleting by a policy the user did not write.
+        let cfg: KinhinConfig?
+        do {
+            cfg = try loadConfigIfPresent()
+        } catch {
+            fail(error)
+        }
         let policy = ToolchainCachePolicy(from: cfg?.toolchainCache)
         // Manual prune always executes regardless of auto_prune (explicit
         // intent); --dry-run reports without touching anything.
@@ -191,7 +209,7 @@ enum ToolchainsCommand {
     }
 
     static func jsonSummary() -> String {
-        // A broken config degrades to defaults in the JSON document (the
+        // A broken config degrades to defaults in this JSON document (the
         // doctor's JSON embeds the same config error separately).
         let cfg = try? ConfigLoader.load()
         let policy = ToolchainCachePolicy(from: cfg?.toolchainCache)
@@ -224,6 +242,7 @@ enum ToolchainsCommand {
             "tools": ToolchainCatalog.tools.map { ["id": $0.id, "summary": $0.summary] },
             "stacks": ToolchainCatalog.stacks.map { ["id": $0.id, "summary": $0.summary] },
         ]
+        // `dict` holds only strings, numbers, arrays and dictionaries, so serialization cannot fail.
         guard let data = try? JSONSerialization.data(withJSONObject: dict, options: [.sortedKeys, .prettyPrinted]),
             let text = String(data: data, encoding: .utf8)
         else {

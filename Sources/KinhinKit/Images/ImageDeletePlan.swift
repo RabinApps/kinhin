@@ -78,6 +78,18 @@ public struct ImageDeletePlan: Sendable, Equatable {
         for name in names where seen.insert(name).inserted {
             let matches = inventory.entries.filter { $0.name == name && ($0.present || $0.stale) }
             if !matches.isEmpty {
+                let unknown = inventory.sections.filter { section in
+                    section.usageUnknown != nil && matches.contains { $0.runtime == section.runtime }
+                }
+                if let section = unknown.first, let reason = section.usageUnknown {
+                    refusals.append(
+                        Refusal(
+                            name: name, kind: .inUse,
+                            reason:
+                                "'\(name)' may be in use — \(reason); fix that and retry, or stop the fleet"
+                                + " first: kinhin stop"))
+                    continue
+                }
                 let users = matches.flatMap(\.usedBy).sorted()
                 if !users.isEmpty {
                     refusals.append(

@@ -167,4 +167,16 @@ final class ImageDeletePlanTests: XCTestCase {
         record.image = image
         return record
     }
+
+    func testRefusesAnImageWhoseRuntimeInstancesCouldNotBeListed() {
+        let inventory = ImageInventory.build(
+            config: config(), tart: .init(names: ["tahoe-base"]),
+            docker: .init(names: ["old:1"], usageUnknown: "could not list docker instances: boom"))
+
+        let plan = ImageDeletePlan.plan(names: ["old:1"], inventory: inventory)
+
+        XCTAssertEqual(plan.targets, [])
+        XCTAssertEqual(plan.refusals.map(\.kind), [.inUse])
+        XCTAssertTrue(plan.refusals[0].reason.contains("could not list docker instances: boom"))
+    }
 }

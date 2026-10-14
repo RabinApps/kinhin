@@ -138,7 +138,8 @@ public struct DoctorReportBuilder: Sendable {
         let injectedHost = hostHealth
         async let cltProbe: CLTState = {
             if let injectedCLT { return injectedCLT }
-            return await CLTProbe().check()
+            // check() throws only CancellationError; a cancelled report is discarded by its caller.
+            return (try? await CLTProbe().check()) ?? .missing
         }()
         async let tartProbe: TartHealth = {
             if let injectedTart { return injectedTart }

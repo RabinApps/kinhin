@@ -11,21 +11,27 @@ enum ImageListCommand {
     /// could not be listed and why, and each runtime's total disk usage —
     /// the bloat-at-a-glance number, keyed by runtime (a runtime whose
     /// sizes could not be read has no key). Key-sorted and pretty like
-    /// every other machine-readable CLI output.
+    /// every other machine-readable CLI output. `usageUnknown` names the
+    /// runtimes whose instances could not be listed, so an empty `usedBy`
+    /// there does not mean "unused".
     struct Report: Codable, Equatable {
         var images: [ImageInventory.Entry]
         var unavailable: [String: String]
+        var usageUnknown: [String: String]
         var totalGB: [String: Int]
     }
 
     static func report(for inventory: ImageInventory) -> Report {
         var unavailable: [String: String] = [:]
+        var usageUnknown: [String: String] = [:]
         var totalGB: [String: Int] = [:]
         for section in inventory.sections {
             if let reason = section.unavailable { unavailable[section.runtime.rawValue] = reason }
+            if let reason = section.usageUnknown { usageUnknown[section.runtime.rawValue] = reason }
             if let total = section.totalGB { totalGB[section.runtime.rawValue] = total }
         }
-        return Report(images: inventory.entries, unavailable: unavailable, totalGB: totalGB)
+        return Report(
+            images: inventory.entries, unavailable: unavailable, usageUnknown: usageUnknown, totalGB: totalGB)
     }
 
     /// What the flags asked for: the machine-readable form, and (via
@@ -68,7 +74,7 @@ enum ImageListCommand {
 
     static func run(_ args: [String]) async throws {
         let query = try Query.parse(args)
-        let inventory = await ImageInventory.probe(config: loadConfigLeniently(), only: query.only)
+        let inventory = try await ImageInventory.probe(config: loadConfigLeniently(), only: query.only)
         if query.json {
             try emitJSON(report(for: inventory), dates: .iso8601)
             return
@@ -92,6 +98,9 @@ enum ImageListCommand {
                 lines.append("  no images installed")
             } else if section.presentCount > 0 {
                 lines.append(summary(for: section))
+            }
+            if let reason = section.usageUnknown {
+                lines.append("  in-use runners unknown — \(reason)")
             }
             let width = section.entries.map { $0.name.count }.max() ?? 0
             lines += section.entries.map { row($0, nameWidth: width) }

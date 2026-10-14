@@ -59,12 +59,24 @@ actor ProjectImageBuilder {
     }
 
     /// Returns the image when it exists, otherwise starts a bake (unless one
-    /// is running or failed recently) and reports its state.
-    func request(toolchains: KinhinConfig.ToolchainsConfig, shareCache: Bool) async -> Availability {
+    /// is running or failed recently) and reports its state. A `tart list`
+    /// that fails is `.failed` with that reason, never "not built yet": a
+    /// bake over a ready image would be wasted work at best. Throws only
+    /// `CancellationError`.
+    func request(toolchains: KinhinConfig.ToolchainsConfig, shareCache: Bool) async throws -> Availability {
         let key = imageKey(toolchains, shareCache: shareCache)
         let name = ToolchainImageKey.imageName(base: baseImage, key: key)
         if building.contains(name) { return .building(name: name) }
-        if await exists(name), store.record(named: name) != nil {
+        let present: Bool
+        do {
+            present = try await exists(name)
+        } catch let cancelled as CancellationError {
+            throw cancelled
+        } catch {
+            Log.warn("images", "could not list tart images: \(error.localizedDescription)")
+            return .failed(name: name, reason: "could not list tart images: \(error.localizedDescription)")
+        }
+        if present, store.record(named: name) != nil {
             store.touch(name, now: now())
             return .ready(name: name)
         }
@@ -121,16 +133,11 @@ actor ProjectImageBuilder {
         Log.info("images", "project image \(name) is ready")
     }
 
-    private func exists(_ name: String) async -> Bool {
+    private func exists(_ name: String) async throws -> Bool {
         if let seen = seenReady[name], now().timeIntervalSince(seen) < Self.readyTTL { return true }
-        do {
-            let found = try await tart.list().contains { $0.name == name }
-            seenReady[name] = found ? now() : nil
-            return found
-        } catch {
-            Log.warn("images", "could not list tart images: \(error.localizedDescription)")
-            return false
-        }
+        let found = try await tart.list().contains { $0.name == name }
+        seenReady[name] = found ? now() : nil
+        return found
     }
 
     /// Deletes derived images beyond the limits; images a live VM was cloned

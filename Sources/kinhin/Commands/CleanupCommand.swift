@@ -67,6 +67,19 @@ enum CleanupCommand {
         try emitJSON(report(for: plan, targets: targets))
     }
 
+    /// The tart controller for the VM and image groups, or why there is
+    /// none: a missing tart (or a broken `tart_path:`) skips those groups
+    /// with a warning instead of reporting "nothing to clean up" in silence.
+    /// No warning when only the cache was asked for.
+    static func tartController(for targets: CleanupPlan.Targets, tartPath: String?) -> (TartController?, String?) {
+        guard targets.vms || targets.image else { return (nil, nil) }
+        do {
+            return (try TartController(configuredPath: tartPath), nil)
+        } catch {
+            return (nil, "\(error.localizedDescription) — runner VMs and images are skipped")
+        }
+    }
+
     static func run(_ args: [String]) async throws {
         let selection = Selection(args: args)
         let confirmed = hasFlag("--yes", in: args)
@@ -85,7 +98,8 @@ enum CleanupCommand {
             warn("could not read the config (\(error.localizedDescription)); only the default image name is considered")
             config = KinhinConfig.default
         }
-        let tart = try? TartController(configuredPath: config.tartPath)
+        let (tart, tartWarning) = tartController(for: selection.targets, tartPath: config.tartPath)
+        if let tartWarning { warn(tartWarning) }
         let plan = try await CleanupPlan.plan(
             targets: selection.targets, tart: tart, baseImage: config.image,
             namedImages: config.images.map(\.name), cacheRoot: Paths.toolchainCache)

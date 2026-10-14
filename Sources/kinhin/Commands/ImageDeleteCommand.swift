@@ -20,7 +20,7 @@ enum ImageDeleteCommand {
             throw CLIError("image delete needs at least one image name — see: kinhin image list", exit: .usage)
         }
         let config = loadConfigLeniently()
-        let inventory = await ImageInventory.probe(config: config)
+        let inventory = try await ImageInventory.probe(config: config)
         let plan = ImageDeletePlan.plan(names: names, inventory: inventory, fleet: FleetStore().all)
         guard plan.refusals.isEmpty else {
             for refusal in plan.refusals { printError("kinhin: \(refusal.reason)") }
@@ -39,7 +39,7 @@ enum ImageDeleteCommand {
             print("nothing was deleted; re-run with --yes to remove the above (stop the fleet first: kinhin stop)")
             return
         }
-        let tart = try? TartController(configuredPath: config.tartPath)
+        let tart = try tartForDeletion(plan.targets, tartPath: config.tartPath)
         try await plan.execute(
             tart: tart, container: AppleContainerRuntime(),
             docker: DockerRuntime(image: config.docker?.image ?? "kinhin-ci-linux"))
@@ -48,6 +48,15 @@ enum ImageDeleteCommand {
             removed.isEmpty
                 ? "cleared \(plan.targets.count) stale derived-image record(s)"
                 : "deleted \(removed.count) image(s): \(removed.joined(separator: ", "))")
+    }
+
+    /// The tart controller the deletion needs: nil when no target is an
+    /// installed tart image, and the controller's own error (naming the
+    /// configured `tart_path:`) when one is but tart cannot be found — never
+    /// a silently skipped deletion. Shared with `image prune`.
+    static func tartForDeletion(_ targets: [ImageDeletePlan.Target], tartPath: String?) throws -> TartController? {
+        guard targets.contains(where: { $0.present && $0.runtime == .tart }) else { return nil }
+        return try TartController(configuredPath: tartPath)
     }
 
     // MARK: - Report

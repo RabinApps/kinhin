@@ -437,7 +437,17 @@ extension FleetEngine {
             return state.vms
         }
         if let fresh { return fresh }
-        guard let vms = try? await tart.list() else { return [] }
+        let vms: [TartVM]
+        do {
+            vms = try await tart.list()
+        } catch {
+            // Not cached, and none means "not prepared" (the conservative answer); a
+            // cancelled pass discards it. Anything else is logged, not hidden.
+            if !(error is CancellationError) {
+                Log.warn("reconcile", "tart list failed: \(error.localizedDescription)")
+            }
+            return []
+        }
         tartListing.withLock { state in
             state.vms = vms
             state.fetchedAt = Date()

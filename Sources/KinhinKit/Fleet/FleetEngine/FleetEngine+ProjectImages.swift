@@ -39,6 +39,7 @@ extension FleetEngine {
             if !projects.isEmpty { candidates.append(job) }
         }
         let source = projectSource
+        // Only cancellation can fail the lookups; the guard below stops like the pass.
         let resolutions = try? await boundedMap(candidates, limit: 4) { job in
             await source.resolve(job: job, forge: forge, projects: projects)
         }
@@ -46,7 +47,11 @@ extension FleetEngine {
         for (job, resolution) in zip(candidates, resolutions) {
             if let warning = resolution.warning { Log.warn("engine", warning) }
             guard let toolchains = resolution.toolchains else { continue }
-            let availability = await projectImages.request(toolchains: toolchains, shareCache: resolution.shareCache)
+            guard
+                // request throws only CancellationError: stop like a cancelled lookup above.
+                let availability = try? await projectImages.request(
+                    toolchains: toolchains, shareCache: resolution.shareCache)
+            else { return result }
             switch availability {
             case .ready(let name):
                 result.byImage[name, default: 0] += 1

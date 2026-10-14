@@ -93,17 +93,25 @@ public struct CLTProbe: Sendable {
         return true
     }
 
-    public func check() async -> CLTState {
-        func run(_ command: String) async -> ShellResult? {
+    /// The CLT state. Throws only `CancellationError`: a probe that could not
+    /// run is logged and reads as "tool absent", but a cancelled one stops.
+    public func check() async throws -> CLTState {
+        func run(_ command: String) async throws -> ShellResult? {
             // The probe commands are fixed strings; run through the shell so
             // plain argv tools work with the same ShellRunning abstraction.
-            // A cancelled probe simply reads as "tool absent".
-            try? await shell.run(["/bin/bash", "-c", command], cwd: nil, timeout: 15)
+            do {
+                return try await shell.run(["/bin/bash", "-c", command], cwd: nil, timeout: 15)
+            } catch let cancelled as CancellationError {
+                throw cancelled
+            } catch {
+                Log.warn("devtools", "probe `\(command)` could not run: \(error.localizedDescription)")
+                return nil
+            }
         }
 
         // 1. The receipt is the ground truth for "are CLT installed at all"
         // (the same package receipt Homebrew reads).
-        guard let receipt = await run(commands.receiptInfo), receipt.succeeded else {
+        guard let receipt = try await run(commands.receiptInfo), receipt.succeeded else {
             return .missing
         }
         var version: String?
@@ -119,7 +127,7 @@ public struct CLTProbe: Sendable {
 
         // 2. With a receipt present, a broken/absent xcode-select target
         // means the tools exist but nothing is selected to use them.
-        if let dir = await run(commands.selectedDir) {
+        if let dir = try await run(commands.selectedDir) {
             let path = dir.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
             if !dir.succeeded || path.isEmpty
                 || path.contains("error: unable to get active developer directory")

@@ -22,7 +22,7 @@ final class ProjectImageBuilderTests: XCTestCase {
         return value
     }
 
-    func testMissingImageStartsOneBakeThenIsReady() async {
+    func testMissingImageStartsOneBakeThenIsReady() async throws {
         let tart = FakeTart()
         struct Baked: Sendable {
             let source: String
@@ -40,12 +40,12 @@ final class ProjectImageBuilderTests: XCTestCase {
                 bakes.withLock { $0.append(baked) }
                 tart.vms[options.target] = TartVM(name: options.target, source: "local", status: "stopped")
             })
-        let first = await builder.request(toolchains: toolchains("go@1.22.5"), shareCache: false)
-        let again = await builder.request(toolchains: toolchains("go@1.22.5"), shareCache: false)
+        let first = try await builder.request(toolchains: toolchains("go@1.22.5"), shareCache: false)
+        let again = try await builder.request(toolchains: toolchains("go@1.22.5"), shareCache: false)
         guard case .building(let name) = first else { return XCTFail("expected building, got \(first)") }
         XCTAssertEqual(again, .building(name: name))
         await builder.waitForBakes()
-        let ready = await builder.request(toolchains: toolchains("go@1.22.5"), shareCache: false)
+        let ready = try await builder.request(toolchains: toolchains("go@1.22.5"), shareCache: false)
         XCTAssertEqual(ready, .ready(name: name))
         let recorded = bakes.withLock { $0 }
         XCTAssertEqual(recorded.count, 1)
@@ -55,7 +55,7 @@ final class ProjectImageBuilderTests: XCTestCase {
         XCTAssertFalse(recorded.first?.shareCache ?? true)
     }
 
-    func testFailedBakeIsNotRetriedImmediately() async {
+    func testFailedBakeIsNotRetriedImmediately() async throws {
         struct Boom: LocalizedError { var errorDescription: String? { "boom" } }
         let clock = Locked(Date(timeIntervalSince1970: 0))
         let count = Locked(0)
@@ -65,16 +65,32 @@ final class ProjectImageBuilderTests: XCTestCase {
                 count.withLock { $0 += 1 }
                 throw Boom()
             }, now: { clock.withLock { $0 } })
-        _ = await builder.request(toolchains: toolchains("go@1.22.5"), shareCache: false)
+        _ = try await builder.request(toolchains: toolchains("go@1.22.5"), shareCache: false)
         await builder.waitForBakes()
-        let result = await builder.request(toolchains: toolchains("go@1.22.5"), shareCache: false)
+        let result = try await builder.request(toolchains: toolchains("go@1.22.5"), shareCache: false)
         guard case .failed(_, let reason) = result else { return XCTFail("expected failed, got \(result)") }
         XCTAssertEqual(reason, "boom")
         XCTAssertEqual(count.withLock { $0 }, 1)
         clock.withLock { $0 = Date(timeIntervalSince1970: ProjectImageBuilder.retryAfter) }
-        _ = await builder.request(toolchains: toolchains("go@1.22.5"), shareCache: false)
+        _ = try await builder.request(toolchains: toolchains("go@1.22.5"), shareCache: false)
         await builder.waitForBakes()
         XCTAssertEqual(count.withLock { $0 }, 2)
+    }
+
+    /// A failing `tart list` is a failure with its reason, never "not built
+    /// yet": no bake starts over what may be a ready image.
+    func testFailingTartListIsAFailureNotABake() async throws {
+        let tart = FakeTart()
+        tart.failList = true
+        let bakes = Locked(0)
+        let builder = ProjectImageBuilder(
+            tart: tart, store: ProjectImageStore(directory: dir), baseImage: "tahoe-base",
+            bake: { _ in bakes.withLock { $0 += 1 } })
+        let result = try await builder.request(toolchains: toolchains("go@1.22.5"), shareCache: false)
+        guard case .failed(_, let reason) = result else { return XCTFail("expected failed, got \(result)") }
+        XCTAssertTrue(reason.hasPrefix("could not list tart images"), reason)
+        await builder.waitForBakes()
+        XCTAssertEqual(bakes.withLock { $0 }, 0)
     }
 
     func testPruneDeletesLRUAndKeepsInUse() async {

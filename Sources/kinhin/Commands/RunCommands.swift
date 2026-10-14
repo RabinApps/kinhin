@@ -168,9 +168,15 @@ enum RunCommands {
             }
             print("daemon: not running")
             // Capacity and orphans are extras on a "not running" answer: a
-            // broken config or missing tart just leaves them out.
-            let cfg: KinhinConfig? =
-                FileManager.default.fileExists(atPath: Paths.config.path) ? try? ConfigLoader.load() : nil
+            // broken config says so on stderr and leaves capacity out.
+            var cfg: KinhinConfig?
+            if FileManager.default.fileExists(atPath: Paths.config.path) {
+                do {
+                    cfg = try ConfigLoader.load()
+                } catch {
+                    warn("could not read the config (\(error.localizedDescription)); capacity is not shown")
+                }
+            }
             if let cfg {
                 let host = ResourceProbe().snapshot()
                 let plan = Capacity.plan(for: cfg, host: host)
@@ -184,20 +190,38 @@ enum RunCommands {
                     )
                 }
             }
-            let tarts: [TartVM]
             // The orphan scan lists through the fleet's tart: honor
             // `tart_path:` like every other tart call, never a PATH lookalike.
-            if let controller = try? TartController(configuredPath: cfg?.tartPath) {
-                tarts = (try? await controller.list()) ?? []
-            } else {
-                tarts = []
+            // No tart on PATH and none configured means no VMs to be orphaned.
+            let tartPath = cfg?.tartPath
+            var list: (() async throws -> [TartVM])?
+            if tartPath != nil || Paths.findExecutable(named: "tart") != nil {
+                list = { try await TartController(configuredPath: tartPath).list() }
             }
-            let ours = tarts.filter { $0.name.hasPrefix("kinhin-") }
-            if !ours.isEmpty {
-                print("orphaned kinhin VMs (daemon not managing them):")
-                for vm in ours { print("  \(vm.name)  \(vm.status)") }
-            }
+            let scan = try await orphanScan(list)
+            for line in scan.lines { print(line) }
+            if let warning = scan.warning { warn(warning) }
         }
+    }
+
+    /// The "not running" status's orphan section: kinhin VMs tart holds that
+    /// no daemon manages. A failing tart is a warning, never "no orphans";
+    /// `list` nil means there is no tart to ask. Cancellation propagates.
+    static func orphanScan(
+        _ list: (() async throws -> [TartVM])?
+    ) async throws -> (lines: [String], warning: String?) {
+        guard let list else { return ([], nil) }
+        let vms: [TartVM]
+        do {
+            vms = try await list()
+        } catch let cancelled as CancellationError {
+            throw cancelled
+        } catch {
+            return ([], "could not check for orphaned VMs: \(error.localizedDescription)")
+        }
+        let ours = vms.filter { $0.name.hasPrefix("kinhin-") }
+        guard !ours.isEmpty else { return ([], nil) }
+        return (["orphaned kinhin VMs (daemon not managing them):"] + ours.map { "  \($0.name)  \($0.status)" }, nil)
     }
 
     /// The machine-readable status document, shared with the MCP `status`
@@ -216,22 +240,27 @@ enum RunCommands {
 
     static func watch(_ args: [String]) async {
         while true {
-            // Reuse the status command's rendering.
-            // A dead or failing daemon reads as "not running" on this refresh.
             // The status call itself tells whether a daemon answers (no ping first).
-            if let status = try? RPCClient().status() {
-                print("\u{1B}[2J\u{1B}[H")  // clear screen
-                print(FleetStatusFormatter.report(status))
-                print("(refreshing every 2s — Ctrl-C to exit)")
-            } else {
-                print("\u{1B}[2J\u{1B}[H")
-                print("daemon not running…")
-            }
+            print("\u{1B}[2J\u{1B}[H")  // clear screen
+            print(watchFrame(Result { try RPCClient().status() }))
             do {
                 try await Task.sleep(for: .seconds(2))
             } catch {
                 return  // cancelled: stop watching
             }
+        }
+    }
+
+    /// One `kinhin status --watch` refresh. Only "nobody is listening" reads
+    /// as not running; any other daemon error is shown as that error.
+    static func watchFrame(_ status: Result<FleetStatus, Error>) -> String {
+        switch status {
+        case .success(let status):
+            return FleetStatusFormatter.report(status) + "\n(refreshing every 2s — Ctrl-C to exit)"
+        case .failure(RPCError.connectionFailed):
+            return "daemon not running…"
+        case .failure(let error):
+            return "daemon error: \(error.localizedDescription) (retrying every 2s — Ctrl-C to exit)"
         }
     }
 

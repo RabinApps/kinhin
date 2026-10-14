@@ -15,6 +15,31 @@ final class DaemonLaunchAgentTests: XCTestCase {
             "a re-install restarts the daemon instead of leaving the old one running")
     }
 
+    func testAFailedBootoutOfALoadedAgentThrowsInsteadOfKeepingTheOldDaemon() async throws {
+        let shell = FakeShell()
+        shell.scriptedResponses = [
+            ScriptedResponse(whenContains: "bootout", ShellResult(exitCode: 5, stdout: "", stderr: "I/O error"))
+        ]
+        do {
+            _ = try await Daemon.loadAgent(shell: shell)
+            XCTFail("a still-loaded agent must not be silently replaced")
+        } catch let error as Daemon.DaemonError {
+            XCTAssertEqual(error, .bootoutFailed("I/O error"))
+        }
+        XCTAssertFalse(shell.calls.contains { $0.contains("load") }, "nothing is loaded over the old daemon")
+    }
+
+    func testAFailedBootoutOfAnAgentThatIsNotLoadedStillLoads() async throws {
+        let shell = FakeShell()
+        shell.scriptedResponses = [
+            ScriptedResponse(whenContains: "bootout", ShellResult(exitCode: 3, stdout: "", stderr: "No such process")),
+            ScriptedResponse(whenContains: "print", ShellResult(exitCode: 113, stdout: "", stderr: "not found")),
+        ]
+        let result = try await Daemon.loadAgent(shell: shell)
+        XCTAssertTrue(result.succeeded)
+        XCTAssertEqual(shell.calls.last?[1], "load")
+    }
+
     func testASymlinkIntoADebugBuildIsADebugBuild() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("kinhin-agent-\(UUID().uuidString)", isDirectory: true)
