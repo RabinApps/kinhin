@@ -378,7 +378,9 @@ final class DoctorReportTests: XCTestCase {
     func testToolchainCacheSectionSelectionBreakdownUsesConfigSubdirectories() throws {
         // The pure mapping: a toolchains selection yields exactly its mapped
         // subdirectories (deduplicated), sorted, even for dirs that
-        // don't exist yet (measured as zero bytes).
+        // don't exist yet (measured as zero bytes). The breakdown needs a usable
+        // cache root, which a fresh CI host does not have yet.
+        try FileManager.default.createDirectory(at: Paths.toolchainCache, withIntermediateDirectories: true)
         var cfg = Self.config()
         cfg.projects = [Self.project(specs: ["go@1.23", "go@latest"])]
         let section = DoctorReportBuilder.toolchainCacheSection(config: cfg)
