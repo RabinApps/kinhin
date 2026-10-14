@@ -34,7 +34,7 @@ scripts/check.sh                  # everything CI runs, in one command, failing 
                                   # format lint, l10n lint, docs lint, docs-sync --check, skills lint)
 scripts/check.sh --fast           # same, skips the ~2 min test run — iterate with this
 swift build
-swift test                        # ~2300 XCTest tests, ~2 min; no VMs or network needed
+swift test                        # ~3100 XCTest tests, ~5 min with --parallel; no VMs or network needed
 scripts/tsan.sh                   # ThreadSanitizer run (serial); recipe below
 scripts/e2e.sh                    # end-to-end suite against real forges and runners; see docs/e2e-testing.md
 scripts/l10n-lint.sh              # String Catalog vs. the app's sources; --sync adds/drops entries

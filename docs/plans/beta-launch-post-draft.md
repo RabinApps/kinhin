@@ -128,7 +128,7 @@ I use two words precisely:
 | ThreadSanitizer                                                                                                | One clean run of `scripts/tsan.sh`        |
 | Long-running soak test                                                                                         | Not done                                  |
 
-There are about 2,900 unit tests that need no VMs or network. They run in about two minutes, and they are not evidence that
+There are about 3,100 unit tests that need no VMs or network. They run in about five minutes with `--parallel`, and they are not evidence that
 the real services agree with me.
 
 Measured once on my own Mac (M1 Max, 64 GB, macOS 27) with `kinhin bench`: a Tart macOS VM boots to SSH-ready in about

@@ -1,6 +1,6 @@
 # End-to-end testing
 
-`swift test` runs about 2,900 tests against fakes (`FakeTart`, `FakeSSH`, `FakeGitea`, ...) in a few minutes with no VMs
+`swift test` runs about 3,100 tests against fakes (`FakeTart`, `FakeSSH`, `FakeGitea`, ...) in about five minutes with `--parallel` and no VMs
 and no network. That keeps the suite fast, but it can only prove kinhin agrees with its own model of a forge or a
 runner. The end-to-end (e2e) suite in `Tests/E2E` checks the model against the real thing: a real forge in a
 container, a real kinhin daemon, a real runner image, and a job that really runs inside a guest.
