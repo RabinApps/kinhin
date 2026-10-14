@@ -70,6 +70,29 @@ flowchart TB
 
 The runtime protocol keeps the fleet independent of whether a job uses a VM, container, Docker instance, or host process. The CI provider schedules work to registered runners; the engine learns runner state and job completion through the provider API or scale-set event flow.
 
+## Videos and screenshots
+
+Two pipelines sit beside the fleet and do not go through `FleetEngine`. `kinhin video` renders a product video in a container
+image, using whichever of Apple's `container` or Docker is running. `kinhin mobile init` writes the fastlane setup that
+captures store screenshots on a macOS runner. CI runs both, and the video CI adds a plan, claims and publish flow.
+
+```mermaid
+flowchart LR
+    cli["kinhin video / kinhin mobile"] --> runner["VideoRunner<br>container or Docker"]
+    cli --> scaffold["MobileScaffold<br>writes fastlane files"]
+    runner --> image["Video image<br>Motion Canvas, Chromium, ffmpeg"]
+    scaffold --> lane["fastlane screenshots lane"]
+    ci["CI workflows"] --> runner
+    ci --> lane
+    image --> videos["Videos in out/"]
+    lane --> shots["Screenshot PNGs"]
+    shots -. "props.screens" .-> image
+```
+
+- [Videos](architecture-videos.md): the capture and render halves, the build steps, the CI job graph, and verification.
+- [Screenshots](architecture-screenshots.md): the scaffolding, what the lane does on iOS and Android, the CI artifact, and
+  how screenshots feed a video.
+
 ## Trust boundaries and security posture
 
 The host, daemon, and engine form the control plane; forge services and runner environments are separate trust domains. Treat job code as untrusted unless its repository is trusted. Key controls and known limitations are documented in the [security guide](security.md).
