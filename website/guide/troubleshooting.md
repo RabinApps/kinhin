@@ -1,5 +1,8 @@
 # Troubleshooting
 
+Start with `kinhin heal`: the [healing agent](/guide/healing) fixes many of the problems below on its own, lists the
+fixes waiting for your approval, and says what only you can do.
+
 - **`kinhin doctor` shows "tart: NOT FOUND"** — run `kinhin setup repair tart` (or use the setup
   window's fix button), then re-run `kinhin doctor`.
 - **"tart: INSTALLED BUT KILLED ON LAUNCH ✗"** — the OpenAI-tap bottle is un-notarized;

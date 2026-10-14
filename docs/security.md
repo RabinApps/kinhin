@@ -56,10 +56,30 @@ treated as untrusted input and bounded ([how it works](toolchains.md#per-project
 - **Bad files never block the fleet.** A failed fetch or parse is logged and the job runs on the
   global image.
 
+## The healing agent
+
+The [healing agent](healing.md) fixes fleet problems on its own, so its limits are part of the security model.
+
+- **No tokens.** It never stores, reads or replaces a token. A rejected or missing token is shown to you with the
+  `kinhin auth set` command, and tokens and setup problems are never offered to the on-device model.
+- **A closed list of fixes.** Every fix is one of a fixed set, each running a code path kinhin already has (the same
+  prune, install and teardown the CLI uses). Nothing runs a command a model or a log line wrote. Destructive or slow
+  fixes (pruning images, installing or rolling back a runtime) wait for your approval, and the MCP server cannot
+  approve one.
+- **Redacted and owner-only.** Every problem, outcome and advisor explanation passes the log redactor before it is
+  stored or shown. The journal (`state/healing.json`, the last 100 entries) is written owner-only.
+- **On-device model.** The optional advisor is Apple Intelligence on this Mac (Foundation Models): no account, no
+  network call. It sees the redacted problem, the allowed fixes and a few dozen redacted log lines, and kinhin checks its pick
+  again before acting.
+- **Test switches stay out of releases.** `KINHIN_HEALING_TIMINGS` and `KINHIN_HEALING_ADVISOR`, which the e2e suite
+  uses to speed the agent up and fix the advisor's answer, are read only by debug builds; release builds never read
+  them.
+
 ## Telemetry and network calls
 
 kinhin sends no telemetry and has no analytics. It talks only to the forges you configure (and their runner
-download hosts), and to GitHub Releases for the once-a-day update check.
+download hosts), and to GitHub Releases for the once-a-day update check. A runtime install you approve in
+`kinhin heal` downloads like `kinhin setup repair` does; the healing advisor makes no network calls.
 
 ## Known limits
 

@@ -86,6 +86,24 @@ stays cold, or the other way round.
 
 This differs from `min_runners`, which keeps *registered* idle runners on the forge.
 
+## Healing
+
+The scaling loop recovers from most failures by itself: the spawn backoff above, teardown retries, forge re-attach
+backoff, and an orphan sweep for instances kinhin started but no longer has a record of. The [healing agent](healing.md) runs in its
+own loop beside it and covers what those do not, without ever delaying a scaling pass:
+
+- **Warm VMs.** A warm VM waits with nothing driving it, so no liveness watch sees it die. The engine's orphan sweep
+  (every 2 minutes, healing on or off) lists each runtime once and removes the record of a warm VM deleted or stopped
+  outside kinhin, so it stops holding a slot and the pool tops up again; the healing journal notes each removal.
+- **Disk pressure.** When the disk guard holds spawns, the agent prunes the toolchain cache (with `auto_prune` on) and
+  then asks before pruning unused images.
+- **Spawn backoff.** The backoff keeps a failing runtime from respawning in a loop; the agent looks at why. A stopped
+  Apple container system is started on its own; a missing runtime or a broken tart waits for your approval.
+- **Detached accounts.** An account that dropped off for a minute is re-attached at once instead of waiting out its
+  backoff; a rejected token is shown to you.
+
+With `healing.enabled: false` all of the engine's own retries still run. `kinhin heal` shows what the agent did.
+
 ## Pausing and auto-resume
 
 A paused fleet doesn't spawn new instances. With `auto_resume: true` it keeps watching the queue while paused and

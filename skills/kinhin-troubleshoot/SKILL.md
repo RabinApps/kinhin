@@ -7,15 +7,18 @@ description: Diagnose kinhin problems - jobs queued but no VMs, runner never reg
 
 ## Diagnose in this order
 
-1. `kinhin doctor` (add `--json` to parse it). It checks Tart, disk, tokens, isolation posture and the capacity cap —
+1. `kinhin heal` (add `--json` to parse it): what the healing agent already fixed, fixes waiting for approval, and
+   problems only the user can fix. Never approve a fix for the user: show the entry and let them run
+   `kinhin heal approve ID` themselves.
+2. `kinhin doctor` (add `--json` to parse it). It checks Tart, disk, tokens, isolation posture and the capacity cap —
    and reports each runtime's image disk usage (`imageTotalGB`), with `imagePrune` naming what
    `kinhin image prune` would reclaim when unused images are wasting disk. Doctor is offline by default and only
    says whether a token is *stored*; add `--check-tokens` to probe every account's token against its forge (a revoked
    GitLab/Gitea token otherwise looks fine). A failed check makes doctor not ready and names the `kinhin auth set` fix.
-2. `kinhin setup status` and `kinhin auth status`.
-3. `kinhin logs -n 200`, and `~/Library/Application Support/Kinhin/logs/kinhin.log`.
-4. `kinhin status` and `kinhin pipeline` to see what the fleet thinks is happening.
-5. For a bug report: `kinhin doctor --bundle [FILE]` writes a redacted support bundle. Tell the user to review it before
+3. `kinhin setup status` and `kinhin auth status`.
+4. `kinhin logs -n 200`, and `~/Library/Application Support/Kinhin/logs/kinhin.log`.
+5. `kinhin status` and `kinhin pipeline` to see what the fleet thinks is happening.
+6. For a bug report: `kinhin doctor --bundle [FILE]` writes a redacted support bundle. Tell the user to review it before
    attaching it to a GitHub issue.
 
 ## Symptoms
@@ -27,6 +30,7 @@ description: Diagnose kinhin problems - jobs queued but no VMs, runner never reg
 | Jobs queue but no VMs start | The job's `runs-on` (or tags) must include every configured label. The scaler counts only runnable jobs. Check `labels` and the forge's targeting rules. |
 | Jobs land on the wrong runtime, or queue forever after a `runs-on:` edit | Precedence is workflow route → repo route → `runs-on:` marker → default: a repo route outranks the marker, and a GitHub-hosted label (`ubuntu-latest`) matches no kinhin runner. `kinhin workflow route <file> <runtime> --dry-run` shows the fix and reconciles a conflicting route — see the `kinhin-route-workflow` skill. |
 | VM boots but the runner never registers | The image predates the runner agent or its forge account. Re-run `kinhin image prepare`, then check `kinhin logs -n 200`. |
+| `status` says a fix needs approval (`healing` alert) | The healing agent queued a destructive fix (pruning images, installing a runtime). Show the entry from `kinhin heal`; the user runs `kinhin heal approve ID` or `kinhin heal dismiss ID`. |
 | Token rejected | Re-run `kinhin auth set [--account NAME]`. Check the token's scopes and repo access (`kinhin auth status`). |
 | One account detached | A bad token detaches only that account, with the reason in `status`. Others keep serving. Fix the token. |
 | GitHub scale set: second job queued, VM has idle runners | Set `runners_per_vm: 1` and size the Tart pool for two VMs (`kinhin runtimes` shows `cap 2`); restart the daemon when no jobs run. See `docs/forges/github.md`. |

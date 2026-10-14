@@ -45,6 +45,7 @@ are already set. Narrow the matrix with environment variables:
 | `KINHIN_E2E_KEEP=1`                                 | Keep the sandbox directories (config, logs) of a failed run                    |
 | `KINHIN_E2E_VIDEO_IMAGE=<image>`                    | Turn on the real-video test of `kinhin video` (a built video image, e.g. `kinhin-video:local`); `KINHIN_E2E_VIDEO_RUNTIME=container\|docker` picks the runtime |
 | `KINHIN_E2E_GITEA_IMAGE`, `_FORGEJO_IMAGE`, `_GITLAB_IMAGE` | Override the pinned forge images                                       |
+| `KINHIN_E2E_AI=1`                                   | Turn on the live healing-advisor lane (macOS 26+ with Apple Intelligence turned on) |
 
 A run that is killed (a closed terminal, a `pkill` from another session, a sleeping Mac) can leave a daemon, forge
 containers and `/tmp/ke2e-*` sandboxes behind. `scripts/e2e.sh` sweeps those before it starts and again when it exits,
@@ -115,6 +116,19 @@ not rewritten; that `theme new` writes a starter that extends a built-in theme a
 real video in a container from a track added with `music add` and checks `music.json` and the finished mix's loudness; it runs
 when `KINHIN_E2E_VIDEO_IMAGE` is set (it is skipped otherwise).
 
+**`HealingTests`** (Gitea on Docker; the healing agent on second-scale cadences with `KINHIN_HEALING_TIMINGS=fast`, a
+debug-build switch): a reserve no Mac can meet makes the agent prune a planted stale cache entry on its own, then queue an
+image prune for approval; `heal` exits 1 and `status` carries the `healing` alert until `heal dismiss` closes it, and a
+dismissed fix is not raised again. `healing.auto: none` turns the cache prune into an approval that `heal approve` runs;
+`healing.enabled: false` journals nothing while jobs still run. A broken image (runners failing on a healthy runtime,
+which no rule covers) is surfaced with no advisor; with a fixed advisor (`KINHIN_HEALING_ADVISOR=stub:…`, debug only) a
+pick outside the allowlist is ignored and a destructive pick only waits for approval. On the Tart Linux lane a warm VM
+deleted out of band is recycled on its own and the next job still runs. With `KINHIN_E2E_AI=1` the real on-device model
+answers from the daemon with an allowed fix or none. Every scenario checks that the daemon survived, the token never
+reached the log and the journal is owner-only. **`HealingCLITests`** (quick tier): `heal` with no daemon (exit 1, a
+stable document), `approve`/`dismiss` argument and daemon errors, `healing:` validation (exit 3) and export, and the MCP
+`heal_status` tool with no approving tool beside it.
+
 **`CLITests`**: version and exit codes (usage 2, config 3), `--json` errors, `config init` on a pristine machine,
 `config migrate`, `config export` and `import`, the account lifecycle, `doctor` (and a support bundle with no token in it), runtimes and routes,
 read-only inventory commands, toolchain detection, `workflow test` and `workflow route`, `reset`, and an MCP
@@ -184,4 +198,8 @@ What has actually been run, so the table does not claim more than it checked (20
 | Toolchains: per-job `kinhin-toolchain install`            | Run, passing on Docker, Apple container, Tart Linux, Tart macOS            |
 | GitHub                                                    | Fixture written, **not run**: needs a throwaway repository and a token     |
 | Buildkite, Azure DevOps, Bitbucket                        | Planned forges, not supported yet; the fixture protocol is ready for them  |
+| Healing (quick tier: `HealingCLITests`)                   | Run, passing (2026-10-14)                                                  |
+| Healing on Gitea × Docker (`HealingTests`, 6 scenarios)   | Run, passing (2026-10-14)                                                  |
+| Healing, live on-device advisor (`KINHIN_E2E_AI=1`)       | Run, passing on macOS 27 with Apple Intelligence (2026-10-14)              |
+| Healing on Tart Linux (warm VM deleted out of band)       | Written, **not run**: needs the Tart Linux lane                            |
 | App UI, App Intents, upgrade/migration                    | **Not started** (out of scope of this pass)                                |

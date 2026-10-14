@@ -68,10 +68,11 @@ claude mcp add kinhin -- kinhin mcp     # Claude Code
 | `auth_status` | Which forges have a stored token — never the token itself |
 | `pipeline` | The live jobs and steps a busy VM runs (needs the daemon; `vm`, `job` filters) |
 | `logs` | The log file's tail, redacted for tokens (`limit` caps it) |
+| `heal_status` | The healing agent's journal, the `kinhin heal --json` document: fixes it ran, fixes waiting for approval, problems only the user can fix ([details](healing.md)). Read-only |
 | `pause` / `resume` / `stop` | Fleet control through the daemon, with a `message` result |
 | `daemon_install` | Install and start the headless LaunchAgent |
 
-**Deliberately not exposed**: `reset`, `cleanup --yes`, `auth set`, and everything that blocks (`start`,
+**Deliberately not exposed**: `reset`, `cleanup --yes`, `auth set`, `heal approve` / `heal dismiss`, and everything that blocks (`start`,
 `watch`). The server's `initialize` response carries the same rule as `instructions`, so an agent that never
 reads the docs still learns the boundary. A failed tool call answers `isError: true` in-band; protocol errors
 are reserved for malformed requests.
@@ -85,7 +86,8 @@ For agents that shell out instead of speaking MCP:
 - **Exit codes classify the failure**: `0` success, `1` general, `2` usage, `3` config, `4` runtime/engine,
   `5` auth, `130` cancelled (Ctrl-C).
 - Two commands use exit `1` as "not ready yet": `kinhin auth status --json` and `kinhin setup status` exit 1
-  until setup is complete (`doctor --json` reports `ready=false` instead of failing).
+  until setup is complete (`doctor --json` reports `ready=false` instead of failing). `kinhin heal` exits 1 while a
+  fix waits for approval or a problem needs the user, and when no daemon runs.
 
 | Command | Document |
 | --- | --- |
@@ -102,6 +104,7 @@ For agents that shell out instead of speaking MCP:
 | `kinhin toolchains detect … --json` | Detected toolchains and the evidence, with `--write` to save |
 | `kinhin bench … --json` | The benchmark report (see [Benchmarks](benchmarks.md)); pauses a running fleet and takes minutes, so ask first (needs `--yes` with a live fleet outside a terminal); exit 1 when a suite or toolchain row failed |
 | `kinhin image list --json [--runtime <name>]` | Installed images per runtime: name, role, size, last used, who uses them |
+| `kinhin heal --json` | The healing journal: `pending` fixes, `surfaced` problems and every event, newest first ([fields](healing.md#the-json-document)) |
 
 ## Safety rules for agents
 
@@ -114,6 +117,9 @@ For agents that shell out instead of speaking MCP:
   temporary VMs. Pass `--yes` only once the user has agreed to that; never pass `--include-host` unasked.
 - **Host routes are unisolated** — `runtimes route add <pattern> host` requires `--consent` and runs repo code
   directly on the Mac. Don't add one without the user asking.
+- **Never approve or dismiss a healing fix for the user.** `kinhin heal approve` can prune images or reinstall a
+  runtime. Show the entry from `kinhin heal --json` (or `heal_status`) and let the user run `kinhin heal approve ID`
+  themselves. The same goes for the fixes the journal lists as theirs, such as a new token.
 - **Tokens never appear in any document.** `auth status --json` reports presence and validity only.
 - `requeue` and `skip` confirm interactively; pass `--yes` only when the user asked for exactly that.
 
