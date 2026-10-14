@@ -47,6 +47,7 @@ final class FakeGitHubContractTests: XCTestCase {
         case .http(let code, _): return "http(\(code))"
         case .decoding: return "decoding"
         case .invalidInstance: return "invalidInstance"
+        default: return "scaleSet(\(error))"
         }
     }
 

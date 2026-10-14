@@ -278,7 +278,7 @@ final class ForgeRetryPolicyTests: XCTestCase {
                 session: queueSession, lastMessageId: nil, maxCapacity: 1)
             XCTFail("should throw")
         } catch {
-            guard case GitHubScaleSetClientError.messageQueueTokenExpired = error else {
+            guard case GitHubError.scaleSetMessageQueueTokenExpired = error else {
                 return XCTFail("wrong error: \(error)")
             }
         }

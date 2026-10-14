@@ -232,10 +232,10 @@ struct GitHubScaleSetForge: ForgeWithQueuedJobs, ForgeWithJITConfig {
     // error path (`AlertKit` in the app, the RPC error for the CLI).
 
     func userRequeueQueuedJobs() async throws {
-        throw GitHubScaleSetError.queueActionUnsupported(action: "Requeueing queued jobs")
+        throw GitHubError.scaleSetQueueActionUnsupported(action: "Requeueing queued jobs")
     }
 
     func userSkipQueuedJobs() async throws {
-        throw GitHubScaleSetError.queueActionUnsupported(action: "Skipping queued jobs")
+        throw GitHubError.scaleSetQueueActionUnsupported(action: "Skipping queued jobs")
     }
 }

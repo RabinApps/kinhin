@@ -14,7 +14,7 @@ extension GitHubScaleSetListener {
         } catch is CancellationError {
             throw CancellationError()
         } catch {
-            throw ScaleSetError.jitConfigFailure(reason: error.localizedDescription)
+            throw GitHubError.scaleSetJITConfigFailure(reason: error.localizedDescription)
         }
     }
 }

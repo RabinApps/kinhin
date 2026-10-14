@@ -10,7 +10,7 @@ extension GitHubScaleSetListener {
                 return
             } catch {
                 let reason = error.localizedDescription
-                _lastError = error as? ScaleSetError ?? .statisticsUnavailable(reason: reason)
+                _lastError = .scaleSetFailure(error, or: .scaleSetStatisticsUnavailable(reason: reason))
                 Log.warn("scaleset", "statistics poll failed: \(reason)")
             }
             do { try await Task.sleep(for: .seconds(5)) } catch { return }
@@ -19,11 +19,11 @@ extension GitHubScaleSetListener {
 
     func acceptStatistics(_ statistics: GitHubScaleSetStatistics) throws {
         guard statistics.totalAssignedJobs >= 0, statistics.activeNodesCount >= 0 else {
-            throw ScaleSetError.statisticsUnavailable(reason: "API returned negative statistics")
+            throw GitHubError.scaleSetStatisticsUnavailable(reason: "API returned negative statistics")
         }
         cachedStatistics = statistics
         statisticsExpiresAt = Date().addingTimeInterval(5)
-        if case .statisticsUnavailable = _lastError { _lastError = nil }
+        if case .scaleSetStatisticsUnavailable = _lastError { _lastError = nil }
     }
 
     func updateSnapshot() async throws {
@@ -63,7 +63,7 @@ extension GitHubScaleSetListener {
             } catch is CancellationError {
                 throw CancellationError()
             } catch {
-                _lastError = .statisticsUnavailable(reason: error.localizedDescription)
+                _lastError = .scaleSetStatisticsUnavailable(reason: error.localizedDescription)
                 Log.warn(
                     "scaleset", "statistics refresh failed; serving last known snapshot: \(error.localizedDescription)")
                 return cachedSnapshot.statistics
@@ -78,12 +78,12 @@ extension GitHubScaleSetListener {
             return stats
         } catch is CancellationError {
             throw CancellationError()
-        } catch let error as ScaleSetError {
+        } catch let error as GitHubError where error.isScaleSetFailure {
             _lastError = error
             Log.warn("scaleset", "statistics read failed: \(String(describing: error.errorDescription))")
             throw error
         } catch {
-            let failure = ScaleSetError.statisticsUnavailable(reason: error.localizedDescription)
+            let failure = GitHubError.scaleSetStatisticsUnavailable(reason: error.localizedDescription)
             _lastError = failure
             Log.warn("scaleset", "statistics read failed: \(error.localizedDescription)")
             throw failure

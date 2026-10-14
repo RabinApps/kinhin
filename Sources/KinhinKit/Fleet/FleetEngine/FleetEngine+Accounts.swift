@@ -192,7 +192,7 @@ extension FleetEngine {
         let scaleSetClient = GitHubScaleSetClient(
             credentials: credentials,
             adminJwtProvider: { [weak self] in
-                guard let self else { throw ScaleSetError.adminTokenFailure(reason: "the engine was replaced") }
+                guard let self else { throw GitHubError.scaleSetAdminTokenFailure(reason: "the engine was replaced") }
                 return try await self.adminJwtForAttach(account: account, token: token, client: client)
             },
             actionsServiceURL: { [weak self] in
@@ -201,7 +201,7 @@ extension FleetEngine {
         return GitHubScaleSetListener(
             client: scaleSetClient,
             scaleSetIdSupplier: { [weak self] in
-                guard let self else { throw ScaleSetError.scaleSetIdFailure(reason: "the engine was replaced") }
+                guard let self else { throw GitHubError.scaleSetIdFailure(reason: "the engine was replaced") }
                 return try await self.scaleSetIdForAttach(
                     account: account, token: token, githubClient: client, scaleSet: scaleSet, setName: setName)
             },
@@ -252,7 +252,7 @@ extension FleetEngine {
         } catch is CancellationError {
             throw CancellationError()
         } catch {
-            throw ScaleSetError.adminTokenFailure(reason: error.localizedDescription)
+            throw GitHubError.scaleSetAdminTokenFailure(reason: error.localizedDescription)
         }
     }
 
@@ -288,7 +288,7 @@ extension FleetEngine {
         } catch is CancellationError {
             throw CancellationError()
         } catch {
-            throw ScaleSetError.scaleSetIdFailure(reason: error.localizedDescription)
+            throw GitHubError.scaleSetIdFailure(reason: error.localizedDescription)
         }
     }
 

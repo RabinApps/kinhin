@@ -157,7 +157,7 @@ private actor ConflictingClient: GitHubScaleSetServing {
         calls.append("create")
         if conflictsRemaining > 0 {
             conflictsRemaining -= 1
-            throw GitHubScaleSetClientError.sessionConflict
+            throw GitHubError.scaleSetSessionConflict
         }
         return GitHubScaleSetSession(
             sessionId: "s-new", messageQueueUrl: URL(string: "https://example.invalid/msgs")!,
