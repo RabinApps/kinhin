@@ -45,6 +45,12 @@ struct GitHubForge: Forge {
             account: account.name)
     }
 
+    /// Demand and running attribution filter by the fleet's labels (GitHub
+    /// accounts carry no `labels:` of their own).
+    func relabeled(fleetLabels: [String], servedLabels: [String]) -> any Forge {
+        GitHubForge(credentials: credentials, labels: fleetLabels, client: client, account: account)
+    }
+
     func registrationURL() -> String {
         client.configureURL
     }

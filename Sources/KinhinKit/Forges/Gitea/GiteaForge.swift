@@ -135,6 +135,14 @@ struct GiteaForge: Forge {
         return result
     }
 
+    /// The queue is asked about the account's labels plus every pool's, so the served labels replace the pool
+    /// labels (the account's own `labels:` change only with an engine rebuild).
+    func relabeled(fleetLabels: [String], servedLabels: [String]) -> any Forge {
+        var copy = self
+        copy.poolLabels = servedLabels
+        return copy
+    }
+
     func registrationURL() -> String {
         credentials.instance ?? ""
     }

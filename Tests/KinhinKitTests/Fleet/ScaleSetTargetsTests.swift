@@ -54,6 +54,17 @@ final class ScaleSetTargetsTests: XCTestCase {
         XCTAssertEqual(jobs[0].labels, ["self-hosted", "arm64", "kinhin-container"])
     }
 
+    func testRelabelKeepsTheRunningListenersAndSwapsTheFleetLabels() throws {
+        let original = forge(targets())
+        XCTAssertEqual(original.listeners.count, 3, "one listener per scale set")
+        let reloaded = try XCTUnwrap(
+            original.relabeled(fleetLabels: ["new"], servedLabels: []) as? GitHubScaleSetForge)
+        XCTAssertEqual(reloaded.labels, ["new"])
+        XCTAssertEqual(
+            reloaded.listeners.map { ObjectIdentifier($0) }, original.listeners.map { ObjectIdentifier($0) },
+            "a label reload must not replace the sessions that are already running")
+    }
+
     func testRuntimeHintOverridesRoutesAndDefaults() {
         let model = RuntimeConfigModel(
             config: .init(defaultRuntime: .appleContainer, budget: [:], routes: []),
