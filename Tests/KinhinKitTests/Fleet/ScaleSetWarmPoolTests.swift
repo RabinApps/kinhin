@@ -30,10 +30,12 @@ final class ScaleSetWarmPoolTests: XCTestCase {
             pollInterval: .seconds(99))
     }
 
-    private func event(_ kind: GitHubScaleSetJobEventKind, _ requestID: String, job: String) -> GitHubScaleSetJobEvent {
+    private func event(
+        _ kind: GitHubScaleSetJobEventKind, _ requestID: String, job: String, runner: String? = nil
+    ) -> GitHubScaleSetJobEvent {
         GitHubScaleSetJobEvent(
             ownerName: "acme", repositoryName: "widgets", jobDisplayName: job, requestLabels: ["kinhin"],
-            runnerRequestId: requestID, eventType: kind)
+            runnerRequestId: requestID, eventType: kind, runnerName: runner)
     }
 
     /// Delivers one message through the listener's production path (events, acquire, statistics, ack).
@@ -115,6 +117,52 @@ final class ScaleSetWarmPoolTests: XCTestCase {
     /// listener's per-request tracking cannot tell job A's events from job B's.
     func testTheNextJobClaimsTheWarmVMWhenRequestIDsAreZero() async throws {
         try await runBackToBackJobs(requestA: "0", requestB: "0")
+    }
+
+    /// A short job can start and end between two runner-list reads, so the list never shows the
+    /// runner. The listener's `JobCompleted` names it: the VM must go at once, not sit `ready` until
+    /// the registration deadline (minutes), where it would cover job B's demand and leave the warm VM idle.
+    func testAJobTooShortForTheRunnerListFreesItsVMForTheNextJob() async throws {
+        let tart = FakeTart()
+        let github = FakeGitHub()
+        let listener = makeListener(client: ScriptedScaleSetClient())
+        let engine = makeEngine(tart: tart, github: github, listener: listener)
+
+        try await engine.reconcileOnce()
+        try await waitUntil(timeout: 10) { await self.warmIDs(engine).count == 1 }
+        let idle = await warmIDs(engine)
+        let firstWarm = try XCTUnwrap(idle.first)
+
+        try await deliver(
+            listener, id: "1", assigned: 1, running: 0,
+            [event(.jobAvailable, "101", job: "A"), event(.jobAssigned, "101", job: "A")])
+        try await engine.reconcileOnce()
+        try await waitUntil(timeout: 10) { await self.phase(engine, firstWarm) == .ready }
+
+        // While A's VM covers it, the pool tops up a second warm VM.
+        try await engine.reconcileOnce()
+        try await waitUntil(timeout: 10) { await self.warmIDs(engine).count == 1 }
+        let toppedUp = await warmIDs(engine)
+        let secondWarm = try XCTUnwrap(toppedUp.first)
+
+        // A runs and finishes without its runner ever appearing in the runner list.
+        try await deliver(
+            listener, id: "2", assigned: 0, running: 0,
+            [
+                event(.jobStarted, "101", job: "A", runner: firstWarm),
+                event(.jobCompleted, "101", job: "A", runner: firstWarm),
+            ])
+        try await waitUntil(timeout: 5) { await self.phase(engine, firstWarm) == nil }
+
+        // Job B then claims the warm VM.
+        try await deliver(
+            listener, id: "3", assigned: 1, running: 0,
+            [event(.jobAvailable, "102", job: "B"), event(.jobAssigned, "102", job: "B")])
+        try await engine.reconcileOnce()
+        try await waitUntil(timeout: 10) { await self.phase(engine, secondWarm) != .warm }
+        let status = await engine.status()
+        XCTAssertEqual(status.records.first { $0.id == secondWarm }?.platform, "github")
+        await engine.stop()
     }
 }
 

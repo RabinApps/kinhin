@@ -111,6 +111,10 @@ extension GitHubScaleSetListener {
         let previous = pendingActions[jobEvent.runnerRequestId]
         if jobEvent.eventType == .jobCompleted {
             pendingActions[jobEvent.runnerRequestId] = nil
+            if let runner = jobEvent.runnerName, !runner.isEmpty, !finishedRunners.contains(runner) {
+                finishedRunners.append(runner)
+                finishedRunners.removeFirst(max(0, finishedRunners.count - Self.finishedRunnersKept))
+            }
         } else {
             pendingActions[jobEvent.runnerRequestId] = jobEvent
         }

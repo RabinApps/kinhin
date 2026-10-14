@@ -12,6 +12,9 @@ public actor GitHubScaleSetListener {
     var lastMessageId: String?
     var cachedSnapshot: GitHubScaleSetSnapshot?
     var pendingActions: [String: GitHubScaleSetJobEvent] = [:]
+    /// Runners a `JobCompleted` named, newest last; bounded, since every runner name is used once.
+    var finishedRunners: [String] = []
+    static let finishedRunnersKept = 512
     var backOff: Duration = .seconds(1)
     var messagePollTask: Task<Void, Never>?
     var statisticsPollTask: Task<Void, Never>?
@@ -97,6 +100,7 @@ public actor GitHubScaleSetListener {
         conflictStreak = 0
         cachedSnapshot = nil
         pendingActions = [:]
+        finishedRunners = []
         cachedScaleSetId = nil
         cachedStatistics = nil
         statisticsExpiresAt = nil
@@ -121,6 +125,11 @@ public actor GitHubScaleSetListener {
             jobs.append(contentsOf: synthesizePlaceholderJobs(upTo: missing, into: snap))
         }
         return jobs
+    }
+
+    /// Which of `names` a `JobCompleted` event named as the runner that ran the job.
+    public func finishedRunners(among names: [String]) -> Set<String> {
+        Set(names).intersection(finishedRunners)
     }
 
     /// Latest snapshot the listener has published. Before the first poll pass
