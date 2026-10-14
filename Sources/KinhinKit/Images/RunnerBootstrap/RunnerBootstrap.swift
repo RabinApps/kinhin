@@ -44,10 +44,7 @@ enum RunnerBootstrap {
         caBundlePath: String? = nil,
         runnerVersion: String? = nil
     ) -> String {
-        let agentDirectoryCommand =
-            agentDirectory.hasPrefix("~/")
-            ? "agent_dir=\"$HOME\"/\(shellQuote(String(agentDirectory.dropFirst(2))))"
-            : "agent_dir=\(shellQuote(agentDirectory))"
+        let agentDirectoryCommand = "agent_dir=\(guestPathWord(agentDirectory))"
         let agentMaterialization: String
         if let template = agentTemplate {
             let fallbackBlock: String
@@ -75,7 +72,7 @@ enum RunnerBootstrap {
             agentMaterialization = """
                 if [ ! -x "$agent_dir/config.sh" ]; then
                   mkdir -p "$agent_dir"
-                  cp -a \(shellQuote(template) + "/.") "$agent_dir/" 2>/dev/null || {
+                  cp -a \(guestPathWord(template + "/.")) "$agent_dir/" 2>/dev/null || {
                     \(fallbackBlock)
                   }
                 fi
@@ -122,6 +119,13 @@ enum RunnerBootstrap {
             fi
             echo "runner started"
             """
+    }
+
+    /// `path` as one shell word: quoted, except that a leading `~/` becomes
+    /// `"$HOME"/` (a quoted `~` is never expanded, so `'~/x'` names a
+    /// directory literally called `~`).
+    static func guestPathWord(_ path: String) -> String {
+        path.hasPrefix("~/") ? "\"$HOME\"/" + shellQuote(String(path.dropFirst(2))) : shellQuote(path)
     }
 
     /// Installer for the GitHub Actions runner on macOS (called by

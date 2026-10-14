@@ -485,7 +485,10 @@ extension FleetEngine {
         do {
             try await runtime(for: probe).teardown(id: id)
         } catch is CancellationError {
-            // Fall through: cancellation paths own the teardown and the record.
+            // The instance may still exist: keep the record in `.deleting` so the
+            // reconcile pass (or the next start) finishes the idempotent teardown.
+            Log.info(id, "teardown interrupted; will retry")
+            return
         } catch {
             // Keep the record in `.deleting`: dropping it would leave an
             // untracked instance eating disk. The reconcile pass retries it.

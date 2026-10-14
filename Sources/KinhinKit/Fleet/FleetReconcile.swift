@@ -24,6 +24,8 @@ extension FleetEngine {
             let names: [String]
             do {
                 names = try await runtimeInstance.existingInstanceIDs()
+            } catch is CancellationError {
+                return  // stopping: the next start recovers
             } catch {
                 Log.warn(
                     "engine",
@@ -258,6 +260,9 @@ extension FleetEngine {
                     let jobs = try await forge.queuedJobs()
                     let images = await self.resolveProjectImages(for: jobs, forge: forge, routerState: routerState)
                     return .answered(jobs: jobs, images: images)
+                } catch is CancellationError {
+                    // A cancelled pass is not a failed forge: no queue alert.
+                    throw CancellationError()
                 } catch {
                     return .failed(message: (error as? LocalizedError)?.errorDescription ?? "\(error)")
                 }

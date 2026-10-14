@@ -71,14 +71,14 @@ enum WorkflowRouteCommand {
         /// the result — used for the dry-run "diff of planned runs-on: edits" text
         /// and the JSON `diff` field. Only the jobs whose plan changed are applied;
         /// everything else (comments, formatting, other keys) is preserved byte-for-byte.
-        func editedYAML(for planned: [PlannedEdit], originalYAML: String) -> String {
+        func editedYAML(for planned: [PlannedEdit], originalYAML: String) throws -> String {
             var edited = originalYAML
             for plan in planned where plan.changed {
-                edited = try! WorkflowRouteEditor.applyLabelEdit(jobID: plan.jobID, labels: plan.after, in: edited)
+                edited = try WorkflowRouteEditor.applyLabelEdit(jobID: plan.jobID, labels: plan.after, in: edited)
             }
             return edited
         }
-        let plannedEditsText = editedYAML(for: planned, originalYAML: originalYAML)
+        let plannedEditsText = try editedYAML(for: planned, originalYAML: originalYAML)
 
         // 5. The config route first, when routing precedence needs one: a
         //    route that lands first still carries the jobs (it outranks

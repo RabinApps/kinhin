@@ -379,6 +379,17 @@ final class GitHubScaleSetClientTests: XCTestCase {
         } catch GitHubScaleSetClientError.messageQueueTokenExpired {}
     }
 
+    /// An unreadable reply is a decoding error, not "nothing acquired".
+    func testAcquireJobsReportsAnUnreadableReply() async throws {
+        StubProtocol.handler = { _ in (200, Data("<html>gateway</html>".utf8), [:]) }
+        do {
+            _ = try await makeClient().acquireJobs(session: testSession(), scaleSetId: 4, requestIds: [17])
+            XCTFail("a garbled reply must not read as an empty acquisition")
+        } catch GitHubError.decoding(let why) {
+            XCTAssertTrue(why.contains("acquirejobs"), why)
+        }
+    }
+
     private func testSession() -> GitHubScaleSetSession {
         GitHubScaleSetSession(
             sessionId: "session-1", messageQueueUrl: URL(string: "https://queue.example.invalid/messages")!,

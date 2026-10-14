@@ -330,12 +330,13 @@ struct TartRuntime: Runtime {
         // VM that is already gone (double deletes from racing lifecycle
         // paths) is success, not a warning. A failed stop is only logged (the
         // delete below usually still works); a failed delete throws so the
-        // caller keeps the record instead of losing track of the disk.
+        // caller keeps the record instead of losing track of the disk; so does
+        // cancellation, since the VM may still exist.
         await ssh.forgetHostKey(vm: id)
         do {
             try await tart.stop(name: id)
         } catch is CancellationError {
-            return
+            throw CancellationError()
         } catch {
             if Self.vmIsGone(error) { return }
             Log.warn(id, "stopping VM failed: \(error.localizedDescription)")
@@ -343,7 +344,7 @@ struct TartRuntime: Runtime {
         do {
             try await tart.delete(name: id)
         } catch is CancellationError {
-            return
+            throw CancellationError()
         } catch {
             if Self.vmIsGone(error) { return }
             Log.warn(id, "deleting VM failed: \(error.localizedDescription)")
