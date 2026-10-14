@@ -20,10 +20,13 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Ruby 3.3 for fastlane
-        uses: ruby/setup-ruby@651ff0d62c5c79bed6d53ec518387aae20e72c1a # v1.329.0
-        with:
-          ruby-version: "3.3"
+      - name: Ruby for fastlane (Homebrew on the runner)
+        # ruby/setup-ruby is not on this repo's Actions allowlist. The pool's Homebrew Ruby ships bundler and is newer than
+        # the 3.2 fastlane needs, so the step installs it when missing and puts it on PATH for the steps after.
+        run: |
+          brew list ruby >/dev/null 2>&1 || brew install ruby
+          echo "$(brew --prefix ruby)/bin" >> "$GITHUB_PATH"
+          "$(brew --prefix ruby)/bin/ruby" --version
 
       - name: Java 17 for Gradle
         uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1

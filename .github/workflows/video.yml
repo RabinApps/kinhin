@@ -113,9 +113,13 @@ jobs:
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
           persist-credentials: false
-      - uses: ruby/setup-ruby@651ff0d62c5c79bed6d53ec518387aae20e72c1a # v1.329.0
-        with:
-          ruby-version: "3.3"
+      - name: Ruby for fastlane (Homebrew on the runner)
+        # ruby/setup-ruby is not on this repo's Actions allowlist. The pool's Homebrew Ruby ships bundler and is newer than
+        # the 3.2 fastlane needs, so the step installs it when missing and puts it on PATH for the steps after.
+        run: |
+          brew list ruby >/dev/null 2>&1 || brew install ruby
+          echo "$(brew --prefix ruby)/bin" >> "$GITHUB_PATH"
+          "$(brew --prefix ruby)/bin/ruby" --version
       - name: iOS - generate the example project
         if: matrix.platform == 'ios'
         working-directory: examples/ios_native_app
