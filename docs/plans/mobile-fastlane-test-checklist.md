@@ -35,11 +35,11 @@ Everything that must be tested before the fastlane integration (`kinhin mobile i
 | # | Check | Status | How |
 | --- | --- | --- | --- |
 | 2.1 | Generated YAML parses and has only the expected jobs | Done | `MobileScaffoldTests` (YAML + job presence) |
-| 2.2 | Each job runs `ruby/setup-ruby`, pinned to Ruby 3.3 in the template | Done | `MobileScaffoldTests.testFlutterGetsFastlaneInBothFoldersAndAWorkflow` checks the action; the version is in `ios.job.yml` and `android.job.yml` |
+| 2.2 | Each job installs Homebrew's Ruby (3.2 or newer) before `bundle install`, with no Actions marketplace action | Done | `MobileScaffoldTests.testFlutterGetsFastlaneInBothFoldersAndAWorkflow` checks the Homebrew step; the step is in `ios.job.yml` and `android.job.yml` |
 | 2.3 | Workflow `working-directory` matches the scaffolded folder | Done | `MobileScaffoldTests` |
 | 2.4 | `actionlint` clean on the generated workflows | **Done** | Install `actionlint`, run on each example workflow |
 | 2.5 | Runs on a kinhin runner with the `kinhin-xcode` label | Creds | Trigger `workflow_dispatch` on a fleet |
-| 2.6 | `ruby/setup-ruby` works on the self-hosted macOS arm64 runner | Creds | Same run as 2.5 |
+| 2.6 | The Homebrew Ruby step works on the self-hosted macOS arm64 runner | Creds | Same run as 2.5 |
 | 2.7 | Secrets written to `$RUNNER_TEMP` are removed when the job fails | Creds | Force a failing lane; check the temp path is gone |
 | 2.8 | `actions/checkout` and `setup-java` pins match `ci.yml` policy | **Done** | Pinned to SHAs in both the repo workflow and the templates (see 10.1) |
 
@@ -120,7 +120,7 @@ Everything that must be tested before the fastlane integration (`kinhin mobile i
 | 8.7 | Flutter Android lane builds a signed AAB at the Flutter output path | **Done** | e2e `lane_build_signed` (`fastlane android build`, `jarsigner`) |
 | 8.8 | React Native Android lane builds a signed AAB | **Done** | e2e `lane_build_signed` |
 | 8.9 | Generated Flutter and React Native jobs run on a kinhin runner | Creds | `.github/workflows/mobile-e2e.yml` runs the e2e; a generated job needs a real project |
-| 8.10 | `ruby/setup-ruby`, `subosito/flutter-action` and `actions/setup-node` work on the self-hosted arm64 runner | Creds | Same runner run as 8.9 |
+| 8.10 | The Homebrew Ruby step, `subosito/flutter-action` and `actions/setup-node` work on the self-hosted arm64 runner | Creds | Same runner run as 8.9 |
 
 ## 9. Monorepos, Expo with fastlane, package managers, and docs
 

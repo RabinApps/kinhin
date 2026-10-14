@@ -181,7 +181,8 @@ final class MobileScaffoldTests: XCTestCase {
         let workflow = try text(dir, ".github/workflows/mobile-release.yml")
         XCTAssertTrue(workflow.contains("\n  ios:\n"))
         XCTAssertTrue(workflow.contains("\n  android:\n"))
-        XCTAssertTrue(workflow.contains("ruby/setup-ruby@"))
+        XCTAssertTrue(workflow.contains("brew install ruby"))
+        XCTAssertFalse(workflow.contains("ruby/setup-ruby@"))
         XCTAssertFalse(workflow.contains("__DIR__"))
         XCTAssertFalse(workflow.contains("__PREBUILD__"))
     }
