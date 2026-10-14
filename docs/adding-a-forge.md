@@ -73,9 +73,12 @@ commit. Do not commit or push unless asked.
    | `runners()`                                                        | Report `online:` honestly.                                                                                                                                    |
    | `deleteRunner(id:)`                                                | `ForgeRunner.id` is a string.                                                                                                                                 |
    | `queuedJobs()`, `runningJobs()`                                    | Fill `repository`, `labels`, `ref`, `sha`, `isFork` when the API exposes them. `ref` and `sha` are required for per-project toolchains.                       |
+   | `relabeled(fleetLabels:servedLabels:)`                             | Optional. Return a copy filtering by the reloaded labels if your demand query uses the fleet's labels or the pools' (GitHub, GitLab, Gitea do). The default is `self`, right when you filter by the account's own `labels:` or by none.|
    | `rateLimit`                                                        | Optional, defaults to nil.                                                                                                                                    |
    | `projectFile(repository:ref:)`                                     | Optional. Only GitHub, Gitea/Forgejo and GitLab implement it, so other forges fall back to `projects[].toolchains`.                                           |
    | `pipelineDetail(runnerName:repository:)`, `pipelineLog(job:step:)` | Optional. Use `PipelineLogText.clean`.                                                                                                                        |
+   - Demand that arrives over a long-lived connection instead of a poll (the GitHub scale-set session) also conforms to
+     `ForgeWithListeners`, so the engine starts and stops its `ForgeListener`s with the fleet.
    - Add `static func make(credentials:labels:account:session:) async throws`, which builds the client and verifies the
      scope and token so a bad token fails fast.
    - Cache runner and job lists with `SharedListCache` (3 s TTL). The exit watch polls every second.
