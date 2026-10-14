@@ -21,10 +21,12 @@ public enum VideoProjects {
         var names: [String] = []
         func walk(_ dir: URL, prefix: String) {
             let entries =
+                // A missing or unreadable folder simply holds no projects.
                 (try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: [.isDirectoryKey]))
                 ?? []
             for entry in entries {
                 let name = entry.lastPathComponent
+                // An entry whose type cannot be read is treated as a file (and skipped unless it is a config).
                 let isDirectory = (try? entry.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
                 if isDirectory {
                     if prefix.isEmpty && nonProjectFolders.contains(name) { continue }

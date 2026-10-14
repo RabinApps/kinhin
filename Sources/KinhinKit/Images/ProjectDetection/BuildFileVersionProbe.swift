@@ -89,6 +89,7 @@ struct BuildFileVersionProbe: ToolchainProbe {
                     precedence: source.hasPrefix(".fvm") ? .versionFile : .manifest))
         }
         if let data = try reader.read(".fvmrc") ?? reader.read(".fvm/fvm_config.json"),
+            // An invalid FVM file only loses the Flutter version hint.
             let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
             let version = (json["flutter"] ?? json["flutterSdkVersion"]) as? String
         {
@@ -96,6 +97,7 @@ struct BuildFileVersionProbe: ToolchainProbe {
                 "flutter", stack: true, version, reader.exists(".fvmrc") ? ".fvmrc" : ".fvm/fvm_config.json",
                 "fvm pins Flutter")
         }
+        // Invalid pubspec.yaml only loses the version hints; detection is advisory.
         guard let text = try reader.text("pubspec.yaml"), let root = try? Yams.compose(yaml: text),
             let environment = root.mapping?["environment"]?.mapping
         else { return out }
@@ -113,6 +115,7 @@ struct BuildFileVersionProbe: ToolchainProbe {
 
     /// Group 1 of the first match.
     static func capture(_ pattern: String, in text: String) -> String? {
+        // Patterns are constants from this file; an invalid one would only miss its hint.
         guard let regex = try? NSRegularExpression(pattern: pattern),
             let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
             match.numberOfRanges > 1, let range = Range(match.range(at: 1), in: text)

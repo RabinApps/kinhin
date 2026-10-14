@@ -21,6 +21,7 @@ public enum CISystem: String, CaseIterable, Sendable {
         func has(_ path: String) -> Bool { fm.fileExists(atPath: root.appendingPathComponent(path).path) }
         if has(".buildkite") { return .buildkite }
         if has("azure-pipelines.yml") || has(".azure-pipelines") { return .azure }
+        // No readable .git/config just skips the remote hint; detection falls through to the files.
         let config = try? String(contentsOf: root.appendingPathComponent(".git/config"), encoding: .utf8)
         if let url = config.flatMap(originURL(gitConfig:)), let system = fromRemote(url) { return system }
         if has(".forgejo/workflows") { return .forgejo }

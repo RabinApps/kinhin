@@ -13,6 +13,7 @@ func helpText() -> String {
 /// full screen when the topic names no command.
 func helpText(for topic: [String]) -> String {
     let words = topic.filter { !$0.hasPrefix("-") }
+    // An unknown command gets the full help screen, which is the useful answer here.
     guard !words.isEmpty, let invocation = try? CommandResolver.resolve(words) else { return helpText() }
     return HelpRenderer.page(for: invocation.helpSpec, path: invocation.helpPath)
 }

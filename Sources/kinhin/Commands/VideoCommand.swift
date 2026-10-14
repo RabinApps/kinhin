@@ -196,11 +196,14 @@ enum VideoCommand {
     /// Falls back to `out` itself when there is none.
     static func latestVideoFolder(in output: URL) -> URL {
         let entries =
+            // No readable out/ folder falls back to out/ itself (documented above).
             (try? FileManager.default.contentsOfDirectory(
                 at: output, includingPropertiesForKeys: [.contentModificationDateKey, .isDirectoryKey],
                 options: [.skipsHiddenFiles])) ?? []
+        // Only a cosmetic path in the closing message depends on these reads.
         let folders = entries.filter { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true }
         func changed(_ url: URL) -> Date {
+            // An unreadable date sorts first; it only picks which folder the message names.
             (try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
         }
         return folders.max { changed($0) < changed($1) } ?? output

@@ -123,6 +123,7 @@ struct ManifestProbe: ToolchainProbe {
         }
 
         if let data = try reader.read("composer.json") {
+            // Invalid composer.json still means PHP; only the version hint is lost.
             let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
             let php = (json?["require"] as? [String: Any])?["php"] as? String
             add(
@@ -151,6 +152,7 @@ struct ManifestProbe: ToolchainProbe {
 
     private func packageJSON(_ reader: ProjectFileReading) throws -> [ToolchainHit] {
         guard let data = try reader.read("package.json") else { return [] }
+        // Not JSON is logged below and skipped: detection is advisory.
         guard let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
             Log.warn("Detect", "skipping package.json: not a JSON object")
             return []

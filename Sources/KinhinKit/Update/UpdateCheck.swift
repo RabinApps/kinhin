@@ -340,6 +340,7 @@ public struct UpdateChecker: Sendable {
     /// new one starts; best effort, the system temp directory is cleaned anyway.
     static func removeStaleDownloads(in root: URL) {
         let fm = FileManager.default
+        // Best effort: an unreadable temp dir just leaves old downloads for the system to clean.
         let entries = (try? fm.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)) ?? []
         for entry in entries where entry.lastPathComponent.hasPrefix(downloadDirectoryPrefix) {
             bestEffort("update", "remove old download \(entry.lastPathComponent)") { try fm.removeItem(at: entry) }

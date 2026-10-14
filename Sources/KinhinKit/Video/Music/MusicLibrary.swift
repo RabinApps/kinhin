@@ -165,8 +165,10 @@ public struct MusicLibrary: Sendable {
     /// The tracks saved in `repo`, by their provenance files.
     public static func saved(in repo: URL) -> [MusicSidecar] {
         let directory = Self.directory(in: repo)
+        // No music folder yet means no saved tracks.
         let files = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? []
         return files.filter { $0.pathExtension == "json" }.compactMap { url in
+            // A provenance file that cannot be read is left out of the listing, not fatal to it.
             (try? Data(contentsOf: url)).flatMap { try? JSONDecoder().decode(MusicSidecar.self, from: $0) }
         }.sorted { $0.file < $1.file }
     }

@@ -13,7 +13,9 @@ public enum Daemon {
     /// or the plist cannot be read.
     public static var plistBinaryPath: String? {
         guard let url = agentPlistURL else { return nil }
+        // Documented above: no readable plist means no installed binary path.
         guard let plist = try? Data(contentsOf: url),
+            // An unparseable plist is the same "no binary path" answer.
             let root = try? PropertyListSerialization.propertyList(
                 from: plist, options: [],
                 format: nil) as? [String: Any],

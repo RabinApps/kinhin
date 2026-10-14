@@ -13,6 +13,7 @@ final class RegistrationTokenCache: Sendable {
         let expiresAt: Date
     }
 
+    // The cached token, nil until the first fetch.
     private let entry = Mutex<Entry?>(nil)
     private let ttl: TimeInterval
     private let refreshMargin: TimeInterval

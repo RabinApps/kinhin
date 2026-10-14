@@ -118,6 +118,7 @@ struct MCPServer {
             guard JSONSerialization.isValidJSONObject(raw) else {
                 return .error(code: -32602, message: "invalid params: arguments must be a JSON object")
             }
+            // Validated just above; a failure still answers the client with an error.
             guard let data = try? JSONSerialization.data(withJSONObject: raw) else {
                 return .error(code: -32603, message: "could not encode the tool arguments")
             }
@@ -148,6 +149,7 @@ struct MCPServer {
 
     private func line(_ object: [String: Any]) -> String {
         guard
+            // A failure still answers with a JSON-RPC internal error below.
             let data = try? JSONSerialization.data(
                 withJSONObject: object, options: [.sortedKeys, .withoutEscapingSlashes])
         else {

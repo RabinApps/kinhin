@@ -129,6 +129,7 @@ final class ContainersModel {
         guard !busy, !refreshingUsage, tool.isInstalled, containers.contains(where: \.isRunning) else { return }
         refreshingUsage = true
         defer { refreshingUsage = false }
+        // Best effort (documented above): a failed tick keeps the last figures.
         usage = (try? await makeManager(tool).stats()) ?? usage
     }
 

@@ -61,6 +61,7 @@ extension FleetEngine {
             defer { state.retry.inFlight = nil }
             return state.retry.inFlight
         }
+        // Cancel the in-flight forge attach, if any.
         retry?.cancel()
         await drain([retry].compactMap { $0 }, timeout: lifecycleDrainTimeout)
         await settleDeletes(timeout: lifecycleDrainTimeout)
