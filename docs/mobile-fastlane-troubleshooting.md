@@ -25,7 +25,7 @@ The project's `Gemfile` exists but is not readable by your user. Fix its permiss
 
 fastlane 2.241, which the `~> 2.240` pin resolves to, needs Ruby 3.2 or newer. The macOS system Ruby is 2.6, so `bundle install` fails with that message. Use
 Ruby 3.3, for example from Homebrew (`brew install ruby@3.3`), and run `bundle install` from a shell where that Ruby is first
-on your PATH. CI sets it up with `ruby/setup-ruby`.
+on your PATH. CI installs Homebrew's Ruby on the runner (`brew install ruby`), so no Actions marketplace action is needed.
 
 ### Expo: the EAS config is there, but there is no `fastlane` folder
 
