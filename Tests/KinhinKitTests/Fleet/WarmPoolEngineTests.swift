@@ -51,4 +51,23 @@ final class WarmPoolEngineTests: XCTestCase {
         XCTAssertEqual(tart.cloneCalls.filter { $0.name == warmID }.count, 1, "the claimed VM was cloned exactly once")
         XCTAssertEqual(tart.runCalls.count, 1, "no second boot for the job")
     }
+
+    func testAnImagesWarmPoolClonesFromThatImage() async throws {
+        let tart = FakeTart()
+        // The prepared `images:` entry: its VM exists, so the warm pool can clone it.
+        try await tart.clone(source: "tahoe-base", to: "xcode")
+        var config = makeTestConfig()
+        config.images = [.init(name: "xcode", labels: ["xcode"], warmPool: 1)]
+        let engine = FleetEngine(
+            config: config, github: FakeGitHub(), tart: tart, store: makeTestStore(), ssh: FakeSSH(), host: testHost,
+            dependencies: .init(tokenLoader: { _, _ in "test-token" }, exitWatchInterval: .milliseconds(20)))
+
+        try await engine.reconcileOnce()
+        try await waitUntil(timeout: 10) { await engine.status().records.contains { $0.phase == .warm } }
+
+        let status = await engine.status()
+        let warm = try XCTUnwrap(status.records.first { $0.phase == .warm })
+        XCTAssertEqual(warm.image, "xcode")
+        XCTAssertEqual(tart.cloneCalls.last?.source, "xcode", "the warm instance is cloned from its own image")
+    }
 }

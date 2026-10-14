@@ -61,7 +61,9 @@ extension ConfigLoader {
                         "\(position).labels duplicate another image's labels, so jobs could not tell them apart")
                 }
             }
-            result.append(.init(name: name, baseImage: entry.baseImage, labels: entry.labels))
+            let warm = entry.warmPool ?? 0
+            if warm < 0 { throw ConfigError.invalid("\(position).warm_pool must be >= 0") }
+            result.append(.init(name: name, baseImage: entry.baseImage, labels: entry.labels, warmPool: warm))
         }
         return result
     }

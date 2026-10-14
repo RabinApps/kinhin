@@ -4,6 +4,11 @@
 
 <!-- changelog: entries for the next release go here -->
 
+**Added**
+
+- `warm_pool` on an `images:` entry keeps booted, unregistered VMs of that image ready, so jobs routed to it (for example
+  `xcode`) skip the clone and boot. The top-level `warm_pool` still covers `image:`; the two share `max_runners`.
+
 **Fixed**
 
 - Video text no longer runs off the frame: titles, statements, outro lines, step rows and burned captions wrap on whole words

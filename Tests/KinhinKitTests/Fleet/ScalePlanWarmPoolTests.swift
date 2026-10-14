@@ -18,24 +18,24 @@ final class ScalePlanWarmPoolTests: XCTestCase {
         var input = ScalePlan.Input(
             records: records, demand: queued > 0 ? ["github": [.tart: queued]] : [:], attached: ["github"],
             maxRunners: maxRunners, capacityCap: maxRunners, existingPools: [.tart], defaultRuntime: .tart)
-        input.warmPool = warmPool
+        input.warmPool = warmPool > 0 ? ["": warmPool] : [:]
         input.now = epoch.addingTimeInterval(60)
         return input
     }
 
     func testIdleFleetFillsThePool() {
         let plan = ScalePlan.make(input())
-        XCTAssertEqual(plan.warmSpawn, 2)
+        XCTAssertEqual(plan.warmTotal, 2)
         XCTAssertTrue(plan.slots.isEmpty)
     }
 
     func testPoolOffSpawnsNothing() {
-        XCTAssertEqual(ScalePlan.make(input(warmPool: 0)).warmSpawn, 0)
+        XCTAssertEqual(ScalePlan.make(input(warmPool: 0)).warmTotal, 0)
     }
 
     func testExistingWarmInstancesCountTowardThePool() {
         let plan = ScalePlan.make(input(records: [record("w1", .warm)]))
-        XCTAssertEqual(plan.warmSpawn, 1)
+        XCTAssertEqual(plan.warmTotal, 1)
     }
 
     func testWarmInstanceIsClaimedInsteadOfCloning() {
@@ -43,7 +43,7 @@ final class ScalePlanWarmPoolTests: XCTestCase {
         XCTAssertEqual(plan.slots.count, 1, "a warm instance is not supply: the job still needs a slot")
         XCTAssertEqual(plan.claims, ["w1"])
         XCTAssertTrue(plan.evict.isEmpty)
-        XCTAssertEqual(plan.warmSpawn, 0, "no top-up while demand holds the slots")
+        XCTAssertEqual(plan.warmTotal, 0, "no top-up while demand holds the slots")
     }
 
     func testOldestWarmInstanceIsClaimedFirst() {
@@ -82,13 +82,13 @@ final class ScalePlanWarmPoolTests: XCTestCase {
         i.minRunners = 2
         let plan = ScalePlan.make(i)
         XCTAssertEqual(plan.slots.count, 2)
-        XCTAssertEqual(plan.warmSpawn, 0, "min_runners spawns first; the pool only fills leftover slots")
+        XCTAssertEqual(plan.warmTotal, 0, "min_runners spawns first; the pool only fills leftover slots")
     }
 
     func testTopUpNeverPassesTheCap() {
         let records = [record("b1", .busy), record("b2", .busy)]
         let plan = ScalePlan.make(input(records: records, warmPool: 4, maxRunners: 3))
-        XCTAssertEqual(plan.warmSpawn, 1)
+        XCTAssertEqual(plan.warmTotal, 1)
     }
 
     func testWarmInstancesAreNeverScaleDownTargets() {
@@ -100,6 +100,59 @@ final class ScalePlanWarmPoolTests: XCTestCase {
     func testNoTopUpWhileTheRuntimeBacksOff() {
         var i = input()
         i.heldRuntimes = [.tart]
-        XCTAssertEqual(ScalePlan.make(i).warmSpawn, 0)
+        XCTAssertEqual(ScalePlan.make(i).warmTotal, 0)
     }
+
+    // MARK: - Per-image pools
+
+    private func imageRecord(_ id: String, _ phase: VMPhase, image: String?) -> VMRecord {
+        var record = record(id, phase)
+        record.image = image
+        return record
+    }
+
+    func testJobForAnImageClaimsOnlyItsOwnWarmInstance() {
+        let records = [imageRecord("base", .warm, image: nil), imageRecord("xcode", .warm, image: "xcode")]
+        var i = input(records: records, queued: 1)
+        i.imageDemand = ["xcode": 1]
+        i.warmPool = ["": 1, "xcode": 1]
+        let plan = ScalePlan.make(i)
+        XCTAssertEqual(plan.slots.first?.image, "xcode")
+        XCTAssertEqual(plan.slots.first?.claim, "xcode")
+        XCTAssertEqual(plan.claims, ["xcode"])
+        XCTAssertTrue(plan.evict.isEmpty, "the base warm instance is kept, not claimed by the Xcode job")
+    }
+
+    func testBaseJobDoesNotClaimAnImageWarmInstance() {
+        var i = input(records: [imageRecord("xcode", .warm, image: "xcode")], queued: 1)
+        i.warmPool = ["xcode": 1]
+        let plan = ScalePlan.make(i)
+        XCTAssertNil(plan.slots.first?.image)
+        XCTAssertNil(plan.slots.first?.claim)
+        XCTAssertTrue(plan.claims.isEmpty)
+    }
+
+    func testIdleFleetTopsUpEachImageSeparately() {
+        var i = input(maxRunners: 4)
+        i.warmPool = ["": 1, "xcode": 2]
+        XCTAssertEqual(ScalePlan.make(i).warmSpawn, ["": 1, "xcode": 2])
+    }
+
+    func testImageTopUpCountsOnlyItsOwnWarmInstances() {
+        var i = input(records: [imageRecord("x1", .warm, image: "xcode")], maxRunners: 4)
+        i.warmPool = ["xcode": 2]
+        XCTAssertEqual(ScalePlan.make(i).warmSpawn, ["xcode": 1])
+    }
+
+    func testChooseImagePrefersTheImageWithUnmetDemand() {
+        XCTAssertEqual(ScalePlan.chooseImage(queuedTart: 1, byImage: ["xcode": 1], active: [:]), "xcode")
+        XCTAssertNil(
+            ScalePlan.chooseImage(queuedTart: 3, byImage: ["xcode": 1], active: [:]), "base has the most unmet")
+        XCTAssertNil(ScalePlan.chooseImage(queuedTart: 1, byImage: ["xcode": 1], active: ["xcode": 1]))
+    }
+}
+
+extension ScalePlan {
+    /// Warm instances to start across every pool.
+    fileprivate var warmTotal: Int { warmSpawn.values.reduce(0, +) }
 }

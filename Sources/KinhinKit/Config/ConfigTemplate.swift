@@ -41,7 +41,8 @@ extension ConfigLoader {
 
         # Pre-warmed VMs: booted and SSH-ready but not yet registered, so a job
         # skips clone and boot. They take slots under max_runners and are
-        # evicted when a job needs the slot. Tart base image only. 0 = off.
+        # evicted when a job needs the slot. This covers the base image; each
+        # images: entry has its own warm_pool. 0 = off.
         warm_pool: 0
         # Recycle a warm VM after this many minutes (>= 5).
         warm_max_age_minutes: 60

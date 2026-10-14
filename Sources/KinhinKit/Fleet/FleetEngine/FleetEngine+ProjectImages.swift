@@ -62,32 +62,6 @@ extension FleetEngine {
         return result
     }
 
-    /// Active tart instances per image name ("" = the base image).
-    func activeByImage() -> [String: Int] {
-        var counts: [String: Int] = [:]
-        for record in store.all where record.phase.isActive {
-            let runtime = record.runtimeID ?? routing.defaultRuntime
-            guard runtime == .tart else { continue }
-            counts[record.image ?? "", default: 0] += 1
-        }
-        return counts
-    }
-
-    /// The image a new tart instance should be cloned from: the one with the
-    /// most unmet demand (nil = the base image). Ties go to a derived image.
-    func chooseImage(demand: Demand) -> String? {
-        guard !demand.byImage.isEmpty else { return nil }
-        let active = activeByImage()
-        let derivedTotal = demand.byImage.values.reduce(0, +)
-        let baseUnmet = ((demand.byPool[.tart] ?? 0) - derivedTotal) - (active[""] ?? 0)
-        var best: (image: String?, unmet: Int) = (nil, baseUnmet)
-        for (image, count) in demand.byImage.sorted(by: { $0.key < $1.key }) {
-            let unmet = count - (active[image] ?? 0)
-            if unmet > 0, unmet >= best.unmet { best = (image, unmet) }
-        }
-        return best.unmet > 0 ? best.image : nil
-    }
-
     /// The route a record provisions and registers with: the fleet's base
     /// image, or the derived image it was bound to at spawn.
     func route(forRecord id: String) -> RepoRoute {

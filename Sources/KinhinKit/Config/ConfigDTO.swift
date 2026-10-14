@@ -144,10 +144,12 @@ public struct PartialConfig: Decodable {
         var name: String?
         var baseImage: String?
         var labels: [String]?
+        var warmPool: Int?
 
         enum CodingKeys: String, CodingKey, CaseIterable {
             case name, labels
             case baseImage = "base_image"
+            case warmPool = "warm_pool"
         }
     }
 

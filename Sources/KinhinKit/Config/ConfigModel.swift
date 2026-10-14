@@ -205,16 +205,20 @@ public struct KinhinConfig: Sendable, Equatable {
         /// Runner labels this image advertises on top of the fleet `labels:`.
         /// Parsed and kept now; routing jobs by them is a later stage.
         public var labels: [String]?
+        /// Booted, unregistered clones of this image kept ready for its jobs; 0 = off.
+        public var warmPool: Int
 
-        public init(name: String, baseImage: String? = nil, labels: [String]? = nil) {
+        public init(name: String, baseImage: String? = nil, labels: [String]? = nil, warmPool: Int = 0) {
             self.name = name
             self.baseImage = baseImage
             self.labels = labels
+            self.warmPool = warmPool
         }
 
         enum CodingKeys: String, CodingKey {
             case name, labels
             case baseImage = "base_image"
+            case warmPool = "warm_pool"
         }
     }
 

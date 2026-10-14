@@ -84,6 +84,16 @@ extension ConfigLoader {
         if let images = partial.images {
             cfg.images = try Self.parseImages(images, primary: cfg.image, fleetLabels: cfg.labels)
         }
+        // Warm VMs take slots under max_runners, so the base and every image's warm_pool share that ceiling.
+        for image in cfg.images where image.warmPool > cfg.maxRunners {
+            throw ConfigError.invalid(
+                "images: \(image.name) warm_pool (\(image.warmPool)) must be <= max_runners (\(cfg.maxRunners))")
+        }
+        let warmTotal = cfg.warmPool + cfg.images.reduce(0) { $0 + $1.warmPool }
+        if warmTotal > cfg.maxRunners {
+            throw ConfigError.invalid(
+                "warm_pool across the base image and images: (\(warmTotal)) must be <= max_runners (\(cfg.maxRunners))")
+        }
         if let boot = partial.vmBootTimeout {
             guard Self.vmBootTimeoutRange.contains(boot) else {
                 throw ConfigError.invalid(

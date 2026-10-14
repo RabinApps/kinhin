@@ -67,11 +67,18 @@ limit.
 arrives, the scaler claims a warm VM, binds it to the account that has the demand, and runs only the registration step,
 so the job skips `tart clone` and boot. With the default `0` the feature is off.
 
+Each Tart image has its own pool. The top-level `warm_pool` covers `image:`, and `warm_pool` on an
+[`images:` entry](runtimes.md#multiple-macos-images) covers that image, so an Xcode image can stay warm while the base
+stays cold, or the other way round.
+
 - Warm VMs take slots under `max_runners` and count against the capacity cap, including Apple's limit of two macOS VMs
   per Mac. They are evicted when a job needs the slot, so a warm VM never delays work that a cold start could serve.
 - The pool tops up only when nothing is queued and `min_runners` is met. In ephemeral mode the replacement for a
   finished VM is started on the next pass, so the poll interval applies.
-- Only base-image Tart jobs claim a warm VM. Jobs routed to a per-project image, and the other runtimes, start cold.
+- A job claims a warm VM of the image it runs on. Jobs routed to a per-project image (`projects:`), and the other
+  runtimes, start cold.
+- A named image that was never prepared gets no warm VMs. Its `warm_pool` is skipped, with a log line, until it exists.
+- The base `warm_pool` and every entry's `warm_pool` together must fit in `max_runners`.
 - A warm VM older than `warm_max_age_minutes` (default 60) is recycled. After a restart, warm VMs are re-checked rather
   than trusted.
 

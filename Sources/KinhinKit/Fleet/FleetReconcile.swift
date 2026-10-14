@@ -329,7 +329,16 @@ extension FleetEngine {
                 runnersPerVM: max(1, config.runnersPerVM), minRunners: config.minRunners,
                 maxRunners: config.maxRunners, capacityCap: capacity.maxConcurrent, poolCaps: routerState.caps,
                 heldRuntimes: held, existingPools: Set(routing.pools.keys), defaultRuntime: routing.defaultRuntime,
-                warmPool: config.warmPool, warmMaxAge: TimeInterval(config.warmMaxAgeMinutes) * 60))
+                warmPool: warmTargets(images: routerState.images),
+                warmMaxAge: TimeInterval(config.warmMaxAgeMinutes) * 60, imageDemand: demand.byImage))
+    }
+
+    /// Warm instances to keep per Tart image: the base `warm_pool` ("") and each `images:` entry's own.
+    func warmTargets(images: [KinhinConfig.ImageConfig]) -> [String: Int] {
+        var targets: [String: Int] = [:]
+        if config.warmPool > 0 { targets[""] = config.warmPool }
+        for image in images where image.warmPool > 0 { targets[image.name] = image.warmPool }
+        return targets
     }
 
     /// Publishes the desired count with the caps and records into the status snapshot.
@@ -369,26 +378,22 @@ extension FleetEngine {
             Log.info("engine", "scaling up: \(plan.active) active, want \(plan.target) (queue \(demand.queueDepth))")
         }
         for id in plan.evict { scheduleDelete(id: id, reason: "warm instance evicted") }
-        var claims = plan.claims[...]
         for slot in slots {
-            let image = slot.runtime == .tart ? chooseImage(demand: demand) : nil
-            // A warm instance is cloned from the base image, so only a base-image job can claim one.
-            if image == nil, slot.runtime == .tart, let warmID = claims.popFirst() {
+            // A claimed warm instance is bound to its slot. A slot the disk held back keeps its warm
+            // instance, which is still ready for the next pass.
+            if let warmID = slot.claim {
                 claimWarm(id: warmID, account: slot.account)
                 continue
             }
             var record = VMRecord(id: VMRecord.newName(), phase: .cloning)
             record.platform = slot.account
             record.runtime = slot.runtime.rawValue
-            record.image = image
+            record.image = slot.image
             store.upsert(record)
             // The lifecycle waits its turn at the engine's `SpawnPacer`, so disk I/O does not
             // stampede; the pass itself never sleeps.
             spawnLifecycle(for: record)
         }
-        // Unused claims (their slot needed a derived image, or the disk held it back) would
-        // overflow the cap: release them.
-        for id in claims { scheduleDelete(id: id, reason: "warm instance not needed") }
         await topUpWarmPool(plan.warmSpawn, diskBlocked: diskPressureMessage != nil)
         if let diskPressureMessage {
             Log.warn("engine", diskPressureMessage)
@@ -406,21 +411,36 @@ extension FleetEngine {
         }
     }
 
-    /// Starts `count` warm instances (cloned and booted, never registered) unless the disk is short.
-    func topUpWarmPool(_ count: Int, diskBlocked: Bool) async {
-        guard count > 0, !diskBlocked else { return }
+    /// Starts the warm instances planned per image (cloned and booted, never registered) unless the
+    /// disk is short. A named image that is not prepared yet has nothing to clone, so it is skipped.
+    func topUpWarmPool(_ spawns: [String: Int], diskBlocked: Bool) async {
+        guard !spawns.isEmpty, !diskBlocked else { return }
+        var wanted = spawns
+        if spawns.keys.contains(where: { !$0.isEmpty }) {
+            let prepared = Set((try? await tart.list())?.map(\.name) ?? [])
+            for image in spawns.keys where !image.isEmpty && !prepared.contains(image) {
+                wanted[image] = nil
+                Log.warn("engine", "warm pool for image \(image) skipped: it is not prepared")
+            }
+        }
+        var planned: [ScalePlan.Slot] = []
+        for image in wanted.keys.sorted() {
+            let slot = ScalePlan.Slot(account: "", runtime: .tart, image: image.isEmpty ? nil : image)
+            planned += Array(repeating: slot, count: wanted[image] ?? 0)
+        }
+        guard !planned.isEmpty else { return }
         let free = hostProbe().freeDiskGB
         let perVM = ResourceProbe.effectiveDiskPerVMGB(diskGB: config.diskGB, runtime: .tart)
         let slots = ScalePlan.admitByDisk(
-            Array(repeating: ScalePlan.Slot(account: "", runtime: .tart), count: count), freeDiskGB: free,
-            reserveGB: config.reserve.diskGB, diskPerInstanceGB: { _ in perVM }
+            planned, freeDiskGB: free, reserveGB: config.reserve.diskGB, diskPerInstanceGB: { _ in perVM }
         ).admitted
-        for _ in slots {
+        for slot in slots {
             var record = VMRecord(id: VMRecord.newName(), phase: .cloning)
             record.runtime = RuntimeID.tart.rawValue
+            record.image = slot.image
             record.pooled = true
             store.upsert(record)
-            Log.info(record.id, "starting warm instance")
+            Log.info(record.id, "starting warm instance\(slot.image.map { " for \($0)" } ?? "")")
             spawnLifecycle(for: record)
         }
     }

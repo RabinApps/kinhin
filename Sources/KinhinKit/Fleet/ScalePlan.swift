@@ -17,6 +17,10 @@ struct ScalePlan: Equatable {
     struct Slot: Equatable {
         var account: String
         var runtime: RuntimeID
+        /// The Tart image a new instance clones: nil = the base image (or not Tart).
+        var image: String? = nil
+        /// A warm instance of `image` to bind instead of cloning.
+        var claim: String? = nil
     }
 
     struct Input {
@@ -41,10 +45,13 @@ struct ScalePlan: Equatable {
         /// Runtimes that have a configured pool.
         var existingPools: Set<RuntimeID>
         var defaultRuntime: RuntimeID
-        /// Booted, unregistered instances to keep (Tart only); 0 = off.
-        var warmPool = 0
+        /// Booted, unregistered instances to keep per Tart image, keyed by image name ("" = the base
+        /// image). Absent or 0 = off.
+        var warmPool: [String: Int] = [:]
         /// A warm instance older than this is recycled.
         var warmMaxAge: TimeInterval = 3600
+        /// Queued Tart jobs per named or derived image; the base image takes the rest of the Tart demand.
+        var imageDemand: [String: Int] = [:]
         var now = Date()
     }
 
@@ -59,12 +66,12 @@ struct ScalePlan: Equatable {
     var slots: [Slot]
     /// Idle instances to delete.
     var scaleDown: [String]
-    /// Warm instances to bind to the leading Tart slots instead of cloning, oldest first.
+    /// Warm instances bound to Tart slots instead of cloning (each slot's `claim`), oldest first.
     var claims: [String] = []
     /// Warm instances to delete: stale, or in the way of a slot the cap needs.
     var evict: [String] = []
-    /// Warm instances to start so the pool is full.
-    var warmSpawn = 0
+    /// Warm instances to start so each pool is full, per image ("" = the base image).
+    var warmSpawn: [String: Int] = [:]
     /// A surplus exists but an unreadable queue holds the scale-down.
     var scaleDownHeld: Bool
 
@@ -111,28 +118,62 @@ struct ScalePlan: Equatable {
     /// Claims warm instances for the Tart slots, evicts the stale and the overflow, and tops the
     /// pool up when nothing else needs the slots.
     private static func applyWarm(_ warm: [VMRecord], to plan: inout ScalePlan, live: Int, cap: Int, input: Input) {
-        let tartSlots = plan.slots.count { $0.runtime == .tart }
         let stale = Set(warm.filter { input.now.timeIntervalSince($0.createdAt) > input.warmMaxAge }.map(\.id))
         let fresh = warm.filter { !stale.contains($0.id) }
-        plan.claims = fresh.prefix(tartSlots).map(\.id)
+        // A Tart slot binds the oldest fresh warm instance of its own image, if there is one.
+        for index in plan.slots.indices where plan.slots[index].runtime == .tart {
+            let image = plan.slots[index].image ?? ""
+            guard let match = fresh.first(where: { ($0.image ?? "") == image && !plan.claims.contains($0.id) })
+            else { continue }
+            plan.slots[index].claim = match.id
+            plan.claims.append(match.id)
+        }
         var evict = warm.filter { stale.contains($0.id) }.map(\.id)
 
         // Warm instances left after the claims still occupy slots: drop the surplus the cap cannot hold.
         let unclaimed = fresh.filter { !plan.claims.contains($0.id) }
         let overflow = live + plan.slots.count + unclaimed.count - cap
-        if overflow > 0 { evict += unclaimed.prefix(overflow).map(\.id) }
+        var dropped = Set<String>()
+        if overflow > 0 {
+            dropped = Set(unclaimed.prefix(overflow).map(\.id))
+            evict += dropped
+        }
         plan.evict = evict
 
         let tart = RuntimeID.tart
-        guard input.warmPool > 0, plan.slots.isEmpty, input.failedForges.isEmpty,
+        guard input.warmPool.values.contains(where: { $0 > 0 }), plan.slots.isEmpty, input.failedForges.isEmpty,
             input.existingPools.contains(tart), !input.heldRuntimes.contains(tart)
         else { return }
-        let kept = unclaimed.count - max(0, min(overflow, unclaimed.count))
+        // Warm instances that survive, per image: each pool tops up from its own count.
+        var kept: [String: Int] = [:]
+        for record in unclaimed where !dropped.contains(record.id) { kept[record.image ?? "", default: 0] += 1 }
         let tartRunning = input.records.count { $0.phase.isActive && ($0.runtimeID ?? input.defaultRuntime) == tart }
-        let room = min(
-            cap - max(plan.target, live) - kept,
+        var room = min(
+            cap - max(plan.target, live) - kept.values.reduce(0, +),
             (input.poolCaps[tart] ?? Int.max) - tartRunning)
-        plan.warmSpawn = max(0, min(input.warmPool - kept, room))
+        // The base image first (its key sorts first), then named images in name order.
+        for image in input.warmPool.keys.sorted() {
+            let want = input.warmPool[image] ?? 0
+            let spawn = max(0, min(want - (kept[image] ?? 0), room))
+            if spawn > 0 {
+                plan.warmSpawn[image] = spawn
+                room -= spawn
+            }
+        }
+    }
+
+    /// The image a new Tart instance clones: the named or derived image with the most unmet queued
+    /// jobs, else the base image (nil). Ties go to a derived image. `active` counts the instances
+    /// that serve demand per image ("" = the base image).
+    static func chooseImage(queuedTart: Int, byImage: [String: Int], active: [String: Int]) -> String? {
+        guard !byImage.isEmpty else { return nil }
+        let derivedTotal = byImage.values.reduce(0, +)
+        var best: (image: String?, unmet: Int) = (nil, (queuedTart - derivedTotal) - (active[""] ?? 0))
+        for (image, count) in byImage.sorted(by: { $0.key < $1.key }) {
+            let unmet = count - (active[image] ?? 0)
+            if unmet > 0, unmet >= best.unmet { best = (image, unmet) }
+        }
+        return best.unmet > 0 ? best.image : nil
     }
 
     // MARK: - Coverage
@@ -187,6 +228,7 @@ struct ScalePlan: Equatable {
     private static func slots(count: Int, active: [VMRecord], input: Input) -> [Slot] {
         guard count > 0 else { return [] }
         let totals = input.demand.mapValues { $0.values.reduce(0, +) }
+        let queuedTart = input.demand.values.reduce(0) { $0 + ($1[.tart] ?? 0) }
         var sim = active
         var out: [Slot] = []
         for _ in 0..<count {
@@ -209,10 +251,21 @@ struct ScalePlan: Equatable {
                 poolExists: input.existingPools.contains)
             if input.heldRuntimes.contains(chosen) { break }  // every pool with demand is backing off
 
-            out.append(Slot(account: account, runtime: chosen))
+            // The image for a Tart slot, counting only instances that serve demand (warm ones do not).
+            var image: String?
+            if chosen == .tart {
+                var served: [String: Int] = [:]
+                for record in sim where pool(of: record, input: input) == .tart {
+                    served[record.image ?? "", default: 0] += 1
+                }
+                image = chooseImage(queuedTart: queuedTart, byImage: input.imageDemand, active: served)
+            }
+
+            out.append(Slot(account: account, runtime: chosen, image: image))
             var record = VMRecord(id: "plan-\(out.count)", phase: .cloning)
             record.platform = account
             record.runtimeID = chosen
+            record.image = image
             sim.append(record)
         }
         return out

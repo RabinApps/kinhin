@@ -46,6 +46,17 @@ final class ConfigValidationMessagesTests: XCTestCase {
         XCTAssertTrue(invalidMessage("\(Self.account)\nwarm_max_age_minutes: 1\n").contains("warm_max_age_minutes"))
     }
 
+    func testImageWarmPoolParsesAndIsBoundedByMaxRunners() throws {
+        let cfg = try ConfigLoader.parse("\(Self.account)\nimages:\n  - name: xcode\n    warm_pool: 1\n")
+        XCTAssertEqual(cfg.images.first?.warmPool, 1)
+        XCTAssertEqual(try ConfigLoader.parse("\(Self.account)\nimages:\n  - name: xcode\n").images.first?.warmPool, 0)
+        let perImage = invalidMessage("\(Self.account)\nmax_runners: 2\nimages:\n  - name: xcode\n    warm_pool: 3\n")
+        XCTAssertTrue(perImage.contains("images: xcode warm_pool"), perImage)
+        let total = invalidMessage(
+            "\(Self.account)\nmax_runners: 2\nwarm_pool: 1\nimages:\n  - name: xcode\n    warm_pool: 2\n")
+        XCTAssertTrue(total.contains("across the base image and images"), total)
+    }
+
     func testPollIntervalErrorIsNotGitHubSpecific() {
         let why = invalidMessage("\(Self.account)\npoll_interval: 1\n")
         XCTAssertTrue(why.contains("poll_interval"), why)

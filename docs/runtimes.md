@@ -91,6 +91,16 @@ labels plus the image's labels. Notes:
 - Per-project toolchain images (`projects:`) are derived from `image:` only, so a job routed to an extra image does not
   get one.
 - Changing `images:` restarts the fleet's engine; running VMs are kept.
+- `warm_pool` on an entry keeps booted VMs of that image ready, so its jobs skip the clone and boot. See
+  [warm pool](scaling.md#warm-pool).
+
+```yaml
+images:
+  - name: xcode
+    base_image: "ghcr.io/cirruslabs/macos-tahoe-xcode:latest"
+    labels: [xcode]
+    warm_pool: 1
+```
 
 For reproducible bakes, pin the image to a digest. A `:latest` tag can be republished at any time, and `kinhin doctor`
 warns about mutable tags:
