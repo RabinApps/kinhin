@@ -35,12 +35,17 @@ public struct ScaleSetSessionStore: Sendable {
         self.url = directory.appendingPathComponent("scaleset-session-\(safe(account))-\(safe(scaleSet)).json")
     }
 
-    /// The recorded session, or nil when there is none or the file is unreadable.
+    /// The recorded session, or nil when there is none. An unreadable file
+    /// also reads as nil, after it is moved aside to a `.corrupt-` sibling
+    /// and logged as an error (see `StateFile`).
     public func load() -> Record? {
-        guard let data = try? Data(contentsOf: url) else { return nil }
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        return try? decoder.decode(Record.self, from: data)
+        let result = StateFile.load(url, component: "scaleset") { data -> Record in
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            return try decoder.decode(Record.self, from: data)
+        }
+        guard case .loaded(let record) = result else { return nil }
+        return record
     }
 
     public func save(_ record: Record) {
@@ -54,7 +59,12 @@ public struct ScaleSetSessionStore: Sendable {
         }
     }
 
+    /// Forgets the recorded session. A missing file is already clear; a
+    /// failed delete is logged (the next start then retries a stale session).
     public func clear() {
-        try? FileManager.default.removeItem(at: url)
+        guard FileManager.default.fileExists(atPath: url.path) else { return }
+        bestEffort("scaleset", "clearing the recorded session \(url.path)") {
+            try FileManager.default.removeItem(at: url)
+        }
     }
 }

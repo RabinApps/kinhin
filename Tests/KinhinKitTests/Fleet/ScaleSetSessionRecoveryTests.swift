@@ -40,10 +40,27 @@ final class ScaleSetSessionRecoveryTests: XCTestCase {
         let two = store(scaleSet: "kinhin-docker")
         XCTAssertNotEqual(one.url, two.url)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        try Data("not json".utf8).write(to: one.url)
+        let garbage = Data("not json".utf8)
+        try garbage.write(to: one.url)
         XCTAssertNil(one.load())
+        let copies = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
+            .filter { $0.lastPathComponent.hasPrefix(one.url.lastPathComponent + ".corrupt-") }
+        XCTAssertEqual(copies.count, 1, "a corrupt session file is moved aside")
+        let copy = try XCTUnwrap(copies.first)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: one.url.path))
         one.save(.init(scaleSetId: 1, sessionId: "a", ownerName: "o"))
+        XCTAssertEqual(try Data(contentsOf: copy), garbage, "the next save must not touch the kept copy")
+        XCTAssertEqual(one.load()?.sessionId, "a")
         XCTAssertNil(two.load())
+    }
+
+    func testMissingSessionFileIsNotQuarantinedAndClearIsQuiet() throws {
+        let store = store()
+        XCTAssertNil(store.load())
+        store.clear()
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let entries = try FileManager.default.contentsOfDirectory(atPath: directory.path)
+        XCTAssertEqual(entries, [])
     }
 
     func testStoreFileNameIsSafeForOddNames() {

@@ -10,6 +10,7 @@ extension FleetEngine {
     /// anything orphaned.
     func recoverIfNeeded() async {
         Log.info("engine", "reconciling existing instances after (re)start")
+        await surfaceCorruptStateFiles()
         // Enumerate every configured runtime through the protocol — the map
         // (not per-runtime branches) is the source of truth.
         // Remember which runtime reported each instance: an adopted or

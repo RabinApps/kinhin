@@ -44,21 +44,31 @@ public struct ProjectImageRecord: Codable, Sendable, Equatable, Identifiable {
 public final class ProjectImageStore: Sendable {
     private let url: URL
     private let mutex: Mutex<[ProjectImageRecord]>
+    /// Where an unreadable project-images.json was moved aside at
+    /// construction (or its original path, if that move failed); nil when it
+    /// read cleanly or was missing. The engine raises it as a status alert.
+    public let recoveredFromCorruptFile: URL?
 
     public init(directory: URL = Paths.stateDirectory) {
         let file = directory.appendingPathComponent("project-images.json")
         self.url = file
-        let loaded: [ProjectImageRecord] = {
-            guard FileManager.default.fileExists(atPath: file.path) else { return [] }
-            do {
-                let decoder = JSONDecoder()
-                decoder.dateDecodingStrategy = .iso8601
-                return try decoder.decode([ProjectImageRecord].self, from: Data(contentsOf: file))
-            } catch {
-                Log.warn("images", "could not read \(file.path) (\(error.localizedDescription)); starting empty")
-                return []
-            }
-        }()
+        // A missing index is "no images yet". A corrupt one is moved aside
+        // (the images stay in tart; only kinhin's claim on them is lost, so
+        // they are no longer pruned) and reported through
+        // `recoveredFromCorruptFile`.
+        var loaded: [ProjectImageRecord] = []
+        var corrupt: URL?
+        let result = StateFile.load(file, component: "images") { data -> [ProjectImageRecord] in
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            return try decoder.decode([ProjectImageRecord].self, from: data)
+        }
+        switch result {
+        case .missing: break
+        case .loaded(let records): loaded = records
+        case .corrupt(let kept): corrupt = kept
+        }
+        self.recoveredFromCorruptFile = corrupt
         self.mutex = Mutex(loaded)
     }
 
