@@ -34,6 +34,23 @@ final class DockerToolchainCacheTests: XCTestCase {
         XCTAssertTrue(runArgvB.contains("img"))
     }
 
+    /// A project-scoped route mounts only that project's cache subdirectory,
+    /// as tart does, so projects sharing a Linux runtime never see each other's downloads.
+    func testProvisionMountsOnlyTheProjectScopedCache() async throws {
+        let shell = FakeShell()
+        let runtime = DockerRuntime(shell: shell, image: "img", cpus: 2, memoryGB: 4, binPath: bin)
+        let route = RepoRoute(
+            repo: "acme/widgets", image: "tahoe-base", ephemeral: true, bootTimeout: 30, cacheMount: true,
+            cacheScope: "proj-key")
+        try await runtime.provision(id: "kinhin-s", route: route)
+        let runArgv = try XCTUnwrap(shell.calls.first { $0.contains("run") && $0.contains("kinhin-s") })
+        let scoped = Paths.toolchainCache.appendingPathComponent("proj-key", isDirectory: true).path
+        XCTAssertTrue(runArgv.contains(ToolchainCacheMount.volumeSpec(host: scoped)))
+        XCTAssertFalse(
+            runArgv.contains(ToolchainCacheMount.volumeSpec(host: Paths.toolchainCache.path)),
+            "a scoped project must not get the whole cache")
+    }
+
     func testRegistrationScriptPrefixesLinuxCacheExportsWhenMounted() async throws {
         let runtime = DockerRuntime(
             shell: FakeShell(), image: "img", cpus: 2, memoryGB: 4,

@@ -45,6 +45,9 @@ jobs:
   # Seconds long. Decides whether to build and what; every switch is read here, so a repository that has not opted in
   # pays for nothing else.
   plan:
+    # Enforced here, not only in video-ci.mjs: a fork PR controls that script (it runs from the PR's checkout), and
+    # mobile-capture below runs on the self-hosted Mac that shares the fleet and its Keychain.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     outputs:
       enabled: ${{ steps.plan.outputs.enabled }}
@@ -102,7 +105,10 @@ jobs:
   # Each capture is copied to canonical names (en-US.png, fr-FR.png) that the project's `screens` paths use.
   mobile-capture:
     needs: plan
-    if: needs.plan.outputs.enabled == 'true' && needs.plan.outputs.screens_platforms != '{"include":[]}'
+    # Fork guard repeated as defense in depth: this job runs on the self-hosted Mac.
+    if: >-
+      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+      && needs.plan.outputs.enabled == 'true' && needs.plan.outputs.screens_platforms != '{"include":[]}'
     runs-on: [self-hosted, kinhin-xcode]
     timeout-minutes: 60
     strategy:

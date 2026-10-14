@@ -354,6 +354,20 @@ final class LinuxToolchainsTests: XCTestCase {
         XCTAssertTrue(runArgv.contains(ToolchainCacheMount.volumeSpec(host: Paths.toolchainCache.path)))
     }
 
+    func testContainerRunnerMountsOnlyTheProjectScopedCache() async throws {
+        let shell = FakeShell()
+        let runtime = AppleContainerRuntime(
+            shell: shell, image: "img", cpus: 2, memoryGB: 4, binPath: "/usr/local/bin/container")
+        try await runtime.provision(
+            id: "kinhin-s",
+            route: RepoRoute(
+                repo: "r", image: "img", ephemeral: true, bootTimeout: 30, cacheMount: true, cacheScope: "proj-key"))
+        let runArgv = try XCTUnwrap(shell.calls.last { $0.contains("run") })
+        let scoped = Paths.toolchainCache.appendingPathComponent("proj-key", isDirectory: true).path
+        XCTAssertTrue(runArgv.contains(ToolchainCacheMount.volumeSpec(host: scoped)))
+        XCTAssertFalse(runArgv.contains(ToolchainCacheMount.volumeSpec(host: Paths.toolchainCache.path)))
+    }
+
     func testContainerRegistrationScriptPrefixesLinuxCacheExports() async throws {
         let shell = FakeShell()
         let runtime = AppleContainerRuntime(

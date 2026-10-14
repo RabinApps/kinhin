@@ -24,12 +24,21 @@ public enum ToolchainCacheMount {
     /// that opt into the cache never see each other's downloads. The
     /// directory is created on demand.
     public static func tartDirectorySpec(scope: String?) -> String {
-        guard let scope else { return guestDirectoryName + ":" + Paths.toolchainCache.path }
-        let directory = Paths.toolchainCache.appendingPathComponent(scope, isDirectory: true)
-        bestEffort("cache", "creating the cache directory for \(scope)") {
+        guestDirectoryName + ":" + hostDirectory(scope: scope).path
+    }
+
+    /// The host cache directory a runner gets: the whole cache, or with a
+    /// `scope` (a project image key) only that project's subdirectory. Every
+    /// runtime mounts through this, so a scoped project never sees another
+    /// project's downloads whichever runtime it runs on. Best-effort: the
+    /// directory is created on demand so a fresh install cannot fail the run.
+    static func hostDirectory(scope: String?) -> URL {
+        let directory =
+            scope.map { Paths.toolchainCache.appendingPathComponent($0, isDirectory: true) } ?? Paths.toolchainCache
+        bestEffort("cache", "creating the cache directory \(directory.path)") {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         }
-        return guestDirectoryName + ":" + directory.path
+        return directory
     }
 
     /// Absolute guest-side path of the shared cache in macOS guests.

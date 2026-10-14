@@ -51,13 +51,10 @@ struct LinuxContainerCLI: Sendable {
         Log.info(id, "starting Linux container from \(image) (\(shape.joined(separator: ", ")))")
         var argv = [bin, "run", "--detach"]
         // Opt-in shared cache: bind-mount the host toolchain cache so per-job
-        // installs reuse warm downloads. Best-effort: create the host dir
-        // first so a fresh install cannot fail the run.
+        // installs reuse warm downloads, scoped to the project like tart's share.
         if route.cacheMount {
-            bestEffort(dialect.tag, "creating the toolchain cache directory") {
-                try FileManager.default.createDirectory(at: Paths.toolchainCache, withIntermediateDirectories: true)
-            }
-            argv += ["--volume", ToolchainCacheMount.volumeSpec(host: Paths.toolchainCache.path)]
+            let host = ToolchainCacheMount.hostDirectory(scope: route.cacheScope)
+            argv += ["--volume", ToolchainCacheMount.volumeSpec(host: host.path)]
         }
         argv += ["--name", id, "--cpus", String(cpus), "--memory", memoryLabel] + dialect.runFlags
         argv += [
