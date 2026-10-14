@@ -55,7 +55,7 @@ public struct HealingHostActions: Sendable {
             return "freed \(megabytes) MB from \(report.entries.count) cache entr(ies)"
         },
         pruneImages: { config, fleet in
-            let inventory = await ImageInventory.probe(config: config)
+            let inventory = try await ImageInventory.probe(config: config)
             let plan = ImagePrunePlan.plan(inventory: inventory, config: config, fleet: fleet)
             guard !plan.isEmpty else { return "no unused images to prune" }
             let tart: (any TartControlling)?
