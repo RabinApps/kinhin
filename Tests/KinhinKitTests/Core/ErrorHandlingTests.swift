@@ -131,14 +131,20 @@ final class ErrorHandlingTests: XCTestCase {
         XCTAssertEqual(ssh.execs, 1, "ssh ran once, after the port opened")
     }
 
+    /// The bring-up window is the larger of `sshReadyWindow` and
+    /// `vm_boot_timeout` (see `TartRegistrationRetryTests`), so the boot
+    /// timeout is zeroed here to let the 0.05s ready window govern.
     func testRegistrationTriesSSHOnceTheWindowRunsOutEvenIfThePortStaysClosed() async throws {
         let ssh = PortGatedSSH(closedProbes: .max)
         let runtime = TartRuntime(
-            tart: FakeTart(), bootTimeout: { 300 }, ssh: ssh, sshReadyWindow: 0.05,
+            tart: FakeTart(), bootTimeout: { 0 }, ssh: ssh, sshReadyWindow: 0.05,
             sshRetryInterval: .milliseconds(1), sshProbeInterval: .milliseconds(5))
-        let result = try await runtime.execRegistration("vm-1", ip: "10.0.0.2", "true", timeout: 5)
-        XCTAssertTrue(result.succeeded)
+        let elapsed = try await ContinuousClock().measure {
+            let result = try await runtime.execRegistration("vm-1", ip: "10.0.0.2", "true", timeout: 5)
+            XCTAssertTrue(result.succeeded)
+        }
         XCTAssertEqual(ssh.execs, 1, "one real attempt reports the error when the window is gone")
+        XCTAssertLessThan(elapsed, .seconds(2), "the probe loop stops when the ready window runs out")
     }
 
     func testTartTeardownDoesNotNeedList() async throws {

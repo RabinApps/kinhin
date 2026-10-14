@@ -544,6 +544,27 @@ final class FleetEngineTests: XCTestCase {
         XCTAssertEqual(acknowledged, [])
     }
 
+    /// The acquire POST succeeded but its reply could not be read: the acquisition
+    /// stands, so the message is still acknowledged instead of failing the session.
+    func testAnUnreadableAcquireReplyStillAcknowledgesTheMessage() async throws {
+        let client = RecordingScaleSetClient()
+        await client.setUnreadableAcquireReply(true)
+        let listener = GitHubScaleSetListener(
+            client: client, scaleSetIdSupplier: { 17 }, ownerName: "acme", fallbackRepository: "acme/widgets")
+        let message = GitHubScaleSetMessage(
+            messageId: "9", statistics: .init(totalAssignedJobs: 1, activeNodesCount: 0),
+            events: [
+                GitHubScaleSetJobEvent(
+                    ownerName: "acme", repositoryName: "widgets", jobDisplayName: "build", requestLabels: [],
+                    runnerRequestId: "17", eventType: .jobAvailable)
+            ])
+        try await listener.process([message], session: makeSession(), scaleSetId: 17)
+        let acknowledged = await client.acknowledged
+        let acquired = await client.acquired
+        XCTAssertEqual(acknowledged, ["9"])
+        XCTAssertEqual(acquired, [[17]])
+    }
+
     func testScaleSetListenerReplacesDuplicateMessageWithLatestEvent() async throws {
         let listener = makeTestListener()
         let first = GitHubScaleSetJobEvent(
@@ -725,10 +746,16 @@ final class FleetEngineTests: XCTestCase {
         private(set) var acknowledged: [String] = []
         private(set) var acquired: [[Int64]] = []
         var failAcquire = false
+        var unreadableAcquireReply = false
 
         func setFailAcquire(_ value: Bool) { failAcquire = value }
+        func setUnreadableAcquireReply(_ value: Bool) { unreadableAcquireReply = value }
         func acquireJobs(session: GitHubScaleSetSession, scaleSetId: Int, requestIds: [Int64]) async throws -> [Int64] {
             if failAcquire { throw GitHubError.http(503, "unavailable") }
+            if unreadableAcquireReply {
+                acquired.append(requestIds)
+                throw GitHubError.decoding("acquirejobs response: garbled")
+            }
             acquired.append(requestIds)
             return requestIds
         }

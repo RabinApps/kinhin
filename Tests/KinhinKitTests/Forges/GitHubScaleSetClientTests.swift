@@ -26,6 +26,19 @@ final class GitHubScaleSetClientTests: XCTestCase {
         XCTAssertEqual(messages[0].events.first?.runnerRequestId, "17")
         XCTAssertEqual(messages[0].events.first?.eventType, .jobAssigned)
         XCTAssertEqual(messages[0].events.first?.repositoryName, "widgets")
+        XCTAssertNil(messages[0].events.first?.runnerName, "JobAssigned names no runner yet")
+    }
+
+    func testJobCompletedDecodesTheRunnerThatRanIt() async throws {
+        StubProtocol.handler = { _ in
+            let json =
+                #"{"messageId":43,"messageType":"RunnerScaleSetJobMessages","body":"[{\"messageType\":\"JobCompleted\",\"runnerRequestId\":17,\"repositoryName\":\"widgets\",\"ownerName\":\"acme\",\"jobDisplayName\":\"build\",\"result\":\"succeeded\",\"runnerId\":5,\"runnerName\":\"kinhin-1-abc\"}]","statistics":{"totalAssignedJobs":0,"totalRunningJobs":0}}"#
+            return (200, Data(json.utf8), [:])
+        }
+        let messages = try await makeClient().pollMessages(
+            session: testSession(), lastMessageId: nil, maxCapacity: 7)
+        XCTAssertEqual(messages.first?.events.first?.eventType, .jobCompleted)
+        XCTAssertEqual(messages.first?.events.first?.runnerName, "kinhin-1-abc")
     }
 
     func testAdminRequestUsesExchangedActionsEndpointAndJWT() async throws {
@@ -377,6 +390,17 @@ final class GitHubScaleSetClientTests: XCTestCase {
             _ = try await makeClient().acquireJobs(session: testSession(), scaleSetId: 4, requestIds: [17])
             XCTFail("a 401 is an expired queue token")
         } catch GitHubScaleSetClientError.messageQueueTokenExpired {}
+    }
+
+    /// An unreadable reply is a decoding error, not "nothing acquired".
+    func testAcquireJobsReportsAnUnreadableReply() async throws {
+        StubProtocol.handler = { _ in (200, Data("<html>gateway</html>".utf8), [:]) }
+        do {
+            _ = try await makeClient().acquireJobs(session: testSession(), scaleSetId: 4, requestIds: [17])
+            XCTFail("a garbled reply must not read as an empty acquisition")
+        } catch GitHubError.decoding(let why) {
+            XCTAssertTrue(why.contains("acquirejobs"), why)
+        }
     }
 
     private func testSession() -> GitHubScaleSetSession {

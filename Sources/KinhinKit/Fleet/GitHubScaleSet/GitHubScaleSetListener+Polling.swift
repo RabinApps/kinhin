@@ -98,6 +98,11 @@ extension GitHubScaleSetListener {
             let refreshed = try await client.refreshSession(scaleSetId: scaleSetId, sessionId: session.sessionId)
             self.session = refreshed
             acquired = try await client.acquireJobs(session: refreshed, scaleSetId: scaleSetId, requestIds: ids)
+        } catch GitHubError.decoding(let why) {
+            // The POST succeeded, so the acquisition stands; only the count is unknown.
+            // Not a dead session: dropping it would back the listener off for nothing.
+            Log.warn("scaleset", "acquired \(ids.count) job(s) but could not read the reply: \(why)")
+            return
         }
         Log.info("scaleset", "acquired \(acquired.count) of \(ids.count) available job(s)")
     }
@@ -106,6 +111,10 @@ extension GitHubScaleSetListener {
         let previous = pendingActions[jobEvent.runnerRequestId]
         if jobEvent.eventType == .jobCompleted {
             pendingActions[jobEvent.runnerRequestId] = nil
+            if let runner = jobEvent.runnerName, !runner.isEmpty, !finishedRunners.contains(runner) {
+                finishedRunners.append(runner)
+                finishedRunners.removeFirst(max(0, finishedRunners.count - Self.finishedRunnersKept))
+            }
         } else {
             pendingActions[jobEvent.runnerRequestId] = jobEvent
         }

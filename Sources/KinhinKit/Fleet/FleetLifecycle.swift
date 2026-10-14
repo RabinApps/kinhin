@@ -279,6 +279,9 @@ extension FleetEngine {
         // and then vanished completed its lifecycle even when no poll caught it
         // online (a short job finishes between two reads of the shared list).
         var appeared: Set<String> = []
+        // Runners the forge's event stream says ran a job and finished it: a short job can start
+        // and end between two list reads, so this is the only sign some runners leave.
+        var reportedFinished: Set<String> = []
         var idleSince: Date?
         // The runtime is asked less often than the forge: a dead instance
         // otherwise waits out the deadline below (hours) with its record.
@@ -310,6 +313,15 @@ extension FleetEngine {
             try Task.checkCancellation()
             for runner in mine where runner.online { seen.insert(runner.name) }
             for runner in mine { appeared.insert(runner.name) }
+            if idleGrace == nil, !expected.allSatisfy({ appeared.contains($0) }) {
+                let finished = await forge.runnersReportedFinished(expected)
+                reportedFinished.formUnion(finished)
+                appeared.formUnion(finished)
+                if !finished.isEmpty, !reportedOnline {
+                    reportedOnline = true
+                    noteSpawnSuccess(id)
+                }
+            }
             // A runner that came online proves the start worked; a script that
             // merely exited 0 does not (the agent can die right after).
             if !reportedOnline, !seen.isEmpty {
@@ -329,7 +341,7 @@ extension FleetEngine {
                 }
                 // Every runner completed its lifecycle; none remain.
                 let phase = store.all.first { $0.id == id }?.phase
-                if phase == .busy || idleGrace != nil {
+                if phase == .busy || idleGrace != nil || !reportedFinished.isEmpty {
                     Log.info(id, "all jobs finished; \(forgeName) runners deregistered; deleting VM")
                     await deleteVMRecord(id: id, reason: "jobs finished")
                 } else {
@@ -485,7 +497,10 @@ extension FleetEngine {
         do {
             try await runtime(for: probe).teardown(id: id)
         } catch is CancellationError {
-            // Fall through: cancellation paths own the teardown and the record.
+            // The instance may still exist: keep the record in `.deleting` so the
+            // reconcile pass (or the next start) finishes the idempotent teardown.
+            Log.info(id, "teardown interrupted; will retry")
+            return
         } catch {
             // Keep the record in `.deleting`: dropping it would leave an
             // untracked instance eating disk. The reconcile pass retries it.
