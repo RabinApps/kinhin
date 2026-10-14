@@ -52,6 +52,9 @@ extension FleetEngine {
     /// Build and register the forge for one account.
     @discardableResult
     func attach(account: AccountConfig, token: String, verify: Bool) async -> Bool {
+        // A token swapped in over the daemon socket never passed through the
+        // Keychain loader that registers it; mask it from here on either way.
+        LogRedactor.registerSecret(token)
         if account.allowInsecureHTTP == true, account.sendsTokenOverPlainHTTP, let instance = account.instance {
             Log.warn(
                 "engine",

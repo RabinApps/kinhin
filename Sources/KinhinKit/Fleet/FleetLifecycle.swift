@@ -203,6 +203,9 @@ extension FleetEngine {
                     throw EngineError.registrationFailed(vm: id, stderr: "forge returned incomplete JIT configs")
                 }
             }
+            // Registration material can surface in a failed script's output or a
+            // forge error body; most of it has no prefix the redaction rules know.
+            for secret in [token] + runnerTokens.values { LogRedactor.registerRegistrationSecret(secret) }
             try Task.checkCancellation()
             let script = try await recordRuntime.registrationScript(
                 forge: forge, token: token, runnerTokens: runnerTokens, name: id,

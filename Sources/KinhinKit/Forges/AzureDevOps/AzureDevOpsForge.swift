@@ -10,9 +10,10 @@ import Synchronization
 /// personal access token that can manage the pool, so the account's PAT is
 /// the long-lived registration credential (it reaches the instance, which is
 /// why the token should be a dedicated one with only the Agent Pools scope).
-/// Each agent runs one job (`run.sh --once`) and then removes itself from the
-/// pool (`config.sh remove`), so the GitHub-style "every runner came and
-/// went" watch applies.
+/// Each agent runs one job (`run.sh --once`) and goes offline. It does not
+/// remove itself (that would keep the PAT in the guest for the whole job):
+/// `runners()` reports an agent that went offline as gone and deletes its
+/// record, so the GitHub-style "every runner came and went" watch applies.
 ///
 /// Jobs pick agents by demands. The account's labels are exported to the
 /// agent as capabilities, and a queued request is kinhin's demand when its
@@ -40,7 +41,7 @@ struct AzureDevOpsForge: Forge {
     init(
         credentials: ForgeCredentials, labels: [String], client: AzureDevOpsClient, pool: AzureDevOpsPool,
         account: String = "azuredevops", listTTL: TimeInterval = 3, offlineGrace: TimeInterval = 60,
-        now: @escaping @Sendable () -> Date = { Date() }
+        idleOfflineGrace: TimeInterval = 15, now: @escaping @Sendable () -> Date = { Date() }
     ) {
         self.account = account
         self.credentials = credentials
@@ -49,7 +50,7 @@ struct AzureDevOpsForge: Forge {
         self.pool = pool
         self.agentList = SharedListCache(ttl: listTTL)
         self.requestList = SharedListCache(ttl: listTTL)
-        self.presence = AgentPresence(grace: offlineGrace, now: now)
+        self.presence = AgentPresence(grace: offlineGrace, idleGrace: idleOfflineGrace, now: now)
     }
 
     /// Builds the forge, resolving the pool up front (fails fast on a bad
@@ -84,9 +85,8 @@ struct AzureDevOpsForge: Forge {
 
     /// The pool's agents. An agent that was seen online and has stayed
     /// offline past the grace period is reported gone and its record deleted:
-    /// when `config.sh remove` fails inside the guest (network, expired PAT)
-    /// the record would otherwise stay "offline" forever and the instance's
-    /// exit watch would never see its runners leave.
+    /// this is how a finished agent leaves the pool (it never removes itself),
+    /// and without it the instance's exit watch would never see its runners go.
     func runners() async throws -> [ForgeRunner] {
         let agents = try await agentList.elements { try await client.listAgents(pool: pool) }
         let verdict = presence.observe(agents)
@@ -307,6 +307,12 @@ struct AzureDevOpsForge: Forge {
 
 /// Remembers which pool agents were seen online and for how long they have
 /// stayed offline since, shared by every reader of the forge's agent list.
+///
+/// An offline agent still holding a job (a heartbeat blip mid-job) gets the
+/// long `grace`; an idle one (its job done, so `run.sh --once` exited) gets
+/// the short `idleGrace`, so a finished instance is recycled quickly. The
+/// cost: an idle agent that blips before its first job is recycled and
+/// respawned instead of waited for.
 final class AgentPresence: Sendable {
     struct Verdict {
         /// Agents that were online and have been offline past the grace period.
@@ -322,11 +328,13 @@ final class AgentPresence: Sendable {
     }
 
     private let grace: TimeInterval
+    private let idleGrace: TimeInterval
     private let now: @Sendable () -> Date
     private let state = Mutex(State())
 
-    init(grace: TimeInterval, now: @escaping @Sendable () -> Date) {
+    init(grace: TimeInterval, idleGrace: TimeInterval, now: @escaping @Sendable () -> Date) {
         self.grace = grace
+        self.idleGrace = min(idleGrace, grace)
         self.now = now
     }
 
@@ -348,7 +356,7 @@ final class AgentPresence: Sendable {
                 } else if state.seenOnline.contains(agent.id) {
                     let since = state.offlineSince[agent.id] ?? time
                     state.offlineSince[agent.id] = since
-                    if time.timeIntervalSince(since) >= grace {
+                    if time.timeIntervalSince(since) >= (agent.busy ? grace : idleGrace) {
                         gone.insert(agent.id)
                         if state.reaped.insert(agent.id).inserted { reap.append(agent) }
                     }
