@@ -237,6 +237,24 @@ final class VideosModelTests: XCTestCase {
                 atPath: repo.appendingPathComponent(".kinhin/videos/music/lofi-loop.mp3").path))
     }
 
+    /// The CLI shares the numbered search cache on disk; a search it runs meanwhile must not change what Add adds.
+    func testAddingUsesTheRowShownNotTheSearchCacheOnDisk() async throws {
+        try write(".kinhin/videos/launch.yml", "name: a\n")
+        stubLibrary()
+        let model = model()
+        await model.chooseRepository()
+        model.musicQuery = "lofi"
+        await model.searchMusic()
+        let other = MusicTrack(
+            origin: .builtIn, id: "first-light-particles", title: "Other", license: "cc0", source: "kinhin")
+        try JSONEncoder().encode([other]).write(to: cache)
+
+        await model.addMusic(at: 0)
+        let yaml = try String(contentsOf: repo.appendingPathComponent(".kinhin/videos/launch.yml"), encoding: .utf8)
+        XCTAssertTrue(yaml.contains("lofi-loop.mp3"), yaml)
+        XCTAssertFalse(yaml.contains("first-light-particles"), yaml)
+    }
+
     func testAnEmptyQueryDoesNothingAndALibraryErrorIsShown() async {
         stubLibrary()
         let model = model()

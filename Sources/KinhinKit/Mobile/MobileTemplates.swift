@@ -11,20 +11,36 @@ enum MobileTemplates {
         "android/fastlane/Appfile": androidFastlaneAppfile,
         "android/fastlane/Fastfile": androidFastlaneFastfile,
         "android/fastlane/Screengrabfile": androidFastlaneScreengrabfile,
+        "ci/azure/android.job.yml": ciAzureAndroidJobYml,
+        "ci/azure/header.yml": ciAzureHeaderYml,
+        "ci/azure/ios.job.yml": ciAzureIosJobYml,
+        "ci/bitbucket/android.job.yml": ciBitbucketAndroidJobYml,
+        "ci/bitbucket/header.yml": ciBitbucketHeaderYml,
+        "ci/bitbucket/ios.job.yml": ciBitbucketIosJobYml,
+        "ci/buildkite/android.job.yml": ciBuildkiteAndroidJobYml,
+        "ci/buildkite/header.yml": ciBuildkiteHeaderYml,
+        "ci/buildkite/ios.job.yml": ciBuildkiteIosJobYml,
+        "ci/gitea/android.job.yml": ciGiteaAndroidJobYml,
+        "ci/gitea/header.yml": ciGiteaHeaderYml,
+        "ci/gitea/ios.job.yml": ciGiteaIosJobYml,
+        "ci/github/android.job.yml": ciGithubAndroidJobYml,
+        "ci/github/header.yml": ciGithubHeaderYml,
+        "ci/github/ios.job.yml": ciGithubIosJobYml,
+        "ci/github/prebuild/capacitor-android.yml": ciGithubPrebuildCapacitorAndroidYml,
+        "ci/github/prebuild/capacitor-ios.yml": ciGithubPrebuildCapacitorIosYml,
+        "ci/github/prebuild/flutter-android.yml": ciGithubPrebuildFlutterAndroidYml,
+        "ci/github/prebuild/flutter-ios.yml": ciGithubPrebuildFlutterIosYml,
+        "ci/github/prebuild/kmp-android.yml": ciGithubPrebuildKmpAndroidYml,
+        "ci/github/prebuild/kmp-ios.yml": ciGithubPrebuildKmpIosYml,
+        "ci/github/prebuild/maui-android.yml": ciGithubPrebuildMauiAndroidYml,
+        "ci/github/prebuild/maui-ios.yml": ciGithubPrebuildMauiIosYml,
+        "ci/github/prebuild/react-native-android.yml": ciGithubPrebuildReactNativeAndroidYml,
+        "ci/github/prebuild/react-native-ios.yml": ciGithubPrebuildReactNativeIosYml,
+        "ci/gitlab/android.job.yml": ciGitlabAndroidJobYml,
+        "ci/gitlab/header.yml": ciGitlabHeaderYml,
+        "ci/gitlab/ios.job.yml": ciGitlabIosJobYml,
+        "ci/mobile-release.sh": ciMobileReleaseSh,
         "expo/eas.json": expoEasJson,
-        "github/android.job.yml": githubAndroidJobYml,
-        "github/header.yml": githubHeaderYml,
-        "github/ios.job.yml": githubIosJobYml,
-        "github/prebuild/capacitor-android.yml": githubPrebuildCapacitorAndroidYml,
-        "github/prebuild/capacitor-ios.yml": githubPrebuildCapacitorIosYml,
-        "github/prebuild/flutter-android.yml": githubPrebuildFlutterAndroidYml,
-        "github/prebuild/flutter-ios.yml": githubPrebuildFlutterIosYml,
-        "github/prebuild/kmp-android.yml": githubPrebuildKmpAndroidYml,
-        "github/prebuild/kmp-ios.yml": githubPrebuildKmpIosYml,
-        "github/prebuild/maui-android.yml": githubPrebuildMauiAndroidYml,
-        "github/prebuild/maui-ios.yml": githubPrebuildMauiIosYml,
-        "github/prebuild/react-native-android.yml": githubPrebuildReactNativeAndroidYml,
-        "github/prebuild/react-native-ios.yml": githubPrebuildReactNativeIosYml,
         "ios/UITests/ScreenshotTests.swift": iosUITestsScreenshotTestsSwift,
         "ios/UITests/SnapshotHelper.swift": iosUITestsSnapshotHelperSwift,
         "ios/fastlane/Appfile": iosFastlaneAppfile,
@@ -310,23 +326,270 @@ enum MobileTemplates {
         clear_previous_screenshots(true)
         """#
 
-    private static let expoEasJson = #"""
-        {
-          "cli": {
-            "version": ">= 16.0.0"
-          },
-          "build": {
-            "production": {
-              "distribution": "store"
-            }
-          },
-          "submit": {
-            "production": {}
-          }
-        }
+    private static let ciAzureAndroidJobYml = #"""
+          # Android has no release lane yet, so the release choice runs only the iOS job.
+          - ${{ if ne(parameters.lane, 'release') }}:
+              - job: android
+                displayName: Android
+                pool:
+                  name: ${{ parameters.pool }}
+                  demands: [kinhin_xcode]
+                steps:
+                  - checkout: self
+                  - script: bash __SCRIPT__ android "${{ parameters.lane }}"
+                    displayName: Release
+                    env:
+                      ANDROID_PACKAGE_NAME: $(ANDROID_PACKAGE_NAME)
+                      PLAY_SERVICE_ACCOUNT_JSON: $(PLAY_SERVICE_ACCOUNT_JSON)
+                      ANDROID_KEYSTORE_BASE64: $(ANDROID_KEYSTORE_BASE64)
+                      ANDROID_KEYSTORE_PASSWORD: $(ANDROID_KEYSTORE_PASSWORD)
+                      ANDROID_KEY_ALIAS: $(ANDROID_KEY_ALIAS)
+                      ANDROID_KEY_PASSWORD: $(ANDROID_KEY_PASSWORD)
+                  - ${{ if eq(parameters.lane, 'screenshots') }}:
+                      - publish: __ANDROID_SCREENSHOTS__
+                        artifact: android-screenshots
+                        condition: always()
+
         """#
 
-    private static let githubAndroidJobYml = #"""
+    private static let ciAzureHeaderYml = #"""
+        # Mobile release pipeline for a kinhin runner, written by `kinhin mobile init` to .azure-pipelines/mobile-release.yml.
+        # Create a pipeline from this file (Pipelines > New pipeline > Existing Azure Pipelines YAML file). It has no trigger, so it
+        # runs only when started by hand and store uploads never run by accident. The steps are in .kinhin/mobile-release.sh.
+        #
+        # Pipeline variables used (mark them secret; Azure passes secrets to a script only through the env: mapping below):
+        #   iOS:     ASC_KEY_ID, ASC_KEY_P8 (contents of the .p8 file), ASC_ISSUER_ID, MATCH_GIT_URL,
+        #            MATCH_PASSWORD, APPLE_TEAM_ID, APP_IDENTIFIER, IOS_SCHEME
+        #   Android: ANDROID_PACKAGE_NAME, PLAY_SERVICE_ACCOUNT_JSON, ANDROID_KEYSTORE_BASE64 (base64 of the
+        #            upload keystore), ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
+        trigger: none
+        pr: none
+
+        parameters:
+          - name: lane
+            displayName: Lane to run
+            type: string
+            default: beta
+            values: [beta, release, screenshots]
+          # The agent pool your kinhin Azure DevOps account serves (its scope in kinhin's config).
+          - name: pool
+            displayName: kinhin agent pool
+            type: string
+            default: kinhin
+
+        jobs:
+        """#
+
+    private static let ciAzureIosJobYml = #"""
+          - job: ios
+            displayName: iOS
+            pool:
+              name: ${{ parameters.pool }}
+              # kinhin exports its labels as agent capabilities, with - turned into _: kinhin-xcode is the Xcode image label.
+              demands: [kinhin_xcode]
+            steps:
+              - checkout: self
+              - script: bash __SCRIPT__ ios "${{ parameters.lane }}"
+                displayName: Release
+                env:
+                  ASC_KEY_ID: $(ASC_KEY_ID)
+                  ASC_KEY_P8: $(ASC_KEY_P8)
+                  ASC_ISSUER_ID: $(ASC_ISSUER_ID)
+                  MATCH_GIT_URL: $(MATCH_GIT_URL)
+                  MATCH_PASSWORD: $(MATCH_PASSWORD)
+                  APPLE_TEAM_ID: $(APPLE_TEAM_ID)
+                  APP_IDENTIFIER: $(APP_IDENTIFIER)
+                  IOS_SCHEME: $(IOS_SCHEME)
+              # Screenshots are written inside the VM, which is deleted when the job ends. Keep them, even when the lane fails.
+              - ${{ if eq(parameters.lane, 'screenshots') }}:
+                  - publish: __IOS_SCREENSHOTS__
+                    artifact: ios-screenshots
+                    condition: always()
+
+        """#
+
+    private static let ciBitbucketAndroidJobYml = #"""
+              - step:
+                  name: Android
+                  # Android has no release lane yet: for the release choice the script returns at once.
+                  runs-on: [self.hosted, macos, kinhin-xcode]
+                  script:
+                    - bash __SCRIPT__ android "$LANE"
+                  artifacts:
+                    - __ANDROID_SCREENSHOTS__/**
+        """#
+
+    private static let ciBitbucketHeaderYml = #"""
+        # Mobile release pipeline for a kinhin runner, written by `kinhin mobile init`. It is a custom pipeline, so it runs only
+        # when started by hand (Pipelines > Run pipeline > custom: mobile-release) and store uploads never run by accident. Pick the
+        # lane in LANE on that form. The steps are in .kinhin/mobile-release.sh.
+        #
+        # Repository variables used (Repository settings > Pipelines > Repository variables, secured):
+        #   iOS:     ASC_KEY_ID, ASC_KEY_P8 (contents of the .p8 file), ASC_ISSUER_ID, MATCH_GIT_URL,
+        #            MATCH_PASSWORD, APPLE_TEAM_ID, APP_IDENTIFIER, IOS_SCHEME
+        #   Android: ANDROID_PACKAGE_NAME, PLAY_SERVICE_ACCOUNT_JSON, ANDROID_KEYSTORE_BASE64 (base64 of the
+        #            upload keystore), ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
+        # If the repository already has a bitbucket-pipelines.yml, kinhin leaves it alone and writes this file beside it: copy the
+        # mobile-release entry under your own pipelines: custom: section.
+        pipelines:
+          custom:
+            mobile-release:
+              - variables:
+                  - name: LANE
+                    default: beta
+                    allowed-values: [beta, release, screenshots]
+        """#
+
+    private static let ciBitbucketIosJobYml = #"""
+              - step:
+                  name: iOS
+                  # A kinhin macOS runner: self.hosted and macos are Bitbucket's own labels, kinhin-xcode is the Xcode image label.
+                  runs-on: [self.hosted, macos, kinhin-xcode]
+                  script:
+                    - bash __SCRIPT__ ios "$LANE"
+                  # Screenshots are written inside the VM, which is deleted when the job ends. Keep them as an artifact.
+                  artifacts:
+                    - __IOS_SCREENSHOTS__/**
+        """#
+
+    private static let ciBuildkiteAndroidJobYml = #"""
+          - label: "Android"
+            depends_on: lane-input
+            # Android has no release lane yet: for the release choice the script returns at once.
+            agents:
+              queue: kinhin
+            command: bash __SCRIPT__ android "$$(buildkite-agent meta-data get lane)"
+            artifact_paths: "__ANDROID_SCREENSHOTS__/**/*"
+        """#
+
+    private static let ciBuildkiteHeaderYml = #"""
+        # Mobile release pipeline for a kinhin runner, written by `kinhin mobile init` to .buildkite/mobile-release.yml. Make a
+        # pipeline whose steps are `buildkite-agent pipeline upload .buildkite/mobile-release.yml`, with no trigger on push, so it
+        # runs only when you start a build by hand and store uploads never run by accident. The steps are in .kinhin/mobile-release.sh.
+        #
+        # Secrets arrive as environment variables on the agent (Buildkite Secrets exported by an agent hook, or the pipeline's
+        # environment):
+        #   iOS:     ASC_KEY_ID, ASC_KEY_P8 (contents of the .p8 file), ASC_ISSUER_ID, MATCH_GIT_URL,
+        #            MATCH_PASSWORD, APPLE_TEAM_ID, APP_IDENTIFIER, IOS_SCHEME
+        #   Android: ANDROID_PACKAGE_NAME, PLAY_SERVICE_ACCOUNT_JSON, ANDROID_KEYSTORE_BASE64 (base64 of the
+        #            upload keystore), ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
+        steps:
+          - input: "Mobile release"
+            key: lane-input
+            fields:
+              - select: "Lane to run"
+                key: lane
+                default: beta
+                options:
+                  - { label: beta, value: beta }
+                  - { label: release, value: release }
+                  - { label: screenshots, value: screenshots }
+        """#
+
+    private static let ciBuildkiteIosJobYml = #"""
+          - label: "iOS"
+            depends_on: lane-input
+            # queue=kinhin is kinhin's default agent tag; use the queue your kinhin Buildkite account's labels name.
+            agents:
+              queue: kinhin
+            command: bash __SCRIPT__ ios "$$(buildkite-agent meta-data get lane)"
+            # Screenshots are written inside the VM, which is deleted when the job ends. Keep them as an artifact.
+            artifact_paths: "__IOS_SCREENSHOTS__/**/*"
+        """#
+
+    private static let ciGiteaAndroidJobYml = #"""
+          android:
+            # Android has no release lane yet, so the release choice runs only the iOS job.
+            if: inputs.lane != 'release'
+            runs-on: [kinhin-xcode]
+            steps:
+              - uses: https://github.com/actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+              - name: Release
+                run: bash __SCRIPT__ android "${{ inputs.lane }}"
+                env:
+                  ANDROID_PACKAGE_NAME: ${{ secrets.ANDROID_PACKAGE_NAME }}
+                  PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+                  ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+                  ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+                  ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+                  ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+                  UPLOAD_SCREENSHOTS: ${{ vars.UPLOAD_SCREENSHOTS }}
+                  SCREENGRAB_LOCALES: ${{ vars.SCREENGRAB_LOCALES }}
+                  SCREENGRAB_DEVICE_TYPE: ${{ vars.SCREENGRAB_DEVICE_TYPE }}
+              - name: Upload screenshots
+                if: ${{ always() && inputs.lane == 'screenshots' }}
+                uses: https://github.com/actions/upload-artifact@c6a3b2bd78b3985e4b2f15397fec357f0fd808de # v3.2.2-node20
+                with:
+                  name: android-screenshots
+                  path: __ANDROID_SCREENSHOTS__
+                  if-no-files-found: warn
+                  retention-days: 14
+
+        """#
+
+    private static let ciGiteaHeaderYml = #"""
+        # Mobile release workflow for a kinhin runner, written by `kinhin mobile init` to __WORKFLOW_PATH__ (Gitea and Forgejo
+        # Actions). Manual trigger only, so store uploads never run by accident. The steps are in .kinhin/mobile-release.sh, because
+        # the GitHub setup actions (setup-ruby, setup-node, flutter-action) are not available on every Gitea or Forgejo server: the
+        # runner image supplies Ruby 3.2+ and the app's tools. The two actions used here (checkout, upload-artifact) are JavaScript
+        # actions, so the runner image also needs Node.js.
+        #
+        # Repository secrets used here:
+        #   iOS:     ASC_KEY_ID, ASC_KEY_P8 (contents of the .p8 file), ASC_ISSUER_ID, MATCH_GIT_URL,
+        #            MATCH_PASSWORD, APPLE_TEAM_ID, APP_IDENTIFIER, IOS_SCHEME
+        #   Android: ANDROID_PACKAGE_NAME, PLAY_SERVICE_ACCOUNT_JSON, ANDROID_KEYSTORE_BASE64 (base64 of the
+        #            upload keystore), ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
+        name: mobile-release
+
+        on:
+          workflow_dispatch:
+            inputs:
+              lane:
+                description: "Lane to run"
+                type: choice
+                options: [beta, release, screenshots]
+                default: beta
+
+        jobs:
+        """#
+
+    private static let ciGiteaIosJobYml = #"""
+          ios:
+            # kinhin-xcode is the Xcode image label. Change it if your pool uses another name.
+            runs-on: [kinhin-xcode]
+            steps:
+              # Full URLs, so the server fetches these from GitHub whatever its default actions mirror is.
+              - uses: https://github.com/actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+              - name: Release
+                run: bash __SCRIPT__ ios "${{ inputs.lane }}"
+                env:
+                  ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+                  ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+                  ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+                  MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+                  MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+                  APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+                  APP_IDENTIFIER: ${{ secrets.APP_IDENTIFIER }}
+                  IOS_SCHEME: ${{ secrets.IOS_SCHEME }}
+                  # Screenshot settings, read from repository variables (not secrets). Empty means the default.
+                  FRAME_SCREENSHOTS: ${{ vars.FRAME_SCREENSHOTS }}
+                  UPLOAD_SCREENSHOTS: ${{ vars.UPLOAD_SCREENSHOTS }}
+                  SNAPSHOT_DEVICES: ${{ vars.SNAPSHOT_DEVICES }}
+                  SNAPSHOT_LANGUAGES: ${{ vars.SNAPSHOT_LANGUAGES }}
+              # Screenshots are written inside the VM, which is deleted when the job ends. Keep them, even when the lane fails.
+              # upload-artifact v3: the artifact protocol Gitea and Forgejo servers implement.
+              - name: Upload screenshots
+                if: ${{ always() && inputs.lane == 'screenshots' }}
+                uses: https://github.com/actions/upload-artifact@c6a3b2bd78b3985e4b2f15397fec357f0fd808de # v3.2.2-node20
+                with:
+                  name: ios-screenshots
+                  path: __IOS_SCREENSHOTS__
+                  if-no-files-found: warn
+                  retention-days: 14
+
+        """#
+
+    private static let ciGithubAndroidJobYml = #"""
           android:
             # Android has no release lane yet, so the release choice runs only the iOS job.
             if: inputs.lane != 'release'
@@ -379,7 +642,7 @@ enum MobileTemplates {
                 run: rm -f "$RUNNER_TEMP/release.keystore"
         """#
 
-    private static let githubHeaderYml = #"""
+    private static let ciGithubHeaderYml = #"""
         # Mobile release workflow for a kinhin runner, written by `kinhin mobile init` to .github/workflows/mobile-release.yml.
         # Manual trigger only, so store uploads never run by accident.
         #
@@ -402,7 +665,7 @@ enum MobileTemplates {
         jobs:
         """#
 
-    private static let githubIosJobYml = #"""
+    private static let ciGithubIosJobYml = #"""
           ios:
             # kinhin-xcode is the Xcode image label. Change it if your pool uses another name.
             runs-on: [self-hosted, kinhin-xcode]
@@ -457,7 +720,7 @@ enum MobileTemplates {
 
         """#
 
-    private static let githubPrebuildCapacitorAndroidYml = #"""
+    private static let ciGithubPrebuildCapacitorAndroidYml = #"""
               - name: Node.js
                 uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
                 with:
@@ -485,7 +748,7 @@ enum MobileTemplates {
                   npx cap sync android
         """#
 
-    private static let githubPrebuildCapacitorIosYml = #"""
+    private static let ciGithubPrebuildCapacitorIosYml = #"""
               - name: Node.js
                 uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
                 with:
@@ -517,7 +780,7 @@ enum MobileTemplates {
                 run: echo "IOS_PROJECT=App/App.xcodeproj" >> "$GITHUB_ENV"
         """#
 
-    private static let githubPrebuildFlutterAndroidYml = #"""
+    private static let ciGithubPrebuildFlutterAndroidYml = #"""
               - name: Flutter SDK
                 uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
                 with:
@@ -527,7 +790,7 @@ enum MobileTemplates {
                 run: flutter pub get
         """#
 
-    private static let githubPrebuildFlutterIosYml = #"""
+    private static let ciGithubPrebuildFlutterIosYml = #"""
               - name: Flutter SDK
                 uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
                 with:
@@ -539,7 +802,7 @@ enum MobileTemplates {
                   flutter build ios --config-only --release
         """#
 
-    private static let githubPrebuildKmpAndroidYml = #"""
+    private static let ciGithubPrebuildKmpAndroidYml = #"""
               - name: Gradle project for the Android module
                 # The Gradle root is the repository root, one folder above androidApp/, and the module is androidApp.
                 run: |
@@ -547,7 +810,7 @@ enum MobileTemplates {
                   echo "ANDROID_GRADLE_MODULE=androidApp" >> "$GITHUB_ENV"
         """#
 
-    private static let githubPrebuildKmpIosYml = #"""
+    private static let ciGithubPrebuildKmpIosYml = #"""
               - name: Java for the shared Kotlin module
                 # The Xcode build phase runs Gradle to build the shared framework, so Gradle needs a JDK on the runner.
                 uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
@@ -556,7 +819,7 @@ enum MobileTemplates {
                   java-version: "17"
         """#
 
-    private static let githubPrebuildMauiAndroidYml = #"""
+    private static let ciGithubPrebuildMauiAndroidYml = #"""
               - name: .NET SDK and the MAUI workload
                 uses: actions/setup-dotnet@d4c94342e560b34958eacfc5d055d21461ed1c5d # v5.0.0
                 with:
@@ -571,7 +834,7 @@ enum MobileTemplates {
                   echo "MAUI_PROJECT=$project" >> "$GITHUB_ENV"
         """#
 
-    private static let githubPrebuildMauiIosYml = #"""
+    private static let ciGithubPrebuildMauiIosYml = #"""
               - name: .NET SDK and the MAUI workload
                 uses: actions/setup-dotnet@d4c94342e560b34958eacfc5d055d21461ed1c5d # v5.0.0
                 with:
@@ -586,7 +849,7 @@ enum MobileTemplates {
                   echo "MAUI_PROJECT=$project" >> "$GITHUB_ENV"
         """#
 
-    private static let githubPrebuildReactNativeAndroidYml = #"""
+    private static let ciGithubPrebuildReactNativeAndroidYml = #"""
               - name: Node.js
                 uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
                 with:
@@ -609,7 +872,7 @@ enum MobileTemplates {
                   fi
         """#
 
-    private static let githubPrebuildReactNativeIosYml = #"""
+    private static let ciGithubPrebuildReactNativeIosYml = #"""
               - name: Node.js
                 uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
                 with:
@@ -630,6 +893,202 @@ enum MobileTemplates {
                   elif [ -f package-lock.json ]; then npm ci
                   else npm install
                   fi
+        """#
+
+    private static let ciGitlabAndroidJobYml = #"""
+
+        mobile-release-android:
+          # Android has no release lane yet, so the release choice runs only the iOS job.
+          tags: [kinhin-xcode]
+          rules:
+            - if: $CI_PIPELINE_SOURCE == "web" && $MOBILE_LANE != "release"
+          script:
+            - bash __SCRIPT__ android "$MOBILE_LANE"
+          artifacts:
+            when: always
+            expire_in: 14 days
+            paths:
+              - __ANDROID_SCREENSHOTS__
+        """#
+
+    private static let ciGitlabHeaderYml = #"""
+        # Mobile release pipeline for a kinhin runner, written by `kinhin mobile init` to .gitlab/mobile-release.yml and included
+        # from .gitlab-ci.yml. Its jobs run only in a pipeline started by hand (Build > Pipelines > Run pipeline), so store uploads
+        # never run by accident. Pick the lane in MOBILE_LANE on that form. The steps are in .kinhin/mobile-release.sh.
+        #
+        # CI/CD variables used (Settings > CI/CD > Variables, masked):
+        #   iOS:     ASC_KEY_ID, ASC_KEY_P8 (contents of the .p8 file), ASC_ISSUER_ID, MATCH_GIT_URL,
+        #            MATCH_PASSWORD, APPLE_TEAM_ID, APP_IDENTIFIER, IOS_SCHEME
+        #   Android: ANDROID_PACKAGE_NAME, PLAY_SERVICE_ACCOUNT_JSON, ANDROID_KEYSTORE_BASE64 (base64 of the
+        #            upload keystore), ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
+        # Optional screenshot settings: FRAME_SCREENSHOTS, UPLOAD_SCREENSHOTS, SNAPSHOT_DEVICES, SNAPSHOT_LANGUAGES,
+        # SCREENGRAB_LOCALES, SCREENGRAB_DEVICE_TYPE.
+
+        variables:
+          MOBILE_LANE:
+            value: beta
+            options: [beta, release, screenshots]
+            description: "Mobile release lane to run (only used by a pipeline started by hand)"
+        """#
+
+    private static let ciGitlabIosJobYml = #"""
+
+        mobile-release-ios:
+          # kinhin-xcode is the Xcode image label. Change it if your pool uses another name.
+          tags: [kinhin-xcode]
+          rules:
+            - if: $CI_PIPELINE_SOURCE == "web"
+          script:
+            - bash __SCRIPT__ ios "$MOBILE_LANE"
+          # Screenshots are written inside the VM, which is deleted when the job ends. Keep them, even when the lane fails.
+          artifacts:
+            when: always
+            expire_in: 14 days
+            paths:
+              - __IOS_SCREENSHOTS__
+        """#
+
+    private static let ciMobileReleaseSh = #"""
+        #!/usr/bin/env bash
+        # Mobile release steps for a kinhin runner, written by `kinhin mobile init` for CI systems other than GitHub Actions
+        # (GitLab CI, Gitea and Forgejo Actions, Bitbucket Pipelines, Azure Pipelines, Buildkite). Their pipeline files call it as
+        #
+        #   bash .kinhin/mobile-release.sh <ios|android> <beta|release|screenshots>
+        #
+        # It does what the GitHub workflow's steps do: the framework's setup, the signing files from secrets, bundle install, then the
+        # fastlane lane. Secrets arrive as environment variables, under the names docs/mobile-credentials.md lists:
+        #   iOS:     ASC_KEY_ID, ASC_KEY_P8 (contents of the .p8 file), ASC_ISSUER_ID, MATCH_GIT_URL,
+        #            MATCH_PASSWORD, APPLE_TEAM_ID, APP_IDENTIFIER, IOS_SCHEME
+        #   Android: ANDROID_PACKAGE_NAME, PLAY_SERVICE_ACCOUNT_JSON, ANDROID_KEYSTORE_BASE64 (base64 of the
+        #            upload keystore), ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
+        # There are no setup actions outside GitHub, so the tools (Ruby 3.2+, and Node, Flutter, Java or .NET as the app needs) come
+        # from the runner image: declare them in .kinhin/config.yml (`kinhin toolchains detect --write` proposes the list).
+        set -euo pipefail
+
+        platform="${1:-}"
+        lane="${2:-beta}"
+        case "$lane" in
+          beta | release | screenshots) ;;
+          *) echo "mobile-release: unknown lane '$lane' (beta, release or screenshots)" >&2; exit 2 ;;
+        esac
+        case "$platform" in
+          ios) dir="__IOS_DIR__" ;;
+          android)
+            dir="__ANDROID_DIR__"
+            if [ "$lane" = release ]; then
+              echo "mobile-release: Android has no release lane yet, so there is nothing to do for 'release'."
+              exit 0
+            fi
+            ;;
+          *) echo "usage: mobile-release.sh <ios|android> <beta|release|screenshots>" >&2; exit 2 ;;
+        esac
+
+        framework="__FRAMEWORK__"
+        # The app folder: this script lives in its .kinhin/ folder.
+        app="$(cd "$(dirname "$0")/.." && pwd)"
+        export CI=true
+        # Signing files live here for the job only.
+        work="$(mktemp -d)"
+        trap 'rm -rf "$work"' EXIT
+
+        need() {
+          command -v "$1" >/dev/null 2>&1 && return
+          echo "mobile-release: '$1' is not on this runner's PATH. Add it to the image's toolchains in .kinhin/config.yml." >&2
+          exit 1
+        }
+
+        # fastlane needs Ruby 3.2+; the macOS system Ruby is 2.6. mise, when the image has it, supplies one.
+        ruby_ok() {
+          command -v ruby >/dev/null 2>&1 \
+            && ruby -e 'exit(Gem::Version.new(RUBY_VERSION) >= Gem::Version.new("3.2") ? 0 : 1)'
+        }
+        if ! ruby_ok && command -v mise >/dev/null 2>&1; then
+          mise install ruby@3.3 >/dev/null
+          PATH="$(mise where ruby@3.3)/bin:$PATH"
+          export PATH
+        fi
+        ruby_ok || { echo "mobile-release: fastlane needs Ruby 3.2 or newer on the runner (ruby@3.3 in .kinhin/config.yml)." >&2; exit 1; }
+
+        # JavaScript dependencies with the project's own package manager.
+        js_install() {
+          need node
+          if [ -f yarn.lock ] || [ -f pnpm-lock.yaml ]; then
+            # corepack's default shim directory is often read-only on a runner, so give it a directory the job owns.
+            mkdir -p "$work/corepack-bin"
+            corepack enable --install-directory "$work/corepack-bin"
+            export PATH="$work/corepack-bin:$PATH"
+          fi
+          if [ -f yarn.lock ]; then yarn install --frozen-lockfile
+          elif [ -f pnpm-lock.yaml ]; then pnpm install --frozen-lockfile
+          elif [ -f package-lock.json ]; then npm ci
+          else npm install
+          fi
+        }
+
+        # The framework's setup, run in the app folder.
+        cd "$app"
+        case "$framework/$platform" in
+          flutter/ios)
+            need flutter
+            flutter pub get
+            flutter build ios --config-only --release
+            ;;
+          flutter/android)
+            need flutter
+            flutter pub get  # writes android/local.properties
+            ;;
+          react-native/*) js_install ;;
+          capacitor/*)
+            js_install
+            npm run build
+            npx cap sync "$platform"
+            # Capacitor keeps its Xcode project in ios/App, one level below the fastlane folder (ios/).
+            if [ "$platform" = ios ]; then export IOS_PROJECT=App/App.xcodeproj; fi
+            ;;
+          kmp/ios) need java ;;  # the Xcode build phase runs Gradle to build the shared framework
+          kmp/android)
+            # The Gradle root is one folder above androidApp/, and the module is androidApp.
+            export ANDROID_GRADLE_DIR=.. ANDROID_GRADLE_MODULE=androidApp
+            ;;
+          maui/*)
+            need dotnet
+            dotnet workload install maui
+            MAUI_PROJECT="$(find . -maxdepth 2 -name '*.csproj' | head -1)"
+            export MAUI_PROJECT
+            ;;
+        esac
+        if [ "$platform" = android ]; then need java; fi
+
+        # Signing files from the secrets, removed again when the script exits.
+        if [ "$platform" = ios ] && [ -n "${ASC_KEY_P8:-}" ]; then
+          printf '%s' "$ASC_KEY_P8" > "$work/AuthKey.p8"
+          export ASC_KEY_FILEPATH="$work/AuthKey.p8"
+        fi
+        if [ "$platform" = android ] && [ -n "${ANDROID_KEYSTORE_BASE64:-}" ]; then
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$work/release.keystore"
+          export ANDROID_KEYSTORE_PATH="$work/release.keystore"
+        fi
+
+        cd "$app/$dir"
+        bundle install
+        if [ "$platform" = ios ] && [ -f Podfile ]; then bundle exec pod install; fi
+        bundle exec fastlane "$platform" "$lane"
+        """#
+
+    private static let expoEasJson = #"""
+        {
+          "cli": {
+            "version": ">= 16.0.0"
+          },
+          "build": {
+            "production": {
+              "distribution": "store"
+            }
+          },
+          "submit": {
+            "production": {}
+          }
+        }
         """#
 
     private static let iosUITestsScreenshotTestsSwift = #"""

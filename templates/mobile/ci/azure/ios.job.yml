@@ -1,0 +1,25 @@
+  - job: ios
+    displayName: iOS
+    pool:
+      name: ${{ parameters.pool }}
+      # kinhin exports its labels as agent capabilities, with - turned into _: kinhin-xcode is the Xcode image label.
+      demands: [kinhin_xcode]
+    steps:
+      - checkout: self
+      - script: bash __SCRIPT__ ios "${{ parameters.lane }}"
+        displayName: Release
+        env:
+          ASC_KEY_ID: $(ASC_KEY_ID)
+          ASC_KEY_P8: $(ASC_KEY_P8)
+          ASC_ISSUER_ID: $(ASC_ISSUER_ID)
+          MATCH_GIT_URL: $(MATCH_GIT_URL)
+          MATCH_PASSWORD: $(MATCH_PASSWORD)
+          APPLE_TEAM_ID: $(APPLE_TEAM_ID)
+          APP_IDENTIFIER: $(APP_IDENTIFIER)
+          IOS_SCHEME: $(IOS_SCHEME)
+      # Screenshots are written inside the VM, which is deleted when the job ends. Keep them, even when the lane fails.
+      - ${{ if eq(parameters.lane, 'screenshots') }}:
+          - publish: __IOS_SCREENSHOTS__
+            artifact: ios-screenshots
+            condition: always()
+

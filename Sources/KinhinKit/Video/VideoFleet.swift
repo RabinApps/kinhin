@@ -7,7 +7,7 @@ public enum VideoFleet {
     public static let workflowPath = ".github/workflows/\(workflowFile)"
     public static let artifactName = "kinhin-video"
 
-    /// Whether `labels` is a comma-separated list of runner labels (`self-hosted,linux`).
+    /// Whether `labels` is a comma-separated list of runner labels (`self-hosted,linux`, or Buildkite's `queue=kinhin`).
     static func parseLabels(_ labels: String) -> [String]? {
         let parts = labels.split(separator: ",", omittingEmptySubsequences: false).map {
             $0.trimmingCharacters(in: .whitespaces)
@@ -18,113 +18,119 @@ public enum VideoFleet {
                 return false
             }
             return label.unicodeScalars.allSatisfy {
-                CharacterSet.alphanumerics.contains($0) || "_.-".unicodeScalars.contains($0)
+                CharacterSet.alphanumerics.contains($0) || "_.-=".unicodeScalars.contains($0)
             }
         }
         return valid ? parts : nil
     }
 
     /// The workflow `kinhin video init --workflow` writes. Inputs reach the shell through environment variables (never
-    /// inlined into the script), the actions are pinned, and the job can only read the repository.
-    public static func workflowTemplate(runsOn labels: [String], image: String) -> String {
-        """
-        # Builds a video from .kinhin/videos/ on a runner, with kinhin's published video image (no copy of the suite needed).
-        # Run it with: kinhin video build <name> --on-fleet   (or Actions > kinhin video > Run workflow).
-        # The runner needs Docker and a network that can pull \(image).
-        name: kinhin video
+    /// inlined into the script), the actions are pinned, and the job can only read the repository. `forgeHosted` is the
+    /// Gitea and Forgejo flavour: actions by full GitHub URL (whatever the server's actions mirror is) and the
+    /// upload-artifact release whose protocol those servers implement.
+    public static func workflowTemplate(runsOn labels: [String], image: String, forgeHosted: Bool = false) -> String {
+        let runHint =
+            forgeHosted
+            ? "Run it from the repository's Actions tab: kinhin video > Run workflow."
+            : "Run it with: kinhin video build <name> --on-fleet   (or Actions > kinhin video > Run workflow)."
+        let checkout =
+            forgeHosted
+            ? "https://github.com/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1"
+            : "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1"
+        let uploadArtifact =
+            forgeHosted
+            ? "https://github.com/actions/upload-artifact@c6a3b2bd78b3985e4b2f15397fec357f0fd808de # v3.2.2-node20"
+            : "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2"
+        return """
+            # Builds a video from .kinhin/videos/ on a runner, with kinhin's published video image (no copy of the suite needed).
+            # \(runHint)
+            # The runner needs Docker and a network that can pull \(image).
+            name: kinhin video
 
-        on:
-          workflow_dispatch:
-            inputs:
-              project:
-                description: "Video in .kinhin/videos/ (for example launch)"
-                required: true
-                type: string
-              theme:
-                description: "Theme (empty: the video's own)"
-                required: false
-                type: string
-              format:
-                description: "16:9, 9:16, 4:5 or 1:1 (empty: the video's own)"
-                required: false
-                type: string
-              captions:
-                description: "on, off or all (empty: the video's own)"
-                required: false
-                type: string
-              caption_style:
-                description: "outline, box, shadow, bold or minimal (empty: the video's own)"
-                required: false
-                type: string
-              music:
-                description: "A catalog track, a file in the repository, or off (empty: the video's own)"
-                required: false
-                type: string
-              fast:
-                description: "A preview: quicker encode, no WebM"
-                required: false
-                type: boolean
-                default: false
+            on:
+              workflow_dispatch:
+                inputs:
+                  project:
+                    description: "Video in .kinhin/videos/ (for example launch)"
+                    required: true
+                    type: string
+                  theme:
+                    description: "Theme (empty: the video's own)"
+                    required: false
+                    type: string
+                  format:
+                    description: "16:9, 9:16, 4:5 or 1:1 (empty: the video's own)"
+                    required: false
+                    type: string
+                  captions:
+                    description: "on, off or all (empty: the video's own)"
+                    required: false
+                    type: string
+                  caption_style:
+                    description: "outline, box, shadow, bold or minimal (empty: the video's own)"
+                    required: false
+                    type: string
+                  music:
+                    description: "A catalog track, a file in the repository, or off (empty: the video's own)"
+                    required: false
+                    type: string
+                  fast:
+                    description: "A preview: quicker encode, no WebM"
+                    required: false
+                    type: boolean
+                    default: false
 
-        permissions:
-          contents: read
+            permissions:
+              contents: read
 
-        jobs:
-          build:
-            runs-on: [\(labels.joined(separator: ", "))]
-            timeout-minutes: 60
-            steps:
-              - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-                with:
-                  persist-credentials: false
+            jobs:
+              build:
+                runs-on: [\(labels.joined(separator: ", "))]
+                timeout-minutes: 60
+                steps:
+                  - uses: \(checkout)
+                    with:
+                      persist-credentials: false
 
-              - name: Build the video
-                env:
-                  IMAGE: \(image)
-                  PROJECT: ${{ inputs.project }}
-                  THEME: ${{ inputs.theme }}
-                  FORMAT: ${{ inputs.format }}
-                  CAPTIONS: ${{ inputs.captions }}
-                  CAPTION_STYLE: ${{ inputs.caption_style }}
-                  MUSIC: ${{ inputs.music }}
-                  FAST: ${{ inputs.fast }}
-                run: |
-                  set -euo pipefail
-                  mkdir -p .kinhin/videos/out .kinhin/videos/.cache
-                  args=(--project "$PROJECT")
-                  [ -z "$THEME" ] || args+=(--theme "$THEME")
-                  [ -z "$FORMAT" ] || args+=(--format "$FORMAT")
-                  [ -z "$CAPTIONS" ] || args+=(--captions "$CAPTIONS")
-                  [ -z "$CAPTION_STYLE" ] || args+=(--caption-style "$CAPTION_STYLE")
-                  [ -z "$MUSIC" ] || args+=(--music "$MUSIC")
-                  [ "$FAST" != "true" ] || args+=(--fast)
-                  docker run --rm \\
-                    -v "$PWD":/project:ro \\
-                    -v "$PWD/.kinhin/videos/out":/work/out \\
-                    -v "$PWD/.kinhin/videos/.cache":/work/raw \\
-                    "$IMAGE" /work/scripts/container-build.sh "${args[@]}"
+                  - name: Build the video
+                    env:
+                      IMAGE: \(image)
+                      PROJECT: ${{ inputs.project }}
+                      THEME: ${{ inputs.theme }}
+                      FORMAT: ${{ inputs.format }}
+                      CAPTIONS: ${{ inputs.captions }}
+                      CAPTION_STYLE: ${{ inputs.caption_style }}
+                      MUSIC: ${{ inputs.music }}
+                      FAST: ${{ inputs.fast }}
+                    run: |
+                      set -euo pipefail
+                      mkdir -p .kinhin/videos/out .kinhin/videos/.cache
+                      args=(--project "$PROJECT")
+                      [ -z "$THEME" ] || args+=(--theme "$THEME")
+                      [ -z "$FORMAT" ] || args+=(--format "$FORMAT")
+                      [ -z "$CAPTIONS" ] || args+=(--captions "$CAPTIONS")
+                      [ -z "$CAPTION_STYLE" ] || args+=(--caption-style "$CAPTION_STYLE")
+                      [ -z "$MUSIC" ] || args+=(--music "$MUSIC")
+                      [ "$FAST" != "true" ] || args+=(--fast)
+                      docker run --rm \\
+                        -v "$PWD":/project:ro \\
+                        -v "$PWD/.kinhin/videos/out":/work/out \\
+                        -v "$PWD/.kinhin/videos/.cache":/work/raw \\
+                        "$IMAGE" /work/scripts/container-build.sh "${args[@]}"
 
-              - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-                with:
-                  name: \(artifactName)
-                  path: .kinhin/videos/out
-                  if-no-files-found: error
+                  - uses: \(uploadArtifact)
+                    with:
+                      name: \(artifactName)
+                      path: .kinhin/videos/out
+                      if-no-files-found: error
 
-        """
+            """
     }
 
-    /// Writes `.github/workflows/kinhin-video.yml`. Never overwrites.
+    /// Writes `.github/workflows/kinhin-video.yml`. Never overwrites. Other systems: `writePipeline(in:ci:runsOn:image:)`.
     @discardableResult
     public static func writeWorkflow(in repo: URL, runsOn: String, image: String) throws -> URL {
-        guard let labels = parseLabels(runsOn) else {
-            throw VideoError.invalidName("--runs-on \(runsOn)")
-        }
-        let target = repo.appendingPathComponent(workflowPath)
-        if FileManager.default.fileExists(atPath: target.path) { throw VideoError.alreadyExists(target.path) }
-        try FileManager.default.createDirectory(
-            at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try Data(workflowTemplate(runsOn: labels, image: image).utf8).write(to: target, options: .withoutOverwriting)
-        return target
+        try writePipeline(in: repo, ci: .github, runsOn: runsOn, image: image).file
     }
 
     // MARK: driving it with gh

@@ -51,6 +51,8 @@ public struct VideoRunner: Sendable {
                     ? "the container system service is not running (container system start)"
                     : "the Docker daemon is not running")
         }
+        // A probe cut short by cancellation reads as "not running"; report the cancellation instead.
+        try Task.checkCancellation()
         if let preferred {
             throw VideoError.runtimeUnavailable(
                 "\(preferred.rawValue) is not usable: \(problems.joined(separator: "; "))")
@@ -80,20 +82,42 @@ public struct VideoRunner: Sendable {
     public func build(plan: VideoRunPlan) async throws -> Int32 {
         try FileManager.default.createDirectory(at: plan.outputDirectory, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: plan.cacheDirectory, withIntermediateDirectories: true)
-        try await ensureImage(plan)
+        try await ensureImage(image: plan.image, inspect: plan.inspect, pull: plan.pull)
         return try await process.runInteractive(plan.run)
     }
 
+    /// Checks one video of `repo` (`project`), or every video when it is nil, without rendering: returns the check's exit
+    /// code (0 = every checked video can be built, 1 = a video has a problem, which the output says).
+    public func validate(
+        repo: URL, project: String?, runtime preferred: VideoRuntime?, image override: String?
+    ) async throws -> Int32 {
+        guard FileManager.default.fileExists(atPath: VideoProjects.directory(in: repo).path) else {
+            throw VideoError.noVideosFolder(repo.path)
+        }
+        if let project, VideoProjects.file(named: project, in: repo) == nil {
+            throw VideoError.unknownProject(name: project, available: VideoProjects.list(in: repo))
+        }
+        if repo.path.contains(":") { throw VideoError.unmountablePath(repo.path) }
+        let (_, binary) = try await detectRuntime(preferred: preferred)
+        let image = VideoImage.reference(override: override, environment: environment)
+        try await ensureImage(
+            image: image, inspect: [binary, "image", "inspect", image], pull: [binary, "image", "pull", image])
+        return try await process.runInteractive(
+            VideoRunPlan.validation(binary: binary, image: image, repo: repo, project: project))
+    }
+
     /// Pulls the image when it is not on this machine yet (the first build downloads about a gigabyte).
-    func ensureImage(_ plan: VideoRunPlan) async throws {
-        if let present = try? await shell.run(plan.inspect, cwd: nil, timeout: 30), present.succeeded { return }
-        FileHandle.standardError.write(Data("==> pulling \(plan.image) (first build only)\n".utf8))
+    func ensureImage(image: String, inspect: [String], pull: [String]) async throws {
+        if let present = try? await shell.run(inspect, cwd: nil, timeout: 30), present.succeeded { return }
+        FileHandle.standardError.write(Data("==> pulling \(image) (first build only)\n".utf8))
         let code: Int32
         do {
-            code = try await process.runInteractive(plan.pull)
+            code = try await process.runInteractive(pull)
+        } catch is CancellationError {
+            throw CancellationError()
         } catch {
-            throw VideoError.imageUnavailable(image: plan.image, reason: error.localizedDescription)
+            throw VideoError.imageUnavailable(image: image, reason: error.localizedDescription)
         }
-        if code != 0 { throw VideoError.imageUnavailable(image: plan.image, reason: "pull exited \(code)") }
+        if code != 0 { throw VideoError.imageUnavailable(image: image, reason: "pull exited \(code)") }
     }
 }

@@ -244,9 +244,8 @@ public struct Shell: ShellRunning {
     }
 }
 
-/// One-shot "the child exited" signal that can be awaited from a task.
 /// A one-shot signal: `fire` once, and any `wait` (before or after) returns. Used for process exit and pipe EOF.
-private final class OneShotSignal: Sendable {
+final class OneShotSignal: Sendable {
     private enum State {
         case pending
         case waiting(CheckedContinuation<Void, Never>)

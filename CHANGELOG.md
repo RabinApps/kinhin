@@ -12,6 +12,11 @@
 
 **Added**
 
+- `kinhin mobile init --ci` and `kinhin video init --workflow --ci` write the pipeline for GitLab CI, Gitea and Forgejo
+  Actions, Bitbucket Pipelines, Azure Pipelines or Buildkite, as well as GitHub Actions. The system is detected from the
+  repository when the flag is left out. Mobile releases outside GitHub run one script, `.kinhin/mobile-release.sh`. See
+  [docs/mobile-fastlane.md](docs/mobile-fastlane.md#other-ci-systems) and
+  [docs/videos-for-your-project.md](docs/videos-for-your-project.md#building-on-a-runner-or-in-ci).
 - `kinhin mobile init` adds a `screenshots` lane: `snapshot` for iOS UI tests and `screengrab` for Android instrumented tests, with optional device frames and optional upload. See [docs/mobile-screenshots.md](docs/mobile-screenshots.md).
 - `kinhin mobile init` scaffolds fastlane release setup for iOS, Android, Flutter, React Native and
   native projects with lanes, a pinned Gemfile and a manual `mobile-release` workflow for `kinhin-xcode`. Expo gets EAS

@@ -1,5 +1,6 @@
 import Synchronization
 import XCTest
+import Yams
 
 @testable import KinhinKit
 
@@ -271,6 +272,44 @@ final class VideoTests: XCTestCase {
         XCTAssertEqual(process.calls.withLock { $0 }, [p.pull, p.run])
     }
 
+    func testValidateChecksWithTheReadOnlyRepositoryAndNoOutput() async throws {
+        try write(".kinhin/videos/launch.yml")
+        let shell = ScriptedShell { _ in 0 }
+        let process = ScriptedProcess { _ in 1 }
+        let r = runner(shell: shell, process: process)
+        let code = try await r.validate(repo: repo, project: "launch", runtime: .docker, image: "img:1")
+        XCTAssertEqual(code, 1, "the check's own exit code is returned, so the command can name a problem")
+        let calls = process.calls.withLock { $0 }
+        let expected = VideoRunPlan.validation(binary: "/bin/docker", image: "img:1", repo: repo, project: "launch")
+        XCTAssertEqual(calls, [expected])
+        XCTAssertTrue(calls[0].contains("\(repo.path):/project:ro"), "the repository is mounted read-only")
+        XCTAssertFalse(calls[0].joined(separator: " ").contains("/work/out"), "a check writes no output")
+        XCTAssertEqual(calls[0].last, "launch", "the named video is the one checked")
+        XCTAssertTrue(calls[0].contains(VideoRunPlan.validateEntryScript))
+    }
+
+    func testValidateWithoutANameChecksEveryVideo() {
+        let argv = VideoRunPlan.validation(binary: "/bin/docker", image: "img:1", repo: repo, project: nil)
+        XCTAssertEqual(argv.last, "--all")
+        XCTAssertEqual(argv.dropLast().last, VideoRunPlan.validateEntryScript)
+    }
+
+    func testValidateRefusesAMissingVideoFolderOrUnknownNameBeforeAnythingRuns() async throws {
+        let process = ScriptedProcess()
+        let r = runner(shell: ScriptedShell { _ in 0 }, process: process)
+        do {
+            _ = try await r.validate(repo: repo, project: "launch", runtime: nil, image: nil)
+            XCTFail("expected an error")
+        } catch { guard case VideoError.noVideosFolder = error else { return XCTFail("\(error)") } }
+
+        try write(".kinhin/videos/launch.yml")
+        do {
+            _ = try await r.validate(repo: repo, project: "nope", runtime: nil, image: nil)
+            XCTFail("expected an error")
+        } catch { XCTAssertEqual(error as? VideoError, .unknownProject(name: "nope", available: ["launch"])) }
+        XCTAssertEqual(process.calls.withLock { $0 }, [], "nothing ran")
+    }
+
     func testAFailedPullStopsTheBuildWithAHelpfulMessage() async throws {
         try write(".kinhin/videos/launch.yml")
         let shell = ScriptedShell { $0.contains("inspect") ? 1 : 0 }
@@ -313,6 +352,80 @@ final class VideoTests: XCTestCase {
         XCTAssertNil(VideoFleet.parseLabels(""))
         XCTAssertNil(VideoFleet.parseLabels("ok,,x"))
         XCTAssertEqual(VideoFleet.parseLabels("self-hosted,linux"), ["self-hosted", "linux"])
+    }
+
+    /// Every system's pipeline parses, runs the image on the requested runner, keeps the output as the artifact, and never
+    /// writes an input into the script (inputs reach it as VIDEO_* environment variables).
+    func testEveryCISystemGetsAVideoPipeline() throws {
+        let expectations: [CISystem: String] = [
+            .github: "runs-on: [self-hosted, linux]", .gitea: "runs-on: [linux]", .forgejo: "runs-on: [linux]",
+            .gitlab: "tags: [linux]", .bitbucket: "runs-on: [self.hosted, linux.shell]", .azure: "demands: [linux]",
+            .buildkite: "agents: { queue: \"kinhin\" }",
+        ]
+        for ci in CISystem.allCases {
+            let dir = repo.appendingPathComponent(ci.rawValue)
+            let written = try VideoFleet.writePipeline(in: dir, ci: ci, runsOn: nil, image: "ghcr.io/x/y:1")
+            XCTAssertEqual(written.file.path, dir.appendingPathComponent(VideoFleet.pipelinePath(for: ci)).path)
+            let yaml = try String(contentsOf: written.file, encoding: .utf8)
+            XCTAssertNoThrow(try Yams.load(yaml: yaml), "\(ci): \(yaml)")
+            XCTAssertTrue(yaml.contains(try XCTUnwrap(expectations[ci])), "\(ci): \(yaml)")
+            XCTAssertTrue(yaml.contains("ghcr.io/x/y:1"), "\(ci)")
+            XCTAssertTrue(yaml.contains(".kinhin/videos/out"), "\(ci)")
+            XCTAssertFalse(written.notes.isEmpty, "\(ci) says what to do next")
+            XCTAssertThrowsError(
+                try VideoFleet.writePipeline(in: dir, ci: ci, runsOn: nil, image: "i"), "\(ci): never overwritten")
+        }
+        let gitlab = repo.appendingPathComponent("gitlab/.gitlab-ci.yml")
+        XCTAssertTrue(try String(contentsOf: gitlab, encoding: .utf8).contains("- local: .gitlab/kinhin-video.yml"))
+    }
+
+    func testForgeHostedWorkflowsUseFullURLActionsPinnedToCommits() throws {
+        let yaml = VideoFleet.pipelineTemplate(ci: .forgejo, runsOn: ["linux"], image: "i:1")
+        let uses = yaml.split(separator: "\n").filter { $0.contains("uses:") }
+        XCTAssertEqual(uses.count, 2)
+        for line in uses {
+            XCTAssertNotNil(
+                line.range(
+                    of: "uses: https://github.com/actions/[a-z-]+@[0-9a-f]{40} # v", options: .regularExpression),
+                String(line))
+        }
+    }
+
+    /// The shared build shell turns the VIDEO_* variables into the entry script's flags, under plain sh.
+    func testTheBuildShellPassesOnlyTheGivenOptions() throws {
+        let dir = repo.appendingPathComponent("shell")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let docker = dir.appendingPathComponent("docker")
+        try "#!/bin/sh\nfor a in \"$@\"; do printf '%s\\n' \"$a\"; done > \"$(dirname \"$0\")/args\"\n".write(
+            to: docker, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: docker.path)
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        process.arguments = ["-c", VideoFleet.buildShell]
+        process.currentDirectoryURL = dir
+        process.environment = [
+            "PATH": "\(dir.path):/usr/bin:/bin", "VIDEO_IMAGE": "img:1", "VIDEO_PROJECT": "launch",
+            "VIDEO_THEME": "midnight", "VIDEO_MUSIC": "a track; rm -rf /", "VIDEO_FAST": "true",
+        ]
+        try process.run()
+        process.waitUntilExit()
+        XCTAssertEqual(process.terminationStatus, 0)
+        let args = try String(contentsOf: dir.appendingPathComponent("args"), encoding: .utf8)
+            .split(separator: "\n").map(String.init)
+        XCTAssertEqual(
+            Array(args.drop { $0 != "img:1" }.dropFirst()),
+            [
+                "/work/scripts/container-build.sh", "--project", "launch", "--theme", "midnight", "--music",
+                "a track; rm -rf /", "--fast",
+            ], "an unset option is left out, and a value stays one argument: \(args)")
+    }
+
+    func testOnFleetExplainsHowToRunOtherSystemsByHand() {
+        for ci in CISystem.allCases where ci != .github {
+            let hint = VideoFleet.manualRunHint(for: ci)
+            XCTAssertTrue(hint.contains("--ci \(ci.rawValue)"), hint)
+            XCTAssertTrue(hint.contains(VideoFleet.artifactName), hint)
+        }
     }
 
     func testDispatchArgumentsCarryTheOptionsAsInputs() {
@@ -487,15 +600,56 @@ final class VideoTests: XCTestCase {
         XCTAssertEqual(got.last, "no newline at the end", "the last partial line is not lost")
     }
 
-    func testCapturingRunnerStopsTheChildWhenCancelled() async throws {
+    /// A stopped build reads as cancelled (not as a failed exit code), so the app can say "Cancelled.".
+    func testCapturingRunnerStopsTheChildWhenCancelledAndSaysSo() async throws {
         let runner = CapturingProcessRunner { _ in }
         let started = Date()
         let task = Task { try await runner.runInteractive(["/bin/sleep", "30"]) }
         try await Task.sleep(for: .milliseconds(300))
         task.cancel()
-        let code = try await task.value
-        XCTAssertNotEqual(code, 0)
+        do {
+            _ = try await task.value
+            XCTFail("expected CancellationError")
+        } catch is CancellationError {}
         XCTAssertLessThan(Date().timeIntervalSince(started), 10)
+    }
+
+    /// A task cancelled before the launch never starts the child (it would otherwise run unstopped to the end).
+    func testRunnersNeverLaunchForAnAlreadyCancelledTask() async throws {
+        let marker = FileManager.default.temporaryDirectory.appendingPathComponent("launched-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: marker) }
+        let runners: [any VideoProcessRunning] = [CapturingProcessRunner { _ in }, InheritedProcessRunner()]
+        for runner in runners {
+            let task = Task {
+                withUnsafeCurrentTask { $0?.cancel() }
+                return try await runner.runInteractive(["/usr/bin/touch", marker.path])
+            }
+            do {
+                _ = try await task.value
+                XCTFail("\(runner): expected CancellationError")
+            } catch is CancellationError {}
+            XCTAssertFalse(FileManager.default.fileExists(atPath: marker.path), "\(runner) launched the child")
+        }
+    }
+
+    func testAPullCancelledMidwayIsReportedAsCancelledNotAsAMissingImage() async throws {
+        struct Cancelling: VideoProcessRunning {
+            func runInteractive(_ argv: [String]) async throws -> Int32 { throw CancellationError() }
+        }
+        struct Missing: ShellRunning {
+            func run(_ argv: [String], cwd: URL?, timeout: TimeInterval) async throws -> ShellResult {
+                ShellResult(exitCode: 1, stdout: "", stderr: "")
+            }
+        }
+        let runner = VideoRunner(
+            shell: Missing(), process: Cancelling(), environment: [:], cpuCount: 4, binaries: { _ in "/bin/docker" })
+        let plan = VideoRunPlan.make(
+            options: VideoBuildOptions(project: "launch"), runtime: .docker, binary: "/bin/docker", image: "img",
+            repo: FileManager.default.temporaryDirectory)
+        do {
+            try await runner.ensureImage(image: plan.image, inspect: plan.inspect, pull: plan.pull)
+            XCTFail("expected CancellationError")
+        } catch is CancellationError {}
     }
 
     func testCapturingRunnerReportsAMissingProgram() async {

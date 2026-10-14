@@ -81,7 +81,7 @@ iOS capture is verified locally, the Android one is not yet verified on the pool
 `kinhin video build <name> --on-fleet` runs a video of *your* repository on a runner kinhin serves, with no `video/` folder:
 `kinhin video init --workflow` writes `.github/workflows/kinhin-video.yml` (pinned actions, read-only token, no secrets), and
 `--on-fleet` dispatches it with `gh`, follows the run and downloads the result. See
-[Building on your fleet](videos-for-your-project.md#building-on-your-fleet). The opt-in `video.yml` described on this page is a
+[Building on your fleet](videos-for-your-project.md#building-on-a-runner-or-in-ci). The opt-in `video.yml` described on this page is a
 different thing: it builds *kinhin's* own videos from this repository.
 
 ## Try it without GitHub
@@ -105,7 +105,7 @@ change. See [the tests](making-a-video.md#tests) (kinhin's own guide).
 
 Do not copy `video.yml`: it builds *kinhin's own* videos from this repository. For your product, keep your videos in `.kinhin/videos/`
 and build them with `kinhin video build` on your Mac, or on your fleet with `kinhin video init --workflow` and `--on-fleet` (see
-[Add videos to your project](videos-for-your-project.md#building-on-your-fleet)). That generated workflow is manual (`workflow_dispatch`)
+[Add videos to your project](videos-for-your-project.md#building-on-a-runner-or-in-ci)). That generated workflow is manual (`workflow_dispatch`)
 and pulls the published video image, so you need no `video/` folder; to build on every release, add a `release:` trigger to it yourself.
 
 ## When something fails

@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+import Yams
 
 @testable import KinhinKit
 
@@ -209,8 +210,11 @@ final class MobileScaffoldTests: XCTestCase {
     func testMonorepoAppGetsWorkflowPathsFromTheRepositoryRoot() throws {
         let repo = try folder("monorepo", dirs: [".git"])
         let app = try folder("monorepo/apps/mobile", ["pubspec.yaml": "name: app\n"], dirs: ["ios", "android"])
-        _ = try scaffold(app)
-        let workflow = try text(app, ".github/workflows/mobile-release.yml")
+        let report = try scaffold(app)
+        // GitHub reads workflows only from the repository root's .github/workflows/.
+        XCTAssertFalse(exists(app, ".github/workflows/mobile-release.yml"))
+        XCTAssertTrue(report.lines.contains("  wrote   ../../.github/workflows/mobile-release.yml"), "\(report.lines)")
+        let workflow = try text(repo, ".github/workflows/mobile-release.yml")
         XCTAssertTrue(workflow.contains("working-directory: apps/mobile/ios"), workflow)
         XCTAssertTrue(workflow.contains("working-directory: apps/mobile/android"), workflow)
         XCTAssertTrue(workflow.contains("working-directory: apps/mobile\n"), "setup steps run at the app folder")
@@ -247,6 +251,31 @@ final class MobileScaffoldTests: XCTestCase {
             report.lines.joined(separator: "\n"))
         XCTAssertTrue(
             try text(dir, "ios/Runner.xcodeproj/project.pbxproj").contains("= 13.0;"), "the project is not edited")
+    }
+
+    /// CocoaPods' generated project pins old targets per pod; only the app's own project is the user's to change.
+    func testPodsProjectDeploymentTargetIsIgnored() throws {
+        let dir = try flutter("flutter-pods")
+        try FileManager.default.createDirectory(
+            at: dir.appendingPathComponent("ios/Pods/Pods.xcodeproj"), withIntermediateDirectories: true)
+        try "IPHONEOS_DEPLOYMENT_TARGET = 11.0;\n".write(
+            to: dir.appendingPathComponent("ios/Pods/Pods.xcodeproj/project.pbxproj"), atomically: true,
+            encoding: .utf8)
+        let report = try scaffold(dir)
+        XCTAssertFalse(report.lines.contains { $0.contains("deployment target") }, "\(report.lines)")
+    }
+
+    func testKotlinMultiplatformDeploymentTargetNoteNamesIosApp() throws {
+        let dir = try folder(
+            "kmp-target",
+            [
+                "settings.gradle.kts": "", "shared/build.gradle.kts": "kotlin(\"multiplatform\")\n",
+                "iosApp/iosApp.xcodeproj/project.pbxproj": "IPHONEOS_DEPLOYMENT_TARGET = 14.0;\n",
+            ], dirs: ["androidApp"])
+        let report = try scaffold(dir, .kmp)
+        XCTAssertTrue(
+            report.lines.contains { $0.contains("in iosApp/iosApp.xcodeproj/project.pbxproj") },
+            report.lines.joined(separator: "\n"))
     }
 
     func testCurrentIOSDeploymentTargetIsNotNoted() throws {
@@ -404,6 +433,112 @@ final class MobileScaffoldTests: XCTestCase {
         assertThrows(.noProject(directory: root.path)) { _ = try scaffold(root) }
         _ = try scaffold(app)
         XCTAssertTrue(exists(app, "ios/fastlane/Fastfile"))
+    }
+
+    // MARK: - Other CI systems
+
+    /// Every system gets a pipeline at its own path that parses as YAML, targets the Xcode runner, calls the shared script
+    /// for each platform, and has no placeholder left. GitHub keeps its own workflow and gets no script.
+    func testEveryCISystemGetsAPipelineThatCallsTheReleaseScript() throws {
+        let runner: [CISystem: String] = [
+            .gitea: "runs-on: [kinhin-xcode]", .forgejo: "runs-on: [kinhin-xcode]", .gitlab: "tags: [kinhin-xcode]",
+            .bitbucket: "runs-on: [self.hosted, macos, kinhin-xcode]", .azure: "demands: [kinhin_xcode]",
+            .buildkite: "queue: kinhin",
+        ]
+        for ci in CISystem.allCases {
+            let dir = try flutter("ci-\(ci.rawValue)")
+            let report = try MobileScaffold.run(in: dir, framework: .auto, ci: ci, force: false, dryRun: false)
+            XCTAssertEqual(report.ci, ci)
+            let path = MobileScaffold.pipelinePath(ci)
+            XCTAssertEqual(report.pipelinePath, path)
+            let pipeline = try text(dir, path)
+            XCTAssertNoThrow(try Yams.load(yaml: pipeline), "\(ci): \(pipeline)")
+            XCTAssertFalse(pipeline.contains("__"), "\(ci): a placeholder is left: \(pipeline)")
+            if ci == .github {
+                XCTAssertFalse(exists(dir, ".kinhin/mobile-release.sh"))
+                continue
+            }
+            XCTAssertTrue(pipeline.contains(try XCTUnwrap(runner[ci])), "\(ci): \(pipeline)")
+            XCTAssertTrue(pipeline.contains("bash .kinhin/mobile-release.sh ios"), "\(ci): \(pipeline)")
+            XCTAssertTrue(pipeline.contains("bash .kinhin/mobile-release.sh android"), "\(ci): \(pipeline)")
+            XCTAssertTrue(pipeline.contains("ios/fastlane/screenshots"), "\(ci): \(pipeline)")
+            XCTAssertFalse(exists(dir, ".github/workflows/mobile-release.yml"), "\(ci) writes no GitHub workflow")
+            let script = try text(dir, ".kinhin/mobile-release.sh")
+            XCTAssertTrue(script.contains("framework=\"flutter\""))
+            XCTAssertTrue(script.contains("ios) dir=\"ios\""))
+            XCTAssertFalse(script.contains("__"), script)
+        }
+    }
+
+    /// The release script is valid bash, and does nothing (successfully) for Android's release lane, which does not exist.
+    func testTheReleaseScriptParsesAndSkipsAndroidRelease() throws {
+        let dir = try flutter("ci-script")
+        _ = try MobileScaffold.run(in: dir, framework: .auto, ci: .gitlab, force: false, dryRun: false)
+        let script = dir.appendingPathComponent(".kinhin/mobile-release.sh").path
+        func bash(_ args: [String]) throws -> (Int32, String) {
+            let process = Process()
+            let out = Pipe()
+            process.executableURL = URL(fileURLWithPath: "/bin/bash")
+            process.arguments = args
+            process.standardOutput = out
+            process.standardError = out
+            try process.run()
+            let data = out.fileHandleForReading.readDataToEndOfFile()
+            process.waitUntilExit()
+            return (process.terminationStatus, String(decoding: data, as: UTF8.self))
+        }
+        XCTAssertEqual(try bash(["-n", script]).0, 0)
+        let skipped = try bash([script, "android", "release"])
+        XCTAssertEqual(skipped.0, 0, skipped.1)
+        XCTAssertTrue(skipped.1.contains("no release lane"), skipped.1)
+        XCTAssertEqual(try bash([script, "android", "nightly"]).0, 2, "an unknown lane is refused")
+        XCTAssertEqual(try bash([script, "watchos", "beta"]).0, 2, "an unknown platform is refused")
+    }
+
+    func testGitLabPipelineIsIncludedFromANewGitLabCIFileButAnExistingOneIsNotEdited() throws {
+        let fresh = try flutter("gitlab-fresh")
+        _ = try MobileScaffold.run(in: fresh, framework: .auto, ci: .gitlab, force: false, dryRun: false)
+        XCTAssertTrue(try text(fresh, ".gitlab-ci.yml").contains("- local: .gitlab/mobile-release.yml"))
+
+        let existing = try folder(
+            "gitlab-existing", ["pubspec.yaml": "name: app\n", ".gitlab-ci.yml": "test:\n  script: [make]\n"],
+            dirs: ["ios", "android"])
+        let report = try MobileScaffold.run(in: existing, framework: .auto, ci: .gitlab, force: true, dryRun: false)
+        XCTAssertEqual(
+            try text(existing, ".gitlab-ci.yml"), "test:\n  script: [make]\n", "never edited, even with --force")
+        XCTAssertTrue(report.lines.contains { $0.contains("include: [{ local: .gitlab/mobile-release.yml }]") })
+    }
+
+    func testAnExistingBitbucketPipelinesFileIsKeptAndTheReleasePipelineWrittenBesideIt() throws {
+        let dir = try folder(
+            "bitbucket-existing", ["pubspec.yaml": "name: app\n", "bitbucket-pipelines.yml": "pipelines: {}\n"],
+            dirs: ["ios", "android"])
+        let report = try MobileScaffold.run(in: dir, framework: .auto, ci: .bitbucket, force: true, dryRun: false)
+        XCTAssertEqual(try text(dir, "bitbucket-pipelines.yml"), "pipelines: {}\n")
+        XCTAssertEqual(report.pipelinePath, "bitbucket-pipelines.mobile-release.yml")
+        XCTAssertTrue(try text(dir, "bitbucket-pipelines.mobile-release.yml").contains("mobile-release:"))
+    }
+
+    func testMonorepoPipelineCallsTheScriptInTheAppFolder() throws {
+        let repo = try folder("ci-mono", dirs: [".git"])
+        let app = try folder("ci-mono/apps/mobile", ["pubspec.yaml": "name: app\n"], dirs: ["ios", "android"])
+        _ = try MobileScaffold.run(in: app, framework: .auto, ci: .forgejo, force: false, dryRun: false)
+        XCTAssertTrue(exists(app, ".kinhin/mobile-release.sh"), "the script lives with the app")
+        let pipeline = try text(repo, ".forgejo/workflows/mobile-release.yml")
+        XCTAssertTrue(pipeline.contains("bash apps/mobile/.kinhin/mobile-release.sh ios"), pipeline)
+        XCTAssertTrue(pipeline.contains("path: apps/mobile/ios/fastlane/screenshots"), pipeline)
+    }
+
+    func testTheCISystemFollowsTheRepositoryRemote() throws {
+        let repo = try folder(
+            "ci-remote",
+            [
+                ".git/config": "[core]\n\tbare = false\n[remote \"origin\"]\n\turl = git@gitlab.com:acme/app.git\n",
+                "pubspec.yaml": "name: app\n",
+            ], dirs: ["ios", "android"])
+        let report = try scaffold(repo)
+        XCTAssertEqual(report.ci, .gitlab)
+        XCTAssertTrue(exists(repo, ".gitlab/mobile-release.yml"))
     }
 
     // MARK: - Gemfile

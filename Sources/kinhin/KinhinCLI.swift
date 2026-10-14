@@ -135,7 +135,10 @@ struct KinhinCLI {
         case .mobile:
             switch invocation.subcommand {
             case "init": MobileCommand.run(rest)
-            default: fail("usage: kinhin mobile init [DIR] [--framework NAME] [--force] [--dry-run]", exit: .usage)
+            default:
+                fail(
+                    "usage: kinhin mobile init [DIR] [--framework NAME] [--ci SYSTEM] [--force] [--dry-run]",
+                    exit: .usage)
             }
 
         case .start:

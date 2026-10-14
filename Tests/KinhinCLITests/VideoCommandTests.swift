@@ -30,6 +30,25 @@ final class VideoCommandTests: XCTestCase {
         XCTAssertThrowsError(try VideoCommand.initialize(["launch", "--dir", repo.path]))
     }
 
+    func testInitWorkflowWritesThePipelineForTheChosenCISystem() throws {
+        try VideoCommand.initialize(["--workflow", "--ci", "gitlab", "--dir", repo.path])
+        let pipeline = repo.appendingPathComponent(".gitlab/kinhin-video.yml")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: pipeline.path))
+        XCTAssertEqual(VideoProjects.list(in: repo), [], "--workflow with no name writes only the pipeline")
+        XCTAssertEqual(VideoCommand.operand(in: ["--ci", "gitlab"]), nil, "the --ci value is not the video's name")
+        XCTAssertThrowsError(try VideoCommand.initialize(["--workflow", "--ci", "jenkins", "--dir", repo.path]))
+    }
+
+    func testOnFleetStopsWithInstructionsForANonGitHubRepository() async throws {
+        try VideoCommand.initialize(["launch", "--dir", repo.path])
+        do {
+            try await VideoCommand.build(["launch", "--on-fleet", "--ci", "buildkite", "--dir", repo.path])
+            XCTFail("expected an error")
+        } catch {
+            XCTAssertTrue(error.localizedDescription.contains("--ci buildkite"), error.localizedDescription)
+        }
+    }
+
     func testInitWithNoNameMakesLaunch() throws {
         try VideoCommand.initialize(["--dir", repo.path])
         XCTAssertEqual(VideoProjects.list(in: repo), ["launch"])

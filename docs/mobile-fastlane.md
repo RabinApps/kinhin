@@ -34,6 +34,9 @@ It detects the framework, then writes only the files that are missing:
 Flags:
 
 - `--framework ios|android|flutter|react-native|expo|capacitor|kmp|maui|native` overrides detection.
+- `--ci github|gitea|forgejo|gitlab|bitbucket|azure|buildkite` picks the CI system the release pipeline is written for.
+  By default it is detected: a `.buildkite/` folder or Azure Pipelines file, then the host of the `origin` remote, then the
+  repository's other CI files, else GitHub. See [Other CI systems](#other-ci-systems).
 - `--force` overwrites files that already exist.
 - `--dry-run` prints what would be written.
 
@@ -102,6 +105,31 @@ Capacitor and 17 otherwise). Set them as repository variables to test a newer SD
 SHAs, so a newer action needs its SHA updated in the templates.
 
 **Ruby.** fastlane 2.241, which the `~> 2.240` pin resolves to, needs Ruby 3.2 or newer. The macOS system Ruby is 2.6, so the workflow runs `ruby/setup-ruby` with Ruby 3.3 before `bundle install`. Locally, use the same version (for example `rbenv` or Homebrew's `ruby@3.3`).
+
+## Other CI systems
+
+GitHub gets the workflow described above. Every other system gets two files: `.kinhin/mobile-release.sh` in the app folder,
+which holds the release steps as shell (the framework's setup, the signing files from secrets, `bundle install`, the lane),
+and a small pipeline file that starts it by hand, targets the Xcode runner, passes the secrets as environment variables and
+keeps the screenshots. The script takes the platform and lane: `bash .kinhin/mobile-release.sh ios beta`.
+
+| `--ci` | Pipeline file | Runner | Start it from |
+| --- | --- | --- | --- |
+| `gitea`, `forgejo` | `.gitea/workflows/mobile-release.yml`, `.forgejo/workflows/mobile-release.yml` | `runs-on: [kinhin-xcode]` | Actions > mobile-release > Run workflow |
+| `gitlab` | `.gitlab/mobile-release.yml`, included from `.gitlab-ci.yml` | `tags: [kinhin-xcode]` | Build > Pipelines > Run pipeline (set `MOBILE_LANE`) |
+| `bitbucket` | `bitbucket-pipelines.yml` (a custom pipeline) | `runs-on: [self.hosted, macos, kinhin-xcode]` | Pipelines > Run pipeline > custom: mobile-release |
+| `azure` | `.azure-pipelines/mobile-release.yml` | the `kinhin` pool, `demands: [kinhin_xcode]` | a pipeline made from that file |
+| `buildkite` | `.buildkite/mobile-release.yml` | `agents: { queue: kinhin }` | a pipeline whose steps upload that file |
+
+kinhin never edits a pipeline file the repository already has. With an existing `.gitlab-ci.yml` it prints the `include:`
+line to add; with an existing `bitbucket-pipelines.yml` it writes `bitbucket-pipelines.mobile-release.yml` beside it, for you
+to copy the `mobile-release` entry from.
+
+There are no setup actions outside GitHub, so the runner image supplies the tools: Ruby 3.2 or newer (the script installs
+`ruby@3.3` with mise when the image has mise and an older Ruby), and Node, Flutter, Java or .NET as the app needs. Declare them
+in the repository's `.kinhin/config.yml` ([toolchains](toolchains.md); `kinhin toolchains detect --write` proposes the list).
+Gitea and Forgejo run `actions/checkout` and `actions/upload-artifact` (v3, the artifact protocol those servers implement) by
+full GitHub URL, so the image also needs Node.js for those two actions.
 
 ## Framework notes
 
@@ -186,8 +214,9 @@ Caveats to check before relying on this:
 
 ## Monorepos
 
-`kinhin mobile init` writes the workflow paths relative to the git repository that contains the project. For an app at
-`apps/mobile` in a monorepo, the jobs run `working-directory: apps/mobile/ios` and the setup steps run in `apps/mobile`.
+`kinhin mobile init` writes the workflow to the git repository's own `.github/workflows/` (the only place GitHub reads
+workflows from), with paths relative to that repository. For an app at `apps/mobile` in a monorepo, the jobs run
+`working-directory: apps/mobile/ios` and the setup steps run in `apps/mobile`.
 Run it from the app folder, or pass the path: `kinhin mobile init apps/mobile`. A project with no git repository above it
 gets paths from its own root.
 

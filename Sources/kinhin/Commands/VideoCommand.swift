@@ -1,14 +1,23 @@
 import Foundation
 import KinhinKit
 
-/// `kinhin video init | list | build`: make a narrated video of your own product from `.kinhin/videos/*.yml`, in a
+/// `kinhin video init | list | validate | build`: make a narrated video of your own product from `.kinhin/videos/*.yml`, in a
 /// container, with no copy of the video suite (it ships in a published image). The logic is in KinhinKit (`Video/`).
 enum VideoCommand {
     /// Flags that take a value, so a value is never mistaken for the video's name.
     private static let valueFlags: Set<String> = [
         "--dir", "--theme", "--format", "--captions", "--caption-style", "--music", "--runtime", "--image", "--ref",
-        "--runs-on", "--from",
+        "--runs-on", "--from", "--ci",
     ]
+
+    /// `--ci SYSTEM`, or the system the repository uses when it is absent or `auto`.
+    static func ciSystem(_ args: [String], repo: URL) throws -> CISystem {
+        guard let name = flag("--ci", in: args), name != "auto" else { return CISystem.detect(repositoryRoot: repo) }
+        guard let ci = CISystem(rawValue: name) else {
+            throw CLIError("--ci takes auto, \(CISystem.names)", exit: .usage)
+        }
+        return ci
+    }
 
     /// The first operand that is neither a flag nor a flag's value.
     static func operand(in args: [String]) -> String? {
@@ -47,6 +56,7 @@ enum VideoCommand {
             case "theme": try VideoThemeCommand.run(subcommand: path.dropFirst(2).first, rest)
             case "init": try initialize(rest)
             case "list": try list(rest)
+            case "validate": try await validate(rest)
             default: try await build(rest)
             }
         } catch {
@@ -67,11 +77,11 @@ enum VideoCommand {
             print("Next: edit it, then run `kinhin video build \(name ?? "launch")`.")
         }
         if wantsWorkflow {
-            let file = try VideoFleet.writeWorkflow(
-                in: repo, runsOn: flag("--runs-on", in: rest) ?? "self-hosted,linux",
+            let written = try VideoFleet.writePipeline(
+                in: repo, ci: try ciSystem(rest, repo: repo), runsOn: flag("--runs-on", in: rest),
                 image: VideoImage.reference(override: flag("--image", in: rest)))
-            print("wrote \(relative(file, to: repo))")
-            print("Commit and push it, then run `kinhin video build <name> --on-fleet`.")
+            for file in [written.file] + written.extraFiles { print("wrote \(relative(file, to: repo))") }
+            written.notes.forEach { print($0) }
         }
     }
 
@@ -122,20 +132,51 @@ enum VideoCommand {
         return options
     }
 
+    /// `--runtime container|docker`, or nil when it is absent (the first usable runtime is used).
+    static func runtimeFlag(_ rest: [String]) throws -> VideoRuntime? {
+        guard let named = flag("--runtime", in: rest) else { return nil }
+        guard let parsed = VideoRuntime(rawValue: named) else {
+            throw CLIError("--runtime takes container or docker", exit: .usage)
+        }
+        return parsed
+    }
+
+    // MARK: validate
+
+    /// Checks a video (or every video with `--all`) without rendering it: the build's own checks, in the same image.
+    static func validate(_ rest: [String]) async throws {
+        let repo = repository(rest)
+        let project: String? = hasFlag("--all", in: rest) ? nil : try options(from: rest, repo: repo).project
+        let code = try await VideoRunner().validate(
+            repo: repo, project: project, runtime: try runtimeFlag(rest), image: flag("--image", in: rest))
+        switch code {
+        case 0:
+            print(project.map { "Ready to build: `kinhin video build \($0)`." } ?? "Every video is ready to build.")
+        case 1:
+            throw CLIError("a video has problems (listed above). Nothing was rendered.", exit: .config)
+        case 127:
+            // The image has no entry point for the check: the runtime could not start it (it was built before the check).
+            throw CLIError(
+                "this video image predates 'kinhin video validate': use a newer --image, or update kinhin",
+                exit: .runtime)
+        default:
+            throw CLIError("the check could not run (exit \(code)); the output above says why", exit: .general)
+        }
+    }
+
     static func build(_ rest: [String]) async throws {
         let repo = repository(rest)
         let options = try options(from: rest, repo: repo)
-        var runtime: VideoRuntime?
-        if let named = flag("--runtime", in: rest) {
-            guard let parsed = VideoRuntime(rawValue: named) else {
-                throw CLIError("--runtime takes container or docker", exit: .usage)
-            }
-            runtime = parsed
-        }
+        let runtime = try runtimeFlag(rest)
         if hasFlag("--on-fleet", in: rest) {
             guard VideoProjects.file(named: options.project, in: repo) != nil else {
                 throw VideoError.unknownProject(name: options.project, available: VideoProjects.list(in: repo))
             }
+            // A kinhin-video GitHub workflow in the checkout settles it, whatever else the repository runs.
+            let hasGitHubWorkflow = FileManager.default.fileExists(
+                atPath: repo.appendingPathComponent(VideoFleet.workflowPath).path)
+            let ci = flag("--ci", in: rest) == nil && hasGitHubWorkflow ? .github : try ciSystem(rest, repo: repo)
+            guard ci == .github else { throw VideoError.runtimeUnavailable(VideoFleet.manualRunHint(for: ci)) }
             let output = try await VideoFleetRunner().build(options: options, repo: repo, ref: flag("--ref", in: rest))
             print("Done. The video is in \(relative(latestVideoFolder(in: output), to: repo))/")
             return

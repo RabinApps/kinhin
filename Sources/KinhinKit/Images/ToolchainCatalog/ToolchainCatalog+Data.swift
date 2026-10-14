@@ -76,8 +76,9 @@ extension ToolchainCatalog {
             defaultSpec: "swift@6.4.0",
             // The Swift toolchain links these; without them a Linux bake fails (docs/plans/beta-test-log.md).
             // Names checked against Ubuntu 24.04 and Debian 13 indexes; libpython3-dev pulls the matching minor.
+            // libcurl was renamed by the 64-bit time_t transition: Ubuntu 22.04 and Debian 12 still call it libcurl4.
             linuxAptPackages: [
-                "build-essential", "libcurl4t64", "libedit2", "libncurses6", "libpython3-dev", "libsqlite3-0",
+                "build-essential", "libcurl4t64|libcurl4", "libedit2", "libncurses6", "libpython3-dev", "libsqlite3-0",
                 "libxml2", "tzdata",
             ], category: .languages),
         ToolchainEntry(

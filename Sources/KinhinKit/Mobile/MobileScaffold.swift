@@ -24,6 +24,10 @@ public struct MobileScaffoldReport: Equatable, Sendable {
     public let platforms: [String]
     public let lines: [String]
     public let dryRun: Bool
+    /// The CI system the release pipeline was written for (nil for Expo, which gets none).
+    public let ci: CISystem?
+    /// The release pipeline file, relative to the repository root (nil for Expo).
+    public let pipelinePath: String?
 }
 
 public enum MobileScaffoldError: Error, Equatable, LocalizedError {
@@ -50,19 +54,25 @@ public enum MobileScaffoldError: Error, Equatable, LocalizedError {
 /// `force` is set, so running it again is safe. The templates come from `MobileTemplates`, which
 /// `MobileScaffoldTests` keeps equal to `templates/mobile/`.
 public enum MobileScaffold {
+    /// `ci` nil = the system the repository uses (`CISystem.detect`).
     public static func run(
-        in directory: URL, framework requested: MobileFramework, force: Bool, dryRun: Bool
+        in directory: URL, framework requested: MobileFramework, ci requestedCI: CISystem? = nil, force: Bool,
+        dryRun: Bool
     ) throws -> MobileScaffoldReport {
         let framework = requested == .auto ? try detect(in: directory) : requested
         let platforms = try platformsFor(framework, in: directory)
-        var writer = Writer(root: directory, appPath: repoRelativePath(of: directory), force: force, dryRun: dryRun)
+        let repository = repositoryRoot(of: directory) ?? directory
+        var writer = Writer(
+            root: directory, appPath: repoRelativePath(of: directory), repositoryRoot: repository, force: force,
+            dryRun: dryRun)
 
         if framework == .expo {
             try writer.write(template: "expo/eas.json", to: "eas.json")
             writer.note("Expo uses EAS Build/Submit by default; no fastlane workflow is written.")
             writer.note("For fastlane, run 'npx expo prebuild' and re-run with --framework react-native.")
-            return report(framework, platforms, writer)
+            return report(framework, platforms, writer, ci: nil, pipeline: nil)
         }
+        let ci = requestedCI ?? CISystem.detect(repositoryRoot: repository)
 
         try writer.gemfile()
         for platform in platforms {
@@ -70,12 +80,13 @@ public enum MobileScaffold {
                 platform: platform, folder: fastlaneFolder(platform, framework: framework, in: directory),
                 screenshots: framework != .maui, androidModule: framework == .kmp ? "" : "app")
         }
-        try writer.workflow(framework: framework, platforms: platforms, directory: directory)
+        let pipeline = try writer.pipeline(ci: ci, framework: framework, platforms: platforms, directory: directory)
         if platforms.contains("ios") {
-            // Kotlin Multiplatform keeps its Xcode project in iosApp/, every other framework in ios/.
-            noteLowIOSDeploymentTarget(in: directory, folder: framework == .kmp ? "iosApp" : "ios", writer: &writer)
+            // Where the Xcode project lives: iosApp/ for Kotlin Multiplatform, ios/, or the root for a native project.
+            noteLowIOSDeploymentTarget(
+                in: directory, folder: fastlaneFolder("ios", framework: framework, in: directory), writer: &writer)
         }
-        return report(framework, platforms, writer)
+        return report(framework, platforms, writer, ci: ci, pipeline: pipeline)
     }
 
     /// The framework a folder looks like, checked in order: Flutter, Expo, React Native, then the platform folders.
@@ -118,17 +129,23 @@ public enum MobileScaffold {
     /// The project folder relative to the git repository that contains it: "." for a project at the root, and
     /// "apps/mobile" for a monorepo app. With no repository above it, "." is the only sensible answer.
     static func repoRelativePath(of directory: URL) -> String {
-        let fm = FileManager.default
-        var root = directory.standardizedFileURL
-        while !fm.fileExists(atPath: root.appendingPathComponent(".git").path) {
-            // Stop at "/" by depth: deletingLastPathComponent() on the root does not return an equal path.
-            if root.pathComponents.count <= 1 { return "." }
-            root = root.deletingLastPathComponent()
-        }
+        guard let root = repositoryRoot(of: directory) else { return "." }
         let base = root.pathComponents
         let full = directory.standardizedFileURL.pathComponents
         let relative = full.dropFirst(base.count)
         return relative.isEmpty ? "." : relative.joined(separator: "/")
+    }
+
+    /// The nearest folder at or above `directory` that holds `.git`, or nil when there is none.
+    static func repositoryRoot(of directory: URL) -> URL? {
+        let fm = FileManager.default
+        var root = directory.standardizedFileURL
+        while !fm.fileExists(atPath: root.appendingPathComponent(".git").path) {
+            // Stop at "/" by depth: deletingLastPathComponent() on the root does not return an equal path.
+            if root.pathComponents.count <= 1 { return nil }
+            root = root.deletingLastPathComponent()
+        }
+        return root
     }
 
     /// Joins two relative paths, where "." is the empty path.
@@ -219,11 +236,30 @@ public enum MobileScaffold {
         return FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir) && isDir.boolValue
     }
 
-    private static func report(_ framework: MobileFramework, _ platforms: [String], _ writer: Writer)
-        -> MobileScaffoldReport
-    {
-        MobileScaffoldReport(framework: framework, platforms: platforms, lines: writer.lines, dryRun: writer.dryRun)
+    private static func report(
+        _ framework: MobileFramework, _ platforms: [String], _ writer: Writer, ci: CISystem?, pipeline: String?
+    ) -> MobileScaffoldReport {
+        MobileScaffoldReport(
+            framework: framework, platforms: platforms, lines: writer.lines, dryRun: writer.dryRun, ci: ci,
+            pipelinePath: pipeline)
     }
+
+    /// Where each system's release pipeline goes, relative to the repository root. GitLab's is included from
+    /// .gitlab-ci.yml, and Bitbucket's main file is never overwritten (see `Writer.pipeline`).
+    static func pipelinePath(_ ci: CISystem) -> String {
+        switch ci {
+        case .github: return ".github/workflows/mobile-release.yml"
+        case .gitea: return ".gitea/workflows/mobile-release.yml"
+        case .forgejo: return ".forgejo/workflows/mobile-release.yml"
+        case .gitlab: return ".gitlab/mobile-release.yml"
+        case .bitbucket: return "bitbucket-pipelines.yml"
+        case .azure: return ".azure-pipelines/mobile-release.yml"
+        case .buildkite: return ".buildkite/mobile-release.yml"
+        }
+    }
+
+    /// The release steps script the non-GitHub pipelines call, relative to the app folder.
+    static let releaseScriptPath = ".kinhin/mobile-release.sh"
 
     /// The lowest iOS deployment target the Xcode 26 toolchain accepts. `flutter create` still writes 13.0.
     static let minimumIOSDeploymentTarget = 15.0
@@ -231,12 +267,22 @@ public enum MobileScaffold {
     /// Notes the first iOS deployment target below the minimum, so the release build does not fail for a reason the
     /// user can see. The project file is not edited: the target is the user's choice to change.
     static func noteLowIOSDeploymentTarget(in directory: URL, folder: String, writer: inout Writer) {
-        let project = directory.appendingPathComponent(folder)
+        let project = folder == "." ? directory : directory.appendingPathComponent(folder)
         guard let enumerator = FileManager.default.enumerator(at: project, includingPropertiesForKeys: nil) else {
             return
         }
+        // Generated or third-party projects (CocoaPods' Pods.xcodeproj pins old targets per pod) are not the user's to fix.
+        let skipped: Set<String> = ["Pods", "node_modules", "build", "DerivedData", ".git", ".symlinks"]
+        var projectFiles: [URL] = []
+        for case let url as URL in enumerator {
+            if skipped.contains(url.lastPathComponent) {
+                enumerator.skipDescendants()
+            } else if url.lastPathComponent == "project.pbxproj" {
+                projectFiles.append(url)
+            }
+        }
         let pattern = try! NSRegularExpression(pattern: #"IPHONEOS_DEPLOYMENT_TARGET = ([0-9.]+);"#)
-        for case let url as URL in enumerator where url.lastPathComponent == "project.pbxproj" {
+        for url in projectFiles.sorted(by: { $0.path < $1.path }) {
             guard let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
             let range = NSRange(text.startIndex..., in: text)
             for match in pattern.matches(in: text, range: range) {
@@ -246,7 +292,7 @@ public enum MobileScaffold {
                 // Both sides resolved, so /var and /private/var (which the enumerator returns) compare equal.
                 let base = project.resolvingSymlinksInPath().path
                 let suffix = url.resolvingSymlinksInPath().path.dropFirst(base.count + 1)
-                let relative = "ios/\(suffix)"
+                let relative = joinPath(folder, String(suffix))
                 writer.note(
                     "iOS deployment target is \(text[valueRange]) in \(relative); Xcode 26 needs "
                         + "\(minimumIOSDeploymentTarget) or higher. Set IPHONEOS_DEPLOYMENT_TARGET to 15.0 there.")
@@ -270,12 +316,21 @@ public enum MobileScaffold {
 
         /// The project folder relative to the git repository root (".", or "apps/mobile" in a monorepo).
         let appPath: String
+        /// The git repository root (the project folder when there is no repository): GitHub reads workflows only from
+        /// its `.github/workflows/`.
+        let repositoryRoot: URL
 
-        init(root: URL, appPath: String, force: Bool, dryRun: Bool) {
+        init(root: URL, appPath: String, repositoryRoot: URL, force: Bool, dryRun: Bool) {
             self.root = root
             self.appPath = appPath
+            self.repositoryRoot = repositoryRoot
             self.force = force
             self.dryRun = dryRun
+        }
+
+        /// The repository root as seen from the project folder: "." or "../.." for "apps/mobile".
+        var upToRepository: String {
+            appPath == "." ? "." : appPath.split(separator: "/").map { _ in ".." }.joined(separator: "/")
         }
 
         mutating func note(_ text: String) {
@@ -300,8 +355,12 @@ public enum MobileScaffold {
             try write(text: text, to: relativePath)
         }
 
-        mutating func write(text: String, to relativePath: String) throws {
-            let destination = root.appendingPathComponent(relativePath)
+        /// Writes `text` to `relativePath` under `base` (the project folder unless given), unless the file exists and
+        /// `force` is off. Lines name the path from the project folder, or from the repository root for a file there.
+        mutating func write(text: String, to path: String, under base: URL? = nil) throws {
+            let base = base ?? root
+            let destination = base.appendingPathComponent(path)
+            let relativePath = base == root ? path : MobileScaffold.joinPath(upToRepository, path)
             if FileManager.default.fileExists(atPath: destination.path) && !force {
                 lines.append("  keep    \(relativePath) (exists; use --force to overwrite)")
                 return
@@ -405,18 +464,95 @@ public enum MobileScaffold {
             }
         }
 
-        /// The CI workflow: the header, then one job per platform, with the framework's setup steps spliced in.
-        mutating func workflow(framework: MobileFramework, platforms: [String], directory: URL) throws {
-            var text = withNewline(try template("github/header.yml"))
-            for platform in platforms {
-                text += try job(platform: platform, framework: framework, directory: directory)
+        /// The release pipeline for `ci`; returns its path from the repository root. GitHub's workflow carries the setup
+        /// steps itself (setup actions). Every other system calls one script, `.kinhin/mobile-release.sh`, which holds those
+        /// steps as shell, so its pipeline file only triggers, targets the runner, passes secrets and keeps screenshots.
+        mutating func pipeline(ci: CISystem, framework: MobileFramework, platforms: [String], directory: URL) throws
+            -> String
+        {
+            guard ci != .github else {
+                var text = withNewline(try template("ci/github/header.yml"))
+                for platform in platforms {
+                    text += try job(platform: platform, framework: framework, directory: directory)
+                }
+                let path = MobileScaffold.pipelinePath(.github)
+                try write(text: text, to: path, under: repositoryRoot)
+                return path
             }
-            try write(text: text, to: ".github/workflows/mobile-release.yml")
+
+            func folder(_ platform: String) -> String {
+                MobileScaffold.fastlaneFolder(platform, framework: framework, in: directory)
+            }
+            let scriptValues = [
+                "__FRAMEWORK__": framework.rawValue, "__IOS_DIR__": folder("ios"),
+                "__ANDROID_DIR__": folder("android"),
+            ]
+            try write(text: try fill("ci/mobile-release.sh", scriptValues), to: MobileScaffold.releaseScriptPath)
+
+            var path = MobileScaffold.pipelinePath(ci)
+            // The main Bitbucket file holds every pipeline of the repository: never replace one that exists.
+            let existing = repositoryRoot.appendingPathComponent(path).path
+            if ci == .bitbucket, FileManager.default.fileExists(atPath: existing) {
+                path = "bitbucket-pipelines.mobile-release.yml"
+                note(
+                    "bitbucket-pipelines.yml exists and is not changed: copy the mobile-release entry from \(path) "
+                        + "under its pipelines: custom: section.")
+            }
+            // Gitea and Forgejo run the same workflow syntax.
+            let system = ci == .forgejo ? "gitea" : ci.rawValue
+            let values = [
+                "__WORKFLOW_PATH__": path,
+                "__SCRIPT__": MobileScaffold.joinPath(appPath, MobileScaffold.releaseScriptPath),
+                "__IOS_SCREENSHOTS__": MobileScaffold.joinPath(
+                    appPath, MobileScaffold.joinPath(folder("ios"), "fastlane/screenshots")),
+                "__ANDROID_SCREENSHOTS__": MobileScaffold.joinPath(
+                    appPath, MobileScaffold.joinPath(folder("android"), "fastlane/metadata/android")),
+            ]
+            var text = withNewline(try fill("ci/\(system)/header.yml", values))
+            for platform in platforms {
+                text += withNewline(try fill("ci/\(system)/\(platform).job.yml", values))
+            }
+            try write(text: text, to: path, under: repositoryRoot)
+
+            switch ci {
+            case .gitlab: try gitlabInclude(path)
+            case .azure:
+                note("Create a pipeline from \(path): Pipelines > New pipeline > Existing Azure Pipelines YAML file.")
+            case .buildkite:
+                note("Make a Buildkite pipeline whose steps are: buildkite-agent pipeline upload \(path)")
+            default: break
+            }
+            return path
+        }
+
+        /// GitLab runs only .gitlab-ci.yml, so the release jobs are included from it: a new one is written when there is
+        /// none, and an existing one is never edited (the note says what to add).
+        private mutating func gitlabInclude(_ path: String) throws {
+            let main = repositoryRoot.appendingPathComponent(".gitlab-ci.yml")
+            guard FileManager.default.fileExists(atPath: main.path) else {
+                let include =
+                    "# Written by kinhin mobile init: the manual mobile release jobs.\n"
+                    + "include:\n  - local: \(path)\n"
+                try write(text: include, to: ".gitlab-ci.yml", under: repositoryRoot)
+                return
+            }
+            if (try? String(contentsOf: main, encoding: .utf8))?.contains(path) == true {
+                lines.append("  keep    .gitlab-ci.yml (already includes \(path))")
+            } else {
+                note("Add this to .gitlab-ci.yml so the release jobs run: include: [{ local: \(path) }]")
+            }
+        }
+
+        /// A template with each placeholder replaced.
+        private func fill(_ name: String, _ values: [String: String]) throws -> String {
+            var text = try template(name)
+            for (placeholder, value) in values { text = text.replacingOccurrences(of: placeholder, with: value) }
+            return text
         }
 
         /// A job template with `__PREBUILD__` replaced by the framework's setup steps and `__DIR__` by the folder.
         private func job(platform: String, framework: MobileFramework, directory: URL) throws -> String {
-            let template = try self.template("github/\(platform).job.yml")
+            let template = try self.template("ci/github/\(platform).job.yml")
             let prebuild = try prebuildSteps(platform: platform, framework: framework)
             let folder = MobileScaffold.joinPath(
                 appPath, MobileScaffold.fastlaneFolder(platform, framework: framework, in: directory))
@@ -437,11 +573,11 @@ public enum MobileScaffold {
 
         private func prebuildSteps(platform: String, framework: MobileFramework) throws -> String {
             switch framework {
-            case .flutter: return withNewline(try steps("github/prebuild/flutter-\(platform).yml"))
-            case .reactNative: return withNewline(try steps("github/prebuild/react-native-\(platform).yml"))
-            case .capacitor: return withNewline(try steps("github/prebuild/capacitor-\(platform).yml"))
-            case .kmp: return withNewline(try steps("github/prebuild/kmp-\(platform).yml"))
-            case .maui: return withNewline(try steps("github/prebuild/maui-\(platform).yml"))
+            case .flutter: return withNewline(try steps("ci/github/prebuild/flutter-\(platform).yml"))
+            case .reactNative: return withNewline(try steps("ci/github/prebuild/react-native-\(platform).yml"))
+            case .capacitor: return withNewline(try steps("ci/github/prebuild/capacitor-\(platform).yml"))
+            case .kmp: return withNewline(try steps("ci/github/prebuild/kmp-\(platform).yml"))
+            case .maui: return withNewline(try steps("ci/github/prebuild/maui-\(platform).yml"))
             default: return ""
             }
         }

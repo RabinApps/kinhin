@@ -1,0 +1,17 @@
+# Mobile release pipeline for a kinhin runner, written by `kinhin mobile init` to .gitlab/mobile-release.yml and included
+# from .gitlab-ci.yml. Its jobs run only in a pipeline started by hand (Build > Pipelines > Run pipeline), so store uploads
+# never run by accident. Pick the lane in MOBILE_LANE on that form. The steps are in .kinhin/mobile-release.sh.
+#
+# CI/CD variables used (Settings > CI/CD > Variables, masked):
+#   iOS:     ASC_KEY_ID, ASC_KEY_P8 (contents of the .p8 file), ASC_ISSUER_ID, MATCH_GIT_URL,
+#            MATCH_PASSWORD, APPLE_TEAM_ID, APP_IDENTIFIER, IOS_SCHEME
+#   Android: ANDROID_PACKAGE_NAME, PLAY_SERVICE_ACCOUNT_JSON, ANDROID_KEYSTORE_BASE64 (base64 of the
+#            upload keystore), ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
+# Optional screenshot settings: FRAME_SCREENSHOTS, UPLOAD_SCREENSHOTS, SNAPSHOT_DEVICES, SNAPSHOT_LANGUAGES,
+# SCREENGRAB_LOCALES, SCREENGRAB_DEVICE_TYPE.
+
+variables:
+  MOBILE_LANE:
+    value: beta
+    options: [beta, release, screenshots]
+    description: "Mobile release lane to run (only used by a pipeline started by hand)"

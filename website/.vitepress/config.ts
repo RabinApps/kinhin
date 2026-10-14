@@ -183,6 +183,9 @@ export default defineConfig({
         collapsed: true,
         items: [
           { text: "Add videos to your project", link: "/guide/videos-for-your-project" },
+          { text: "Video config reference", link: "/guide/video-config" },
+          { text: "Recordings of your product", link: "/guide/video-adapters" },
+          { text: "Video troubleshooting", link: "/guide/video-troubleshooting" },
           { text: "Video gallery", link: "/guide/video-gallery" },
           { text: "Marketing video in CI", link: "/guide/ci-video" },
         ],

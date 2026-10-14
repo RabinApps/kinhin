@@ -102,7 +102,8 @@ final class ToolchainCatalogInvariantTests: XCTestCase {
     /// Swift's Linux runtime libraries come from the catalog, so a Linux bake installs them and a macOS bake does not.
     func testSwiftLinuxRuntimeLibrariesAreSelectedOnlyOnLinux() {
         let linux = ToolchainCatalog.selection(from: .init(specs: ["swift"]), platform: .linux).aptPackages
-        for package in ["libedit2", "libncurses6", "libsqlite3-0", "libxml2", "libcurl4t64", "libpython3-dev"] {
+        let packages = ["libedit2", "libncurses6", "libsqlite3-0", "libxml2", "libcurl4t64|libcurl4", "libpython3-dev"]
+        for package in packages {
             XCTAssertTrue(linux.contains(package), "\(package) missing from Linux swift bake: \(linux)")
         }
         XCTAssertTrue(ToolchainCatalog.selection(from: .init(specs: ["swift"]), platform: .macOS).aptPackages.isEmpty)

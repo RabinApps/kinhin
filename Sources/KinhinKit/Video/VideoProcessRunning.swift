@@ -7,32 +7,46 @@ public protocol VideoProcessRunning: Sendable {
     func runInteractive(_ argv: [String]) async throws -> Int32
 }
 
+/// Launches `process` and waits for it to exit. A task cancelled before the launch never starts the child; one cancelled
+/// while it runs stops it (SIGTERM, which `docker run` and `container run` pass on to the build) and throws
+/// `CancellationError` once it has exited, so callers can tell "stopped" from "failed".
+private func runToExit(_ process: Process) async throws -> Int32 {
+    final class Box: @unchecked Sendable {
+        let process: Process
+        init(_ process: Process) { self.process = process }
+    }
+    let box = Box(process)
+    let exit = OneShotSignal()
+    process.terminationHandler = { _ in exit.fire() }
+    try Task.checkCancellation()
+    do {
+        try process.run()
+    } catch {
+        process.terminationHandler = nil
+        throw VideoError.launchFailed(error.localizedDescription)
+    }
+    // Installed after the launch: a cancellation that already landed runs the handler at once, with a child to stop.
+    let cancelled = Locked(false)
+    await withTaskCancellationHandler {
+        await exit.wait()
+    } onCancel: {
+        cancelled.withLock { $0 = true }
+        if box.process.isRunning { box.process.terminate() }
+    }
+    if cancelled.withLock({ $0 }) { throw CancellationError() }
+    return process.terminationStatus
+}
+
 /// The real thing: a `Process` that inherits stdio.
 public struct InheritedProcessRunner: VideoProcessRunning {
     public init() {}
 
-    private final class Box: @unchecked Sendable {
-        let process = Process()
-    }
-
     public func runInteractive(_ argv: [String]) async throws -> Int32 {
         guard let first = argv.first else { throw VideoError.launchFailed("empty command") }
-        let box = Box()
-        box.process.executableURL = URL(fileURLWithPath: first)
-        box.process.arguments = Array(argv.dropFirst())
-        return try await withTaskCancellationHandler {
-            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Int32, Error>) in
-                box.process.terminationHandler = { continuation.resume(returning: $0.terminationStatus) }
-                do {
-                    try box.process.run()
-                } catch {
-                    box.process.terminationHandler = nil
-                    continuation.resume(throwing: VideoError.launchFailed(error.localizedDescription))
-                }
-            }
-        } onCancel: {
-            if box.process.isRunning { box.process.terminate() }
-        }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: first)
+        process.arguments = Array(argv.dropFirst())
+        return try await runToExit(process)
     }
 }
 
@@ -72,45 +86,40 @@ public struct CapturingProcessRunner: VideoProcessRunning {
         }
     }
 
-    private final class Box: @unchecked Sendable {
-        let process = Process()
-    }
-
     public func runInteractive(_ argv: [String]) async throws -> Int32 {
         guard let first = argv.first else { throw VideoError.launchFailed("empty command") }
-        let box = Box()
-        box.process.executableURL = URL(fileURLWithPath: first)
-        box.process.arguments = Array(argv.dropFirst())
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: first)
+        process.arguments = Array(argv.dropFirst())
         let pipe = Pipe()
-        box.process.standardOutput = pipe
-        box.process.standardError = pipe
+        process.standardOutput = pipe
+        process.standardError = pipe
         let splitter = LineSplitter()
         let onLine = onLine
+        // An empty chunk is end-of-file: the handler detaches itself and signals. The last partial line is handed over only
+        // after that, so no chunk still in a handler can arrive after it (the same rule as `Shell`).
+        let eof = OneShotSignal()
         pipe.fileHandleForReading.readabilityHandler = { handle in
             let data = handle.availableData
-            if data.isEmpty { return }
-            for line in splitter.feed(data) { onLine(line) }
-        }
-        return try await withTaskCancellationHandler {
-            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Int32, Error>) in
-                box.process.terminationHandler = { process in
-                    pipe.fileHandleForReading.readabilityHandler = nil
-                    // Whatever the child wrote last, before the handler was removed.
-                    let rest = pipe.fileHandleForReading.readDataToEndOfFile()
-                    for line in splitter.feed(rest) { onLine(line) }
-                    if let last = splitter.finish() { onLine(last) }
-                    continuation.resume(returning: process.terminationStatus)
-                }
-                do {
-                    try box.process.run()
-                } catch {
-                    pipe.fileHandleForReading.readabilityHandler = nil
-                    box.process.terminationHandler = nil
-                    continuation.resume(throwing: VideoError.launchFailed(error.localizedDescription))
-                }
+            if data.isEmpty {
+                handle.readabilityHandler = nil
+                eof.fire()
+            } else {
+                for line in splitter.feed(data) { onLine(line) }
             }
-        } onCancel: {
-            if box.process.isRunning { box.process.terminate() }
         }
+        let outcome: Result<Int32, Error>
+        do {
+            outcome = .success(try await runToExit(process))
+        } catch {
+            guard process.processIdentifier != 0 else {
+                pipe.fileHandleForReading.readabilityHandler = nil  // never launched: no end-of-file will come
+                throw error
+            }
+            outcome = .failure(error)
+        }
+        await eof.wait()
+        if let last = splitter.finish() { onLine(last) }
+        return try outcome.get()
     }
 }

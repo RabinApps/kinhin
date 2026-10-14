@@ -197,19 +197,21 @@ enum ToolchainBenchmark {
     ) async throws {
         guard instance.platform == .linux, let first = plan.guestPackages.first else { return }
         let sudo = runsAsRoot(instance) ? "" : "sudo "
-        let packages = plan.guestPackages.filter { $0 != ToolchainBenchPlan.libpythonToken }
-            .map(BenchmarkScripts.quote).joined(separator: " ")
-        let python =
-            plan.guestPackages.contains(ToolchainBenchPlan.libpythonToken)
-            ? #"$(apt-cache search --names-only '^libpython3\.[0-9]+$' | sort -V | tail -n 1 | cut -d' ' -f1)"# : ""
+        // `a|b` (a catalog library named differently per base image) installs the first name this apt knows.
+        let packages = plan.guestPackages.map { package in
+            package.contains("|")
+                ? "\"$(pick \(package.split(separator: "|").map { BenchmarkScripts.quote(String($0)) }.joined(separator: " ")))\""
+                : BenchmarkScripts.quote(package)
+        }.joined(separator: " ")
         ctx.sink.set(step: "\(plan.id) › guest packages")
         let result = try await ctx.run(
             instance,
             """
             export DEBIAN_FRONTEND=noninteractive
+            pick() { for n in "$@"; do if apt-cache show "$n" >/dev/null 2>&1; then echo "$n"; return; fi; done; echo "$1"; }
             if ! dpkg-query -W -f='${Status}' \(BenchmarkScripts.quote(first)) 2>/dev/null | grep -q 'install ok installed'; then
               \(sudo)apt-get update -qq
-              \(sudo)apt-get install -y --no-install-recommends \(packages) \(python)
+              \(sudo)apt-get install -y --no-install-recommends \(packages)
             fi
             """, timeout: 1800)
         guard result.succeeded else {

@@ -69,6 +69,7 @@ OTHER:
     video init [name]                       Create a starter video in .kinhin/videos/
     video list                              List the videos in .kinhin/videos/
     video build [name]                      Build a video from its config
+    video validate [name]                   Check a video's config without rendering it
     video theme list                        List the built-in themes and yours
     video theme new <name>                  Write a starter theme file
     video music search <words>              Search openly licensed music

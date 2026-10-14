@@ -55,7 +55,8 @@ struct ToolchainBenchPlan: Sendable {
             id: tool.id, isStack: false, platform: platform, installer: describe(tool.installer(for: platform), tool),
             category: tool.category, requires: requires, selection: selection,
             guestMiseTools: platform == .macOS && tool.installer(for: .macOS) == .gem(name: tool.id) ? ["ruby"] : [],
-            guestPackages: platform == .linux ? linuxGuestPackages[tool.id] ?? [] : [],
+            // The catalog's own Linux libraries too, so the timed install measures the tool, not apt.
+            guestPackages: platform == .linux ? (linuxGuestPackages[tool.id] ?? []) + tool.linuxAptPackages : [],
             verify: tool.verify,
             workload: ToolchainWorkloads.workload(for: tool.id) ?? .skip(reason: "no workload defined"))
     }
@@ -75,20 +76,12 @@ struct ToolchainBenchPlan: Sendable {
     }
 
     /// What a Linux base image lacks that an entry's install or workload needs: a C toolchain to build Lua, to link
-    /// Rust, to compile CMake's test project.
-    /// Stands for the newest `libpython3.N` the guest's apt offers (it differs per base image).
-    static let libpythonToken = "libpython3"
-
+    /// Rust, to compile CMake's test project. Libraries a tool links (Swift's) come from its catalog entry instead.
     static let linuxGuestPackages: [String: [String]] = [
         "lua": ["build-essential", "libreadline-dev"],
         "rust": ["build-essential"],
         "cmake": ["build-essential"],
         "gcloud": ["python3", "python-is-python3"],
-        // The Swift toolchain links libedit, ncurses, sqlite, libxml2 and the base image's own Python library.
-        "swift": [
-            "libedit2", "build-essential", "libncurses6", "libsqlite3-0", "libxml2", "libcurl4t64", "tzdata",
-            libpythonToken,
-        ],
     ]
 
     /// Stacks carry no category of their own; they group with what they are made of.

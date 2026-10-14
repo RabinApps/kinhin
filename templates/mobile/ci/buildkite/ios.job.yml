@@ -1,0 +1,8 @@
+  - label: "iOS"
+    depends_on: lane-input
+    # queue=kinhin is kinhin's default agent tag; use the queue your kinhin Buildkite account's labels name.
+    agents:
+      queue: kinhin
+    command: bash __SCRIPT__ ios "$$(buildkite-agent meta-data get lane)"
+    # Screenshots are written inside the VM, which is deleted when the job ends. Keep them as an artifact.
+    artifact_paths: "__IOS_SCREENSHOTS__/**/*"

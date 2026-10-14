@@ -234,7 +234,7 @@ video/scripts/build.sh --container --project examples/hello --theme paper --form
 
 The same scene with captions off and in each style. Burned-in captions are a project setting (`captions` in the JSON) or a flag
 (`--captions off`, `--caption-style box`); the caption file is written either way. See
-[Captions](videos-for-your-project.md#captions).
+[Captions](video-config.md#captions).
 
 ### Captions off
 

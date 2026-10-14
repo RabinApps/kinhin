@@ -1,0 +1,25 @@
+# Mobile release pipeline for a kinhin runner, written by `kinhin mobile init` to .azure-pipelines/mobile-release.yml.
+# Create a pipeline from this file (Pipelines > New pipeline > Existing Azure Pipelines YAML file). It has no trigger, so it
+# runs only when started by hand and store uploads never run by accident. The steps are in .kinhin/mobile-release.sh.
+#
+# Pipeline variables used (mark them secret; Azure passes secrets to a script only through the env: mapping below):
+#   iOS:     ASC_KEY_ID, ASC_KEY_P8 (contents of the .p8 file), ASC_ISSUER_ID, MATCH_GIT_URL,
+#            MATCH_PASSWORD, APPLE_TEAM_ID, APP_IDENTIFIER, IOS_SCHEME
+#   Android: ANDROID_PACKAGE_NAME, PLAY_SERVICE_ACCOUNT_JSON, ANDROID_KEYSTORE_BASE64 (base64 of the
+#            upload keystore), ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
+trigger: none
+pr: none
+
+parameters:
+  - name: lane
+    displayName: Lane to run
+    type: string
+    default: beta
+    values: [beta, release, screenshots]
+  # The agent pool your kinhin Azure DevOps account serves (its scope in kinhin's config).
+  - name: pool
+    displayName: kinhin agent pool
+    type: string
+    default: kinhin
+
+jobs:

@@ -167,8 +167,9 @@ final class VideosModel {
         addingMusic = true
         defer { addingMusic = false }
         do {
+            // The row as shown, not `String(index + 1)`: the numbered search cache on disk is shared with the CLI.
             let result = try await music.add(
-                reference: String(index + 1), repo: repository, video: selected, volume: nil, allowAttribution: false)
+                track: musicResults[index], repo: repository, video: selected, volume: nil, allowAttribution: false)
             let title = result.track.title
             musicNotice =
                 result.edited

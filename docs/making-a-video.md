@@ -9,10 +9,10 @@ project file, scene types, adapters, captions, music and the `.kinhin/videos/` f
 
 ## The pieces
 
-A video is a list of scenes (see [The project file](videos-for-your-project.md#the-project-file)). Each scene is either a
+A video is a list of scenes (see [The project file](video-config.md#the-project-file)). Each scene is either a
 **canvas scene** drawn by Motion Canvas (title, statement, queue, parallel, map, outro) or a **clip scene** around a
 recording of your product: its app, a terminal, or a browser session. Canvas text wraps on whole words and shrinks to fit its box, and each slide has a character limit (title 40, subtitle 60, statement 90, sub 80, outro line 90, url 60, facts 100 joined, steps 60 each, compare titles 40 and items 60); a longer one fails the build and names the prop. Everything that is specific to one product lives in an
-[adapter](videos-for-your-project.md#adapters-recordings-of-your-product) (`video/adapters/<name>/` in this repository); the pipeline never mentions a product. Browser clips need
+[adapter](video-adapters.md#the-adapter-folder) (`video/adapters/<name>/` in this repository); the pipeline never mentions a product. Browser clips need
 no Mac, no desktop session and no permission grant, so they are the easy path for anything that runs in a browser (a
 `device` scene with `"frame": "window"` and a clip recorded by `record-web.sh`).
 
@@ -118,7 +118,7 @@ video/scripts/build.sh --project examples/kinhin-30s --container   # the 30-seco
 `launch` and `examples/kinhin-30s` use the `kinhin` adapter (`video/adapters/kinhin/adapter.json`), which sets two things
 for every kinhin video: burned-in captions are **off** (a clean picture; the `.srt` is still written) and the music is
 **First Light Particles**. A project can override either (`"captions": {"burn": true}`, `"music": false`). How the build
-works, and every setting, is in [Add videos to your project](videos-for-your-project.md#build-and-iterate).
+works, and every setting, is in [Video config reference](video-config.md#build-flags).
 
 `build.sh` is the developer path: it builds from this working tree, in a container (`--container`) or on this machine. What
 users run is `kinhin video build`, which pulls a published image that has this `video/` folder inside it (`Dockerfile`'s
@@ -148,6 +148,28 @@ kinhin's `record-app.sh` starts the demo at a known moment (`KINHIN_DEMO_ORIGIN`
 starts the shot there. Keep the mouse pointer off the window while it records. After recording,
 `scripts/make-reference.sh --adapter <name>` refreshes the adapter's `reference/` clips (`--terminal` for just the terminal
 ones).
+
+## How the build works
+
+For the curious: these are the steps `kinhin video build` runs inside the image.
+
+1. `scripts/voice.mjs` renders each cue of the narration.
+2. `scripts/retime.mjs` makes each scene as long as its speech needs and writes `src/timing.ts`, `out/.work/timeline.json` and
+   `out/.work/<slug>.captions.srt` (`out/.work/` is scratch; the container build removes it when it finishes).
+3. `scripts/render-titles.mjs` renders every drawn scene headlessly (Playwright's Chromium) to `raw/scenes/<project>/`.
+4. `scripts/frames.mjs` puts the device and terminal clips in their frames.
+5. `scripts/fetch-music.mjs` finds the project's music track, checks its SHA-256 and writes `out/.work/music.json`. No track, no music.
+6. `scripts/assemble.mjs` joins the scenes with short fades, the voice, music ducked under it, and captions into
+   `out/<project>/<project>.mp4`, `.webm`, `-poster.png`, `-hero.gif` and `.srt`. Burned-in captions follow the project's
+   `captions` block.
+
+A scene is re-rendered only when something that shapes it changes, so the render cache at `.kinhin/videos/.cache` makes a second
+build after a one-line edit fast.
+
+Building the image on Apple's `container`: before 1.5.0, `container build` copies no files from a directory when the build path
+passes through a symlink, such as `/tmp` or `/var/folders` ([apple/container#2285](https://github.com/apple/container/issues/2285)).
+The suite is then empty (`Cannot find module '/work/scripts/...'`). Build from an absolute path that is not under a symlink, such as
+your home folder, or upgrade `container`. Docker is not affected, and neither is the published image.
 
 ## Tests
 

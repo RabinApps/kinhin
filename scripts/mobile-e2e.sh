@@ -309,7 +309,7 @@ run_build() {
 if [[ $with_builds -eq 1 && $has_yaml -eq 1 ]] && command -v npm >/dev/null; then
     section "React Native install step (yarn, pnpm, npm, no lockfile)"
     install_script="$work/js-install.sh"
-    python3 - "$root/templates/mobile/github/prebuild/react-native-ios.yml" "$install_script" <<'PY'
+    python3 - "$root/templates/mobile/ci/github/prebuild/react-native-ios.yml" "$install_script" <<'PY'
 import sys, yaml
 steps = yaml.safe_load("steps:\n" + open(sys.argv[1]).read())["steps"]
 run = next(s["run"] for s in steps if "JavaScript" in s.get("name", ""))

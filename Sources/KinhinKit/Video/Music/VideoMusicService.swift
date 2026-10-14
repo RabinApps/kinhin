@@ -151,7 +151,15 @@ public struct VideoMusicService: Sendable {
     public func add(
         reference: String, repo: URL, video: String?, volume: Double?, allowAttribution: Bool, editConfig: Bool = true
     ) async throws -> MusicAddResult {
-        let track = try await resolve(reference)
+        try await add(
+            track: try await resolve(reference), repo: repo, video: video, volume: volume,
+            allowAttribution: allowAttribution, editConfig: editConfig)
+    }
+
+    /// Adds a track already in hand (a result the caller is showing), so nothing depends on the last search on disk.
+    public func add(
+        track: MusicTrack, repo: URL, video: String?, volume: Double?, allowAttribution: Bool, editConfig: Bool = true
+    ) async throws -> MusicAddResult {
         if track.origin == .openverse, !MusicLicense.isAllowed(track.license, allowAttribution: allowAttribution) {
             throw MusicError.licenseNotAllowed(title: track.title, license: track.license)
         }

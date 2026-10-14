@@ -53,11 +53,11 @@ enum CLICommand: Equatable, Hashable {
     /// no-ops that must not touch disk (and `toolchains detect`); everything else (including unknown
     /// commands, which print help before failing) auto-creates.
     static func shouldAutoCreateConfig(_ command: CLICommand?, args: [String] = []) -> Bool {
-        // `toolchains detect` and `workflow test` only read a repo; they need no config.
-        // `workflow route` needs an *existing* config (it refuses with the setup
+        // `toolchains detect` and `workflow test` only read a repo; `video` and `mobile init` only write files into one.
+        // None of them needs a config. `workflow route` needs an *existing* config (it refuses with the setup
         // command rather than auto-creating a starter the route couldn't use).
         if command == .toolchains, args.dropFirst().first == "detect" { return false }
-        if command == .workflow || command == .video { return false }
+        if command == .workflow || command == .video || command == .mobile { return false }
         switch command {
         case .help, .version, .support, .issue, .configInit:
             return false

@@ -354,6 +354,10 @@ enum CommandCatalog {
                             "--framework", "NAME",
                             "auto (default), ios, android, native, flutter, react-native, expo, capacitor, kmp or maui"
                         ),
+                        .value(
+                            "--ci", "SYSTEM",
+                            "auto (default: the repository's), github, gitea, forgejo, gitlab, bitbucket, azure or buildkite"
+                        ),
                         .bool("--force", "Overwrite files that already exist"),
                         .bool("--dry-run", "Print what would be written and write nothing"),
                     ],
@@ -527,12 +531,21 @@ enum CommandCatalog {
                     positionals: "[name]",
                     flags: [
                         .value("--dir", "PATH", "The repository (default: the current directory)"),
-                        .bool("--workflow", "Also write .github/workflows/kinhin-video.yml for --on-fleet"),
-                        .value("--runs-on", "LABELS", "Runner labels for that workflow (default: self-hosted,linux)"),
+                        .bool("--workflow", "Also write the CI pipeline that builds it on a kinhin runner"),
+                        .value(
+                            "--ci", "SYSTEM",
+                            "auto (default: the repository's), github, gitea, forgejo, gitlab, bitbucket, azure or buildkite"
+                        ),
+                        .value(
+                            "--runs-on", "LABELS",
+                            "Runner labels for that pipeline (default: a self-hosted Linux runner, e.g. self-hosted,linux)"
+                        ),
                         .value("--image", "REF", "The video image the workflow runs"),
                     ],
                     details: [
-                        "With --workflow and no name, only the workflow is written. Nothing is overwritten."
+                        "With --workflow and no name, only the pipeline is written. Nothing is overwritten. "
+                            + "GitHub's goes to .github/workflows/kinhin-video.yml, for --on-fleet; the other systems' are "
+                            + "started by hand."
                     ]),
                 CommandSpec(
                     name: "list",
@@ -557,14 +570,31 @@ enum CommandCatalog {
                         .bool("--fast", "A preview: quicker encode, no WebM"),
                         .value("--runtime", "container|docker", "Which container runtime builds it"),
                         .value("--image", "REF", "Use this video image instead of the released one"),
-                        .bool("--on-fleet", "Build on a runner via the repository's workflow (uses gh)"),
+                        .bool("--on-fleet", "Build on a runner via the repository's GitHub workflow (uses gh)"),
                         .value("--ref", "BRANCH", "Branch to run the workflow on (default: the current one)"),
+                        .value("--ci", "SYSTEM", "With --on-fleet: the repository's CI system (default: detected)"),
                     ],
                     details: [
                         "Builds in a container with the video suite from a published image (pulled on first use), "
                             + "so there is nothing to copy into your repository. The repository is mounted read-only; "
                             + "the video and the render cache land in .kinhin/videos/out and .kinhin/videos/.cache. "
                             + "With one video in the folder the name may be left out."
+                    ]),
+                CommandSpec(
+                    name: "validate",
+                    command: .video,
+                    summary: "Check a video's config without rendering it",
+                    positionals: "[name]",
+                    flags: [
+                        .value("--dir", "PATH", "The repository (default: the current directory)"),
+                        .bool("--all", "Check every video in the repository"),
+                        .value("--runtime", "container|docker", "Which container runtime runs the check"),
+                        .value("--image", "REF", "Use this video image instead of the released one"),
+                    ],
+                    details: [
+                        "Runs the build's own checks (the config, theme, captions, music, text limits and claims) and "
+                            + "that each device or terminal scene's clip is in its adapter. It renders nothing, so it is "
+                            + "quick once the image is there. Exit 3 when a video has a problem."
                     ]),
                 CommandSpec(
                     name: "theme",

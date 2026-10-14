@@ -26,6 +26,8 @@ public struct VideoBuildOptions: Equatable, Sendable {
 public struct VideoRunPlan: Equatable, Sendable {
     /// The pipeline's entry point inside the image (an absolute path: Apple's `container` does not resolve a relative one).
     public static let entryScript = "/work/scripts/container-build.sh"
+    /// The check's entry point: the same image, without the output mounts, and nothing rendered.
+    public static let validateEntryScript = "/work/scripts/container-validate.sh"
 
     public let runtime: VideoRuntime
     public let image: String
@@ -35,6 +37,13 @@ public struct VideoRunPlan: Equatable, Sendable {
     /// Where the finished video lands, and the render cache, both inside `<repo>/.kinhin/videos/`.
     public let outputDirectory: URL
     public let cacheDirectory: URL
+
+    /// The command that checks one video (`project`), or every video of the repository (nil). It mounts the repository
+    /// read-only and nothing else: a check writes no output and renders nothing.
+    public static func validation(binary: String, image: String, repo: URL, project: String?) -> [String] {
+        [binary, "run", "--rm", "-v", "\(repo.path):/project:ro", image, validateEntryScript]
+            + (project.map { ["--project", $0] } ?? ["--all"])
+    }
 
     public static func make(
         options: VideoBuildOptions, runtime: VideoRuntime, binary: String, image: String, repo: URL,

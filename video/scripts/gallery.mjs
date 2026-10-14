@@ -137,7 +137,7 @@ ${done.filter((c) => c.group === 'themes').map((c) => entry(c, cmdOf(c))).join('
 
 The same scene with captions off and in each style. Burned-in captions are a project setting (\`captions\` in the JSON) or a flag
 (\`--captions off\`, \`--caption-style box\`); the caption file is written either way. See
-[Captions](videos-for-your-project.md#captions).
+[Captions](video-config.md#captions).
 
 ${done.filter((c) => c.group === 'captions').map((c) => entry(c, cmdOf(c))).join('\n')}
 ## Formats

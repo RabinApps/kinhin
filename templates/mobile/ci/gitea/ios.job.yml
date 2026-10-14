@@ -1,0 +1,33 @@
+  ios:
+    # kinhin-xcode is the Xcode image label. Change it if your pool uses another name.
+    runs-on: [kinhin-xcode]
+    steps:
+      # Full URLs, so the server fetches these from GitHub whatever its default actions mirror is.
+      - uses: https://github.com/actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Release
+        run: bash __SCRIPT__ ios "${{ inputs.lane }}"
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APP_IDENTIFIER: ${{ secrets.APP_IDENTIFIER }}
+          IOS_SCHEME: ${{ secrets.IOS_SCHEME }}
+          # Screenshot settings, read from repository variables (not secrets). Empty means the default.
+          FRAME_SCREENSHOTS: ${{ vars.FRAME_SCREENSHOTS }}
+          UPLOAD_SCREENSHOTS: ${{ vars.UPLOAD_SCREENSHOTS }}
+          SNAPSHOT_DEVICES: ${{ vars.SNAPSHOT_DEVICES }}
+          SNAPSHOT_LANGUAGES: ${{ vars.SNAPSHOT_LANGUAGES }}
+      # Screenshots are written inside the VM, which is deleted when the job ends. Keep them, even when the lane fails.
+      # upload-artifact v3: the artifact protocol Gitea and Forgejo servers implement.
+      - name: Upload screenshots
+        if: ${{ always() && inputs.lane == 'screenshots' }}
+        uses: https://github.com/actions/upload-artifact@c6a3b2bd78b3985e4b2f15397fec357f0fd808de # v3.2.2-node20
+        with:
+          name: ios-screenshots
+          path: __IOS_SCREENSHOTS__
+          if-no-files-found: warn
+          retention-days: 14
+

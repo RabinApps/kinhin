@@ -220,12 +220,21 @@ extension RunnerBootstrap {
             let packages = selection.aptPackages.map(shellQuote).joined(separator: " ")
             lines.append(
                 """
-                # apt packages (guarded so re-runs no-op)
+                # apt packages (guarded so re-runs no-op). "a|b" is one package by alternatives: the first name this
+                # release's apt knows (a library renamed between base images).
                 export DEBIAN_FRONTEND=noninteractive
                 for p in \(packages); do
-                  if ! dpkg-query -W -f='${Status}' "$p" 2>/dev/null | grep -q 'install ok installed'; then
+                  installed=""
+                  for name in ${p//|/ }; do
+                    if dpkg-query -W -f='${Status}' "$name" 2>/dev/null | grep -q 'install ok installed'; then installed=1; fi
+                  done
+                  if [ -z "$installed" ]; then
                     \(s)apt-get update -qq
-                    \(s)apt-get install -y --no-install-recommends "$p"
+                    pick="${p%%|*}"
+                    for name in ${p//|/ }; do
+                      if apt-cache show "$name" >/dev/null 2>&1; then pick="$name"; break; fi
+                    done
+                    \(s)apt-get install -y --no-install-recommends "$pick"
                   fi
                 done
                 """)

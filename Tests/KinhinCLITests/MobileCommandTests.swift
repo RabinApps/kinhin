@@ -22,6 +22,19 @@ final class MobileCommandTests: XCTestCase {
         XCTAssertEqual(MobileCommand.positionals(in: ["app", "--force"]), ["app"])
     }
 
+    func testCISystemParsesAndIsNotTheDirectory() throws {
+        XCTAssertNil(try MobileCommand.parse([]).ci, "no flag: the repository's own system")
+        XCTAssertNil(try MobileCommand.parse(["--ci", "auto"]).ci)
+        for ci in CISystem.allCases {
+            let request = try MobileCommand.parse(["--ci", ci.rawValue, "app"])
+            XCTAssertEqual(request.ci, ci)
+            XCTAssertEqual(request.directory, "app")
+        }
+        XCTAssertThrowsError(try MobileCommand.parse(["--ci", "jenkins"])) { error in
+            XCTAssertEqual((error as? MobileCommand.UsageError)?.message.hasPrefix("unknown CI system 'jenkins'"), true)
+        }
+    }
+
     func testUnknownFrameworkIsAUsageError() {
         XCTAssertThrowsError(try MobileCommand.parse(["--framework", "nope"])) { error in
             XCTAssertEqual((error as? MobileCommand.UsageError)?.message.hasPrefix("unknown framework 'nope'"), true)

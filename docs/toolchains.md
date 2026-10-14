@@ -78,7 +78,7 @@ Jobs from a repo with neither run on the plain base image.
 
 ### The `.kinhin/config.yml` file
 
-Put it at `.kinhin/config.yml`. The older `.kinhin.yml` at the repo root is still read when `.kinhin/config.yml` is absent; if both exist, `.kinhin/config.yml` wins. The same `.kinhin/` folder can hold other kinhin files for the repo, such as the [video configs](videos-for-your-project.md#quick-start) in `.kinhin/videos/`, which this loader never reads.
+Put it at `.kinhin/config.yml`. The older `.kinhin.yml` at the repo root is still read when `.kinhin/config.yml` is absent; if both exist, `.kinhin/config.yml` wins. The same `.kinhin/` folder can hold other kinhin files for the repo, such as the [video configs](video-config.md) in `.kinhin/videos/`, which this loader never reads.
 
 kinhin reads the file **at the ref the job runs at**, so a `release/1.x` branch can pin `go@1.22.5` while `main` pins
 `go@1.23.4`. The file is opt-in: it is ignored unless the matching `projects:` entry sets `repo_file: true`. It is

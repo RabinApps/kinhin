@@ -8,7 +8,10 @@
   "previewPaths": [
     "video/**",
     "docs/making-a-video.md",
-    "docs/videos-for-your-project.md"
+    "docs/videos-for-your-project.md",
+    "docs/video-config.md",
+    "docs/video-adapters.md",
+    "docs/video-troubleshooting.md"
   ],
   "preview": [
     {

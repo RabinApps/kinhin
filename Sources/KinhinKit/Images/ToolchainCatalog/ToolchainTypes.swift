@@ -159,7 +159,8 @@ public struct ToolchainEntry: Sendable, Equatable {
     /// every supported platform.
     public let linuxInstaller: Installer?
     /// Apt packages the tool needs on Linux beyond its own installer (shared libraries it links).
-    /// Added whenever the tool is selected on Linux.
+    /// Added whenever the tool is selected on Linux. `a|b` names one package by alternatives: the first one the
+    /// guest's apt knows is installed (for libraries whose name differs between base images).
     public let linuxAptPackages: [String]
     /// UI grouping.
     public let category: ToolchainCategory

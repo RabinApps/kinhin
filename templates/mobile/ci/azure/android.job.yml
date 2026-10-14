@@ -1,0 +1,23 @@
+  # Android has no release lane yet, so the release choice runs only the iOS job.
+  - ${{ if ne(parameters.lane, 'release') }}:
+      - job: android
+        displayName: Android
+        pool:
+          name: ${{ parameters.pool }}
+          demands: [kinhin_xcode]
+        steps:
+          - checkout: self
+          - script: bash __SCRIPT__ android "${{ parameters.lane }}"
+            displayName: Release
+            env:
+              ANDROID_PACKAGE_NAME: $(ANDROID_PACKAGE_NAME)
+              PLAY_SERVICE_ACCOUNT_JSON: $(PLAY_SERVICE_ACCOUNT_JSON)
+              ANDROID_KEYSTORE_BASE64: $(ANDROID_KEYSTORE_BASE64)
+              ANDROID_KEYSTORE_PASSWORD: $(ANDROID_KEYSTORE_PASSWORD)
+              ANDROID_KEY_ALIAS: $(ANDROID_KEY_ALIAS)
+              ANDROID_KEY_PASSWORD: $(ANDROID_KEY_PASSWORD)
+          - ${{ if eq(parameters.lane, 'screenshots') }}:
+              - publish: __ANDROID_SCREENSHOTS__
+                artifact: android-screenshots
+                condition: always()
+
