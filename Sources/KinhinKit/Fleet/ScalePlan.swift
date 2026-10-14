@@ -324,24 +324,30 @@ struct ScalePlan: Equatable {
 
     // MARK: - Disk
 
-    /// The leading slots the disk can hold. Each slot costs its per-instance disk plus the reserve
-    /// (host slots cost none); the first slot that does not fit ends the list and is reported.
+    /// The slots the disk can hold. Each new instance costs its per-instance disk plus the reserve;
+    /// the first that does not fit ends the new instances and is reported. Host slots and warm
+    /// claims cost none (a claimed VM is already on disk), so they are always admitted.
     /// The disk is per slot, not per runtime, because a named Tart image can be larger than the base.
     static func admitByDisk(
         _ slots: [Slot], freeDiskGB: Int, reserveGB: Int, diskPerInstanceGB: (Slot) -> Int
     ) -> (admitted: [Slot], blocked: (runtime: RuntimeID, availableGB: Int, neededGB: Int)?) {
         var free = freeDiskGB
         var admitted: [Slot] = []
+        var blocked: (runtime: RuntimeID, availableGB: Int, neededGB: Int)?
         for slot in slots {
-            if slot.runtime != .host {
+            if slot.runtime != .host, slot.claim == nil {
+                if blocked != nil { continue }
                 let perVM = diskPerInstanceGB(slot)
                 let needed = perVM + reserveGB
-                if free < needed { return (admitted, (slot.runtime, free, needed)) }
+                if free < needed {
+                    blocked = (slot.runtime, free, needed)
+                    continue
+                }
                 free -= perVM
             }
             admitted.append(slot)
         }
-        return (admitted, nil)
+        return (admitted, blocked)
     }
 }
 

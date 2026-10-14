@@ -369,7 +369,7 @@ extension FleetEngine {
         defer { publishSpawnBackoff() }
         var slots = plan.slots
         var diskPressureMessage: String?
-        if slots.contains(where: { $0.runtime != .host }) {
+        if slots.contains(where: { $0.runtime != .host && $0.claim == nil }) {
             let listed = slots.contains { $0.image != nil } ? await listedTartVMs() : []
             let admission = ScalePlan.admitByDisk(
                 slots, freeDiskGB: hostProbe().freeDiskGB, reserveGB: config.reserve.diskGB,
@@ -385,8 +385,7 @@ extension FleetEngine {
         }
         for id in plan.evict { scheduleDelete(id: id, reason: "warm instance evicted") }
         for slot in slots {
-            // A claimed warm instance is bound to its slot. A slot the disk held back keeps its warm
-            // instance, which is still ready for the next pass.
+            // A claimed warm instance is bound to its slot; it is already on disk, so disk pressure never holds it.
             if let warmID = slot.claim {
                 claimWarm(id: warmID, account: slot.account)
                 continue

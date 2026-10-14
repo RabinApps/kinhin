@@ -64,7 +64,8 @@ final class ScaleSetWarmPoolTests: XCTestCase {
         // Idle: the pool boots one warm VM.
         try await engine.reconcileOnce()
         try await waitUntil(timeout: 10) { await self.warmIDs(engine).count == 1 }
-        let firstWarm = try XCTUnwrap(await warmIDs(engine).first)
+        let idle = await warmIDs(engine)
+        let firstWarm = try XCTUnwrap(idle.first)
 
         // Job A is offered, acquired and assigned: it claims the warm VM, whose runner then takes it.
         try await deliver(
@@ -79,7 +80,8 @@ final class ScaleSetWarmPoolTests: XCTestCase {
         // With A covered, the pool tops up a second warm VM.
         try await engine.reconcileOnce()
         try await waitUntil(timeout: 10) { await self.warmIDs(engine).count == 1 }
-        let secondWarm = try XCTUnwrap(await warmIDs(engine).first)
+        let toppedUp = await warmIDs(engine)
+        let secondWarm = try XCTUnwrap(toppedUp.first)
         XCTAssertNotEqual(secondWarm, firstWarm)
 
         // A finishes: its runner deregisters and the exit watch deletes the VM.
