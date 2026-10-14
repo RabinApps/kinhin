@@ -131,6 +131,7 @@ public struct OpenverseClient: Sendable {
             var access_token: String
             var expires_in: Double?
         }
+        // the else branch reports an undecodable token reply as MusicError.network
         guard let body = try? JSONDecoder().decode(TokenBody.self, from: data), !body.access_token.isEmpty else {
             throw MusicError.network(
                 "unexpected answer from the Openverse sign-in: \(String(decoding: data.prefix(120), as: UTF8.self))")
@@ -187,6 +188,7 @@ public struct OpenverseClient: Sendable {
             throw MusicError.notFound(id)
         }
         let data = try await fetch(url, pastTheEndIsEmpty: false)
+        // the else branch reports an undecodable track as MusicError.notFound
         guard let track = (try? JSONDecoder().decode(Result.self, from: data))?.track else {
             throw MusicError.notFound(id)
         }
@@ -214,6 +216,7 @@ public struct OpenverseClient: Sendable {
         case 429:
             throw MusicError.rateLimited(retryAfter: http.value(forHTTPHeaderField: "Retry-After").flatMap { Int($0) })
         default:
+            // an error body is optional detail; the HTTP status is reported either way
             let detail = (try? JSONDecoder().decode(ErrorBody.self, from: data))?.detail
             throw MusicError.network(detail ?? "HTTP \(http.statusCode)")
         }

@@ -207,6 +207,9 @@ generates `kinhin help`, each `kinhin <command> --help` page and the skills-lint
   - CLI (`Sources/kinhin`): `CLIError` (a failure with its exit code); the usage and route errors
     `MobileCommand.UsageError`, `RuntimesCommand.RouteError`, `WorkflowRoutePreFlight` and
     `WorkflowRouteAvailabilityProblem`; `RunCommands.ControlFailure`, `PipelineCommandError` and `MCPToolError`.
+  - App (`Sources/kinhin-app`), whose messages are localized through the String Catalog and so stay out of
+    `KinhinKit`: `LaunchAtLoginError`, and `ConfigNotAppliedError`/`ConfigPushFailure` (a saved config edit the
+    running fleet could not take).
 
   A type private to one view or parser that never escapes it (`BaseImagePicker.ProblemText`, `DemoTimeline.Invalid`)
   is not a domain error and needs no entry.

@@ -137,6 +137,7 @@ enum VideoMusicCommand {
             return
         }
         let file = try await service.fetchForPreview(track)
+        // removing the preview temp directory is cleanup; the OS clears temp later
         defer { try? FileManager.default.removeItem(at: file.deletingLastPathComponent()) }
         let code = try await InheritedProcessRunner().runInteractive(["/usr/bin/afplay", file.path])
         if code != 0 { warn("afplay exited \(code)") }
