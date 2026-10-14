@@ -252,6 +252,96 @@ final class FakeFleetServingContractTests: XCTestCase {
             "the fake drives the same not-responding surface the menu shows")
     }
 
+    // MARK: - Healing
+
+    /// The healing event id out of an `EngineError.unknownHealingEvent`.
+    private func unknownHealingID(_ error: Error?) -> String? {
+        guard case EngineError.unknownHealingEvent(let id)? = error as? EngineError else { return nil }
+        return id
+    }
+
+    /// The id and outcome out of an `EngineError.healingEventNotPending`.
+    private func notPending(_ error: Error?) -> String? {
+        guard case EngineError.healingEventNotPending(let id, let outcome)? = error as? EngineError else { return nil }
+        return "\(id):\(outcome)"
+    }
+
+    func testAFreshFleetReportsTheDefaultHealingPolicyAndAnEmptyJournalOnBothSides() async throws {
+        let real = try await makeReal().healingStatus()
+        let fake = try await FakeFleetServing().healingStatus()
+        XCTAssertEqual(fake.enabled, real.enabled, "healing is on by default on both sides")
+        XCTAssertEqual(fake.automatic, real.automatic, "safe fixes run on their own by default on both sides")
+        XCTAssertEqual(fake.events, real.events)
+        XCTAssertEqual(fake.events, [], "nothing has happened on a fresh fleet")
+    }
+
+    func testDecidingAnUnknownHealingEventThrowsTheSameErrorOnBothSides() async {
+        let real = makeReal()
+        let fake = FakeFleetServing()
+        for decide in [true, false] {
+            let realError = await firstError {
+                decide ? try await real.approveHealing(id: "h-ghost") : try await real.dismissHealing(id: "h-ghost")
+            }
+            let fakeError = await firstError {
+                decide ? try await fake.approveHealing(id: "h-ghost") : try await fake.dismissHealing(id: "h-ghost")
+            }
+            XCTAssertEqual(unknownHealingID(realError), "h-ghost", "the engine refuses an id not in its journal")
+            XCTAssertEqual(unknownHealingID(fakeError), "h-ghost", "…and so does the fake, with the same error")
+        }
+    }
+
+    /// An event a previous run left pending loads as expired: neither side
+    /// lets anyone approve or dismiss it, and both name its outcome. The
+    /// pending → running / dismissed transitions themselves need a live agent
+    /// pass and are pinned against the agent in `HealingAgentTests`; the app's
+    /// side of them by `HealingUserActionsTests`.
+    func testDecidingAClosedHealingEventThrowsTheSameErrorOnBothSides() async throws {
+        let event = HealingEvent(
+            id: "h-0000beef", signal: HealingSignal(kind: .diskPressure, detail: "disk full"),
+            remediation: Remediation(.pruneImages), source: .playbook, outcome: .pending,
+            detail: "prune unused images needs approval: disk full")
+        let store = makeTestStore()
+        HealingJournal(events: [event]).save(to: HealingJournal.fileURL(in: store.directory))
+        let real = makeReal(store: store)
+        let realEvents = try await real.healingStatus().events
+        XCTAssertEqual(realEvents.map(\.outcome), [.expired], "a stored open event loads as expired")
+
+        let fake = FakeFleetServing()
+        fake.status.healing = HealingSnapshot(enabled: true, automatic: true, advisor: nil, events: realEvents)
+
+        for decide in [true, false] {
+            let realError = await firstError {
+                decide ? try await real.approveHealing(id: event.id) : try await real.dismissHealing(id: event.id)
+            }
+            let fakeError = await firstError {
+                decide ? try await fake.approveHealing(id: event.id) : try await fake.dismissHealing(id: event.id)
+            }
+            XCTAssertEqual(notPending(realError), "h-0000beef:expired")
+            XCTAssertEqual(notPending(fakeError), notPending(realError), "same refusal, same outcome named")
+        }
+        let realAfter = try await real.healingStatus().events.map(\.outcome)
+        let fakeAfter = try await fake.healingStatus().events.map(\.outcome)
+        XCTAssertEqual(fakeAfter, realAfter, "a refused decision changes nothing on either side")
+    }
+
+    func testADeadDaemonRefusesHealingCallsLikeAScriptedFailure() async {
+        let dead = deadDaemon()
+        let scripted = FakeFleetServing()
+        scripted.commandError = RPCError.connectionFailed("daemon.sock")
+        let realApprove = await firstError { try await dead.approveHealing(id: "h-1") }
+        let fakeApprove = await firstError { try await scripted.approveHealing(id: "h-1") }
+        XCTAssertTrue(realApprove is RPCError, "a dead socket fails as RPC")
+        XCTAssertTrue(fakeApprove is RPCError)
+        let realDismiss = await firstError { try await dead.dismissHealing(id: "h-1") }
+        let fakeDismiss = await firstError { try await scripted.dismissHealing(id: "h-1") }
+        XCTAssertTrue(realDismiss is RPCError)
+        XCTAssertTrue(fakeDismiss is RPCError)
+        let realStatus = await firstError { _ = try await dead.healingStatus() }
+        let fakeStatus = await firstError { _ = try await scripted.healingStatus() }
+        XCTAssertTrue(realStatus is RPCError)
+        XCTAssertTrue(fakeStatus is RPCError)
+    }
+
     // MARK: - Benchmarks
 
     func testAnUnknownBenchmarkRunThrowsTheSameErrorOnBothSides() async {

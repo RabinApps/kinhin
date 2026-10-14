@@ -20,6 +20,10 @@ final class FleetAlerts {
     private let poster: any FleetAlertPosting
     private var lastError: String?
     private var wasReachable = false
+    /// Ids of the healing fixes already known to have succeeded. Nil until the
+    /// first snapshot that reports healing, whose successes are history, not
+    /// news (no burst on launch).
+    private var knownHealingSuccesses: Set<String>?
 
     init(poster: any FleetAlertPosting = UserNotificationPoster()) {
         self.poster = poster
@@ -39,6 +43,7 @@ final class FleetAlerts {
                             comment: "Notification title when the fleet reports an error"), body: error))
             }
             lastError = error
+            if let healing = status.healing { observe(healing) }
         } else if let unreachableReason {
             // Only the reachable → unreachable edge: polls repeat every few seconds.
             if wasReachable {
@@ -50,6 +55,25 @@ final class FleetAlerts {
             }
             wasReachable = false
         }
+    }
+
+    /// One notification per fix that newly succeeded. The ids kept are only
+    /// the ones still in the journal: the journal is bounded, and an id that
+    /// left it never comes back.
+    private func observe(_ healing: HealingSnapshot) {
+        let succeeded = healing.events.filter { $0.outcome == .succeeded }
+        if let known = knownHealingSuccesses {
+            // Oldest first, so a burst reads in the order the fixes ran.
+            for event in succeeded.reversed() where !known.contains(event.id) {
+                poster.post(
+                    FleetAlert(
+                        title: String(
+                            localized: "kinhin fixed a problem", bundle: .l10n,
+                            comment: "Notification title when the healing agent's fix worked; kinhin stays verbatim"),
+                        body: event.detail))
+            }
+        }
+        knownHealingSuccesses = Set(succeeded.map(\.id))
     }
 }
 

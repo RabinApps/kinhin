@@ -2,7 +2,8 @@ import KinhinKit
 import Observation
 import SwiftUI
 
-/// The Diagnostics sheet content: header, one card per check, Close.
+/// The Diagnostics sheet content: header, one card per check, the healing
+/// card, Close.
 struct DiagnosticsView: View {
     static let size = CGSize(width: 560, height: 520)
 
@@ -19,6 +20,12 @@ struct DiagnosticsView: View {
                 VStack(spacing: 8) {
                     ForEach(model.rows) { row in
                         DiagnosticsRow(row: row)
+                    }
+                    if let healing = model.healing {
+                        HealingSectionView(
+                            healing: healing, busyIDs: model.busyHealingIDs,
+                            approve: { model.approveHealing(id: $0) },
+                            dismiss: { model.dismissHealing(id: $0) })
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)

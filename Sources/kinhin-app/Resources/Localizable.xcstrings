@@ -398,6 +398,12 @@
     "Advanced" : {
       "comment" : "Main window tab title"
     },
+    "Advisor: %@" : {
+      "comment" : "Diagnostics healing advisor line; %@ is the advisor's name (the on-device model)"
+    },
+    "Advisor's reasoning: %@" : {
+      "comment" : "Diagnostics healing entry; %@ is the on-device model's one-sentence reason"
+    },
     "Agent pool" : {
       "comment" : "Label of the repository field"
     },
@@ -439,6 +445,15 @@
     },
     "Apply" : {
       "comment" : "Button in CapacityView"
+    },
+    "Approval only: every fix waits for you." : {
+      "comment" : "Diagnostics healing policy when automatic fixes are off (healing.auto: none)"
+    },
+    "Approve" : {
+      "comment" : "Diagnostics healing card button that carries out a fix waiting for approval"
+    },
+    "Approve this fix" : {
+      "comment" : "Accessibility label of the Approve button on a pending healing fix"
     },
     "Architecture" : {
       "comment" : "Text in MacToolsView"
@@ -786,8 +801,14 @@
     "Could not read that report — %@" : {
       "comment" : "Benchmarks status line; %@ is the error's description"
     },
+    "Couldn't approve fix %@" : {
+      "comment" : "Alert title when approving a healing fix fails; %@ is the fix id (h-…)"
+    },
     "Couldn't delete %@" : {
       "comment" : "Alert title when deleting a VM fails; %@ is a VM id"
+    },
+    "Couldn't dismiss %@" : {
+      "comment" : "Alert title when dismissing a healing event fails; %@ is the event id (h-…)"
     },
     "couldn't find the kinhin CLI — install it with scripts/install.sh, then try again (a debug build alone can't install the daemon)" : {
       "comment" : "Settings → App daemon error; the script path stays verbatim"
@@ -915,6 +936,15 @@
     "Dismiss the disk pressure warning" : {
       "comment" : ".accessibilityLabel in FleetView"
     },
+    "Dismiss this fix" : {
+      "comment" : "Accessibility label of the Dismiss button on a pending healing fix"
+    },
+    "Dismiss this problem" : {
+      "comment" : "Accessibility label of the Dismiss button on a problem only the user can fix"
+    },
+    "Dismissed" : {
+      "comment" : "Healing event outcome"
+    },
     "Docker" : {
       "comment" : "Linux runtime option name"
     },
@@ -1005,6 +1035,9 @@
     "expanded" : {
       "comment" : "Text in FormComponents"
     },
+    "Expired" : {
+      "comment" : "Healing event outcome: left open when the fleet stopped"
+    },
     "Expo (React Native with Node)" : {
       "comment" : "Toolchain example title"
     },
@@ -1038,8 +1071,17 @@
     "finished" : {
       "comment" : "Workflow test headline when there is no report"
     },
+    "Fix failed" : {
+      "comment" : "Healing event outcome"
+    },
     "Fix: %@" : {
       "comment" : "Diagnostics Tart row; %@ is a shell command to run"
+    },
+    "Fixed" : {
+      "comment" : "Healing event outcome: the fix worked"
+    },
+    "Fixing now" : {
+      "comment" : "Diagnostics healing card section header: fixes being carried out"
     },
     "Fleet" : {
       "comment" : "Main window tab title"
@@ -1097,6 +1139,9 @@
     },
     "group/subgroup or group/project" : {
       "comment" : "Placeholder in the repository field; keep the path syntax verbatim"
+    },
+    "Healing" : {
+      "comment" : "Diagnostics healing card title (the agent that fixes fleet problems)"
     },
     "healthy" : {
       "comment" : "Diagnostics Tart row detail"
@@ -1316,6 +1361,9 @@
     },
     "kinhin crashed unexpectedly:\n\n%@\n\nLogs: ~/Library/Application Support/Kinhin/logs/" : {
       "comment" : "Body of the crash alert; %@ is the exception reason; the logs path stays verbatim"
+    },
+    "kinhin fixed a problem" : {
+      "comment" : "Notification title when the healing agent's fix worked; kinhin stays verbatim"
     },
     "kinhin fleet not responding" : {
       "comment" : "Notification title when the fleet stops answering"
@@ -1585,8 +1633,14 @@
     "needs %@ in specs (never installed implicitly)" : {
       "comment" : "Toolchain catalog: dependency note; %@ lists spec examples such as node@22"
     },
+    "Needs approval" : {
+      "comment" : "Healing event outcome"
+    },
     "needs tart first" : {
       "comment" : "This Mac form: Base image row status"
+    },
+    "Needs you" : {
+      "comment" : "Healing event outcome: only the user can fix it"
     },
     "New account name" : {
       "comment" : ".accessibilityLabel in MoreAccountsCard"
@@ -1726,6 +1780,9 @@
     "not supported on this Mac — %@" : {
       "comment" : "Diagnostics Docker row; %@ is the reason"
     },
+    "Nothing to fix so far." : {
+      "comment" : "Diagnostics healing card when the journal is empty"
+    },
     "nothing yet" : {
       "comment" : "Setup summary of what jobs can run"
     },
@@ -1737,6 +1794,9 @@
     },
     "Off" : {
       "comment" : "String(localized:) in MacToolsView"
+    },
+    "Off — kinhin does not fix problems on its own (healing.enabled is false)." : {
+      "comment" : "Diagnostics healing policy when healing is disabled; healing.enabled is a config key, verbatim"
     },
     "Off by default: a repo file chooses what is installed on this Mac." : {
       "comment" : "Toolchains guide example note"
@@ -1936,6 +1996,9 @@
     "Rebuilt the %@ ✓" : {
       "comment" : "Toolchains tab status; %@ is a runtime image name"
     },
+    "Recent" : {
+      "comment" : "Diagnostics healing card section header: recently closed healing events"
+    },
     "Redo" : {
       "comment" : "Edit menu item"
     },
@@ -2047,6 +2110,9 @@
     "Routing" : {
       "comment" : "Advanced section title"
     },
+    "Rules only — no advisor available." : {
+      "comment" : "Diagnostics healing advisor line when no on-device model advises"
+    },
     "Run" : {
       "comment" : "Benchmarks confirmation button"
     },
@@ -2094,6 +2160,9 @@
     },
     "runtimes section has a problem — %@" : {
       "comment" : "Routing tab empty state; %@ is the parse error"
+    },
+    "Safe fixes run automatically; the rest wait for your approval." : {
+      "comment" : "Diagnostics healing policy when automatic fixes are on"
     },
     "Save" : {
       "comment" : "Button in EditYAMLSheet"
@@ -2664,6 +2733,9 @@
     "Volumes" : {
       "comment" : "FormCard in ContainersView"
     },
+    "Waiting for your approval" : {
+      "comment" : "Diagnostics healing card section header: fixes waiting for approval"
+    },
     "Want your logo here?" : {
       "comment" : "HintText in SponsorSheet"
     },
@@ -2681,6 +2753,9 @@
     },
     "Web app with pnpm and Playwright" : {
       "comment" : "Toolchain example title"
+    },
+    "Went away" : {
+      "comment" : "Healing event outcome: the problem cleared before anyone acted"
     },
     "What kinhin shows at launch" : {
       "comment" : ".accessibilityLabel in AppSectionView"
