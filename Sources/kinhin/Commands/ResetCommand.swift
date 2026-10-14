@@ -17,25 +17,44 @@ enum ResetCommand {
         }
         let confirmed = hasFlag("--yes", in: args)
         let scope = try resolveScope(args: args, interactive: isInteractive())
-        // Only the "everything" scope touches tart; a missing binary degrades
-        // to no VMs planned (and execution says so).
-        let tart: (any TartControlling)? = scope == .all ? Self.tart() : nil
-
-        let plan = await ResetEverything.plan(scope: scope, tart: tart)
+        // The plan reads the config once and builds tart from its tart_path;
+        // a broken config is flagged in the plan (and warned about below)
+        // instead of silently falling back to the default tart path.
+        let plan = try await ResetEverything.plan(scope: scope)
         if !confirmed {
             guard try confirm(plan: plan) else {
                 print("cancelled — nothing was changed")
                 return
             }
         }
-        let report = try await ResetEverything.execute(plan, tart: tart)
-        for line in report where line.hasPrefix("warning:") {
-            warn(String(line.dropFirst("warning: ".count)))
-        }
-        for line in report where !line.hasPrefix("warning:") {
-            print(line)
-        }
+        let report = try await ResetEverything.execute(plan)
+        for line in warnings(plan: plan, report: report) { warn(line) }
+        for line in report.completed { print(line) }
         print(nextSteps(for: scope))
+        if !report.isComplete {
+            printError(leftBehindSummary(report))
+        }
+        ExitRule.finish(healthy: report.isComplete)
+    }
+
+    // MARK: - Output
+
+    /// The stderr lines after a reset: the unreadable config (its defaults
+    /// stood in for the tart path and image names), then everything that was
+    /// left behind.
+    static func warnings(plan: ResetPlan, report: ResetReport) -> [String] {
+        var lines: [String] = []
+        if plan.configBroken, plan.scope == .all {
+            let reason = plan.configError.map { " (\($0))" } ?? ""
+            lines.append("the config could not be read\(reason); the tart path and image names came from the defaults")
+        }
+        return lines + report.leftBehind
+    }
+
+    /// The closing stderr line of a reset that left something behind; the
+    /// exit code is then "needs attention" (1).
+    static func leftBehindSummary(_ report: ResetReport) -> String {
+        "kinhin reset finished, but \(report.leftBehind.count) item(s) were left behind; see the warnings above"
     }
 
     // MARK: - Scope
@@ -95,14 +114,6 @@ enum ResetCommand {
     }
 
     // MARK: - Collaborators
-
-    /// tart, or nil when the binary or the config is missing (the plan then
-    /// lists no VMs and execution says so). A broken config degrades to the
-    /// defaults, like `cleanup` does.
-    private static func tart() -> (any TartControlling)? {
-        let config = (try? ConfigLoader.load()) ?? KinhinConfig.default
-        return try? TartController(configuredPath: config.tartPath)
-    }
 
     private static func isInteractive() -> Bool {
         isatty(STDIN_FILENO) == 1

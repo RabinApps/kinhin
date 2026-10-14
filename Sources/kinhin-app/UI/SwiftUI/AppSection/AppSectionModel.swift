@@ -229,11 +229,11 @@ final class AppSectionModel {
             confirmTitle: String(localized: "Erase", bundle: .l10n, comment: "Final reset alert destructive button"))
     }
     /// Builds the plan (reads only). Injectable so tests never touch real state.
-    @ObservationIgnored var resetPlanner: (ResetScope) async -> ResetPlan = {
-        await ResetEverything.plan(scope: $0)
+    @ObservationIgnored var resetPlanner: (ResetScope) async throws -> ResetPlan = {
+        try await ResetEverything.plan(scope: $0)
     }
     /// Runs the wipe. Injectable ditto.
-    @ObservationIgnored var resetRunner: (ResetPlan) async throws -> [String] = {
+    @ObservationIgnored var resetRunner: (ResetPlan) async throws -> ResetReport = {
         try await ResetEverything.execute($0)
     }
     /// Called after a successful reset, so the app can clear the login item
@@ -262,7 +262,9 @@ final class AppSectionModel {
     private func runReset(_ scope: ResetScope) async {
         defer { resetBusy = false }
         do {
-            let plan = await resetPlanner(scope)
+            // The plan's problems (what could not be inventoried) are in
+            // `describe()`, so the confirmation shows them before the wipe.
+            let plan = try await resetPlanner(scope)
             guard confirmResetPlan(plan) else {
                 resetLine = StatusLine(text: "")
                 return
@@ -292,7 +294,9 @@ final class AppSectionModel {
                 launchAtLogin = AppPreferences.launchAtLogin(in: prefs)
                 autoStartFleet = AppPreferences.autoStartFleet(in: prefs)
             }
-            resetLine = StatusLine(text: report.joined(separator: " · "), style: .ok)
+            resetLine = Self.resetLine(for: report)
+            // Even with leftovers the reset ran (the config may be gone), so
+            // the app still re-bootstraps.
             onResetFinished(scope)
         } catch {
             resetLine = StatusLine(
@@ -300,6 +304,21 @@ final class AppSectionModel {
                     localized: "reset failed — \(error.localizedDescription)", bundle: .l10n,
                     comment: "Settings → App reset error; %@ is the reason"), style: .error)
         }
+    }
+
+    /// The status line for a finished reset: what it did, or, when anything
+    /// was left behind, what still needs attention instead of a plain success.
+    static func resetLine(for report: ResetReport) -> StatusLine {
+        guard report.isComplete else {
+            let details = report.leftBehind.joined(separator: " · ")
+            return StatusLine(
+                text: String(
+                    localized: "Reset finished, but some things were left behind: \(details)", bundle: .l10n,
+                    comment:
+                        "Settings → App reset result when something could not be removed; %@ lists each leftover (English from the reset engine)"
+                ), style: .warn)
+        }
+        return StatusLine(text: report.completed.joined(separator: " · "), style: .ok)
     }
 
     // MARK: - Updates

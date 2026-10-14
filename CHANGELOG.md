@@ -16,6 +16,9 @@
 - An unreadable `fleet.json`, `project-images.json` or scale-set session file is no longer silently replaced. It is moved
   aside to `<name>.corrupt-<timestamp>` before kinhin starts empty, and the app and `kinhin status` show an alert naming
   the kept copy (fleet and project images).
+- "Reset everything" no longer reports success when it left something behind. A Tart that cannot be listed, an unreadable
+  Keychain or a support directory that cannot be listed is shown before you confirm and again afterwards; `kinhin reset`
+  then exits 1 (needs attention), and the app's status line lists what is left.
 - Disk checks before a Tart clone use the size of the image being cloned, so a large `images:` image no longer passes as
   if it were the base VM.
 - A warm VM is recycled at once when its pool is turned off or its `images:` entry is removed, instead of holding a
