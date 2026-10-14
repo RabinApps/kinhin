@@ -159,6 +159,12 @@ struct GitHubScaleSetForge: ForgeWithQueuedJobs, ForgeWithJITConfig {
         return jobs
     }
 
+    func runnersReportedFinished(_ names: [String]) async -> Set<String> {
+        var finished: Set<String> = []
+        for target in targets { finished.formUnion(await target.listener.finishedRunners(among: names)) }
+        return finished
+    }
+
     func pendingScaleSetError() async -> String? {
         for target in targets {
             if let message = await target.listener.reportedError()?.errorDescription {

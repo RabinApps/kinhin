@@ -558,7 +558,11 @@ public struct GitHubScaleSetClient: GitHubScaleSetServing {
             throw GitHubScaleSetClientError.messageQueueTokenExpired
         }
         struct Response: Decodable { let value: [Int64]? }
-        return (try? JSONDecoder().decode(Response.self, from: data))?.value ?? []
+        do {
+            return try JSONDecoder().decode(Response.self, from: data).value ?? []
+        } catch {
+            throw GitHubError.decoding("acquirejobs response: \(error.localizedDescription)")
+        }
     }
 
     private struct MessageResponse: Decodable {

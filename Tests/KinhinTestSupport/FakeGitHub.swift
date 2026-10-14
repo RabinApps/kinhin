@@ -17,6 +17,8 @@ final class FakeGitHub: GitHubServing, Sendable {
         var registrationTokenCalls = 0
         var deletedRunnerIDs: [Int] = []
         var failQueue = false
+        /// When set, `queuedJobs` throws this error (e.g. CancellationError).
+        var queueError: (any Error)?
         /// When set, token minting fails with 403 (no runner-admin permission).
         var permissionDenied = false
         /// When set, token minting fails with 401 (bad/expired token).
@@ -157,6 +159,11 @@ final class FakeGitHub: GitHubServing, Sendable {
         set { state.withLock { $0.failQueue = newValue } }
     }
 
+    var queueError: (any Error)? {
+        get { state.withLock { $0.queueError } }
+        set { state.withLock { $0.queueError = newValue } }
+    }
+
     /// When set, token minting fails with 403 (no runner-admin permission).
     var permissionDenied: Bool {
         get { state.withLock { $0.permissionDenied } }
@@ -242,6 +249,7 @@ final class FakeGitHub: GitHubServing, Sendable {
                 state.queueExtraLabels
             )
         }
+        if let error = queueError { throw error }
         if failing { throw GitHubError.http(0, "offline") }
         return (0..<depth).map { i in
             QueuedJob(

@@ -143,6 +143,10 @@ public protocol Forge: Sendable {
     /// Gitea 1.24+). `fresh` bypasses the forge's short cache; ask for it
     /// before acting on "nothing is running".
     func unlistedRunnerActivity(fresh: Bool) async throws -> Int?
+    /// Which of `names` the forge's own event stream reported finishing a job (the scale-set
+    /// listener's `JobCompleted`). A short job can start and end between two runner-list reads, so
+    /// the list alone never shows the runner; this is the evidence it ran. Empty by default.
+    func runnersReportedFinished(_ names: [String]) async -> Set<String>
     func deleteRunner(id: String) async throws
     /// Jobs waiting for a runner (per-repo attribution when the API gives it).
     func queuedJobs() async throws -> [ForgeJob]
@@ -182,6 +186,8 @@ extension Forge {
     }
 
     func unlistedRunnerActivity(fresh: Bool) async throws -> Int? { nil }
+
+    func runnersReportedFinished(_ names: [String]) async -> Set<String> { [] }
 
     func freshRunners() async throws -> [ForgeRunner] { try await runners() }
 

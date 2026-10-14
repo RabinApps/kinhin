@@ -136,6 +136,18 @@ final class FakeTart: TartControlling, Sendable {
         for continuation in parked { continuation.resume() }
     }
 
+    /// Resumes every parked `stop` call by throwing `error` (e.g. the
+    /// CancellationError a cancelled `tart stop` child reports).
+    func releaseStop(throwing error: any Error) {
+        let parked = state.withLock { state -> [CheckedContinuation<Void, Error>] in
+            let parked = state.parkedStops
+            state.parkedStops.removeAll()
+            state.parkNextStop = false
+            return parked
+        }
+        for continuation in parked { continuation.resume(throwing: error) }
+    }
+
     /// Parks the next `ip(of:)` call (after optional one-shot setup) until
     /// `releaseIP(_:)` resumes it with that address.
     func blockIP() {

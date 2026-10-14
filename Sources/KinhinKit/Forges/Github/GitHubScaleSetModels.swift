@@ -100,10 +100,12 @@ public struct GitHubScaleSetJobEvent: Sendable, Equatable {
     public let requestLabels: [String]
     public let runnerRequestId: String
     public let eventType: GitHubScaleSetJobEventKind
+    /// The runner that took the job (`JobStarted`, `JobCompleted`); absent on earlier events.
+    public let runnerName: String?
 
     public init(
         ownerName: String, repositoryName: String, jobDisplayName: String, requestLabels: [String],
-        runnerRequestId: String, eventType: GitHubScaleSetJobEventKind
+        runnerRequestId: String, eventType: GitHubScaleSetJobEventKind, runnerName: String? = nil
     ) {
         self.ownerName = ownerName
         self.repositoryName = repositoryName
@@ -111,6 +113,7 @@ public struct GitHubScaleSetJobEvent: Sendable, Equatable {
         self.requestLabels = requestLabels
         self.runnerRequestId = runnerRequestId
         self.eventType = eventType
+        self.runnerName = runnerName
     }
 }
 
@@ -261,6 +264,7 @@ extension GitHubScaleSetJobEvent: Codable {
         } else {
             runnerRequestId = String(try c.decode(Int64.self, forKey: .runnerRequestId))
         }
+        runnerName = try c.decodeIfPresent(String.self, forKey: .runnerName)
     }
 
     enum CodingKeys: String, CodingKey {
@@ -270,6 +274,7 @@ extension GitHubScaleSetJobEvent: Codable {
         case jobDisplayName = "jobDisplayName"
         case requestLabels = "requestLabels"
         case runnerRequestId = "runnerRequestId"
+        case runnerName = "runnerName"
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -280,5 +285,6 @@ extension GitHubScaleSetJobEvent: Codable {
         try c.encode(jobDisplayName, forKey: .jobDisplayName)
         try c.encode(requestLabels, forKey: .requestLabels)
         try c.encode(runnerRequestId, forKey: .runnerRequestId)
+        try c.encodeIfPresent(runnerName, forKey: .runnerName)
     }
 }

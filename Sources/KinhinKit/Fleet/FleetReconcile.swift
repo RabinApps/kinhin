@@ -24,6 +24,8 @@ extension FleetEngine {
             let names: [String]
             do {
                 names = try await runtimeInstance.existingInstanceIDs()
+            } catch is CancellationError {
+                return  // stopping: the next start recovers
             } catch {
                 Log.warn(
                     "engine",
@@ -258,6 +260,9 @@ extension FleetEngine {
                     let jobs = try await forge.queuedJobs()
                     let images = await self.resolveProjectImages(for: jobs, forge: forge, routerState: routerState)
                     return .answered(jobs: jobs, images: images)
+                } catch is CancellationError {
+                    // A cancelled pass is not a failed forge: no queue alert.
+                    throw CancellationError()
                 } catch {
                     return .failed(message: (error as? LocalizedError)?.errorDescription ?? "\(error)")
                 }
@@ -364,7 +369,7 @@ extension FleetEngine {
         defer { publishSpawnBackoff() }
         var slots = plan.slots
         var diskPressureMessage: String?
-        if slots.contains(where: { $0.runtime != .host }) {
+        if slots.contains(where: { $0.runtime != .host && $0.claim == nil }) {
             let listed = slots.contains { $0.image != nil } ? await listedTartVMs() : []
             let admission = ScalePlan.admitByDisk(
                 slots, freeDiskGB: hostProbe().freeDiskGB, reserveGB: config.reserve.diskGB,
@@ -380,8 +385,7 @@ extension FleetEngine {
         }
         for id in plan.evict { scheduleDelete(id: id, reason: "warm instance evicted") }
         for slot in slots {
-            // A claimed warm instance is bound to its slot. A slot the disk held back keeps its warm
-            // instance, which is still ready for the next pass.
+            // A claimed warm instance is bound to its slot; it is already on disk, so disk pressure never holds it.
             if let warmID = slot.claim {
                 claimWarm(id: warmID, account: slot.account)
                 continue
