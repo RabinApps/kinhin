@@ -364,6 +364,14 @@ final class FleetTabTests: MainWindowTestCase {
         try? FileManager.default.removeItem(at: cfgURL)
     }
 
+    func testFleetStatusFooterShowsAppProblemsAsErrors() {
+        fleet.setProblem(.configPush, "config not applied")
+        fleet.setProblem(.launch, "didn't start at launch")
+        let footer = models.fleetModel.fleetStatusFooter
+        XCTAssertEqual(footer.map(\.text), ["didn't start at launch", "config not applied"], "launch first")
+        XCTAssertEqual(footer.map(\.style), [.error, .error])
+    }
+
     func testFleetStatusFooterIsEmptyWhenNoBackend() {
         fleet.service = nil
         let footer = models.fleetModel.fleetStatusFooter

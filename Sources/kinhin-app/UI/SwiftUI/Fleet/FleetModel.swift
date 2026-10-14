@@ -123,11 +123,11 @@ final class FleetModel {
     }
     var records: [VMRecord] { status?.records ?? [] }
 
-    /// The fleet mode (in-process engine / background daemon) and any
-    /// stale-daemon LaunchAgent warning, rendered as a compact footer
-    /// under the Fleet tab's status line with distinct styling.
+    /// Any app-side failure (launch, config push) and any stale-daemon
+    /// LaunchAgent warning, rendered as a compact footer under the Fleet
+    /// tab's status line with distinct styling.
     var fleetStatusFooter: [StatusLine] {
-        var lines: [StatusLine] = []
+        var lines = controller.problemLines.map { StatusLine(text: $0, style: .error) }
         if let stale = controller.staleDaemonPlist {
             lines.append(StatusLine(text: stale, style: .warn))
         }
