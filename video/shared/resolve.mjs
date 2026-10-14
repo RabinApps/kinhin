@@ -34,6 +34,7 @@ export const TEXT_LIMITS = {
   statement: {text: 90, sub: 80},
   outro: {line: 90, url: 60, facts: 100},
   steps: {title: 60, steps: 60},
+  compare: {'left.title': 40, 'right.title': 40, 'left.items': 60, 'right.items': 60},
 };
 
 export function deepMerge(base, extra) {
@@ -308,7 +309,8 @@ export function validateProject(project) {
     if (!(scene.type in SCENE_TYPES)) problems.push(`${where}: unknown type "${scene.type}" (${Object.keys(SCENE_TYPES).join(', ')})`);
     if (!scene.narration && !scene.cues) problems.push(`${where} has neither "narration" nor "cues"`);
     for (const [key, max] of Object.entries(TEXT_LIMITS[scene.type] ?? {})) {
-      const value = scene.props?.[key];
+      // A key may name a nested prop with dots, such as "left.items".
+      const value = key.split('.').reduce((node, part) => node?.[part], scene.props);
       const texts = key === 'facts' ? [(Array.isArray(value) ? value : []).join(' · ')] : Array.isArray(value) ? value : [value ?? ''];
       for (const text of texts) {
         if (typeof text === 'string' && text.length > max) problems.push(`${where}: "${key}" is ${text.length} characters, the limit is ${max}; shorten it or split it across slides`);

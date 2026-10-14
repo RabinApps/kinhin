@@ -94,6 +94,9 @@ test('validateProject limits the characters on each slide', () => {
   assert.match(over({type: 'steps', props: {steps: ['ok', long]}}), /"steps" is 91 characters, the limit is 60/);
   assert.match(over({type: 'outro', props: {facts: Array(10).fill('abcdefghij')}}), /"facts" is 127 characters, the limit is 100/);
   assert.deepEqual(over({type: 'outro', props: {line: 'x'.repeat(90)}}), '');
+  assert.match(over({type: 'compare', props: {left: {title: 'Before', items: ['ok', long]}, right: {title: 'After', items: []}}}), /"left.items" is 91 characters, the limit is 60/);
+  assert.match(over({type: 'compare', props: {left: {title: 'x'.repeat(41), items: []}, right: {title: 'After', items: []}}}), /"left.title" is 41 characters, the limit is 40/);
+  assert.deepEqual(over({type: 'compare', props: {left: {title: 'Before', items: ['x'.repeat(60)]}, right: {title: 'After', items: ['ok']}}}), '');
 });
 
 // ---- captions ---------------------------------------------------------------------------------------------------------

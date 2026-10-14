@@ -1,7 +1,7 @@
 import {Circle, Txt, makeScene2D} from '@motion-canvas/2d';
 import {createRef} from '@motion-canvas/core';
 import {narrow, props} from '../config';
-import {C, FONT, WEIGHT, fitText, holdFor, stage} from '../stage';
+import {C, FONT, WEIGHT, fitText, holdFor, narrowBox, stage} from '../stage';
 
 // The closing line, where to get it, and a row of facts. Each block wraps inside its box and shrinks to fit. The outro is
 // 1300 design pixels wide in a narrow frame (SCENE_TYPES in shared/resolve.mjs), so its boxes are narrower there.
@@ -11,8 +11,8 @@ export default makeScene2D(function* (view) {
   const url = createRef<Txt>();
   const facts = createRef<Txt>();
   const factLine = (props.facts ?? []).join(' · ');
-  const lineW = narrow ? 1200 : 1500;
-  const factsW = narrow ? 1200 : 1600;
+  const lineW = narrow ? narrowBox('outro') : 1500;
+  const factsW = narrow ? narrowBox('outro') : 1600;
 
   root.add(
     <>

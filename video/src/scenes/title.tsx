@@ -1,7 +1,7 @@
 import {Circle, Txt, makeScene2D} from '@motion-canvas/2d';
 import {all, createRef, waitFor} from '@motion-canvas/core';
 import {narrow, props} from '../config';
-import {C, FONT, WEIGHT, fitText, holdFor, stage} from '../stage';
+import {C, FONT, WEIGHT, fitText, holdFor, narrowBox, stage} from '../stage';
 
 // A mark (the ring draws itself), a title and a subtitle. Each is one line, shrunk to fit its box: 1600 design pixels wide,
 // or 1000 in a narrow frame (the title scene is 1100 design pixels wide there, see SCENE_TYPES in shared/resolve.mjs).
@@ -11,7 +11,7 @@ export default makeScene2D(function* (view) {
   const title = createRef<Txt>();
   const sub = createRef<Txt>();
   const mark = props.mark ?? 'ring';
-  const boxW = narrow ? 1000 : 1600;
+  const boxW = narrow ? narrowBox('title') : 1600;
 
   root.add(
     <>

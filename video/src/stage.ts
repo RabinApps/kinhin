@@ -1,5 +1,6 @@
 import {Gradient, Node, type View2D} from '@motion-canvas/2d';
 import {waitFor} from '@motion-canvas/core';
+import {SCENE_TYPES} from '../shared/resolve.mjs';
 import {fit, length, theme} from './config';
 
 export const C = theme.colors;
@@ -27,6 +28,12 @@ export function stage(view: View2D): Node {
   view.add(root);
   return root;
 }
+
+/**
+ * The box width a text gets in a narrow frame: 92% of the scene's own design width (SCENE_TYPES), since a narrow frame scales
+ * the scene so that width fills the frame. Tying it to designWidth keeps the box inside the frame if that width changes.
+ */
+export const narrowBox = (sceneType: keyof typeof SCENE_TYPES): number => Math.round(SCENE_TYPES[sceneType].designWidth * 0.92);
 
 /**
  * The font size that fits `text` in `maxLines` lines of `width` design pixels: `size` when it already fits, smaller when it
