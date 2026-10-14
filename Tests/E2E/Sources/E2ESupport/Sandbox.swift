@@ -9,6 +9,8 @@ public final class Sandbox: @unchecked Sendable {
     public let supportDirectory: URL
     private let lock = NSLock()
     private var tokens: [String: String] = [:]
+    /// Extra variables for every kinhin this sandbox runs (debug-build switches such as `KINHIN_HEALING_TIMINGS`).
+    private var overrides: [String: String] = [:]
     /// Every daemon this sandbox started, so `dispose()` can stop the ones a test forgot (or stopped too late).
     private var daemons: [Daemon] = []
 
@@ -31,15 +33,24 @@ public final class Sandbox: @unchecked Sendable {
         lock.withLock { tokens[account] = token }
     }
 
+    /// Sets `value` (nil removes it) for every kinhin run in this sandbox from now on, the daemon included.
+    public func setEnvironment(_ key: String, _ value: String?) {
+        lock.withLock { overrides[key] = value }
+    }
+
     public var environment: [String: String] {
         var env = Shell.baseEnvironment()
         env["KINHIN_SUPPORT_DIR"] = supportDirectory.path
         env["KINHIN_TOKEN_STORE"] = "env"
-        // Never inherit a developer's real forge tokens.
-        for key in env.keys where key.hasPrefix("KINHIN_TOKEN_") && key != "KINHIN_TOKEN_STORE" { env[key] = nil }
+        // Never inherit a developer's real forge tokens, nor healing switches meant for one scenario.
+        for key in env.keys
+        where (key.hasPrefix("KINHIN_TOKEN_") && key != "KINHIN_TOKEN_STORE") || key.hasPrefix("KINHIN_HEALING_") {
+            env[key] = nil
+        }
         for (account, token) in lock.withLock({ tokens }) {
             env[Sandbox.tokenVariable(for: account)] = token
         }
+        for (key, value) in lock.withLock({ overrides }) { env[key] = value }
         return env
     }
 
