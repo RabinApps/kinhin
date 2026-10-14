@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 
 /// Runs a command with its output going straight to the user's terminal (a video build takes minutes and prints
 /// progress; `Shell` would hold it all until the end). Injectable so tests need no container.
@@ -11,6 +12,7 @@ public protocol VideoProcessRunning: Sendable {
 /// while it runs stops it (SIGTERM, which `docker run` and `container run` pass on to the build) and throws
 /// `CancellationError` once it has exited, so callers can tell "stopped" from "failed".
 private func runToExit(_ process: Process) async throws -> Int32 {
+    // Immutable, so sharing it is safe; `@unchecked` only because `Process` is not marked `Sendable`.
     final class Box: @unchecked Sendable {
         let process: Process
         init(_ process: Process) { self.process = process }
@@ -60,12 +62,11 @@ public struct CapturingProcessRunner: VideoProcessRunning {
     }
 
     /// Splits a byte stream into lines, holding a partial line until its end arrives.
-    final class LineSplitter: @unchecked Sendable {
-        private let lock = NSLock()
-        private var pending = Data()
+    final class LineSplitter: Sendable {
+        private let state = Mutex(Data())
 
         func feed(_ data: Data) -> [String] {
-            lock.withLock {
+            state.withLock { pending in
                 pending.append(data)
                 var lines: [String] = []
                 // Progress bars rewrite a line with carriage returns: each rewrite counts as a line.
@@ -79,7 +80,7 @@ public struct CapturingProcessRunner: VideoProcessRunning {
         }
 
         func finish() -> String? {
-            lock.withLock {
+            state.withLock { pending in
                 defer { pending.removeAll() }
                 return pending.isEmpty ? nil : String(decoding: pending, as: UTF8.self)
             }

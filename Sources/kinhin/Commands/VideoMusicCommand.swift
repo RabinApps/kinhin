@@ -163,10 +163,8 @@ enum VideoMusicCommand {
         let license = MusicLicense.displayName(result.track.license, version: result.track.licenseVersion)
         print("\(result.track.title)\(result.track.creator.map { " by \($0)" } ?? "") (\(license))")
         if let file = result.savedFile { print("saved \(VideoCommand.relative(file, to: repo))") }
-        if let video = result.video, result.edited {
-            print(
-                "set music in \(VideoProjects.folder)/\(video) (\(VideoCommand.relative(result.configFile!, to: repo)))"
-            )
+        if let video = result.video, result.edited, let configFile = result.configFile {
+            print("set music in \(VideoProjects.folder)/\(video) (\(VideoCommand.relative(configFile, to: repo)))")
         } else {
             if let file = result.configFile {
                 print("\(VideoCommand.relative(file, to: repo)) is JSON, so it was not edited. Add this by hand:")

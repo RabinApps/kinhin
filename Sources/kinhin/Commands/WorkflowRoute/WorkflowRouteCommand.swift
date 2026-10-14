@@ -13,7 +13,7 @@ enum WorkflowRouteCommand {
     struct Options: Sendable {
         var file: URL?
         var workflowName: String?
-        var runtime: RuntimeID?
+        var runtime: RuntimeID
         var job: String?
         var dryRun = false
         var json = false
@@ -27,7 +27,7 @@ enum WorkflowRouteCommand {
         let config = try ConfigLoader.load(from: configURL)
         let file = try resolveFile(options)
         let document = try loadWorkflow(at: file)
-        let runtime = options.runtime!  // parse guarantees it
+        let runtime = options.runtime
 
         // 1. The target pool must exist — checked against the exact table the
         //    engine builds, so a wrong guess is told how to set the runtime up.

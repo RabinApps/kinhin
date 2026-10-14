@@ -144,6 +144,17 @@ final class VideoMusicTests: XCTestCase {
         XCTAssertEqual(track.id, Self.id1)
     }
 
+    func testAMalformedEndpointIsAnErrorNotACrash() throws {
+        XCTAssertThrowsError(
+            try OpenverseClient.searchURL(endpoint: "http://[::1", query: "x", licenses: ["cc0"], pageSize: 20, page: 1)
+        ) { XCTAssertEqual($0 as? MusicError, .network("bad search address: http://[::1")) }
+        let url = try OpenverseClient.searchURL(
+            endpoint: OpenverseClient.productionEndpoint, query: "x", licenses: ["cc0", "pdm"], pageSize: 20, page: 0)
+        XCTAssertEqual(
+            url.absoluteString,
+            "https://api.openverse.org/v1/audio/?q=x&license=cc0,pdm&page_size=20&page=1&mature=false")
+    }
+
     // MARK: registered application
 
     func testCredentialsComeFromTheEnvironmentOnlyWhenBothAreSet() {

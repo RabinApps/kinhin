@@ -281,7 +281,7 @@ public enum MobileScaffold {
                 projectFiles.append(url)
             }
         }
-        let pattern = try! NSRegularExpression(pattern: #"IPHONEOS_DEPLOYMENT_TARGET = ([0-9.]+);"#)
+        let pattern = deploymentTargetPattern
         for url in projectFiles.sorted(by: { $0.path < $1.path }) {
             guard let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
             let range = NSRange(text.startIndex..., in: text)
@@ -302,7 +302,18 @@ public enum MobileScaffold {
     }
 
     /// Recognises a Gemfile line that already installs fastlane (commented-out lines do not count).
-    static let fastlaneGemLine = try! NSRegularExpression(pattern: #"^\s*gem\s*\(?\s*["']fastlane["']"#)
+    static let fastlaneGemLine = constantRegex(#"^\s*gem\s*\(?\s*["']fastlane["']"#)
+    /// Captures the value of an Xcode project's `IPHONEOS_DEPLOYMENT_TARGET` setting.
+    static let deploymentTargetPattern = constantRegex(#"IPHONEOS_DEPLOYMENT_TARGET = ([0-9.]+);"#)
+
+    /// Compiles a pattern written in this file. The patterns are constants; a failure to compile is a programmer error.
+    private static func constantRegex(_ pattern: String) -> NSRegularExpression {
+        // The error is not dropped: a failure traps in the preconditionFailure below.
+        guard let regex = try? NSRegularExpression(pattern: pattern) else {
+            preconditionFailure("invalid constant pattern: \(pattern)")
+        }
+        return regex
+    }
     /// Appended to an existing Gemfile that has no fastlane line (React Native ships one for CocoaPods).
     static let fastlaneGemAppendix =
         "\n# Added by kinhin mobile init: fastlane lanes live in ios/ and android/.\ngem \"fastlane\", \"~> 2.240\"\n"

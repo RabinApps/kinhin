@@ -186,14 +186,14 @@ public enum AuthStatusReporter {
             if let instance = account.instance, !instance.isEmpty { line += " @ \(instance)" }
             return line
         }
-        switch (token != nil, account != nil) {
-        case (true, true):
-            return "stored in Keychain (\(masked)) · \(scopeLine(account!))"
-        case (true, false):
+        switch (token, account) {
+        case (.some, .some(let account)):
+            return "stored in Keychain (\(masked)) · \(scopeLine(account))"
+        case (.some, .none):
             return "stored in Keychain (\(masked)) — add a \(name) account to config.yaml to use it"
-        case (false, true):
+        case (.none, .some):
             return "no token stored — run: \(fix)"
-        case (false, false):
+        case (.none, .none):
             return "no token stored — add a \(name) account to config.yaml, then run: \(fix)"
         }
     }

@@ -18,19 +18,24 @@ extension WorkflowRouteCommand {
         case replaced(existing: String, runtime: String)
     }
 
+    /// Why an uneditable job was left alone: the editor's own error text.
+    static func skipReason(_ job: WorkflowJob) -> String {
+        let error = WorkflowRouteEditor.EditError.cannotEdit(job.id, runsOn: job.runsOn.description)
+        return error.errorDescription ?? "cannot edit"
+    }
+
     static func dryRunSummary(
         _ options: Options, document: WorkflowDocument, planned: [PlannedEdit], uneditableJobs: [WorkflowJob],
         routeAction: RouteAction
     ) -> String {
-        var lines: [String] = ["[dry-run] would edit \(document.path.lastPathComponent) → \(options.runtime!.rawValue)"]
+        var lines: [String] = ["[dry-run] would edit \(document.path.lastPathComponent) → \(options.runtime.rawValue)"]
         for plan in planned where plan.changed {
             lines.append(
                 "  job \(plan.jobID): \(plan.before.joined(separator: ", ")) → \(plan.after.joined(separator: ", "))")
         }
         for job in uneditableJobs {
             lines.append(
-                "  job \(job.id): SKIPPED — \(WorkflowRouteEditor.EditError.cannotEdit(job.id, runsOn: job.runsOn.description).errorDescription!)"
-            )
+                "  job \(job.id): SKIPPED — \(skipReason(job))")
         }
         switch routeAction {
         case .unchanged: break
@@ -82,7 +87,7 @@ extension WorkflowRouteCommand {
         routeAction: RouteAction, file: URL
     ) -> String {
         var lines: [String] = [
-            "routed \(document.path.lastPathComponent) → \(options.runtime!.rawValue)",
+            "routed \(document.path.lastPathComponent) → \(options.runtime.rawValue)",
             "",
             "edits:",
         ]
@@ -94,8 +99,7 @@ extension WorkflowRouteCommand {
         }
         for job in uneditableJobs {
             lines.append(
-                "  job \(job.id): SKIPPED — \(WorkflowRouteEditor.EditError.cannotEdit(job.id, runsOn: job.runsOn.description).errorDescription!)"
-            )
+                "  job \(job.id): SKIPPED — \(skipReason(job))")
         }
         switch routeAction {
         case .unchanged: break
@@ -128,7 +132,7 @@ extension WorkflowRouteCommand {
         var payload: [String: Any] = [
             "file": document.path.lastPathComponent,
             "workflow": document.name,
-            "runtime": options.runtime!.rawValue,
+            "runtime": options.runtime.rawValue,
             "dryRun": dryRun,
             "jobs": jobs,
         ]
