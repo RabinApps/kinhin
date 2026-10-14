@@ -21,11 +21,16 @@ public struct Watchdog: Sendable {
     /// idle before its instance counts as finished: the next task may still be
     /// dispatching when the last one ends.
     public var idleGrace: Duration
+    /// How long a record nothing drives (a warm instance) must have been
+    /// unchanged before a missing or stopped instance counts as vanished: a
+    /// spawn writes its record a moment before its lifecycle task exists.
+    public var unwatchedGrace: Duration
 
     public init(
         livenessInterval: Duration = .seconds(15), livenessMisses: Int = 3,
         orphanSweepInterval: Duration = .seconds(120), orphanGrace: Duration = .seconds(600),
-        registrationGrace: Duration = .seconds(120), idleGrace: Duration = .seconds(30)
+        registrationGrace: Duration = .seconds(120), idleGrace: Duration = .seconds(30),
+        unwatchedGrace: Duration = .seconds(30)
     ) {
         self.livenessInterval = livenessInterval
         self.livenessMisses = livenessMisses
@@ -33,6 +38,7 @@ public struct Watchdog: Sendable {
         self.orphanGrace = orphanGrace
         self.registrationGrace = registrationGrace
         self.idleGrace = idleGrace
+        self.unwatchedGrace = unwatchedGrace
     }
 }
 
@@ -99,6 +105,56 @@ extension FleetEngine {
         if due {
             await sweepOrphans(now: now)
             await sweepOrphanRunnerRecords(now: now)
+            await sweepUnwatchedRecords(now: now)
+        }
+    }
+
+    // MARK: - Unwatched records
+
+    /// Removes active records nothing drives (a warm instance waits with no
+    /// lifecycle task, so no liveness watch) whose instance was deleted or
+    /// stopped behind the engine's back. Left alone, such a record holds a
+    /// `max_runners` slot until a job claims it, and the claim then fails and
+    /// counts against the runtime's spawn backoff. One listing per runtime;
+    /// a runtime that can't be asked says nothing about its records. Each
+    /// removal is noted in the healing journal.
+    func sweepUnwatchedRecords(now: Date = Date()) async {
+        let grace = watchdog.unwatchedGrace.timeInterval
+        let driven = lifecycleTasks.withLock { Set($0.keys) }
+        let deleting = deletes.withLock { $0.inFlight.union($0.tasks.keys) }
+        let unwatched = store.all.filter {
+            $0.phase.isActive && !driven.contains($0.id) && !deleting.contains($0.id)
+                && now.timeIntervalSince($0.updatedAt) >= grace
+        }
+        let byRuntime = Dictionary(grouping: unwatched) { $0.runtimeID ?? .tart }
+        for (runtimeID, records) in byRuntime.sorted(by: { $0.key.rawValue < $1.key.rawValue }) {
+            guard let runtime = runtimesByRuntime[runtimeID] else { continue }
+            let states: [String: InstanceState]
+            do {
+                states = try await runtime.states(of: records.map(\.id))
+            } catch is CancellationError {
+                return
+            } catch {
+                Log.warn(
+                    "engine", "could not check unwatched \(runtimeID.rawValue) instances: \(error.localizedDescription)"
+                )
+                continue
+            }
+            for record in records {
+                guard let state = states[record.id], state != .running else { continue }
+                // Claimed (or started deleting) while we were listing: its lifecycle owns it now.
+                guard lifecycleTasks.withLock({ $0[record.id] == nil }) else { continue }
+                let what = state == .gone ? "no longer exists" : "was stopped outside kinhin"
+                let detail = "\(record.phase.rawValue) instance \(record.id) \(what)"
+                Log.warn(record.id, "\(detail); removing its record")
+                guard scheduleDelete(id: record.id, reason: detail) else { continue }
+                healing.note(
+                    HealingSignal(
+                        kind: .instanceGone, subject: record.id, detail: detail,
+                        evidence: state == .stopped ? .instanceStopped : nil),
+                    fix: Remediation(.recycleInstance, subject: record.id),
+                    detail: "removing \(record.id); a replacement starts if work is waiting")
+            }
         }
     }
 

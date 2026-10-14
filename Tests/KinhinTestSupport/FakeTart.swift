@@ -9,6 +9,8 @@ final class FakeTart: TartControlling, Sendable {
         var vms: [String: TartVM] = [:]
         var cloneCalls: [(source: String, name: String)] = []
         var deleteCalls: [String] = []
+        /// How many times `list()` was asked (sweeps must list once, not per record).
+        var listCalls = 0
         var pullCalls: [String] = []
         var runCalls: [String] = []
         /// Host directories shared into each booted VM, per run call.
@@ -58,6 +60,7 @@ final class FakeTart: TartControlling, Sendable {
     }
 
     var deleteCalls: [String] { state.withLock { $0.deleteCalls } }
+    var listCallCount: Int { state.withLock { $0.listCalls } }
     var pullCalls: [String] { state.withLock { $0.pullCalls } }
     var runCalls: [String] { state.withLock { $0.runCalls } }
     var installKeyCalls: [(vm: String, user: String)] { state.withLock { $0.installKeyCalls } }
@@ -166,6 +169,7 @@ final class FakeTart: TartControlling, Sendable {
 
     func list() async throws -> [TartVM] {
         try state.withLock { state -> [TartVM] in
+            state.listCalls += 1
             if state.failList { throw TartError.commandFailed(what: "list", stderr: "injected failure") }
             return Array(state.vms.values)
         }

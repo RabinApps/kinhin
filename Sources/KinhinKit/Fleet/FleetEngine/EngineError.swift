@@ -28,6 +28,12 @@ public enum EngineError: LocalizedError, Sendable {
     case scaleSetRegistrationUnsupported
     /// A scale-set session or statistics read reached an unrecoverable state.
     case scaleSetUnreachable(account: String, reason: String)
+    /// A healing event id that is not in the journal.
+    case unknownHealingEvent(String)
+    /// A healing event that cannot be approved or dismissed in its state.
+    case healingEventNotPending(id: String, outcome: String)
+    /// A healing fix ran and did not work.
+    case healingFailed(String)
 
     public var errorDescription: String? {
         switch self {
@@ -52,6 +58,12 @@ public enum EngineError: LocalizedError, Sendable {
             return "GitHub scale-set registration is not supported in this build yet"
         case .scaleSetUnreachable(let account, let reason):
             return "GitHub scale-set account '\(account)' is unreachable: \(reason)"
+        case .unknownHealingEvent(let id):
+            return "'\(id)' is not a healing event — see `kinhin heal` for the open ones"
+        case .healingEventNotPending(let id, let outcome):
+            return "healing event \(id) is \(outcome), not waiting on you"
+        case .healingFailed(let reason):
+            return reason
         }
     }
 }

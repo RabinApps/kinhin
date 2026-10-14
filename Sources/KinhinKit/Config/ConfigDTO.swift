@@ -42,6 +42,7 @@ public struct PartialConfig: Decodable {
     var maxProjectImages: Int?
     var projects: [PartialProject]?
     var accounts: [PartialAccount]?
+    var healing: PartialHealing?
 
     struct PartialAccount: Decodable {
         var name: String?
@@ -163,6 +164,18 @@ public struct PartialConfig: Decodable {
         }
     }
 
+    struct PartialHealing: Decodable {
+        var enabled: Bool?
+        var auto: String?
+        var ai: String?
+        var maxAttempts: Int?
+
+        enum CodingKeys: String, CodingKey, CaseIterable {
+            case enabled, auto, ai
+            case maxAttempts = "max_attempts"
+        }
+    }
+
     struct PartialReserve: Decodable {
         var cpu: Int?
         var memoryGB: Int?
@@ -243,6 +256,7 @@ public struct PartialConfig: Decodable {
         case maxProjectImages = "max_project_images"
         case projects
         case accounts
+        case healing
     }
 
     /// forgejo is a stored property (decoded for the removed-key rejection);

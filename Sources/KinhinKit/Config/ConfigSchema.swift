@@ -31,6 +31,7 @@ struct ConfigSchema {
         [
             "vm": .object(.init(PartialConfig.PartialVM.CodingKeys.self)),
             "reserve": .object(.init(PartialConfig.PartialReserve.CodingKeys.self)),
+            "healing": .object(.init(PartialConfig.PartialHealing.CodingKeys.self)),
             "container": .object(.init(PartialConfig.PartialContainer.CodingKeys.self)),
             "docker": .object(.init(PartialConfig.PartialDocker.CodingKeys.self)),
             "toolchain_cache": .object(.init(PartialConfig.PartialCachePolicy.CodingKeys.self)),
