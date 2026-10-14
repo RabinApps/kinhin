@@ -71,6 +71,23 @@ final class WarmPoolEngineTests: XCTestCase {
         XCTAssertEqual(tart.cloneCalls.last?.source, "xcode", "the warm instance is cloned from its own image")
     }
 
+    func testAnUnpreparedImagesWarmPoolIsSkipped() async throws {
+        // Nothing is prepared, so `xcode` has no VM to clone. The skip is decided inside the pass, so no record
+        // for the image exists once the pass returns, and no clone from it is started.
+        let tart = FakeTart()
+        var config = makeTestConfig()
+        config.images = [.init(name: "xcode", labels: ["xcode"], warmPool: 1)]
+        let engine = FleetEngine(
+            config: config, github: FakeGitHub(), tart: tart, store: makeTestStore(), ssh: FakeSSH(), host: testHost,
+            dependencies: .init(tokenLoader: { _, _ in "test-token" }, exitWatchInterval: .milliseconds(20)))
+
+        try await engine.reconcileOnce()
+
+        let status = await engine.status()
+        XCTAssertTrue(status.records.allSatisfy { $0.image != "xcode" }, "no warm VM for an unprepared image")
+        XCTAssertTrue(tart.cloneCalls.allSatisfy { $0.source != "xcode" }, "nothing clones the unprepared image")
+    }
+
     /// An engine whose `xcode` image keeps one warm VM. The image is prepared up front (a clone of the base
     /// stands in for `kinhin image prepare`), so the warm pool has something to clone.
     private func makeXcodeEngine(tart: FakeTart, github: FakeGitHub) async throws -> FleetEngine {

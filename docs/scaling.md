@@ -77,9 +77,11 @@ stays cold, or the other way round.
   finished VM is started on the next pass, so the poll interval applies.
 - A job claims a warm VM of the image it runs on. Jobs routed to a per-project image (`projects:`), and the other
   runtimes, start cold.
-- A named image that was never prepared gets no warm VMs. Its `warm_pool` is skipped, with a log line, until it exists.
+- A named image that was never prepared gets no warm VMs. Its `warm_pool` is skipped, with a log line, until it exists. Kinhin reads `tart list` at most once a minute, so an
+  image prepared while the fleet runs starts its warm pool within a minute.
 - The base `warm_pool` and every entry's `warm_pool` together must fit in `max_runners`.
-- A warm VM older than `warm_max_age_minutes` (default 60) is recycled. After a restart, warm VMs are re-checked rather
+- A warm VM older than `warm_max_age_minutes` (default 60) is recycled, and so is one whose pool is turned off or whose
+  `images:` entry was removed. After a restart, warm VMs are re-checked rather
   than trusted.
 
 This differs from `min_runners`, which keeps *registered* idle runners on the forge.

@@ -19,6 +19,7 @@ import Synchronization
 /// | `lifecycleTasks`  | one lifecycle task per instance id                               |
 /// | `deletes`         | in-flight deletes and their background tasks                     |
 /// | `spawnBackoff`    | per-runtime failure counters and holds                           |
+/// | `tartListing`     | the last `tart list` and which named images were skipped         |
 /// | `orphanState`     | first-seen times of instances without a record                   |
 /// | `_reconcileTask`, `_cachePruneTask` | the two loop task handles                      |
 ///
@@ -111,6 +112,9 @@ public final class FleetEngine: Sendable {
     let router: Router
     /// Runtimes whose instances keep failing to register are held back (see `SpawnBackoff`).
     let spawnBackoff = Mutex(SpawnBackoff())
+    /// The last `tart list`, so a reconcile pass does not list again, and the named images whose warm
+    /// pool was skipped for being unprepared, so the skip is logged once rather than every pass.
+    let tartListing = Mutex(TartListing())
     var routing: RuntimeConfigModel { router.snapshot.model }
     var capsByRuntime: [RuntimeID: Int] { router.snapshot.caps }
     var images: [KinhinConfig.ImageConfig] { router.snapshot.images }

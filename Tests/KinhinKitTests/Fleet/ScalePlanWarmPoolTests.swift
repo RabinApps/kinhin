@@ -144,6 +144,16 @@ final class ScalePlanWarmPoolTests: XCTestCase {
         XCTAssertEqual(ScalePlan.make(i).warmSpawn, ["xcode": 1])
     }
 
+    func testWarmVMOfARemovedImageIsRecycledNow() {
+        // The xcode images: entry was removed, so its warm VM is evicted at once instead of holding a slot
+        // until warm_max_age, and the base pool still fills.
+        var i = input(records: [imageRecord("x1", .warm, image: "xcode")], maxRunners: 4)
+        i.warmPool = ["": 1]
+        let plan = ScalePlan.make(i)
+        XCTAssertEqual(plan.evict, ["x1"])
+        XCTAssertEqual(plan.warmSpawn, ["": 1])
+    }
+
     func testChooseImagePrefersTheImageWithUnmetDemand() {
         XCTAssertEqual(ScalePlan.chooseImage(queuedTart: 1, byImage: ["xcode": 1], active: [:]), "xcode")
         XCTAssertNil(

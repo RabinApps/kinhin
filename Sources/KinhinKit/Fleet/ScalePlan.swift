@@ -118,7 +118,13 @@ struct ScalePlan: Equatable {
     /// Claims warm instances for the Tart slots, evicts the stale and the overflow, and tops the
     /// pool up when nothing else needs the slots.
     private static func applyWarm(_ warm: [VMRecord], to plan: inout ScalePlan, live: Int, cap: Int, input: Input) {
-        let stale = Set(warm.filter { input.now.timeIntervalSince($0.createdAt) > input.warmMaxAge }.map(\.id))
+        // A warm VM whose pool is off or was removed (its images: entry dropped or renamed) serves
+        // nothing and holds a slot, so it is recycled now rather than at `warmMaxAge`.
+        let stale = Set(
+            warm.filter {
+                input.now.timeIntervalSince($0.createdAt) > input.warmMaxAge
+                    || (input.warmPool[$0.image ?? ""] ?? 0) == 0
+            }.map(\.id))
         let fresh = warm.filter { !stale.contains($0.id) }
         // A Tart slot binds the oldest fresh warm instance of its own image, if there is one.
         for index in plan.slots.indices where plan.slots[index].runtime == .tart {

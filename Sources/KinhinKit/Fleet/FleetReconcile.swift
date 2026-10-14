@@ -412,10 +412,32 @@ extension FleetEngine {
         }
     }
 
-    /// The Tart VMs on this Mac, with their disk sizes. A failed `tart list` returns none, so a named
-    /// image is then treated as not prepared (its warm pool is skipped) rather than guessed at.
+    /// What the engine last learned from `tart list` (see `FleetEngine.tartListing`).
+    struct TartListing: Sendable {
+        var vms: [TartVM] = []
+        var fetchedAt: Date?
+        /// Named images whose warm pool was skipped as unprepared, so each skip is logged once.
+        var skipped: Set<String> = []
+    }
+
+    /// How long one `tart list` answer serves the reconcile passes that ask for it.
+    static let tartListingMaxAge: TimeInterval = 60
+
+    /// The Tart VMs on this Mac, with their disk sizes, reused for `tartListingMaxAge`. A failed
+    /// `tart list` is not cached and returns none, so a named image is then treated as not prepared
+    /// (its warm pool is skipped) rather than guessed at.
     func listedTartVMs() async -> [TartVM] {
-        (try? await tart.list()) ?? []
+        let fresh = tartListing.withLock { state -> [TartVM]? in
+            guard let at = state.fetchedAt, Date().timeIntervalSince(at) < Self.tartListingMaxAge else { return nil }
+            return state.vms
+        }
+        if let fresh { return fresh }
+        guard let vms = try? await tart.list() else { return [] }
+        tartListing.withLock { state in
+            state.vms = vms
+            state.fetchedAt = Date()
+        }
+        return vms
     }
 
     /// Disk a new instance of `slot` takes. A Tart clone of a named image costs that image's own disk
@@ -435,11 +457,20 @@ extension FleetEngine {
         guard !spawns.isEmpty, !diskBlocked else { return }
         var wanted = spawns
         var listed: [TartVM] = []
-        if spawns.keys.contains(where: { !$0.isEmpty }) {
+        let named = spawns.keys.filter { !$0.isEmpty }
+        if !named.isEmpty {
             listed = await listedTartVMs()
             let prepared = Set(listed.map(\.name))
-            for image in spawns.keys where !image.isEmpty && !prepared.contains(image) {
-                wanted[image] = nil
+            let missing = Set(named.filter { !prepared.contains($0) })
+            for image in missing { wanted[image] = nil }
+            // An image that is prepared again is forgotten, so a later skip is logged again.
+            let newlySkipped = tartListing.withLock { state -> [String] in
+                state.skipped.formIntersection(missing)
+                let fresh = missing.subtracting(state.skipped)
+                state.skipped.formUnion(missing)
+                return fresh.sorted()
+            }
+            for image in newlySkipped {
                 Log.warn("engine", "warm pool for image \(image) skipped: it is not prepared")
             }
         }
