@@ -97,7 +97,8 @@ enum AdvancedSection: String, CaseIterable {
 protocol MainTabsWindowDelegate: AnyObject {
     func openLogsFolder()
     func launchModeChanged(_ mode: LaunchMode)
-    func launchAtLoginChanged(_ enabled: Bool)
+    /// The Settings toggle changed: apply it. Throws `LaunchAtLoginError` when the system refused.
+    func launchAtLoginChanged(_ enabled: Bool) throws
     func mainTabsWindowWillClose()
     /// Setup finished (its Start Fleet was pressed): re-bootstrap the engine.
     func setupTabFinished()

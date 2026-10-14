@@ -45,6 +45,9 @@ final class AccountsModel: ConfigFormModel {
     // MARK: - State
 
     private(set) var rows: [Row] = []
+    /// Set when config.yaml could not be read or parsed: the section shows this
+    /// instead of an account list, so a broken file never reads as "no accounts".
+    private(set) var loadError: StatusLine?
     /// Pasted-token text per account name.
     var tokenTexts: [String: String] = [:]
 
@@ -153,8 +156,19 @@ final class AccountsModel: ConfigFormModel {
             accounts = []
         } catch {
             Log.warn("config", "could not read accounts: \(error.localizedDescription)")
-            accounts = []
+            rows = []
+            loadError = StatusLine(
+                text: String(
+                    localized:
+                        "config.yaml has a problem — \(error.localizedDescription). Use Advanced → App → Open config file.",
+                    bundle: .l10n,
+                    comment:
+                        "Config-error status in the Capacity form and the More accounts section; %@ is the config error"
+                ),
+                style: .error)
+            return
         }
+        loadError = nil
         let probe = hasStoredToken
         Task { [weak self] in
             let stored = await Task.detached {

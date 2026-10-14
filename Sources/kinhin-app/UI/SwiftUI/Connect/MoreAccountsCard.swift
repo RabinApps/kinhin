@@ -12,7 +12,7 @@ struct MoreAccountsCard: View {
     var body: some View {
         DisclosureGroup(
             isExpanded: Binding(
-                get: { expanded ?? !model.rows.isEmpty },
+                get: { expanded ?? (!model.rows.isEmpty || model.loadError != nil) },
                 set: { expanded = $0 })
         ) {
             FormCard(
@@ -20,11 +20,18 @@ struct MoreAccountsCard: View {
                 subtitle:
                     "Serve additional accounts (another org, a second server, a GitLab group) with their own tokens."
             ) {
-                ForEach(model.rows) { row in
-                    accountRow(row)
-                    Divider()
+                if let loadError = model.loadError {
+                    // An unreadable config is not "no accounts": say why, and offer
+                    // no add form that would only fail on the same file.
+                    StatusText(verbatim: loadError.text, style: loadError.style)
+                        .accessibilityIdentifier("accounts-load-error")
+                } else {
+                    ForEach(model.rows) { row in
+                        accountRow(row)
+                        Divider()
+                    }
+                    addForm
                 }
-                addForm
             }
             .padding(.top, 6)
         } label: {

@@ -33,8 +33,9 @@ extension AppDelegate: MainTabsWindowDelegate, NSMenuItemValidation, NSMenuDeleg
         }
     }
 
-    func launchAtLoginChanged(_ enabled: Bool) {
-        LaunchAtLoginService.apply(enabled: enabled)
+    /// The Settings toggle: `WindowModels` shows a failure and puts the toggle back to the real state.
+    func launchAtLoginChanged(_ enabled: Bool) throws {
+        try LaunchAtLoginService.apply(enabled: enabled)
     }
 
     func mainTabsWindowWillClose() {
@@ -51,7 +52,12 @@ extension AppDelegate: MainTabsWindowDelegate, NSMenuItemValidation, NSMenuDeleg
     /// back; a daemon-scoped reset just re-probes without forcing a window.
     func resetFinished(scope: ResetScope) {
         if scope != .daemon {
-            LaunchAtLoginService.apply(enabled: false)
+            do {
+                try LaunchAtLoginService.apply(enabled: false)
+            } catch {
+                // The reset cleared the preference; a login item left behind would reopen kinhin anyway.
+                AlertKit.present(error: error, title: LaunchAtLoginService.alertTitle)
+            }
         }
         Task {
             await bootstrapEngine(reopenSetupOnFailure: scope != .daemon)

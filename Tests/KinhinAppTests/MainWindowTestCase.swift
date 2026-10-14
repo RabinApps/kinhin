@@ -19,7 +19,12 @@ final class RecordingTabsDelegate: MainTabsWindowDelegate {
 
     func openLogsFolder() { logsCalls += 1 }
     func launchModeChanged(_ mode: LaunchMode) { changedModes.append(mode) }
-    func launchAtLoginChanged(_ enabled: Bool) { loginToggles.append(enabled) }
+    /// Thrown by `launchAtLoginChanged` (a refused login item).
+    var loginError: Error?
+    func launchAtLoginChanged(_ enabled: Bool) throws {
+        loginToggles.append(enabled)
+        if let loginError { throw loginError }
+    }
     func mainTabsWindowWillClose() { closeCalls += 1 }
     func setupTabFinished() { setupFinishedCalls += 1; rebootstrapCalls += 1 }
     func openConfig() { openConfigCalls += 1 }

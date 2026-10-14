@@ -28,6 +28,12 @@ final class WindowModels {
     /// Whether a token is stored for a forge. The real Keychain by default;
     /// tests inject a stub so building the Accounts page never touches it.
     var tokenProbe: @Sendable (ForgeID) throws -> Bool = { try KeychainTokenStore.load(forge: $0) != nil }
+    /// Shows a failed launch-at-login change. An alert by default; tests record it.
+    var presentLoginItemError: (Error) -> Void = {
+        AlertKit.present(error: $0, title: LaunchAtLoginService.alertTitle)
+    }
+    /// Set while the toggle is put back to the real state, so that write is not applied again.
+    private var revertingLaunchAtLogin = false
 
     init(fleet: FleetController, updates: UpdateController, prefs: UserDefaults) {
         self.fleet = fleet
@@ -45,12 +51,28 @@ final class WindowModels {
     lazy var appModel: AppSectionModel = {
         let model = AppSectionModel(prefs: prefs, updates: updates)
         model.onLaunchModeChanged = { [weak self] in self?.delegate?.launchModeChanged($0) }
-        model.onLaunchAtLoginChanged = { [weak self] in self?.delegate?.launchAtLoginChanged($0) }
+        model.onLaunchAtLoginChanged = { [weak self] in self?.launchAtLoginToggled($0) }
         model.onOpenLogs = { [weak self] in self?.delegate?.openLogsFolder() }
         model.onResetFinished = { [weak self] in self?.delegate?.resetFinished(scope: $0) }
         model.fleetController = fleet
         return model
     }()
+
+    /// Applies the Settings toggle. On failure the toggle (and the stored preference) go back to what the
+    /// system really has, and the reason is shown; "needs approval" keeps it on, since the item is registered.
+    private func launchAtLoginToggled(_ enabled: Bool) {
+        guard !revertingLaunchAtLogin else { return }
+        do {
+            try delegate?.launchAtLoginChanged(enabled)
+        } catch {
+            if let failure = error as? LaunchAtLoginError, failure.leavesRegistered != enabled {
+                revertingLaunchAtLogin = true
+                appModel.setLaunchAtLogin(failure.leavesRegistered)
+                revertingLaunchAtLogin = false
+            }
+            presentLoginItemError(error)
+        }
+    }
 
     private(set) var wizardModel: WizardModel?
     private(set) var connectModel: ConnectModel?

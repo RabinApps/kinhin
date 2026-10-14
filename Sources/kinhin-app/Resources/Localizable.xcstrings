@@ -713,7 +713,7 @@
       "comment" : "Routing tab empty state; %@ is the parse error"
     },
     "config.yaml has a problem — %@. Use Advanced → App → Open config file." : {
-      "comment" : "Capacity form status; %@ is the config error"
+      "comment" : "Config-error status in the Capacity form and the More accounts section; %@ is the config error"
     },
     "Connect" : {
       "comment" : "Forge card button that saves the token"
@@ -779,6 +779,9 @@
     },
     "Copy into .kinhin/config.yml in a repo (or into config.yaml)." : {
       "comment" : "CollapsibleFormCard in ToolchainsCatalogCards"
+    },
+    "Could not check for a running benchmark — %@" : {
+      "comment" : "Benchmarks status line; %@ is the error's description"
     },
     "Could not read that report — %@" : {
       "comment" : "Benchmarks status line; %@ is the error's description"
@@ -1305,6 +1308,12 @@
     "kinhin can't start the fleet yet" : {
       "comment" : "Alert title when Start Fleet is pressed before setup finished"
     },
+    "kinhin could not be added to your login items: %@" : {
+      "comment" : "Launch-at-login alert message; %@ is the system's error"
+    },
+    "kinhin could not be removed from your login items: %@" : {
+      "comment" : "Launch-at-login alert message; %@ is the system's error"
+    },
     "kinhin crashed unexpectedly:\n\n%@\n\nLogs: ~/Library/Application Support/Kinhin/logs/" : {
       "comment" : "Body of the crash alert; %@ is the exception reason; the logs path stays verbatim"
     },
@@ -1328,6 +1337,9 @@
     },
     "kinhin needs attention" : {
       "comment" : "Notification title when the fleet reports an error"
+    },
+    "kinhin needs your approval to open at login. Approve it in System Settings → General → Login Items." : {
+      "comment" : "Launch-at-login alert message; keep kinhin and the System Settings path verbatim"
     },
     "kinhin runs your CI jobs on this Mac. Select the forges to serve — %@ — then paste a token and choose the repository, project or group to serve for each." : {
       "comment" : "Setup wizard step 1 subtitle; %@ is a localized list of forge names"
@@ -1428,6 +1440,9 @@
     },
     "Launch" : {
       "comment" : "FormCard in AppSectionView"
+    },
+    "Launch at login" : {
+      "comment" : "Alert title for a launch-at-login failure"
     },
     "Launch kinhin at login" : {
       "comment" : "Toggle in AppSectionView"
