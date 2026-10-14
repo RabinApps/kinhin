@@ -47,6 +47,11 @@ struct GitLabForge: Forge {
         GitLabForge(copying: self, poolLabels: poolLabels)
     }
 
+    /// Demand filters by what the pools advertise, so the served labels replace the pool labels.
+    func relabeled(fleetLabels: [String], servedLabels: [String]) -> any Forge {
+        replacingPoolLabels(servedLabels)
+    }
+
     private init(copying other: GitLabForge, poolLabels: [String]) {
         account = other.account
         credentials = other.credentials

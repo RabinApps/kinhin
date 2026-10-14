@@ -166,6 +166,14 @@ public protocol Forge: Sendable {
     /// forge has it so far, or nil when the forge can't provide it. `job` and
     /// `step` come from this forge's own `pipelineDetail`.
     func pipelineLog(job: PipelineJob, step: PipelineStep?) async throws -> PipelineLog?
+    /// This forge after a hot config reload: `fleetLabels` is the reloaded
+    /// top-level `labels:`, `servedLabels` every label some pool (or named
+    /// image) of the reloaded fleet registers runners with. A forge whose
+    /// demand or running query filters by either set returns a copy that
+    /// filters by the new one, keeping its client and caches. The default is
+    /// `self`: a forge whose queries filter by its account's own `labels:`
+    /// (an account edit rebuilds the engine) or by no labels at all.
+    func relabeled(fleetLabels: [String], servedLabels: [String]) -> any Forge
 }
 
 /// Forges whose runner API separates queued from running work, so the engine
@@ -194,6 +202,9 @@ extension Forge {
     public func pipelineDetail(runnerName: String, repository: String?) async throws -> PipelineDetail? { nil }
 
     public func pipelineLog(job: PipelineJob, step: PipelineStep?) async throws -> PipelineLog? { nil }
+
+    /// Label-independent demand: nothing to swap.
+    public func relabeled(fleetLabels: [String], servedLabels: [String]) -> any Forge { self }
 
     /// Requeue the forge's queued jobs. The default is a no-op; forges with
     /// queue semantics override.
@@ -257,6 +268,31 @@ extension ForgeWithJITConfig {
             }
         }
         return out
+    }
+}
+
+/// A long-lived connection a forge receives demand over (the GitHub
+/// scale-set message session). The engine starts it with the fleet, stops it
+/// with the fleet, and stops a replaced forge's listeners on re-attach.
+protocol ForgeListener: AnyObject, Sendable {
+    func start() async
+    func stop() async
+}
+
+/// Forges whose demand arrives over listeners instead of a polled query.
+/// Only the GitHub scale-set forge conforms.
+protocol ForgeWithListeners: Forge {
+    /// Every listener this forge owns, started and stopped together.
+    var listeners: [any ForgeListener] { get }
+}
+
+extension ForgeWithListeners {
+    func startListeners() async {
+        for listener in listeners { await listener.start() }
+    }
+
+    func stopListeners() async {
+        for listener in listeners { await listener.stop() }
     }
 }
 

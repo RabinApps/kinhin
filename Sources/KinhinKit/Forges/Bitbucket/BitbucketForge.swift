@@ -25,7 +25,9 @@ import Synchronization
 /// active pipeline's `bitbucket-pipelines.yml` is read at the pipeline's
 /// commit (`BitbucketPipelinesFile`) and only steps that run on
 /// `self.hosted` count as this fleet's demand; cloud steps and steps still
-/// waiting behind a running one do not.
+/// waiting behind a running one do not. Demand filters by no label, and the
+/// runners' labels are the account's own plus the spawning pool's, so a hot
+/// reload leaves the forge as it is (`relabeled` keeps the default).
 
 struct BitbucketForge: Forge {
     let id: ForgeID = .bitbucket

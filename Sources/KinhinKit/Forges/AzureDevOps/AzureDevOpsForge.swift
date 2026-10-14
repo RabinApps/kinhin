@@ -19,7 +19,9 @@ import Synchronization
 /// agent as capabilities, and a queued request is kinhin's demand when its
 /// demands include every label (`kinhin`, or `name -equals value` for a
 /// `name=value` label). Without labels the pool is kinhin's alone and every
-/// request in it counts.
+/// request in it counts. The labels are the account's own `labels:` (never the
+/// fleet's), so a hot reload leaves the forge as it is (`relabeled` keeps the
+/// default).
 struct AzureDevOpsForge: Forge {
     let id: ForgeID = .azuredevops
     let name = "azuredevops"

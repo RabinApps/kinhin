@@ -4,7 +4,7 @@ import Synchronization
 /// Owns one GitHub scale-set session and feeds demand back into the engine.
 /// This is the replacement for the REST workflow-runs poll for accounts that opt
 /// into scale-set mode.
-public actor GitHubScaleSetListener {
+public actor GitHubScaleSetListener: ForgeListener {
     var session: GitHubScaleSetSession?
     /// Id of a session we stopped polling after a failure but never deleted; GitHub still treats it
     /// as active (409 on create) until it is refreshed or expires.

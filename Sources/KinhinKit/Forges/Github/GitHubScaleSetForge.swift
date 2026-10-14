@@ -23,7 +23,7 @@ struct ScaleSetTarget: Sendable {
 /// mode. Demand comes from the scale-set message listener(s); everything else
 /// (runners, deletion, pipeline detail/log, project file) is delegated to the
 /// same REST `GitHubClient` path the classic poller uses.
-struct GitHubScaleSetForge: ForgeWithQueuedJobs, ForgeWithJITConfig {
+struct GitHubScaleSetForge: ForgeWithQueuedJobs, ForgeWithJITConfig, ForgeWithListeners {
     let id: ForgeID = .github
     let name = "github"
     let account: String
@@ -37,6 +37,8 @@ struct GitHubScaleSetForge: ForgeWithQueuedJobs, ForgeWithJITConfig {
     let targets: [ScaleSetTarget]
     /// The primary listener (single-set accounts have only this one).
     var listener: GitHubScaleSetListener { targets[0].listener }
+    /// One listener per scale set, started and stopped with the fleet.
+    var listeners: [any ForgeListener] { targets.map(\.listener) }
 
     init(
         account: AccountConfig,
@@ -76,6 +78,21 @@ struct GitHubScaleSetForge: ForgeWithQueuedJobs, ForgeWithJITConfig {
         self.labels = account.labels ?? labels
         self.client = client
         self.targets = targets
+    }
+
+    private init(copying other: GitHubScaleSetForge, labels: [String]) {
+        account = other.account
+        credentials = other.credentials
+        self.labels = labels
+        client = other.client
+        targets = other.targets
+    }
+
+    /// Demand arrives on the listeners, but running attribution filters by the
+    /// fleet's labels (GitHub accounts carry no `labels:` of their own). The
+    /// scale sets and their running listeners are kept as attached.
+    func relabeled(fleetLabels: [String], servedLabels: [String]) -> any Forge {
+        GitHubScaleSetForge(copying: self, labels: fleetLabels)
     }
 
     // MARK: - Registration URL (delegated to the underlying client path)
