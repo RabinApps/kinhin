@@ -110,6 +110,29 @@ public struct RPCClient: Sendable {
         }
     }
 
+    /// The healing agent's policy and journal. A daemon that predates healing
+    /// does not know the method and says so.
+    public func healingStatus() throws -> HealingSnapshot {
+        do {
+            let response = try command(.healingStatus)
+            guard let payload = response.payload else { throw RPCError.rejected("daemon returned no healing status") }
+            return try JSONDecoder().decode(HealingSnapshot.self, from: payload)
+        } catch RPCError.rejected("undecodable request") {
+            throw RPCError.rejected("this daemon predates healing — restart it after updating kinhin")
+        }
+    }
+
+    /// Approves (`approve: true`) or dismisses a healing event.
+    public func healingDecide(id: String, approve: Bool) throws {
+        do {
+            try command(
+                approve ? .healingApprove : .healingDismiss,
+                payload: JSONEncoder().encode(Daemon.HealingEventRequest(id: id)))
+        } catch RPCError.rejected("undecodable request") {
+            throw RPCError.rejected("this daemon predates healing — restart it after updating kinhin")
+        }
+    }
+
     /// Ask the daemon to swap its PAT (it must already be in the Keychain).
     public func replaceToken(pat: String) throws {
         try command(.replaceToken, payload: JSONEncoder().encode(TokenReplaceRequest(pat: pat)))

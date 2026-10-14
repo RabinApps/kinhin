@@ -69,9 +69,19 @@ extension MCPTool {
     /// secret-bearing), and everything that blocks (`start`, `watch`,
     /// `pipeline --follow`).
     static let all: [MCPTool] = [
-        status, doctor, setupStatus, runtimes, authStatus, pipeline, logs,
+        status, doctor, setupStatus, runtimes, authStatus, pipeline, logs, healStatus,
         pause, resume, stop, daemonInstall,
     ]
+
+    /// Read-only on purpose: approving a fix stays with a person (`kinhin heal approve`).
+    static let healStatus = MCPTool(
+        name: "heal_status",
+        description:
+            "The healing agent's journal (`kinhin heal --json`): fixes it ran on its own, fixes waiting for a "
+            + "person to approve with `kinhin heal approve ID`, and problems only the user can fix.",
+        inputSchema: InputSchema(),
+        run: { _ in try CLIJSON.data(await HealCommand.document(), dates: .iso8601) }
+    )
 
     static let status = MCPTool(
         name: "status",

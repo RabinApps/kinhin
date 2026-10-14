@@ -45,6 +45,8 @@ runs jobs directly on the Mac, with no isolation.
   (`warm_pool`) keeps booted VMs waiting so jobs skip the boot, `runners_per_vm` packs small jobs onto one VM, and the
   scaler never exceeds what your Mac can handle (`kinhin doctor`). Why: [Why kinhin](docs/why.md).
 - **Toolchains your way** — bake, pin per repo, or install per job ([Toolchains](docs/toolchains.md)).
+- **Heals itself** — fixes the safe problems on its own (a vanished warm VM, a full toolchain cache, a dropped account),
+  asks before anything destructive, and shows what only you can do (`kinhin heal`, [The healing agent](docs/healing.md)).
 - **App, menu bar, or headless daemon** — same engine, same config ([The app](docs/app.md)).
 
 ## Requirements
@@ -116,7 +118,7 @@ Start here: [Add videos to your project](docs/videos-for-your-project.md).
 ## Documentation
 
 [Why](docs/why.md) · [Install](docs/install.md) · [Security](docs/security.md) · [App](docs/app.md) ·
-[Hardware](docs/hardware.md) · [Scaling](docs/scaling.md) · [Requeue/skip](docs/requeue-skip.md) ·
+[Hardware](docs/hardware.md) · [Scaling](docs/scaling.md) · [Healing](docs/healing.md) · [Requeue/skip](docs/requeue-skip.md) ·
 [Toolchains](docs/toolchains.md) · [Forges](docs/forges.md) ([API](docs/forges/README.md)) · [Runtimes](docs/runtimes.md) ·
 [Workflow testing](docs/workflow-testing.md) · [Product videos](docs/videos-for-your-project.md) · [Agents & MCP](docs/agents.md) · [Architecture](docs/architecture.md) ·
 [Troubleshooting](website/guide/troubleshooting.md) · [Roadmap](docs/beta-roadmap.md)
@@ -184,6 +186,9 @@ RUNNING:
     pipeline [VM]                           Live jobs and steps of the VMs that are busy
     requeue <forge>                         Re-queue the fleet's queued jobs on a forge
     skip <forge>                            Mark the fleet's queued jobs as skipped on a forge
+    heal                                    What the healing agent fixed, and what waits on you
+    heal approve ID                         Carry out a fix that waits for approval
+    heal dismiss ID                         Close a pending or surfaced entry
     cleanup                                 Reclaim disk: leftover VMs, the base image, the cache
     bench [SUITE]…                          Benchmark runtimes, workloads and toolchains here
     reset                                   Reset config, the daemon install, or everything

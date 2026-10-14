@@ -29,7 +29,7 @@ flowchart LR
     runners -- job results --> forge
 ```
 
-Job completion is observed through provider runner state or events; runners do not report completion directly to `FleetEngine`. The engine reconciles demand and runtime state, and removes ephemeral instances when their runners finish. [Scaling details](scaling.md) · [Runtime and routing details](runtimes.md) · [Security model](security.md).
+Job completion is observed through provider runner state or events; runners do not report completion directly to `FleetEngine`. The engine reconciles demand and runtime state, and removes ephemeral instances when their runners finish. Beside the reconcile loop, the healing agent (`Fleet/Healing/`) runs its own loop: it turns alerts, records, the spawn backoff and the setup checks into signals and applies fixes from a closed allowlist by tier. [Scaling details](scaling.md) · [Runtime and routing details](runtimes.md) · [Security model](security.md) · [The healing agent](healing.md).
 
 ## Low-level systems
 
@@ -129,6 +129,7 @@ Inside the targets, code is organized by domain:
 | `KinhinKit/Forges/`        | `Forge` protocol and provider clients over shared `ForgeHTTP`; GitHub Scale Set API client, session and message DTOs, and JIT registration adapter; auth status reporting (per-forge API reference: [docs/forges/](forges/README.md))                                                                                       |
 | `KinhinKit/Runtimes/`      | Runtime protocol, Tart, Apple-container, Docker and Host runtimes, routing pools, capacity partition, daemon-side container manager                                                                                                                                                                                         |
 | `KinhinKit/Fleet/`         | FleetEngine (engine / reload / credentials / reconcile / lifecycle splits), status model, records, GitHub Scale Set message listener and per-pool scale-set attach, daemon dispatch + RPC client/server                                                                                                                     |
+| `KinhinKit/Fleet/Healing/` | The healing agent: signals, the playbook and its closed list of fixes by tier, budget, journal, the optional on-device advisor (see [The healing agent](healing.md))                                                                                                                                                        |
 | `KinhinKit/Images/`        | VM and container image preparation (tart macOS and Linux, container), runner bootstrap scripts, toolchain catalog, registry digest pinning and per-project derived images                                                                                                                                                   |
 | `KinhinKit/Setup/`         | Setup checklist computer, doctor report builder, CLT/tart health probes, host agent installer                                                                                                                                                                                                                               |
 | `KinhinKit/Cache/`         | Managed-toolchain cache pruning (auto-expiry)                                                                                                                                                                                                                                                                               |
@@ -178,6 +179,9 @@ The CLI and the app talk to the daemon over `RPCMethod` (`Sources/KinhinKit/Flee
 | `bench_start` | Start a benchmark run in the background; answers with its run id at once. |
 | `bench_status` | The progress, partial results and (when finished) report of a benchmark run. |
 | `bench_cancel` | Cancel a running benchmark; it still removes everything it created. |
+| `healing_status` | The healing agent's policy and journal. |
+| `healing_approve` | Carry out a healing fix that waits for approval. |
+| `healing_dismiss` | Close a pending or surfaced healing event. |
 <!-- docs-sync:end rpc-methods -->
 
 ## Tests
