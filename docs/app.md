@@ -131,6 +131,15 @@ disk. An older daemon simply reports none, and the app shows no usage. How each 
 
 Not included: history or graphs, alerts, metrics from inside the guest, and per-job attribution.
 
+## Healing
+
+The **Diagnostics** sheet (from the Fleet tab) ends with a **Healing** card for the [healing agent](healing.md): the policy
+(safe fixes on their own, or every fix waits), the advisor, fixes waiting for your approval (**Approve**, **Dismiss**),
+problems only you can fix (**Dismiss**), what is being fixed now and the last 10 closed entries. The dot is amber while
+something waits on you. A fix waiting for approval also raises the "kinhin needs attention" notification, and each fix
+that succeeds posts "kinhin fixed a problem". The card works with the in-process engine and with the daemon, and shows
+the same journal as `kinhin heal`.
+
 ## Quitting
 
 With the in-process engine, quitting kinhin waits (up to 30 seconds) for the engine to stop and tear its VMs down

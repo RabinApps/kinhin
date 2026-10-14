@@ -31,6 +31,12 @@ extension Daemon {
         public init(forge: ForgeID) { self.forge = forge }
     }
 
+    /// Payload of `healing_approve` and `healing_dismiss`: the journal event to act on.
+    public struct HealingEventRequest: Codable, Sendable, Equatable {
+        public let id: String
+        public init(id: String) { self.id = id }
+    }
+
     /// Answer to `bench_start`.
     public struct BenchStartReply: Codable, Sendable, Equatable {
         public let runID: String

@@ -180,6 +180,54 @@ final class FakeFleetServing: FleetServing {
         try record("rotate(\(target.accountName))")
     }
 
+    // MARK: - Healing
+
+    /// The scripted journal (`status.healing`), or the engine's default policy
+    /// with an empty journal when none is scripted, as a fresh engine answers.
+    func healingStatus() async throws -> HealingSnapshot {
+        try record("healingStatus")
+        return state.withLock { $0.status.healing }
+            ?? HealingSnapshot(enabled: true, automatic: true, advisor: nil, events: [])
+    }
+
+    /// Like the engine: an unknown id or one not pending throws; a pending
+    /// fix starts running (its outcome comes from a later scripted status).
+    func approveHealing(id: String) async throws {
+        try record("approveHealing(\(id))")
+        try decideHealing(id: id) { event in
+            guard event.outcome == .pending, let fix = event.remediation else { return false }
+            event.outcome = .running
+            event.detail = "approved: \(fix.summary)"
+            return true
+        }
+    }
+
+    /// Like the engine: only a pending or surfaced event can be dismissed.
+    func dismissHealing(id: String) async throws {
+        try record("dismissHealing(\(id))")
+        try decideHealing(id: id) { event in
+            guard event.outcome == .pending || event.outcome == .surfaced else { return false }
+            event.outcome = .dismissed
+            return true
+        }
+    }
+
+    /// Applies `change` to the scripted event `id`; `change` answers false
+    /// (and changes nothing) when the event's outcome forbids the decision.
+    private func decideHealing(id: String, _ change: (inout HealingEvent) -> Bool) throws {
+        try state.withLock { state in
+            guard var healing = state.status.healing, let index = healing.events.firstIndex(where: { $0.id == id })
+            else { throw EngineError.unknownHealingEvent(id) }
+            var event = healing.events[index]
+            guard change(&event) else {
+                throw EngineError.healingEventNotPending(id: id, outcome: healing.events[index].outcome.rawValue)
+            }
+            event.updatedAt = Date()
+            healing.events[index] = event
+            state.status.healing = healing
+        }
+    }
+
     // MARK: - Benchmarks
 
     /// What successive `benchStatus` calls answer; the last one repeats.

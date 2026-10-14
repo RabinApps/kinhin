@@ -143,6 +143,15 @@ extension ConfigLoader {
         #   max_age_days: 30         # entries unused this long are deleted (0 = never)
         #   max_gb: 50               # LRU eviction beyond this size (0 = unlimited)
 
+        # Optional: the healing agent fixes known problems on its own (a vanished
+        # warm VM, a full cache, a detached account) and asks before anything
+        # destructive. See `kinhin heal` and docs/healing.md.
+        # healing:
+        #   enabled: true            # false = only the engine's own retries
+        #   auto: safe               # safe = reversible fixes run on their own; none = ask for every fix
+        #   ai: auto                 # auto = on-device Apple Intelligence advises (macOS 26+); off = rules only
+        #   max_attempts: 3          # tries of one fix for one problem before it escalates
+
         # Optional: serve more forges from the same fleet. Every accounts:
         # entry above is one forge; VMs are assigned to whichever forge has
         # the most pending work at spawn time. Manage accounts with

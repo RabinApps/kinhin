@@ -76,7 +76,7 @@ final class MCPCommandTests: XCTestCase {
         XCTAssertEqual(
             names,
             [
-                "status", "doctor", "setup_status", "runtimes", "auth_status", "pipeline", "logs",
+                "status", "doctor", "setup_status", "runtimes", "auth_status", "pipeline", "logs", "heal_status",
                 "pause", "resume", "stop", "daemon_install",
             ])
         XCTAssertEqual(Set(names).count, names.count, "tool names must be unique")
@@ -86,7 +86,10 @@ final class MCPCommandTests: XCTestCase {
         }
         // The safety contract: irreversible, secret-bearing or blocking work
         // is never reachable through the server.
-        for forbidden in ["reset", "cleanup", "start", "watch", "auth_set", "daemon_uninstall"] {
+        // Approving a healing fix stays with a person.
+        for forbidden in [
+            "reset", "cleanup", "start", "watch", "auth_set", "daemon_uninstall", "heal_approve", "heal_dismiss",
+        ] {
             XCTAssertFalse(names.contains(forbidden), "\(forbidden) must not be exposed over MCP")
         }
     }

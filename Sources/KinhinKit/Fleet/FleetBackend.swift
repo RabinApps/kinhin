@@ -29,6 +29,12 @@ public protocol FleetServing: Sendable {
     func benchStatus(runID: String?) async throws -> BenchmarkRunStatus
     /// Cancel a running benchmark; false when none was running.
     func benchCancel(runID: String?) async throws -> Bool
+    /// The healing agent's policy and journal.
+    func healingStatus() async throws -> HealingSnapshot
+    /// Carry out a healing fix that waits for approval (it runs in the background).
+    func approveHealing(id: String) async throws
+    /// Close a pending or surfaced healing event.
+    func dismissHealing(id: String) async throws
     /// A short name for log lines.
     var logName: String { get }
 }
@@ -46,6 +52,22 @@ extension FleetServing {
 
     public func benchCancel(runID: String?) async throws -> Bool {
         throw BenchmarkError.unsupported("\(logName) cannot run benchmarks")
+    }
+
+    /// From the status: every conformer that reports a status reports healing.
+    public func healingStatus() async throws -> HealingSnapshot {
+        guard let healing = try await status(includeUsage: false).healing else {
+            throw EngineError.healingFailed("\(logName) does not report healing")
+        }
+        return healing
+    }
+
+    public func approveHealing(id: String) async throws {
+        throw EngineError.healingFailed("\(logName) cannot approve healing fixes")
+    }
+
+    public func dismissHealing(id: String) async throws {
+        throw EngineError.healingFailed("\(logName) cannot dismiss healing events")
     }
 }
 
@@ -168,6 +190,27 @@ public enum FleetBackend: Sendable {
         switch self {
         case .inProcess: return BenchmarkRegistry.shared.cancel(runID: runID)
         case .daemon(let client): return try await client.perform { try $0.benchCancel(runID: runID) }
+        }
+    }
+
+    public func healingStatus() async throws -> HealingSnapshot {
+        switch self {
+        case .inProcess(let engine): return await engine.healingStatus()
+        case .daemon(let client): return try await client.perform { try $0.healingStatus() }
+        }
+    }
+
+    public func approveHealing(id: String) async throws {
+        switch self {
+        case .inProcess(let engine): try await engine.approveHealing(id: id)
+        case .daemon(let client): try await client.perform { try $0.healingDecide(id: id, approve: true) }
+        }
+    }
+
+    public func dismissHealing(id: String) async throws {
+        switch self {
+        case .inProcess(let engine): try await engine.dismissHealing(id: id)
+        case .daemon(let client): try await client.perform { try $0.healingDecide(id: id, approve: false) }
         }
     }
 

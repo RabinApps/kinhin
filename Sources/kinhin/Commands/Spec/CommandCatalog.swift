@@ -460,6 +460,30 @@ enum CommandCatalog {
             flags: [yesFlag],
             docs: "docs/requeue-skip.md"),
         CommandSpec(
+            name: "heal",
+            command: .heal,
+            group: .running,
+            summary: "What the healing agent fixed, and what waits on you",
+            flags: [jsonFlag, quietFlag],
+            subcommands: [
+                CommandSpec(
+                    name: "approve",
+                    command: .heal,
+                    summary: "Carry out a fix that waits for approval",
+                    positionals: "ID"),
+                CommandSpec(
+                    name: "dismiss",
+                    command: .heal,
+                    summary: "Close a pending or surfaced entry",
+                    positionals: "ID"),
+            ],
+            details: [
+                "Safe fixes (a vanished warm VM, a full cache, a detached account) run on their own; destructive "
+                    + "ones (pruning images, reinstalling a runtime) wait for heal approve. Exits 0 when nothing "
+                    + "waits on you, 1 when something does or no daemon runs."
+            ],
+            docs: "docs/healing.md"),
+        CommandSpec(
             name: "cleanup",
             command: .cleanup,
             group: .running,

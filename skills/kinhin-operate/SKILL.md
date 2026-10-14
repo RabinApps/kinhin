@@ -1,6 +1,6 @@
 ---
 name: kinhin-operate
-description: Run and monitor a kinhin fleet - start, stop, pause, status, logs, pipeline view, daemon, cleanup, scaling and capacity. Use when the user asks about fleet status, scaling runners, running kinhin as a daemon, or freeing disk.
+description: Run and monitor a kinhin fleet - start, stop, pause, status, logs, pipeline view, daemon, cleanup, the healing journal, scaling and capacity. Use when the user asks about fleet status, what kinhin fixed on its own, scaling runners, running kinhin as a daemon, or freeing disk.
 ---
 
 # Operate kinhin
@@ -25,8 +25,9 @@ Scripts can branch on them: `0` success, `1` general, `2` usage (bad command lin
 | `kinhin logs [-n N]` | Recent log lines. The log file is `~/Library/Application Support/Kinhin/logs/kinhin.log`. |
 | `kinhin pipeline [VM] [--job NAME\|ID] [--watch] [--json]` | Job and step view. Add `--step N\|NAME` or `--log [--follow]`. Needs the daemon. |
 | `kinhin runtimes [--json] [--no-health]` | Runtime availability and health |
+| `kinhin heal [--json]` | What the healing agent fixed on its own, fixes waiting for approval, problems only the user can fix. Exits 1 while something waits on the user. Needs the daemon. |
 
-`--json` is supported on `status`, `doctor`, `setup status`, `auth status`, `runtimes`, `pipeline`, `workflow test`,
+`--json` is supported on `status`, `doctor`, `setup status`, `auth status`, `runtimes`, `pipeline`, `heal`, `workflow test`,
 `workflow route`, `toolchains detect`, `config validate` and `cleanup` (report-only; it refuses `--yes`). Stdout
 carries only command output, so JSON stays parseable.
 
@@ -63,6 +64,8 @@ carries only command output, so JSON stays parseable.
 ## Safety
 
 - Do not run `cleanup --yes`, `stop` or `daemon uninstall` on a fleet serving live jobs without confirming with the user.
+- Never run `kinhin heal approve` or `kinhin heal dismiss` yourself: show the entry and let the user decide. A fix
+  waiting for approval can prune images or reinstall a runtime.
 - Untrusted pull requests: keep `tart_softnet: true`, leave `share_cache` off (it is always off for fork PRs), and avoid
   host mode. `kinhin doctor` reports the isolation posture.
 

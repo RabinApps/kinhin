@@ -57,6 +57,9 @@ RUNNING:
     pipeline [VM]                           Live jobs and steps of the VMs that are busy
     requeue <forge>                         Re-queue the fleet's queued jobs on a forge
     skip <forge>                            Mark the fleet's queued jobs as skipped on a forge
+    heal                                    What the healing agent fixed, and what waits on you
+    heal approve ID                         Carry out a fix that waits for approval
+    heal dismiss ID                         Close a pending or surfaced entry
     cleanup                                 Reclaim disk: leftover VMs, the base image, the cache
     bench [SUITE]…                          Benchmark runtimes, workloads and toolchains here
     reset                                   Reset config, the daemon install, or everything

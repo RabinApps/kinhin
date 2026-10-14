@@ -183,6 +183,9 @@ struct KinhinCLI {
         case .skip:
             try await RunCommands.skipQueuedJobs(args)
 
+        case .heal:
+            try await HealCommand.run(args, subcommand: invocation.subcommand)
+
         case .support:
             print(SupportLinks.summary())
 

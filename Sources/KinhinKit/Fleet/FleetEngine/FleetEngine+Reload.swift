@@ -38,6 +38,7 @@ extension FleetEngine {
     /// config rebuild must never do.
     public func detachKeepingInstances() async {
         runState.withLock { $0.running = false }
+        healing.stopLoop()
         cachePruneTask?.cancel()
         cachePruneTask = nil
         // Wait out an in-flight reconcile pass first: one already in its

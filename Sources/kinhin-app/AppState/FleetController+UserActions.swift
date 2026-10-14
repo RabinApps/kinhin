@@ -100,6 +100,39 @@ extension FleetController {
         }
     }
 
+    /// Approves a healing fix (the button is the approval: no second prompt).
+    /// The returned task ends once the backend answered and the status refreshed.
+    @discardableResult
+    func userApproveHealing(id: String) -> Task<Void, Never> {
+        Task {
+            do {
+                try await approveHealing(id: id)
+            } catch {
+                AlertKit.present(
+                    error: error,
+                    title: String(
+                        localized: "Couldn't approve fix \(id)", bundle: .l10n,
+                        comment: "Alert title when approving a healing fix fails; %@ is the fix id (h-…)"))
+            }
+        }
+    }
+
+    /// Dismisses a pending fix or a surfaced problem.
+    @discardableResult
+    func userDismissHealing(id: String) -> Task<Void, Never> {
+        Task {
+            do {
+                try await dismissHealing(id: id)
+            } catch {
+                AlertKit.present(
+                    error: error,
+                    title: String(
+                        localized: "Couldn't dismiss \(id)", bundle: .l10n,
+                        comment: "Alert title when dismissing a healing event fails; %@ is the event id (h-…)"))
+            }
+        }
+    }
+
     /// The pending flag is set before the task starts, so a second click in
     /// the same tick already reads as busy.
     private func run(_ action: FleetAction, failureTitle: String) {

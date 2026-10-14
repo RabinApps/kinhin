@@ -6,6 +6,12 @@
 
 **Added**
 
+- The healing agent: kinhin fixes the fleet problems it safely can on its own (a warm VM deleted out of band, a toolchain
+  cache filling the disk, a detached account, a stopped Apple container system) and asks before anything destructive
+  (pruning images, reinstalling a runtime). `kinhin heal` shows the journal, and `kinhin heal approve|dismiss ID` acts
+  on it. The app's Diagnostics sheet has a Healing card, and a notification fires when a fix succeeds. Configure it under
+  `healing:`. On macOS 26 with Apple Intelligence, the on-device Apple Intelligence model can pick from the allowed fixes
+  for problems no rule covers. See [docs/healing.md](docs/healing.md).
 - `warm_pool` on an `images:` entry keeps booted, unregistered VMs of that image ready, so jobs routed to it (for example
   `xcode`) skip the clone and boot. The top-level `warm_pool` still covers `image:`; the two share `max_runners`.
 - "VMs kept ready" controls: each image in the "More images" card has a stepper for its warm pool, and the Capacity view

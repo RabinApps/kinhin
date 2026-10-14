@@ -248,6 +248,7 @@ final class WindowModels {
         if let diagnosticsModel { return diagnosticsModel }
         let model = DiagnosticsModel()
         model.fleetImageNotice = { [weak self] in self?.fleetModel.status?.imageNotice }
+        model.fleet = fleet
         diagnosticsModel = model
         return model
     }

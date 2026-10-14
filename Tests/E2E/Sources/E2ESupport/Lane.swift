@@ -27,6 +27,8 @@ public final class Lane: @unchecked Sendable {
         public var startDaemon = true
         /// A Gitea/Forgejo image instead of the pinned (or `KINHIN_E2E_*_IMAGE`) one.
         public var forgeImage: String?
+        /// Extra variables for every kinhin the lane runs (see `Sandbox.setEnvironment`).
+        public var environment: [String: String] = [:]
         public init() {}
     }
 
@@ -68,6 +70,7 @@ public final class Lane: @unchecked Sendable {
                 image = try await ImageBaker.shared.ensure(runtime, accounts: [account])
             }
             sandbox.setToken(await fixture.token, account: account.name)
+            for (key, value) in options.environment { sandbox.setEnvironment(key, value) }
             var config = FleetConfig(accounts: [account], runtime: runtime, image: image)
             config.minRunners = minRunners
             config.maxRunners = options.maxRunners

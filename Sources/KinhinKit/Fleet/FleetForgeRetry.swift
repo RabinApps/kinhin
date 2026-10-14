@@ -41,6 +41,24 @@ extension FleetEngine {
         }
     }
 
+    /// Retries every detached account now, ignoring the backoff, through the
+    /// same single-flight slot as `startForgeRetryIfDue`: it joins an attempt
+    /// already running instead of starting a second, overlapping one.
+    func retryDetachedForgesNow() async {
+        let attempt = forgeState.withLock { state -> Task<Void, Never>? in
+            if let running = state.retry.inFlight { return running }
+            guard config.accounts.contains(where: { state.byPlatform[$0.name] == nil }) else { return nil }
+            // The task clears its own slot under the same lock it is stored in.
+            let task = Task { [weak self] in
+                await self?.retryDetachedForgesIfDue(ignoreBackoff: true)
+                self?.forgeState.withLock { $0.retry.inFlight = nil }
+            }
+            state.retry.inFlight = task
+            return task
+        }
+        await attempt?.value
+    }
+
     /// Re-attaches accounts that are currently detached: any account whose
     /// verification failed, whose token was missing, or whose server was
     /// unreachable. Runs from every reconcile pass but only acts when the

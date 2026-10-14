@@ -88,11 +88,13 @@ extension FleetEngine {
             await self.reconcileLoop()
         }
         reconcileTask = task
+        await startHealing()
     }
 
     public func stop() async {
         runState.withLock { $0.running = false }
         Log.info("engine", "stopping fleet engine")
+        healing.stopLoop()
         reconcileTask?.cancel()
         reconcileTask = nil
         cachePruneTask?.cancel()

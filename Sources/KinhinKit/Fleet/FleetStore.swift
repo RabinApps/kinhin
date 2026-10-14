@@ -4,6 +4,8 @@ import Synchronization
 /// Persistence for VM records so a crashed engine can reconcile on restart.
 public final class FleetStore: Sendable {
     private let url: URL
+    /// The state directory holding `fleet.json` (the healing journal sits next to it).
+    let directory: URL
     private let mutex: Mutex<[VMRecord]>
     /// Serializes file writes. Each write takes its snapshot while holding
     /// this, so the last write to land is always the newest state.
@@ -14,6 +16,7 @@ public final class FleetStore: Sendable {
     private let corruptFile: Mutex<URL?>
 
     public init(directory: URL = Paths.stateDirectory) {
+        self.directory = directory
         self.url = directory.appendingPathComponent("fleet.json")
         // A missing fleet.json reads as "no fleet". A corrupt one is moved
         // aside and reported: restart recovery adopts the live instances

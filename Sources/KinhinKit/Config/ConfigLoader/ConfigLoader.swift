@@ -89,6 +89,7 @@ public struct ConfigLoader {
             cfg.runtimes = try parseRuntimes(runtimes, container: cfg.container, docker: cfg.docker)
         }
         try parseReserve(partial.reserve, into: &cfg)
+        if let healing = partial.healing { cfg.healing = try parseHealing(healing) }
         try validateHostScopes(cfg)
         try validateEphemeralForges(cfg)
         return cfg

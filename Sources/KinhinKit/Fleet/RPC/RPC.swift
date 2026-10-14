@@ -34,15 +34,21 @@ public enum RPCMethod: String, Codable, Sendable {
     case benchStatus = "bench_status"
     /// Cancel a running benchmark; it still removes everything it created.
     case benchCancel = "bench_cancel"
+    /// The healing agent's policy and journal.
+    case healingStatus = "healing_status"
+    /// Carry out a healing fix that waits for approval.
+    case healingApprove = "healing_approve"
+    /// Close a pending or surfaced healing event.
+    case healingDismiss = "healing_dismiss"
 
     /// Methods that change fleet state; the daemon runs them one at a time.
     var mutatesFleet: Bool {
         switch self {
         case .start, .stop, .pause, .resume, .deleteVM, .requeueQueuedJobs, .skipQueuedJobs,
             .replaceToken, .replaceGiteaToken, .replaceForgejoToken, .replaceAccountToken, .reloadConfig,
-            .benchStart:
+            .benchStart, .healingApprove, .healingDismiss:
             return true
-        case .status, .pipelineDetail, .pipelineLog, .logs, .ping, .benchStatus, .benchCancel:
+        case .status, .pipelineDetail, .pipelineLog, .logs, .ping, .benchStatus, .benchCancel, .healingStatus:
             return false
         }
     }

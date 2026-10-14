@@ -147,6 +147,33 @@ extension ConfigLoader {
         }
     }
 
+    /// `healing:`: every key optional, defaults from `HealingConfig`.
+    static func parseHealing(_ partial: PartialConfig.PartialHealing) throws -> KinhinConfig.HealingConfig {
+        var healing = KinhinConfig.HealingConfig.default
+        if let enabled = partial.enabled { healing.enabled = enabled }
+        if let auto = partial.auto {
+            guard let mode = KinhinConfig.HealingConfig.AutoMode(rawValue: auto) else {
+                throw ConfigError.invalid("healing.auto must be safe or none, got '\(auto)'")
+            }
+            healing.auto = mode
+        }
+        if let ai = partial.ai {
+            guard let mode = KinhinConfig.HealingConfig.AIMode(rawValue: ai) else {
+                throw ConfigError.invalid("healing.ai must be auto or off, got '\(ai)'")
+            }
+            healing.ai = mode
+        }
+        if let attempts = partial.maxAttempts {
+            let range = KinhinConfig.HealingConfig.maxAttemptsRange
+            guard range.contains(attempts) else {
+                throw ConfigError.invalid(
+                    "healing.max_attempts must be between \(range.lowerBound) and \(range.upperBound), got \(attempts)")
+            }
+            healing.maxAttempts = attempts
+        }
+        return healing
+    }
+
     /// Removed keys: decoded only so they can be rejected with a pointer to
     /// their replacement instead of being silently ignored.
     static func rejectRemovedKeys(_ partial: PartialConfig) throws {

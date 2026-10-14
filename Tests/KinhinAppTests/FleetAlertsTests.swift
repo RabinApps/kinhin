@@ -34,6 +34,68 @@ final class FleetAlertsTests: XCTestCase {
         XCTAssertEqual(poster.posted.first?.title, "kinhin fleet not responding")
     }
 
+    // MARK: - Healing
+
+    private func healing(_ events: [(String, HealingEvent.Outcome)]) -> FleetStatus {
+        var status = FleetStatus()
+        status.healing = HealingSnapshot(
+            enabled: true, automatic: true, advisor: nil,
+            events: events.map { id, outcome in
+                HealingEvent(
+                    id: id, signal: HealingSignal(kind: .diskPressure, detail: "disk full"),
+                    remediation: Remediation(.pruneToolchainCache), source: .playbook, outcome: outcome,
+                    detail: "fixed \(id)")
+            })
+        return status
+    }
+
+    func testAFixThatNewlySucceedsPostsOnceByID() {
+        let poster = RecordingPoster()
+        let alerts = FleetAlerts(poster: poster)
+        alerts.observe(status: healing([("h-1", .running)]), unreachableReason: nil)
+        XCTAssertTrue(poster.posted.isEmpty, "a running fix is not news yet")
+        alerts.observe(status: healing([("h-1", .succeeded)]), unreachableReason: nil)
+        alerts.observe(status: healing([("h-1", .succeeded)]), unreachableReason: nil)
+        XCTAssertEqual(poster.posted, [FleetAlert(title: "kinhin fixed a problem", body: "fixed h-1")])
+    }
+
+    func testSuccessesAlreadyInTheFirstSnapshotDoNotBurstOnLaunch() {
+        let poster = RecordingPoster()
+        let alerts = FleetAlerts(poster: poster)
+        alerts.observe(status: healing([("h-2", .succeeded), ("h-1", .succeeded)]), unreachableReason: nil)
+        XCTAssertTrue(poster.posted.isEmpty)
+        // A fix that ran between two polls shows up already succeeded: that is news.
+        alerts.observe(
+            status: healing([("h-3", .succeeded), ("h-2", .succeeded), ("h-1", .succeeded)]), unreachableReason: nil)
+        XCTAssertEqual(poster.posted.map(\.body), ["fixed h-3"])
+    }
+
+    func testAStatusWithoutHealingDoesNotCountAsTheFirstSnapshot() {
+        let poster = RecordingPoster()
+        let alerts = FleetAlerts(poster: poster)
+        alerts.observe(status: FleetStatus(), unreachableReason: nil)  // a daemon predating healing
+        alerts.observe(status: healing([("h-1", .succeeded)]), unreachableReason: nil)
+        XCTAssertTrue(poster.posted.isEmpty, "the first healing snapshot is still history")
+    }
+
+    func testAnOutageDoesNotReplayKnownSuccesses() {
+        let poster = RecordingPoster()
+        let alerts = FleetAlerts(poster: poster)
+        alerts.observe(status: healing([("h-1", .running)]), unreachableReason: nil)
+        alerts.observe(status: healing([("h-1", .succeeded)]), unreachableReason: nil)
+        alerts.observe(status: nil, unreachableReason: "timed out")
+        alerts.observe(status: healing([("h-1", .succeeded)]), unreachableReason: nil)
+        XCTAssertEqual(poster.posted.map(\.title), ["kinhin fixed a problem", "kinhin fleet not responding"])
+    }
+
+    func testFailedAndDismissedFixesPostNothing() {
+        let poster = RecordingPoster()
+        let alerts = FleetAlerts(poster: poster)
+        alerts.observe(status: healing([]), unreachableReason: nil)
+        alerts.observe(status: healing([("h-2", .failed), ("h-1", .dismissed)]), unreachableReason: nil)
+        XCTAssertTrue(poster.posted.isEmpty)
+    }
+
     func testSleepIsPreventedOnlyWhileTheFleetIsRunningAndNotPaused() {
         var began = 0
         var ended = 0

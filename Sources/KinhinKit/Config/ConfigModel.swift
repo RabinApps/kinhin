@@ -99,6 +99,8 @@ public struct KinhinConfig: Sendable, Equatable {
     /// Additional forge accounts beyond the legacy `repo:` / `gitea:` ones,
     /// each with its own Keychain token. See `allAccounts` for the full set.
     public var accounts: [AccountConfig] = []
+    /// The healing agent's policy (`healing:`).
+    public var healing: HealingConfig = .default
 
     /// True when any project mounts the host toolchain cache into its runners.
     public var sharesToolchainCache: Bool { projects.contains { $0.shareCache == true } }
@@ -287,6 +289,7 @@ public struct KinhinConfig: Sendable, Equatable {
         case maxProjectImages = "max_project_images"
         case projects
         case accounts
+        case healing
     }
 
     public static let `default` = KinhinConfig(

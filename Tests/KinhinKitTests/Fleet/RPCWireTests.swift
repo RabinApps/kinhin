@@ -42,6 +42,9 @@ final class RPCWireTests: XCTestCase {
         case .benchStart: return "bench_start"
         case .benchStatus: return "bench_status"
         case .benchCancel: return "bench_cancel"
+        case .healingStatus: return "healing_status"
+        case .healingApprove: return "healing_approve"
+        case .healingDismiss: return "healing_dismiss"
         }
     }
 
@@ -52,6 +55,7 @@ final class RPCWireTests: XCTestCase {
             .deleteVM, .pipelineDetail, .pipelineLog, .requeueQueuedJobs, .skipQueuedJobs, .replaceToken,
             .replaceGiteaToken, .replaceAccountToken,
             .reloadConfig, .logs, .ping, .benchStart, .benchStatus, .benchCancel,
+            .healingStatus, .healingApprove, .healingDismiss,
         ] {
             XCTAssertEqual(method.rawValue, wireName(method), "\(method) must keep its wire name")
         }
