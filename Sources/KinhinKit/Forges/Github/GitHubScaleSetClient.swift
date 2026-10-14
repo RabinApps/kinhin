@@ -321,15 +321,25 @@ public struct GitHubScaleSetClient: GitHubScaleSetServing {
                 try await patchScaleSet(id: existing.id, labels: labels)
                 // GitHub may drop labels it does not accept for scale sets; say so, since jobs
                 // asking for a dropped label are never delivered.
-                if let (refreshedData, _) = try? await send(listRequest),
-                    let refreshed = try? JSONDecoder().decode(ScaleSetList.self, from: refreshedData).value.first
-                {
-                    let have = Set(refreshed.labels.map { $0.lowercased() })
-                    let missing = labels.filter { !have.contains($0.lowercased()) }
-                    Log.info(
+                do {
+                    let (refreshedData, _) = try await send(listRequest)
+                    if let refreshed = try JSONDecoder().decode(ScaleSetList.self, from: refreshedData).value.first {
+                        let have = Set(refreshed.labels.map { $0.lowercased() })
+                        let missing = labels.filter { !have.contains($0.lowercased()) }
+                        Log.info(
+                            "scaleset",
+                            "after update GitHub reports: \(refreshed.labels.sorted().joined(separator: ", "))"
+                                + (missing.isEmpty
+                                    ? "" : " — NOT accepted: \(missing.sorted().joined(separator: ", "))"))
+                    }
+                } catch is CancellationError {
+                    throw CancellationError()
+                } catch {
+                    // The patch itself succeeded; only the check for dropped labels is lost.
+                    Log.warn(
                         "scaleset",
-                        "after update GitHub reports: \(refreshed.labels.sorted().joined(separator: ", "))"
-                            + (missing.isEmpty ? "" : " — NOT accepted: \(missing.sorted().joined(separator: ", "))"))
+                        "could not re-read the labels of '\(name)' after updating them, so labels GitHub "
+                            + "did not accept are not reported: \(error.localizedDescription)")
                 }
             }
             return GitHubScaleSet(
