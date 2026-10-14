@@ -65,6 +65,7 @@ release builds always use the Keychain.
 swift format lint --strict -r Sources Tests
 swift format format -i -r Sources Tests
 bash scripts/skills-lint.sh       # skills/*/SKILL.md frontmatter + command drift (in check.sh too)
+bash scripts/rules-lint.sh        # try!, as!, force unwraps, locks, uncommented try?, files over 450 lines (in check.sh too)
 ```
 
 Formatting is configured in `.swift-format` (4 spaces, 120 columns). Run the formatter before committing; CI lints with `--strict`.
