@@ -43,7 +43,8 @@ public struct VideoRunner: Sendable {
             let probe =
                 runtime == .appleContainer
                 ? [binary, "system", "status"] : [binary, "info", "--format", "{{.ServerVersion}}"]
-            if let result = try? await shell.run(probe, cwd: nil, timeout: 20), result.succeeded {
+            // A probe that cannot launch is a "not running" answer like a failing one; cancellation propagates.
+            if let result = try await probeResult(probe), result.succeeded {
                 return (runtime, binary)
             }
             problems.append(
@@ -106,9 +107,21 @@ public struct VideoRunner: Sendable {
             VideoRunPlan.validation(binary: binary, image: image, repo: repo, project: project))
     }
 
+    /// A probe's result, nil when it could not even launch (a "no" for the
+    /// caller). Cancellation is not a "no": it propagates.
+    private func probeResult(_ argv: [String], timeout: TimeInterval = 20) async throws -> ShellResult? {
+        do {
+            return try await shell.run(argv, cwd: nil, timeout: timeout)
+        } catch let cancelled as CancellationError {
+            throw cancelled
+        } catch {
+            return nil
+        }
+    }
+
     /// Pulls the image when it is not on this machine yet (the first build downloads about a gigabyte).
     func ensureImage(image: String, inspect: [String], pull: [String]) async throws {
-        if let present = try? await shell.run(inspect, cwd: nil, timeout: 30), present.succeeded { return }
+        if let present = try await probeResult(inspect, timeout: 30), present.succeeded { return }
         FileHandle.standardError.write(Data("==> pulling \(image) (first build only)\n".utf8))
         let code: Int32
         do {

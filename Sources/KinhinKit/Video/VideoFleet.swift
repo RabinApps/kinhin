@@ -158,12 +158,13 @@ public enum VideoFleet {
     }
 
     /// The newest run created at or after `notBefore` (a little slack for clock skew), from `gh run list --json`.
-    public static func runID(fromListing json: String, notBefore: Date) -> Int? {
+    /// nil = no such run yet; throws when the listing is not that JSON.
+    public static func runID(fromListing json: String, notBefore: Date) throws -> Int? {
         struct Row: Decodable {
             var databaseId: Int
             var createdAt: String
         }
-        guard let rows = try? JSONDecoder().decode([Row].self, from: Data(json.utf8)) else { return nil }
+        let rows = try JSONDecoder().decode([Row].self, from: Data(json.utf8))
         let formatter = ISO8601DateFormatter()
         return
             rows
@@ -185,6 +186,7 @@ public struct VideoFleetRunner: Sendable {
         shell: ShellRunning = Shell(), process: VideoProcessRunning = InheritedProcessRunner(),
         ghPath: @escaping @Sendable () -> String? = { Paths.findExecutable(named: "gh") },
         now: @escaping @Sendable () -> Date = { Date() },
+        // A cancelled sleep only ends the pause early; the next shell call throws CancellationError.
         pause: @escaping @Sendable (TimeInterval) async -> Void = { try? await Task.sleep(for: .seconds($0)) }
     ) {
         self.shell = shell
@@ -226,13 +228,26 @@ public struct VideoFleetRunner: Sendable {
             throw VideoError.runtimeUnavailable("gh could not start the workflow (exit \(dispatched))")
         }
         var runID: Int?
+        // A failing or unreadable listing is retried like "not there yet",
+        // but the last such problem is named if the run never appears.
+        var problem: String?
         for _ in 0..<20 where runID == nil {
             await pause(3)
             let listing = try await shell.run(VideoFleet.listArguments(gh: gh, ref: branch), cwd: repo, timeout: 30)
-            runID = VideoFleet.runID(fromListing: listing.stdout, notBefore: started)
+            guard listing.succeeded else {
+                problem = "gh run list failed: \(listing.stderr.trimmingCharacters(in: .whitespacesAndNewlines))"
+                continue
+            }
+            do {
+                runID = try VideoFleet.runID(fromListing: listing.stdout, notBefore: started)
+            } catch {
+                problem = "could not read gh run list output: \(error.localizedDescription)"
+            }
         }
         guard let runID else {
-            throw VideoError.runtimeUnavailable("the run did not appear; check the Actions tab of the repository")
+            let why = problem.map { " (\($0))" } ?? ""
+            throw VideoError.runtimeUnavailable(
+                "the run did not appear\(why); check the Actions tab of the repository")
         }
         let watched = try await process.runInteractive([gh, "run", "watch", String(runID), "--exit-status"])
         guard watched == 0 else {

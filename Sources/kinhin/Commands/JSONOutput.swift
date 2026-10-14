@@ -61,6 +61,7 @@ enum ErrorReporter {
     static func render(_ message: String, code: CLIExit, json: Bool) -> (stdout: String?, stderr: String?) {
         guard json else { return (nil, "kinhin: \(message)") }
         let document = ErrorDocument(error: message, code: code.rawValue)
+        // Encoding two plain fields cannot fail; the fallback still carries the exit code.
         return ((try? CLIJSON.string(document)) ?? "{\"code\":\(code.rawValue)}", nil)
     }
 

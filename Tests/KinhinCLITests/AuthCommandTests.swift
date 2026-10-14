@@ -348,4 +348,22 @@ final class AuthCommandTests: XCTestCase {
         )
         XCTAssertTrue(recorder.saved.isEmpty)
     }
+
+    /// `auth status` tolerates a missing config silently, but a broken one is
+    /// named on stderr instead of reading as "no config".
+    func testTolerantConfigLoadWarnsAboutABrokenConfig() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("kinhin-auth-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }  // test temp dir
+        let url = dir.appendingPathComponent("config.yaml")
+        var warnings: [String] = []
+
+        XCTAssertNil(AuthEnvironment.loadConfigTolerant(at: url, warn: { warnings.append($0) }))
+        XCTAssertEqual(warnings, [], "no config file is not a problem to report")
+
+        try "max_runners: [not a number".write(to: url, atomically: true, encoding: .utf8)
+        XCTAssertNil(AuthEnvironment.loadConfigTolerant(at: url, warn: { warnings.append($0) }))
+        XCTAssertEqual(warnings.count, 1)
+        XCTAssertTrue(warnings.first?.hasPrefix("could not read the config") == true, warnings.first ?? "")
+    }
 }

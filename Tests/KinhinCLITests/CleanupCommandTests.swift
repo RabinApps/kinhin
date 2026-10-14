@@ -38,4 +38,16 @@ final class CleanupCommandTests: XCTestCase {
         XCTAssertEqual(report.summary, "")
         XCTAssertEqual(report.targets, .init(vms: true, image: true, cache: true))
     }
+
+    /// A broken `tart_path:` skips VMs and images with a warning naming the
+    /// path, instead of reading as "nothing to clean up".
+    func testBrokenTartPathWarnsInsteadOfSkippingSilently() {
+        let (tart, warning) = CleanupCommand.tartController(for: .all, tartPath: "/no/such/tart")
+        XCTAssertNil(tart)
+        XCTAssertTrue(warning?.contains("/no/such/tart") == true, warning ?? "no warning")
+        XCTAssertTrue(warning?.contains("skipped") == true, warning ?? "no warning")
+
+        let (_, cacheOnly) = CleanupCommand.tartController(for: .init(cache: true), tartPath: "/no/such/tart")
+        XCTAssertNil(cacheOnly, "a cache-only cleanup does not need tart")
+    }
 }

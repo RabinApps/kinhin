@@ -65,6 +65,7 @@ release builds always use the Keychain.
 swift format lint --strict -r Sources Tests
 swift format format -i -r Sources Tests
 bash scripts/skills-lint.sh       # skills/*/SKILL.md frontmatter + command drift (in check.sh too)
+bash scripts/rules-lint.sh        # try!, as!, force unwraps, locks, uncommented try?, files over 450 lines (in check.sh too)
 ```
 
 Formatting is configured in `.swift-format` (4 spaces, 120 columns). Run the formatter before committing; CI lints with `--strict`.
@@ -190,7 +191,28 @@ generates `kinhin help`, each `kinhin <command> --help` page and the skills-lint
 ## Error handling
 
 - Functions that can fail `throw`. Do not return `nil`/`false`/`[]` to mean "it failed".
-- Each domain has one error enum conforming to `LocalizedError` with a user-readable `errorDescription`: `ConfigError` (load/parse), `ConfigEditError` (every config editor), `ImageError` (all image preparers), `TartError`/`ContainerManagerError`/`RuntimeWatchError` (runtimes), `GitHubError`/`GiteaError`/`GitLabError`/`BuildkiteError`/`AzureDevOpsError` (forge clients), `EngineError` (also the app's fleet-access errors), `RPCError`/`DaemonError`, `UpdateCheckError`. Add cases to these instead of creating a new enum per file.
+- Each domain has one error enum conforming to `LocalizedError` with a user-readable `errorDescription`. Add cases to
+  it instead of creating a new enum per file. The sanctioned error types, by domain:
+  - Config: `ConfigError` (load/parse), `ConfigEditError` (every config editor).
+  - Images and runtimes: `ImageError` (all image preparers), `TartError`, `ContainerManagerError`, `RuntimeWatchError`,
+    `RuntimeInstallerError`.
+  - Forges: `ForgeAPIError` (HTTP failures from the shared `ForgeTransport`), `GitHubError` (the GitHub REST and
+    scale-set clients and the scale-set listener), and `GiteaError`/`GitLabError`/`BuildkiteError`/`AzureDevOpsError`/
+    `BitbucketError` for each forge's non-HTTP problems (bad instance URL or scope, missing token scopes, unknown pool).
+  - Fleet: `EngineError` (also the app's fleet-access errors), `RPCError`, `Daemon.DaemonError` (nested in `Daemon`,
+    declared in `Daemon+Error.swift`), `BenchmarkError`.
+  - Core: `ShellError`, `KeychainTokenStore.TokenError` (`Core/TokenStore.swift`), `UpdateCheckError`.
+  - Workflows: `WorkflowError`, `WorkflowRouteEditor.EditError`.
+  - Video and mobile: `VideoError`, `MusicError`, `MobileScaffoldError`.
+  - CLI (`Sources/kinhin`): `CLIError` (a failure with its exit code); the usage and route errors
+    `MobileCommand.UsageError`, `RuntimesCommand.RouteError`, `WorkflowRoutePreFlight` and
+    `WorkflowRouteAvailabilityProblem`; `RunCommands.ControlFailure`, `PipelineCommandError` and `MCPToolError`.
+  - App (`Sources/kinhin-app`), whose messages are localized through the String Catalog and so stay out of
+    `KinhinKit`: `LaunchAtLoginError`, and `ConfigNotAppliedError`/`ConfigPushFailure` (a saved config edit the
+    running fleet could not take).
+
+  A type private to one view or parser that never escapes it (`BaseImagePicker.ProblemText`, `DemoTimeline.Invalid`)
+  is not a domain error and needs no entry.
 - Best-effort work (cleanup, cache dirs, idempotent teardown) goes through `bestEffort`/`bestEffortAsync` (`Core/BestEffort.swift`), which logs the failure instead of hiding it. Retry transient network failures with `withTransientRetry`.
 - `try?` is allowed only for genuinely best-effort work (cache cleanup, cosmetic reads) and carries a short comment saying why ignoring the failure is safe. If a failure changes what the user sees, handle it: log it and surface it.
 - No `try!`, `as!`, or force unwraps (`!`) outside tests. Use `guard let` / `if let` or a single documented `preconditionFailure` for true invariants.

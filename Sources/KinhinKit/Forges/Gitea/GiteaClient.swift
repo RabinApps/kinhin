@@ -410,19 +410,18 @@ struct TaskQueueWrapper: Decodable {
             status = try c.decodeIfPresent(String.self, forKey: .status)
             runner_name = try c.decodeIfPresent(String.self, forKey: .runner_name)
             repo_full_name = try c.decodeIfPresent(String.self, forKey: .repo_full_name)
-            // Some versions put a string here, others the {full_name} object
-            // below — a type mismatch degrades to nil instead of failing the
-            // whole entry.
-            // Older/newer Gitea versions disagree on which of the two shapes the
-            // `repository` field takes; either being absent is expected, not an error.
-            head_branch = try? c.decodeIfPresent(String.self, forKey: .head_branch)
-            head_sha = try? c.decodeIfPresent(String.self, forKey: .head_sha)
-            url = try? c.decodeIfPresent(String.self, forKey: .url)
-            display_title = try? c.decodeIfPresent(String.self, forKey: .display_title)
-            run_number = try? c.decodeIfPresent(Int.self, forKey: .run_number)
-            run_started_at = try? c.decodeIfPresent(String.self, forKey: .run_started_at)
-            repository = try? c.decodeIfPresent(String.self, forKey: .repository)
-            repositoryObject = try? c.decodeIfPresent(RepoObject.self, forKey: .repository)
+            // Leniency policy: these fields are display-only and their types
+            // differ across Gitea/Forgejo versions (`repository` is a string on
+            // some, a {full_name} object on others), so a type mismatch
+            // degrades that one field to nil instead of dropping the whole run.
+            head_branch = try? c.decodeIfPresent(String.self, forKey: .head_branch)  // lenient: see above
+            head_sha = try? c.decodeIfPresent(String.self, forKey: .head_sha)  // lenient: see above
+            url = try? c.decodeIfPresent(String.self, forKey: .url)  // lenient: see above
+            display_title = try? c.decodeIfPresent(String.self, forKey: .display_title)  // lenient: see above
+            run_number = try? c.decodeIfPresent(Int.self, forKey: .run_number)  // lenient: see above
+            run_started_at = try? c.decodeIfPresent(String.self, forKey: .run_started_at)  // lenient: see above
+            repository = try? c.decodeIfPresent(String.self, forKey: .repository)  // lenient: see above
+            repositoryObject = try? c.decodeIfPresent(RepoObject.self, forKey: .repository)  // lenient: see above
         }
 
         enum CodingKeys: String, CodingKey {
@@ -487,9 +486,10 @@ struct GiteaJob: Decodable {
         id = try c.decodeIfPresent(Int.self, forKey: .id)
         name = try c.decodeIfPresent(String.self, forKey: .name)
         status = try c.decodeIfPresent(String.self, forKey: .status)
-        // A string on some shapes, an object with `full_name` on others.
+        // A string on some shapes, an object with `full_name` on others: each
+        // attempt is lenient (a mismatch is nil), and the job URL is the fallback.
         let asString = try? c.decodeIfPresent(String.self, forKey: .repository)
-        let asObject = try? c.decodeIfPresent(RepositoryRef.self, forKey: .repository)
+        let asObject = try? c.decodeIfPresent(RepositoryRef.self, forKey: .repository)  // lenient: see above
         let named = (asString ?? nil) ?? (asObject ?? nil)?.fullName
         let jobURL = try c.decodeIfPresent(String.self, forKey: .url)
         repository = named ?? Self.repository(fromJobURL: jobURL)

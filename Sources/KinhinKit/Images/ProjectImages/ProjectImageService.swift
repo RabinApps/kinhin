@@ -107,9 +107,9 @@ public struct ProjectImageService: Sendable {
         guard let toolchains = resolution.toolchains else {
             return await result(for: resolution, repository: repository, builder: builder, baked: false)
         }
-        var availability = await builder.request(toolchains: toolchains, shareCache: resolution.shareCache)
+        var availability = try await builder.request(toolchains: toolchains, shareCache: resolution.shareCache)
         await builder.waitForBakes()
-        availability = await builder.request(toolchains: toolchains, shareCache: resolution.shareCache)
+        availability = try await builder.request(toolchains: toolchains, shareCache: resolution.shareCache)
         switch availability {
         case .ready:
             return await result(for: resolution, repository: repository, builder: builder, baked: true)

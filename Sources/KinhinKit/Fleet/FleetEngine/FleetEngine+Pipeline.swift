@@ -74,6 +74,7 @@ final class PipelineDetailCache: Sendable {
         self.ttl = ttl
     }
 
+    // / The cached entry for `id`, nil when absent or older than the TTL.
     func value(for id: String, ignoringAge: Bool = false, now: Date = Date()) -> Entry? {
         guard let entry = entries.withLock({ $0[id] }) else { return nil }
         return ignoringAge || now.timeIntervalSince(entry.fetched) < ttl ? entry : nil

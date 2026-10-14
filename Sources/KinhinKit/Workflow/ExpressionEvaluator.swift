@@ -30,6 +30,7 @@ struct ExpressionEvaluator: Sendable {
         ]
         for (expression, value) in replacements { result = result.replacingOccurrences(of: expression, with: value) }
         let pattern = #"\$\{\{\s*(env|secrets)\.([A-Za-z_][A-Za-z0-9_]*)\s*\}\}"#
+        // A constant pattern; if it ever failed, expressions would stay unexpanded, not crash.
         if let regex = try? NSRegularExpression(pattern: pattern) {
             let ns = result as NSString
             let matches = regex.matches(in: result, range: NSRange(location: 0, length: ns.length))

@@ -60,7 +60,10 @@ public struct ImagePrunePlan: Sendable, Equatable {
         let protected = protectedNames(config)
         var targets: [ImageDeletePlan.Target] = []
         var inUse: [InUse] = []
-        for entry in inventory.entries {
+        // A section that could not be listed, or whose instances could not
+        // be, is never swept: "nothing uses it" is unknown there.
+        let trusted = inventory.sections.filter { $0.unavailable == nil && $0.usageUnknown == nil }
+        for entry in trusted.flatMap(\.entries) {
             if entry.stale {
                 // A live VM still answers to this name; keep the record.
                 if fleet.contains(where: { $0.image == entry.name }) { continue }
@@ -82,7 +85,9 @@ public struct ImagePrunePlan: Sendable, Equatable {
         }
         var unavailable: [String: String] = [:]
         for section in inventory.sections {
-            if let reason = section.unavailable { unavailable[section.runtime.rawValue] = reason }
+            if let reason = section.unavailable ?? section.usageUnknown {
+                unavailable[section.runtime.rawValue] = reason
+            }
         }
         return ImagePrunePlan(targets: targets, inUse: inUse, unavailable: unavailable)
     }

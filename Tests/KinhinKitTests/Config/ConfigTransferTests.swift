@@ -121,6 +121,22 @@ final class ConfigTransferTests: XCTestCase {
             ])
     }
 
+    func testAKeychainErrorIsAWarningNotAMissingToken() throws {
+        struct Locked: LocalizedError { var errorDescription: String? { "keychain locked" } }
+        let plan = try ConfigTransfer.plan(
+            incoming: yaml, configURL: configURL,
+            tokenStored: { _, name in
+                if name == "home" { throw Locked() }; return true
+            },
+            fileExists: { _ in true })
+        XCTAssertEqual(plan.warnings, ["could not check the Keychain for account home: keychain locked"])
+    }
+
+    func testAnUnreadableCurrentConfigThrowsInsteadOfBeingReplacedWithoutABackup() throws {
+        try FileManager.default.createDirectory(at: configURL, withIntermediateDirectories: true)
+        XCTAssertThrowsError(try plan(yaml), "a directory at the config path cannot be read as a config")
+    }
+
     func testATartPathMissingOnThisMacIsAWarning() throws {
         let plan = try plan(yaml + "tart_path: /opt/elsewhere/tart\n")
         XCTAssertEqual(plan.warnings.count, 1)

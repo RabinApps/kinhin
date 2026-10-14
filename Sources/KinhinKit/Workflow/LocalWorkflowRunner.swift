@@ -295,6 +295,7 @@ public actor LocalWorkflowRunner {
         temp: URL, values: inout [String: String], paths: inout [String], notices: inout [String]
     ) {
         let envFile = temp.appendingPathComponent("env")
+        // The step wrote no GITHUB_ENV file (the usual case): nothing to apply.
         if let text = try? String(contentsOf: envFile, encoding: .utf8) {
             for line in text.split(separator: "\n") {
                 guard let separator = line.firstIndex(of: "=") else {
@@ -309,6 +310,7 @@ public actor LocalWorkflowRunner {
             }
         }
         let pathFile = temp.appendingPathComponent("path")
+        // The step wrote no GITHUB_PATH file (the usual case): nothing to apply.
         if let text = try? String(contentsOf: pathFile, encoding: .utf8) {
             let added = text.split(separator: "\n").map(String.init)
             if !added.isEmpty { paths.append(contentsOf: added) }

@@ -112,6 +112,7 @@ public struct VideoMusicService: Sendable {
     }
 
     private func remembered() -> [MusicTrack] {
+        // The last-search cache is a convenience: missing or stale reads as "no earlier search".
         (try? Data(contentsOf: cacheFile)).flatMap { try? JSONDecoder().decode([MusicTrack].self, from: $0) } ?? []
     }
 
@@ -222,7 +223,9 @@ public struct VideoMusicService: Sendable {
     public static func list(in repo: URL) -> MusicListing {
         let uses: [VideoMusicUse] = VideoProjects.list(in: repo).map { name in
             guard let file = VideoProjects.file(named: name, in: repo),
+                // An unreadable or invalid video config lists as "none" here; `video build` reports its error.
                 let text = try? String(contentsOf: file, encoding: .utf8),
+                // Same: invalid YAML lists as "none".
                 let root = (try? Yams.load(yaml: text)) as? [String: Any]
             else { return VideoMusicUse(video: name, track: "none", volume: nil) }
             return describe(music: root["music"], video: name)

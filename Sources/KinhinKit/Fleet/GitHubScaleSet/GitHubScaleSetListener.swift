@@ -41,7 +41,7 @@ public actor GitHubScaleSetListener {
     var cachedScaleSetId: Int?
     var cachedStatistics: GitHubScaleSetStatistics?
     var statisticsExpiresAt: Date?
-    var _lastError: ScaleSetError?
+    var _lastError: GitHubError?
 
     public init(
         client: GitHubScaleSetServing,
@@ -108,7 +108,7 @@ public actor GitHubScaleSetListener {
     }
 
     /// The last error observed during listener maintenance.
-    public func reportedError() -> ScaleSetError? { _lastError }
+    public func reportedError() -> GitHubError? { _lastError }
 
     // MARK: - Demand surface
 

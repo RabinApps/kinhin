@@ -200,8 +200,8 @@ final class GitHubScaleSetClientTests: XCTestCase {
             _ = try await makeClient().ensureScaleSet(
                 name: "kinhin", labels: ["self-hosted"], runnerGroup: "default")
             XCTFail("a group GitHub does not list must fail instead of attaching to the wrong one")
-        } catch let error as ScaleSetError {
-            guard case .messageServiceFailure(let reason) = error else {
+        } catch let error as GitHubError {
+            guard case .scaleSetMessageServiceFailure(let reason) = error else {
                 return XCTFail("unexpected error: \(error)")
             }
             XCTAssertTrue(reason.contains("runner group 'default' was not found"), reason)
@@ -389,7 +389,7 @@ final class GitHubScaleSetClientTests: XCTestCase {
         do {
             _ = try await makeClient().acquireJobs(session: testSession(), scaleSetId: 4, requestIds: [17])
             XCTFail("a 401 is an expired queue token")
-        } catch GitHubScaleSetClientError.messageQueueTokenExpired {}
+        } catch GitHubError.scaleSetMessageQueueTokenExpired {}
     }
 
     /// An unreadable reply is a decoding error, not "nothing acquired".

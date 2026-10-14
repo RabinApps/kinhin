@@ -73,9 +73,18 @@ struct AuthEnvironment: Sendable {
     }
 
     /// `auth status --json` works without a config file — the report's
-    /// job is to *report* what's missing, not die on it.
-    static func loadConfigTolerant() -> KinhinConfig? {
-        try? ConfigLoader.load()
+    /// job is to *report* what's missing, not die on it. A config that exists
+    /// but does not load says so on stderr instead of reading as "no config".
+    static func loadConfigTolerant(
+        at url: URL = Paths.config, warn report: (String) -> Void = { kinhin.warn($0) }
+    ) -> KinhinConfig? {
+        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+        do {
+            return try ConfigLoader.load(from: url)
+        } catch {
+            report("could not read the config (\(error.localizedDescription)); reporting without it")
+            return nil
+        }
     }
 
     /// The config account lookups read: the test fixture when set, else the

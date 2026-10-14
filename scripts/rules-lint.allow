@@ -1,0 +1,8 @@
+# Swift files allowed over the 450-line limit of scripts/rules-lint.sh (rule file-length).
+# This list only shrinks: split a file by responsibility, then delete its line. Never add one.
+Sources/KinhinKit/Fleet/FleetLifecycle.swift
+Sources/KinhinKit/Fleet/FleetReconcile.swift
+Sources/KinhinKit/Forges/Gitea/GiteaClient.swift
+Sources/KinhinKit/Forges/Github/GitHubScaleSetClient.swift
+Sources/KinhinKit/Mobile/MobileScaffold.swift
+Sources/kinhin/Commands/Spec/CommandCatalog.swift

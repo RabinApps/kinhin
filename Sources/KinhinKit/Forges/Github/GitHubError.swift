@@ -9,6 +9,22 @@ public enum GitHubError: LocalizedError, CategorizedError, Equatable, Sendable {
     case decoding(String)
     case invalidInstance(String)
 
+    // Scale-set (Actions service) failures. The listener reports the ones in
+    // `isScaleSetFailure` verbatim; any other error is wrapped in one of them.
+    /// The message-queue token expired; the caller refreshes the session and retries.
+    case scaleSetMessageQueueTokenExpired
+    /// GitHub still holds an earlier session for this scale set (409).
+    case scaleSetSessionConflict
+    /// A queue action (requeue / skip) the scale-set listener cannot perform.
+    case scaleSetQueueActionUnsupported(action: String)
+    case scaleSetNoSession(reason: String)
+    case scaleSetSessionRefreshFailed(reason: String)
+    case scaleSetAdminTokenFailure(reason: String)
+    case scaleSetIdFailure(reason: String)
+    case scaleSetStatisticsUnavailable(reason: String)
+    case scaleSetMessageServiceFailure(reason: String)
+    case scaleSetJITConfigFailure(reason: String)
+
     /// Only credential and access problems point at the token; an outage,
     /// rate limit or malformed response must not tell the user to re-enter it.
     public var category: ErrorCategory {
@@ -16,7 +32,31 @@ public enum GitHubError: LocalizedError, CategorizedError, Equatable, Sendable {
         case .unauthorized, .forbidden, .notFound: return .auth
         case .invalidInstance: return .config
         case .rateLimited, .http, .decoding: return .runtime
+        case .scaleSetMessageQueueTokenExpired, .scaleSetSessionConflict, .scaleSetQueueActionUnsupported,
+            .scaleSetNoSession, .scaleSetSessionRefreshFailed, .scaleSetAdminTokenFailure, .scaleSetIdFailure,
+            .scaleSetStatisticsUnavailable, .scaleSetMessageServiceFailure, .scaleSetJITConfigFailure:
+            // A listener/session failure: the wrapped reason may be an auth problem, but the
+            // scale-set error itself is not a rejected token.
+            return .runtime
         }
+    }
+
+    /// The listener-side failures the scale-set listener reports as they are;
+    /// any other error it wraps in one of these before reporting.
+    var isScaleSetFailure: Bool {
+        switch self {
+        case .scaleSetNoSession, .scaleSetSessionRefreshFailed, .scaleSetAdminTokenFailure, .scaleSetIdFailure,
+            .scaleSetStatisticsUnavailable, .scaleSetMessageServiceFailure, .scaleSetJITConfigFailure:
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// `error` when it is already a scale-set failure (`isScaleSetFailure`), otherwise `fallback`.
+    static func scaleSetFailure(_ error: Error, or fallback: GitHubError) -> GitHubError {
+        if let error = error as? GitHubError, error.isScaleSetFailure { return error }
+        return fallback
     }
 
     public var errorDescription: String? {
@@ -49,6 +89,30 @@ public enum GitHubError: LocalizedError, CategorizedError, Equatable, Sendable {
         case .invalidInstance(let url):
             return
                 "invalid GitHub enterprise instance URL: \(url). Use the base URL (e.g. https://github.example.com or https://SUB.ghe.com), not an /api path"
+        case .scaleSetMessageQueueTokenExpired:
+            return "scale-set message queue token expired"
+        case .scaleSetSessionConflict:
+            return
+                "scale-set session conflict: GitHub still holds an earlier session for this scale set "
+                + "(a previous run that did not shut down cleanly, or another kinhin instance); "
+                + "retrying until it expires"
+        case .scaleSetQueueActionUnsupported(let action):
+            return
+                "\(action) is not supported for scale-set accounts: jobs are delivered by GitHub, not read from a queue"
+        case .scaleSetNoSession(let reason):
+            return "scale-set session is not active: \(reason)"
+        case .scaleSetSessionRefreshFailed(let reason):
+            return "scale-set session refresh failed: \(reason)"
+        case .scaleSetAdminTokenFailure(let reason):
+            return "scale-set admin token unavailable: \(reason)"
+        case .scaleSetIdFailure(let reason):
+            return "scale-set id unavailable: \(reason)"
+        case .scaleSetStatisticsUnavailable(let reason):
+            return "scale-set statistics unavailable: \(reason)"
+        case .scaleSetMessageServiceFailure(let reason):
+            return "scale-set message service failed: \(reason)"
+        case .scaleSetJITConfigFailure(let reason):
+            return "scale-set JIT config generation failed: \(reason)"
         }
     }
 

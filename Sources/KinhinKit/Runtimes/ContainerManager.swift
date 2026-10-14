@@ -181,6 +181,7 @@ public struct ContainerManager: Sendable {
     /// objects (CLI warnings mixed into stdout) are skipped.
     static func jsonLines(_ text: String) -> [[String: Any]] {
         text.split(whereSeparator: \.isNewline).compactMap {
+            // Non-JSON lines are CLI warnings mixed into stdout; skipping them is the contract.
             (try? JSONSerialization.jsonObject(with: Data($0.utf8))) as? [String: Any]
         }
     }
@@ -190,6 +191,7 @@ public struct ContainerManager: Sendable {
     static func jsonArray(_ text: String) -> [[String: Any]] {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty,
+            // Documented above: a malformed listing reads as no entries.
             let object = try? JSONSerialization.jsonObject(with: Data(trimmed.utf8))
         else { return [] }
         return (object as? [[String: Any]]) ?? []

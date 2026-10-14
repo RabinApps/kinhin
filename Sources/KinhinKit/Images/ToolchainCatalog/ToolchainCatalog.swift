@@ -9,6 +9,7 @@ public enum ToolchainCatalog {
         return String(spec[..<at])
     }
 
+    // / The catalog entry with this id; nil when there is none.
     public static func tool(id: String) -> ToolchainEntry? {
         tools.first { $0.id == id }
     }

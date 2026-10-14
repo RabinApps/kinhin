@@ -383,6 +383,7 @@ private struct WarmPoolStepper: View {
             // Each change restarts this task, so the config is written once the clicks settle, not per click.
             .task(id: pending) {
                 guard let target = pending, target != count else { return }
+                // Cancelled = another click restarted the debounce; the isCancelled check below stops this one.
                 try? await Task.sleep(for: .milliseconds(600))
                 guard !Task.isCancelled else { return }
                 commit(target)

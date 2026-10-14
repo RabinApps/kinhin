@@ -143,6 +143,7 @@ final class BenchmarksModel {
             Task { await attachToLiveRun() }
         }
         history = store.list()
+        // An unreadable file leaves the screen empty; the history list skipped it too.
         if report == nil, !isRunning, let newest = history.first, let loaded = try? store.load(newest.url) {
             // An unreadable file simply leaves the screen empty; the history list skipped it too.
             report = loaded

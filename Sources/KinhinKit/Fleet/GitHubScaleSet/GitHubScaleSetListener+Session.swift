@@ -26,24 +26,24 @@ extension GitHubScaleSetListener {
             _lastError = nil
         } catch is CancellationError {
             return
-        } catch GitHubScaleSetClientError.sessionConflict {
+        } catch GitHubError.scaleSetSessionConflict {
             conflictStreak += 1
             let reason =
                 conflictStreak >= Self.conflictsBeforeHint
                 ? "GitHub still holds a session for this scale set that kinhin has no record of — another kinhin "
                     + "instance (or an earlier run on another machine) is using it. It frees up on its own within a "
                     + "few minutes once that instance stops; nothing needs to be re-created."
-                : GitHubScaleSetClientError.sessionConflict.localizedDescription
-            _lastError = .sessionRefreshFailed(reason: reason)
+                : GitHubError.scaleSetSessionConflict.localizedDescription
+            _lastError = .scaleSetSessionRefreshFailed(reason: reason)
             Log.warn("scaleset", "session refresh failed: \(reason)")
             scheduleBackoff()
-        } catch let error as ScaleSetError {
+        } catch let error as GitHubError where error.isScaleSetFailure {
             _lastError = error
             Log.warn("scaleset", "session refresh failed: \(String(describing: error.errorDescription))")
             scheduleBackoff()
         } catch {
             let reason = error.localizedDescription
-            let failure = ScaleSetError.sessionRefreshFailed(reason: reason)
+            let failure = GitHubError.scaleSetSessionRefreshFailed(reason: reason)
             _lastError = failure
             Log.warn("scaleset", "session refresh failed: \(reason)")
             scheduleBackoff()
@@ -78,7 +78,7 @@ extension GitHubScaleSetListener {
             throw CancellationError()
         } catch {
             cachedScaleSetId = nil
-            throw ScaleSetError.scaleSetIdFailure(reason: error.localizedDescription)
+            throw GitHubError.scaleSetIdFailure(reason: error.localizedDescription)
         }
     }
 

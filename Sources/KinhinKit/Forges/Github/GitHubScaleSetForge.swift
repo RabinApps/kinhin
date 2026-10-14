@@ -101,8 +101,14 @@ struct GitHubScaleSetForge: ForgeWithQueuedJobs, ForgeWithJITConfig {
     }
 
     func scaleSetStatusMessage() async -> String {
-        let id = (try? await currentScaleSetId()).map { String($0) } ?? "unknown"
-        return "scale-set \(id)"
+        do {
+            return "scale-set \(try await currentScaleSetId())"
+        } catch {
+            // Cosmetic: a status line. The listener's session refresh hits the same failure
+            // and reports it (`reportedError`), so this only notes it for debugging.
+            Log.debug("scaleset", "scale-set id unavailable for the status line: \(error.localizedDescription)")
+            return "scale-set unknown"
+        }
     }
 
     // MARK: - JIT config (per-runner)
@@ -232,10 +238,10 @@ struct GitHubScaleSetForge: ForgeWithQueuedJobs, ForgeWithJITConfig {
     // error path (`AlertKit` in the app, the RPC error for the CLI).
 
     func userRequeueQueuedJobs() async throws {
-        throw GitHubScaleSetError.queueActionUnsupported(action: "Requeueing queued jobs")
+        throw GitHubError.scaleSetQueueActionUnsupported(action: "Requeueing queued jobs")
     }
 
     func userSkipQueuedJobs() async throws {
-        throw GitHubScaleSetError.queueActionUnsupported(action: "Skipping queued jobs")
+        throw GitHubError.scaleSetQueueActionUnsupported(action: "Skipping queued jobs")
     }
 }

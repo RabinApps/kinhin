@@ -18,7 +18,7 @@ extension GitHubScaleSetListener {
             } catch {
                 let reason = error.localizedDescription
                 Log.warn("scaleset", "message poll failed: \(reason)")
-                _lastError = error as? ScaleSetError ?? .messageServiceFailure(reason: reason)
+                _lastError = .scaleSetFailure(error, or: .scaleSetMessageServiceFailure(reason: reason))
                 abandonedSessionId = session?.sessionId
                 session = nil
                 scheduleBackoff()
@@ -28,16 +28,18 @@ extension GitHubScaleSetListener {
     }
 
     func pollOnce() async throws {
-        guard session != nil else { throw ScaleSetError.noSession(reason: "listener is not started") }
+        guard session != nil else { throw GitHubError.scaleSetNoSession(reason: "listener is not started") }
         guard let id = cachedScaleSetId else {
-            throw ScaleSetError.scaleSetIdFailure(reason: "scale-set id was not cached")
+            throw GitHubError.scaleSetIdFailure(reason: "scale-set id was not cached")
         }
-        guard let activeSession = self.session else { throw ScaleSetError.noSession(reason: "listener is not started") }
+        guard let activeSession = self.session else {
+            throw GitHubError.scaleSetNoSession(reason: "listener is not started")
+        }
         let messages: [GitHubScaleSetMessage]
         do {
             messages = try await client.pollMessages(
                 session: activeSession, lastMessageId: lastMessageId, maxCapacity: max(0, maxCapacity()))
-        } catch GitHubScaleSetClientError.messageQueueTokenExpired {
+        } catch GitHubError.scaleSetMessageQueueTokenExpired {
             let refreshed = try await client.refreshSession(scaleSetId: id, sessionId: activeSession.sessionId)
             self.session = refreshed
             let retried = try await client.pollMessages(
@@ -75,7 +77,7 @@ extension GitHubScaleSetListener {
             if snapshotBeforeMessage != cachedSnapshot { await onDemandUpdate() }
             do {
                 try await client.ackMessage(session: session, messageId: message.messageId)
-            } catch GitHubScaleSetClientError.messageQueueTokenExpired {
+            } catch GitHubError.scaleSetMessageQueueTokenExpired {
                 let refreshed = try await client.refreshSession(scaleSetId: scaleSetId, sessionId: session.sessionId)
                 self.session = refreshed
                 try await client.ackMessage(session: refreshed, messageId: message.messageId)
@@ -94,7 +96,7 @@ extension GitHubScaleSetListener {
         do {
             acquired = try await client.acquireJobs(
                 session: self.session ?? session, scaleSetId: scaleSetId, requestIds: ids)
-        } catch GitHubScaleSetClientError.messageQueueTokenExpired {
+        } catch GitHubError.scaleSetMessageQueueTokenExpired {
             let refreshed = try await client.refreshSession(scaleSetId: scaleSetId, sessionId: session.sessionId)
             self.session = refreshed
             acquired = try await client.acquireJobs(session: refreshed, scaleSetId: scaleSetId, requestIds: ids)

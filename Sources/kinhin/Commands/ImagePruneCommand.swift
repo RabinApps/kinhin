@@ -16,7 +16,7 @@ enum ImagePruneCommand {
             throw CLIError("unknown option '\(arg)' for image prune; the only flag is --yes", exit: .usage)
         }
         let config = loadConfigLeniently()
-        let inventory = await ImageInventory.probe(config: config)
+        let inventory = try await ImageInventory.probe(config: config)
         let plan = ImagePrunePlan.plan(inventory: inventory, config: config, fleet: FleetStore().all)
         // A runtime that could not be listed is skipped, never swept blind —
         // say so before the plan, in both modes.
@@ -34,7 +34,7 @@ enum ImagePruneCommand {
             print("nothing was pruned; re-run with --yes to remove the above")
             return
         }
-        let tart = try? TartController(configuredPath: config.tartPath)
+        let tart = try ImageDeleteCommand.tartForDeletion(plan.targets, tartPath: config.tartPath)
         try await plan.execute(
             tart: tart, container: AppleContainerRuntime(),
             docker: DockerRuntime(image: config.docker?.image ?? "kinhin-ci-linux"))

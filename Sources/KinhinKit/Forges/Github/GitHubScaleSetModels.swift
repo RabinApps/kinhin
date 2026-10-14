@@ -148,6 +148,7 @@ extension GitHubScaleSetRegistrationToken: Codable {
             .replacingOccurrences(of: "_", with: "/")
         payload += String(repeating: "=", count: (4 - payload.count % 4) % 4)
         guard let data = Data(base64Encoded: payload),
+            // an undecodable token payload has no expiry to read; the caller treats nil as "refresh it"
             let claims = try? JSONDecoder().decode(Claims.self, from: data)
         else { return nil }
         return Date(timeIntervalSince1970: claims.exp)
@@ -160,6 +161,7 @@ extension GitHubScaleSet: Codable {
         id = try c.decode(Int.self, forKey: .id)
         name = try c.decode(String.self, forKey: .name)
         runnerGroupName = try c.decodeIfPresent(String.self, forKey: .runnerGroupName) ?? "default"
+        // labels arrive as plain strings or as {name} objects; the fallback below decodes the other shape
         if let plainLabels = try? c.decode([String].self, forKey: .labels) {
             labels = plainLabels
         } else {
@@ -259,6 +261,7 @@ extension GitHubScaleSetJobEvent: Codable {
         repositoryName = try c.decode(String.self, forKey: .repositoryName)
         jobDisplayName = try c.decode(String.self, forKey: .jobDisplayName)
         requestLabels = try c.decodeIfPresent([String].self, forKey: .requestLabels) ?? []
+        // the id arrives as a string or a number; the fallback below decodes the other shape
         if let string = try? c.decode(String.self, forKey: .runnerRequestId) {
             runnerRequestId = string
         } else {

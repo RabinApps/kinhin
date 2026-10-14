@@ -48,6 +48,7 @@ public enum VideoThemes {
     /// The names of the themes in `<repo>/.kinhin/videos/themes/` (their file names).
     public static func own(in repo: URL) -> [String] {
         let files =
+            // No themes folder (the usual case) means no own themes.
             (try? FileManager.default.contentsOfDirectory(at: directory(in: repo), includingPropertiesForKeys: nil))
             ?? []
         return files.filter { VideoProjects.configExtensions.contains($0.pathExtension.lowercased()) }

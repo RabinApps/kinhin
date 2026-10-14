@@ -106,6 +106,7 @@ public struct RegistryDigestResolver: DigestResolving, Sendable {
             throw ImageError.malformedVersionFeed(
                 feed: "\(host)/\(repository)", reason: "token endpoint answered HTTP \(status)")
         }
+        // An undecodable token reply throws below with the same "no token" reason.
         guard let payload = try? JSONDecoder().decode(Payload.self, from: data), !payload.token.isEmpty else {
             throw ImageError.malformedVersionFeed(
                 feed: "\(host)/\(repository)", reason: "token endpoint returned no token")

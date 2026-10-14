@@ -247,7 +247,7 @@ final class RuntimesPaneTests: XCTestCase {
         }
     }
 
-    func testTartControllerConstructionFailureReportsMissing() async throws {
+    func testTartControllerConstructionFailureWithABrokenTartPathReportsBroken() async throws {
         // tart_path pointing at nothing forces construction to fail regardless
         // of whether this Mac happens to have tart installed.
         let yaml =
@@ -263,12 +263,10 @@ final class RuntimesPaneTests: XCTestCase {
         )
         let tart = try XCTUnwrap(vm.pools.first { $0.runtime == .tart })
         let container = try XCTUnwrap(vm.pools.first { $0.runtime == .appleContainer })
-        // Controller construction failure IS the health answer for tart.
-        XCTAssertEqual(
-            tart.health,
-            .missing(
-                tool: "tart", fix: "brew tap openai/tools && brew trust openai/tools && brew install openai/tools/tart")
-        )
+        // A configured tart_path that does not resolve is a broken config,
+        // named as such, not "install tart".
+        guard case .broken(let why) = tart.health else { return XCTFail("expected broken, got \(tart.health)") }
+        XCTAssertTrue(why.contains("/nonexistent/kinhin-test-tart"), why)
         XCTAssertEqual(container.health, .ready)
     }
 
@@ -314,5 +312,18 @@ final class RuntimesPaneTests: XCTestCase {
             "kinhin-runtimes-\(UUID().uuidString).yaml")
         try contents.write(to: url, atomically: true, encoding: .utf8)
         return url
+    }
+
+    /// A broken `tart_path:` is reported as broken (naming the path), not as
+    /// "tart is not installed"; without one, a missing tart is still missing.
+    func testABrokenTartPathIsBrokenNotMissing() async {
+        var cfg = KinhinConfig.default
+        cfg.tartPath = "/no/such/tart"
+        let health = await RuntimesPaneViewModel.probeTart(cfg)
+        guard case .broken(let why) = health else { return XCTFail("expected broken, got \(health)") }
+        XCTAssertTrue(why.contains("/no/such/tart"), why)
+
+        let missing = RuntimesPaneViewModel.tartUnavailable(TartError.missingBinary(path: "PATH"), tartPath: nil)
+        XCTAssertEqual(missing, .missing(tool: "tart", fix: TartHealthProbe.installCommand))
     }
 }

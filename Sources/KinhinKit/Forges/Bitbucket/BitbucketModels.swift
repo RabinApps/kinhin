@@ -222,6 +222,8 @@ struct BitbucketPipeline: Decodable, Sendable, Equatable {
             .decodeIfPresent(String.self, forKey: .name) ?? ""
         buildNumber = try container.decodeIfPresent(Int.self, forKey: .buildNumber)
         createdOn = try container.decodeIfPresent(String.self, forKey: .createdOn)
+        // Lenient: the target only names the ref and commit for display; a shape
+        // Bitbucket varies by trigger reads as nil instead of dropping the pipeline.
         let target = try? container.decodeIfPresent(Target.self, forKey: .target)
         refName = target?.refName
         commit = target?.commit?.hash
@@ -284,11 +286,13 @@ struct BitbucketStep: Decodable, Sendable, Equatable {
             .decodeIfPresent(String.self, forKey: .name) ?? ""
         runsOn = try container.decodeIfPresent([String].self, forKey: .runsOn) ?? []
         repository = nil
+        // Lenient: result and stage exist only on some states; their absence or
+        // a shape change is nil, never a dropped step.
         resultName =
-            try? container.nestedContainer(keyedBy: StateKeys.self, forKey: .state)
+            try? container.nestedContainer(keyedBy: StateKeys.self, forKey: .state)  // lenient: see above
             .decodeIfPresent(Result.self, forKey: .result)?.name
         stageName =
-            try? container.nestedContainer(keyedBy: StateKeys.self, forKey: .state)
+            try? container.nestedContainer(keyedBy: StateKeys.self, forKey: .state)  // lenient: see above
             .decodeIfPresent(Result.self, forKey: .stage)?.name
         startedOn = try container.decodeIfPresent(String.self, forKey: .startedOn)
         completedOn = try container.decodeIfPresent(String.self, forKey: .completedOn)

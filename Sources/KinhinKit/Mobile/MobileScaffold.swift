@@ -174,8 +174,10 @@ public enum MobileScaffold {
         mauiProjectPath(
             list: { folder in
                 let url = folder.isEmpty ? directory : directory.appendingPathComponent(folder)
+                // detection probe: an unreadable folder just has no MAUI project in it
                 return (try? FileManager.default.contentsOfDirectory(atPath: url.path)) ?? []
             },
+            // detection probe: an unreadable project file is not a MAUI project
             read: { path in try? String(contentsOf: directory.appendingPathComponent(path), encoding: .utf8) }
         ) != nil
     }
@@ -209,6 +211,7 @@ public enum MobileScaffold {
         else { return false }
         let builds = ["build.gradle.kts", "build.gradle", "shared/build.gradle.kts", "shared/build.gradle"]
         return builds.contains { name in
+            // detection probe: a missing or unreadable build file is not Kotlin Multiplatform
             ((try? String(contentsOf: directory.appendingPathComponent(name), encoding: .utf8)) ?? "")
                 .contains("multiplatform")
         }
@@ -216,6 +219,7 @@ public enum MobileScaffold {
 
     static func hasIOS(in directory: URL) -> Bool {
         if isDirectory(directory.appendingPathComponent("ios")) { return true }
+        // detection probe: an unreadable folder has no Xcode project in it
         let names = (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []
         return names.contains { $0.hasSuffix(".xcodeproj") || $0.hasSuffix(".xcworkspace") }
     }
@@ -228,6 +232,7 @@ public enum MobileScaffold {
     }
 
     static func packageJSON(in directory: URL) -> String {
+        // detection probe: no readable package.json reads as empty
         (try? String(contentsOf: directory.appendingPathComponent("package.json"), encoding: .utf8)) ?? ""
     }
 
@@ -281,8 +286,9 @@ public enum MobileScaffold {
                 projectFiles.append(url)
             }
         }
-        let pattern = try! NSRegularExpression(pattern: #"IPHONEOS_DEPLOYMENT_TARGET = ([0-9.]+);"#)
+        let pattern = deploymentTargetPattern
         for url in projectFiles.sorted(by: { $0.path < $1.path }) {
+            // advisory scan only: an unreadable project file is skipped, not a scaffold failure
             guard let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
             let range = NSRange(text.startIndex..., in: text)
             for match in pattern.matches(in: text, range: range) {
@@ -302,7 +308,18 @@ public enum MobileScaffold {
     }
 
     /// Recognises a Gemfile line that already installs fastlane (commented-out lines do not count).
-    static let fastlaneGemLine = try! NSRegularExpression(pattern: #"^\s*gem\s*\(?\s*["']fastlane["']"#)
+    static let fastlaneGemLine = constantRegex(#"^\s*gem\s*\(?\s*["']fastlane["']"#)
+    /// Captures the value of an Xcode project's `IPHONEOS_DEPLOYMENT_TARGET` setting.
+    static let deploymentTargetPattern = constantRegex(#"IPHONEOS_DEPLOYMENT_TARGET = ([0-9.]+);"#)
+
+    /// Compiles a pattern written in this file. The patterns are constants; a failure to compile is a programmer error.
+    private static func constantRegex(_ pattern: String) -> NSRegularExpression {
+        // The error is not dropped: a failure traps in the preconditionFailure below.
+        guard let regex = try? NSRegularExpression(pattern: pattern) else {
+            preconditionFailure("invalid constant pattern: \(pattern)")
+        }
+        return regex
+    }
     /// Appended to an existing Gemfile that has no fastlane line (React Native ships one for CocoaPods).
     static let fastlaneGemAppendix =
         "\n# Added by kinhin mobile init: fastlane lanes live in ios/ and android/.\ngem \"fastlane\", \"~> 2.240\"\n"
@@ -386,6 +403,7 @@ public enum MobileScaffold {
                 try write(template: "Gemfile", to: "Gemfile")
                 return
             }
+            // the else branch turns an unreadable Gemfile into MobileScaffoldError.unreadableGemfile
             guard let existing = try? String(contentsOf: destination, encoding: .utf8) else {
                 throw MobileScaffoldError.unreadableGemfile(path: destination.path)
             }
@@ -399,6 +417,7 @@ public enum MobileScaffold {
             }
             do {
                 let handle = try FileHandle(forWritingTo: destination)
+                // closing after a completed write; a close failure loses nothing
                 defer { try? handle.close() }
                 try handle.seekToEnd()
                 try handle.write(contentsOf: Data(Self.appendix.utf8))
@@ -536,6 +555,7 @@ public enum MobileScaffold {
                 try write(text: include, to: ".gitlab-ci.yml", under: repositoryRoot)
                 return
             }
+            // an unreadable .gitlab-ci.yml is treated as not yet including the path, so the include is added
             if (try? String(contentsOf: main, encoding: .utf8))?.contains(path) == true {
                 lines.append("  keep    .gitlab-ci.yml (already includes \(path))")
             } else {

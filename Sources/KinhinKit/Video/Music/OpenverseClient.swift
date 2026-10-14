@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 
 /// Searches Openverse (openverse.org), one index of openly licensed audio from Freesound, Wikimedia Commons and others.
 /// No account or key is needed; anonymous use is limited to 20 requests a minute and 200 a day. A registered Openverse
@@ -28,27 +29,30 @@ public struct OpenverseClient: Sendable {
 
     /// The bearer token, kept for the life of the process (Openverse issues them for about twelve hours). Callers that arrive
     /// while a sign-in is running wait for it instead of starting their own.
-    private final class TokenCache: @unchecked Sendable {
-        private let lock = NSLock()
-        private var stored: (token: String, expires: Date)?
-        private var pending: Task<String, Error>?
+    private final class TokenCache: Sendable {
+        private struct State {
+            var stored: (token: String, expires: Date)?
+            var pending: Task<String, Error>?
+        }
+
+        private let state = Mutex(State())
 
         func current(now: Date) -> String? {
-            lock.withLock { stored.flatMap { $0.expires > now ? $0.token : nil } }
+            state.withLock { $0.stored.flatMap { $0.expires > now ? $0.token : nil } }
         }
 
         func store(_ token: String, expires: Date) {
-            lock.withLock { stored = (token, expires) }
+            state.withLock { $0.stored = (token, expires) }
         }
 
         func signIn(_ start: @escaping @Sendable () async throws -> String) async throws -> String {
-            let task: Task<String, Error> = lock.withLock {
-                if let pending { return pending }
+            let task: Task<String, Error> = state.withLock { state in
+                if let pending = state.pending { return pending }
                 let created = Task { try await start() }
-                pending = created
+                state.pending = created
                 return created
             }
-            defer { lock.withLock { pending = nil } }
+            defer { state.withLock { $0.pending = nil } }
             return try await task.value
         }
     }
@@ -127,6 +131,7 @@ public struct OpenverseClient: Sendable {
             var access_token: String
             var expires_in: Double?
         }
+        // the else branch reports an undecodable token reply as MusicError.network
         guard let body = try? JSONDecoder().decode(TokenBody.self, from: data), !body.access_token.isEmpty else {
             throw MusicError.network(
                 "unexpected answer from the Openverse sign-in: \(String(decoding: data.prefix(120), as: UTF8.self))")
@@ -150,7 +155,22 @@ public struct OpenverseClient: Sendable {
     public static let anonymousPageSize = 20
 
     public func search(query: String, licenses: [String], page: Int = 1) async throws -> [MusicTrack] {
-        var components = URLComponents(string: Self.endpoint)!
+        let url = try Self.searchURL(
+            endpoint: Self.endpoint, query: query, licenses: licenses, pageSize: pageSize, page: page)
+        let data = try await fetch(url, pastTheEndIsEmpty: true)
+        let page: SearchPage
+        do { page = try JSONDecoder().decode(SearchPage.self, from: data) } catch {
+            throw MusicError.network("unexpected answer")
+        }
+        return page.results.compactMap(\.track)
+    }
+
+    /// The search request's address. Throws when `endpoint` (which a debug build may take from `KINHIN_OPENVERSE_URL`) is
+    /// not a URL.
+    static func searchURL(endpoint: String, query: String, licenses: [String], pageSize: Int, page: Int) throws -> URL {
+        guard var components = URLComponents(string: endpoint) else {
+            throw MusicError.network("bad search address: \(endpoint)")
+        }
         components.queryItems = [
             URLQueryItem(name: "q", value: query),
             URLQueryItem(name: "license", value: licenses.joined(separator: ",")),
@@ -158,12 +178,8 @@ public struct OpenverseClient: Sendable {
             URLQueryItem(name: "page", value: String(max(1, page))),
             URLQueryItem(name: "mature", value: "false"),
         ]
-        let data = try await fetch(components.url!, pastTheEndIsEmpty: true)
-        let page: SearchPage
-        do { page = try JSONDecoder().decode(SearchPage.self, from: data) } catch {
-            throw MusicError.network("unexpected answer")
-        }
-        return page.results.compactMap(\.track)
+        guard let url = components.url else { throw MusicError.network("bad search address: \(endpoint)") }
+        return url
     }
 
     /// One result by its Openverse id.
@@ -172,6 +188,7 @@ public struct OpenverseClient: Sendable {
             throw MusicError.notFound(id)
         }
         let data = try await fetch(url, pastTheEndIsEmpty: false)
+        // the else branch reports an undecodable track as MusicError.notFound
         guard let track = (try? JSONDecoder().decode(Result.self, from: data))?.track else {
             throw MusicError.notFound(id)
         }
@@ -199,6 +216,7 @@ public struct OpenverseClient: Sendable {
         case 429:
             throw MusicError.rateLimited(retryAfter: http.value(forHTTPHeaderField: "Retry-After").flatMap { Int($0) })
         default:
+            // an error body is optional detail; the HTTP status is reported either way
             let detail = (try? JSONDecoder().decode(ErrorBody.self, from: data))?.detail
             throw MusicError.network(detail ?? "HTTP \(http.statusCode)")
         }
@@ -235,7 +253,8 @@ public struct OpenverseClient: Sendable {
         var track: MusicTrack? {
             guard let url, !url.isEmpty, mature != true, let license, !license.isEmpty else { return nil }
             return MusicTrack(
-                origin: .openverse, id: id, title: (title?.isEmpty == false ? title! : "Untitled"), creator: creator,
+                origin: .openverse, id: id, title: title.flatMap { $0.isEmpty ? nil : $0 } ?? "Untitled",
+                creator: creator,
                 license: license.lowercased(), licenseVersion: license_version, licenseURL: license_url,
                 source: source ?? provider ?? "openverse", landingURL: foreign_landing_url, fileURL: url,
                 fileType: filetype?.lowercased(), seconds: duration.map { Double($0) / 1000 }, fileSize: filesize,

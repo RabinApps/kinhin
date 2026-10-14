@@ -13,6 +13,7 @@ enum PipelineLogText {
         #"\x{1B}[@-Z\\-_]"#,
         // GitLab section markers: section_start:1700000000:name[options]
         #"section_(start|end):\d+:[^\r\n]*\r?"#,
+        // Constant patterns pinned by tests; a bad one would only leave its escapes in the log text.
     ].compactMap { try? NSRegularExpression(pattern: $0) }
 
     /// How much of the raw log's end is cleaned at all (UTF-8 bytes). The

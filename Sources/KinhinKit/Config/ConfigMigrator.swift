@@ -188,11 +188,10 @@ private struct Migration {
         while end < lines.count {
             let line = lines[end]
             let trimmed = line.trimmingCharacters(in: .whitespaces)
-            if trimmed.isEmpty {
+            guard let first = line.first, !trimmed.isEmpty else {
                 end += 1
                 continue
             }
-            let first = line.first!
             if first == " " || first == "\t" || first == "-" {
                 lastBody = end
                 end += 1

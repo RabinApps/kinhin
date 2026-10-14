@@ -54,6 +54,7 @@ extension WorkflowRouteEditor {
 
     /// Whether the marker is already present for a job (a scalar label counts).
     public static func hasMarker(_ job: WorkflowJob, marker: String) -> Bool {
+        // A job whose runs-on is not editable has no marker; editing it throws through labels().
         ((try? labels(job)) ?? []).contains { $0.caseInsensitiveCompare(marker) == .orderedSame }
     }
 

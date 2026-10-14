@@ -53,4 +53,21 @@ final class ToolchainsDetectCommandTests: XCTestCase {
         XCTAssertFalse(CLICommand.shouldAutoCreateConfig(.toolchains, args: ["toolchains", "detect"]))
         XCTAssertTrue(CLICommand.shouldAutoCreateConfig(.toolchains, args: ["toolchains"]))
     }
+
+    /// A tart listing that failed shows "size unknown", never "not on disk".
+    func testImageSizeLabelDoesNotClaimAnUnlistedImageIsGone() {
+        XCTAssertEqual(ToolchainsCommand.sizeLabel("img", sizes: nil), "size unknown")
+        XCTAssertEqual(ToolchainsCommand.sizeLabel("img", sizes: [:]), "not on disk")
+        XCTAssertEqual(ToolchainsCommand.sizeLabel("img", sizes: ["img": 12]), "12 GB disk")
+    }
+
+    /// A missing config is "no config"; a broken one throws instead of
+    /// letting `toolchains prune` run on the default policy.
+    func testConfigIfPresentThrowsForABrokenConfig() throws {
+        let root = try project([:])
+        let url = root.appendingPathComponent("config.yaml")
+        XCTAssertNil(try loadConfigIfPresent(at: url))
+        try "max_runners: [not a number".write(to: url, atomically: true, encoding: .utf8)
+        XCTAssertThrowsError(try loadConfigIfPresent(at: url))
+    }
 }

@@ -441,17 +441,32 @@ final class VideoTests: XCTestCase {
             ["-f", "theme=midnight", "-f", "captions=off", "-f", "fast=true"])
     }
 
-    func testTheRunIsTheNewestOneStartedAfterTheDispatch() {
+    func testTheRunIsTheNewestOneStartedAfterTheDispatch() throws {
         let json = """
             [{"databaseId": 1, "createdAt": "2026-10-12T10:00:00Z"},
              {"databaseId": 3, "createdAt": "2026-10-12T10:05:30Z"},
              {"databaseId": 2, "createdAt": "2026-10-12T10:05:10Z"}]
             """
         let after = ISO8601DateFormatter().date(from: "2026-10-12T10:05:00Z")!
-        XCTAssertEqual(VideoFleet.runID(fromListing: json, notBefore: after), 3)
+        XCTAssertEqual(try VideoFleet.runID(fromListing: json, notBefore: after), 3)
         let later = ISO8601DateFormatter().date(from: "2026-10-12T11:00:00Z")!
-        XCTAssertNil(VideoFleet.runID(fromListing: json, notBefore: later))
-        XCTAssertNil(VideoFleet.runID(fromListing: "not json", notBefore: after))
+        XCTAssertNil(try VideoFleet.runID(fromListing: json, notBefore: later))
+        XCTAssertThrowsError(try VideoFleet.runID(fromListing: "not json", notBefore: after))
+    }
+
+    /// A run that never appears because `gh run list` keeps failing says why,
+    /// instead of only "the run did not appear".
+    func testAFailingRunListingIsNamedWhenTheRunNeverAppears() async throws {
+        let runner = VideoFleetRunner(
+            shell: ListingShell("gh: not logged in"), process: ScriptedProcess(), ghPath: { "/gh" },
+            now: { Date() }, pause: { _ in })
+        do {
+            _ = try await runner.build(options: VideoBuildOptions(project: "launch"), repo: repo, ref: "main")
+            XCTFail("expected an error")
+        } catch {
+            XCTAssertTrue(
+                error.localizedDescription.contains("could not read gh run list output"), error.localizedDescription)
+        }
     }
 
     private func fleetRunner(

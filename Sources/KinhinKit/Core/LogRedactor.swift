@@ -103,6 +103,7 @@ enum LogRedactor {
         precondition(triggers.count == specs.count, "every redaction rule needs its trigger literals")
         // The patterns are constants; a failure to compile is a programmer error.
         return zip(specs, triggers).map { spec, trigger in
+            // Not ignored: a failure stops with preconditionFailure below.
             guard let regex = try? NSRegularExpression(pattern: spec.0) else {
                 preconditionFailure("invalid redaction pattern: \(spec.0)")
             }

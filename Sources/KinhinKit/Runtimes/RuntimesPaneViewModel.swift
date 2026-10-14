@@ -163,21 +163,8 @@ public struct RuntimesPaneViewModel: Sendable, Equatable {
         await withTaskGroup(of: (RuntimeID, RuntimeHealth).self) { group in
             if let injected = tartHealth {
                 group.addTask { (.tart, await injected()) }
-            } else if let controller = try? TartController(configuredPath: parsed.tartPath) {
-                let runtime = TartRuntime(
-                    tart: controller, bootTimeout: { parsed.vmBootTimeout }, tartPath: parsed.tartPath)
-                group.addTask { (.tart, await runtime.health()) }
             } else {
-                // Construction fails only when the binary is missing, which
-                // is the availability answer itself (not a swallowed error).
-                group.addTask {
-                    (
-                        .tart,
-                        RuntimeHealth.missing(
-                            tool: "tart",
-                            fix: TartHealthProbe.installCommand)
-                    )
-                }
+                group.addTask { (.tart, await probeTart(parsed)) }
             }
 
             if let injected = containerHealth {
@@ -206,6 +193,26 @@ public struct RuntimesPaneViewModel: Sendable, Equatable {
         }
     }
 
+    /// tart's real health probe, through the configured `tart_path:`.
+    static func probeTart(_ parsed: KinhinConfig) async -> RuntimeHealth {
+        let controller: TartController
+        do {
+            controller = try TartController(configuredPath: parsed.tartPath)
+        } catch {
+            return tartUnavailable(error, tartPath: parsed.tartPath)
+        }
+        let runtime = TartRuntime(tart: controller, bootTimeout: { parsed.vmBootTimeout }, tartPath: parsed.tartPath)
+        return await runtime.health()
+    }
+
+    /// The health answer when no tart controller could be built. Without a
+    /// `tart_path:` that means tart is not installed; with one, the configured
+    /// path is broken, and the pane says so instead of "install tart".
+    static func tartUnavailable(_ error: Error, tartPath: String?) -> RuntimeHealth {
+        guard tartPath != nil else { return .missing(tool: "tart", fix: TartHealthProbe.installCommand) }
+        return .broken(error.localizedDescription)
+    }
+
     /// Probe each pool's runtime. Real probes by default; injectable for tests.
     static func probeHealth(
         parsed: KinhinConfig,
@@ -217,22 +224,8 @@ public struct RuntimesPaneViewModel: Sendable, Equatable {
             if poolIDs.contains(.tart) {
                 if let injected = tartHealth {
                     group.addTask { (.tart, await injected()) }
-                } else if let controller = try? TartController(configuredPath: parsed.tartPath) {
-                    let runtime = TartRuntime(
-                        tart: controller, bootTimeout: { parsed.vmBootTimeout }, tartPath: parsed.tartPath)
-                    group.addTask { (.tart, await runtime.health()) }
                 } else {
-                    // Construction fails only when the binary is missing,
-                    // which IS the health answer, not a probe error.
-                    group.addTask {
-                        (
-                            .tart,
-                            RuntimeHealth.missing(
-                                tool: "tart",
-                                fix: TartHealthProbe.installCommand
-                            )
-                        )
-                    }
+                    group.addTask { (.tart, await probeTart(parsed)) }
                 }
             }
             if poolIDs.contains(.appleContainer), parsed.container != nil {

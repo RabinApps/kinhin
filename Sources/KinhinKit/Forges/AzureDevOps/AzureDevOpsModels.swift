@@ -126,13 +126,15 @@ public struct AzureDevOpsJobRequest: Decodable, Sendable, Equatable {
 
         init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: Keys.self)
-            // `id` is a number for builds; tolerate a numeric string.
+            // Leniency policy: `id` is a number for builds, tolerate a numeric
+            // string; `name` is display-only, so a mismatch is nil, not a failure.
             if let number = try? container.decodeIfPresent(Int.self, forKey: .id) {
                 id = number
             } else {
+                // lenient: see above
                 id = (try? container.decodeIfPresent(String.self, forKey: .id)).flatMap { Int($0) }
             }
-            name = try? container.decodeIfPresent(String.self, forKey: .name)
+            name = try? container.decodeIfPresent(String.self, forKey: .name)  // lenient: see above
         }
 
         private enum Keys: String, CodingKey { case id, name }
@@ -178,9 +180,11 @@ public struct AzureDevOpsJobRequest: Decodable, Sendable, Equatable {
         finishTime = try container.decodeIfPresent(String.self, forKey: .finishTime)
         reservedAgent = try container.decodeIfPresent(AgentRef.self, forKey: .reservedAgent)
         definition = try container.decodeIfPresent(Owner.self, forKey: .definition)
+        // Leniency policy: these three only enrich the job (log links, owner);
+        // a shape an API version changed is nil, never a dropped job request.
         jobId = try? container.decodeIfPresent(String.self, forKey: .jobId)
-        scopeId = try? container.decodeIfPresent(String.self, forKey: .scopeId)
-        buildOwner = try? container.decodeIfPresent(BuildOwner.self, forKey: .buildOwner)
+        scopeId = try? container.decodeIfPresent(String.self, forKey: .scopeId)  // lenient: see above
+        buildOwner = try? container.decodeIfPresent(BuildOwner.self, forKey: .buildOwner)  // lenient: see above
         demands = try container.decodeIfPresent([Demand].self, forKey: .demands)?.map(\.text) ?? []
     }
 
@@ -190,6 +194,7 @@ public struct AzureDevOpsJobRequest: Decodable, Sendable, Equatable {
         let text: String
 
         init(from decoder: Decoder) throws {
+            // Not a string means the object shape, decoded (strictly) below.
             if let string = try? decoder.singleValueContainer().decode(String.self) {
                 text = string
                 return

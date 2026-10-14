@@ -289,6 +289,7 @@ extension VideoFleet {
                     "# Written by kinhin video init: the manual kinhin video job.\ninclude:\n  - local: \(path)\n"
                 try Data(include.utf8).write(to: main, options: .withoutOverwriting)
                 extra.append(main)
+                // An unreadable .gitlab-ci.yml only adds the "add this include" note, which is the safe advice.
             } else if (try? String(contentsOf: main, encoding: .utf8))?.contains(path) != true {
                 notes.append("Add this to .gitlab-ci.yml so the job runs: include: [{ local: \(path) }]")
             }

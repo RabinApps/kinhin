@@ -11,6 +11,7 @@ protocol ProjectFileReading: Sendable {
 
 extension ProjectFileReading {
     func exists(_ path: String) -> Bool {
+        // Detection is advisory: an unreadable file counts as absent.
         (try? read(path)) != nil
     }
 
@@ -32,6 +33,7 @@ struct FileSystemProjectReader: ProjectFileReading {
 
     func read(_ path: String) throws -> Data? {
         let url = root.appendingPathComponent(path)
+        // No readable attributes means "not a plain file": skipped, like a symlink or a huge file.
         let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey])
         guard values?.isRegularFile == true, values?.isSymbolicLink != true,
             (values?.fileSize ?? 0) <= Self.maxFileBytes

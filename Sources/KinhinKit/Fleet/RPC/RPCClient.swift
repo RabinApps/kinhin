@@ -43,6 +43,7 @@ public struct RPCClient: Sendable {
     public func ping(timeout: TimeInterval = 2) throws -> PingReply {
         let response = try Self.requireOK(send(method: .ping, timeout: timeout))
         guard let payload = response.payload,
+            // An older daemon answers a bare pong (documented above); the versions then read nil.
             let reply = try? JSONDecoder().decode(PingReply.self, from: payload)
         else { return PingReply(pong: true, protocolVersion: nil, version: nil) }
         return reply

@@ -37,6 +37,7 @@ final class ScopeActivityCache: Sendable {
         var at: ContinuousClock.Instant
     }
 
+    // The cached answer, nil until the first fetch.
     private let entry = Mutex<Entry?>(nil)
     private let ttl: Duration
 

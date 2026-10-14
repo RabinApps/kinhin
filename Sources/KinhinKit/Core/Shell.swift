@@ -169,6 +169,7 @@ public struct Shell: ShellRunning {
             Task.detached {
                 // EPIPE just means the child stopped reading (it exited early).
                 try? writer.write(contentsOf: input)
+                // Closing a pipe the child already closed fails the same harmless way.
                 try? writer.close()
             }
         }
@@ -238,6 +239,7 @@ public struct Shell: ShellRunning {
         let pid = process.processIdentifier
         let grace = killGracePeriod
         Task.detached {
+            // This detached task is never cancelled; an early wake only sends SIGKILL sooner.
             try? await Task.sleep(for: .seconds(grace))
             if process.isRunning { kill(pid, SIGKILL) }
         }

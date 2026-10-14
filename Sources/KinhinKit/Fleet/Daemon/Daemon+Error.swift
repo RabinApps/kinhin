@@ -5,12 +5,18 @@ extension Daemon {
         case missingToken
         case alreadyRunning
         case lockFailed(String)
+        /// `launchctl bootout` failed while the agent is still loaded, so
+        /// loading the new one would keep the old daemon running.
+        case bootoutFailed(String)
 
         public var errorDescription: String? {
             switch self {
             case .missingToken: return "no GitHub token stored — run `kinhin auth`"
             case .alreadyRunning: return "a daemon is already running"
             case .lockFailed(let why): return "could not take the daemon lock: \(why)"
+            case .bootoutFailed(let why):
+                return "could not stop the running daemon (launchctl bootout failed: \(why)) — run"
+                    + " `launchctl bootout gui/$(id -u)/\(Daemon.label)` and retry"
             }
         }
     }
