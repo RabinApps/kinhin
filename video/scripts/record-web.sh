@@ -11,7 +11,7 @@
 #   --serve CMD       start the product first (run from the repo root, inside the runner), e.g.
 #                     "npm --prefix website run preview -- --port 4173"
 #   --wait-url URL    with --serve: wait until URL answers before recording (default: the scenario's baseUrl)
-#   --image IMAGE     container image (default mcr.microsoft.com/playwright:v1.56.1-noble, matching package.json)
+#   --image IMAGE     container image (default mcr.microsoft.com/playwright:v1.64.0-noble, matching package.json)
 # Env: BASE_URL, PACE, CHROMIUM_PATH are passed through (see sources/web/record.mjs).
 #
 # In a container, the product must be reachable from inside it: use --serve (it runs in the container), or a
@@ -25,7 +25,7 @@ OUT="video/raw/web.webm"
 RUNNER=local
 SERVE=""
 WAIT_URL=""
-IMAGE="mcr.microsoft.com/playwright:v1.56.1-noble"
+IMAGE="mcr.microsoft.com/playwright:v1.64.0-noble"
 
 while [ $# -gt 0 ]; do
   case "$1" in
