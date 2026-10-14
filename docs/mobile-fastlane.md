@@ -104,7 +104,7 @@ change it in `.github/workflows/mobile-release.yml`. kinhin does not store any o
 Capacitor and 17 otherwise). Set them as repository variables to test a newer SDK or JDK. The Actions stay pinned to commit
 SHAs, so a newer action needs its SHA updated in the templates.
 
-**Ruby.** fastlane 2.241, which the `~> 2.240` pin resolves to, needs Ruby 3.2 or newer. The macOS system Ruby is 2.6, so the workflow runs `ruby/setup-ruby` with Ruby 3.3 before `bundle install`. Locally, use the same version (for example `rbenv` or Homebrew's `ruby@3.3`).
+**Ruby.** fastlane 2.241, which the `~> 2.240` pin resolves to, needs Ruby 3.2 or newer. The macOS system Ruby is 2.6, so the workflow installs Homebrew's Ruby on the runner before `bundle install`. Homebrew's Ruby is newer than 3.2 and ships bundler. Locally, use Ruby 3.2 or newer (for example `rbenv` or Homebrew's `ruby@3.3`).
 
 ## Other CI systems
 

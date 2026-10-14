@@ -599,10 +599,13 @@ enum MobileTemplates {
                 working-directory: __DIR__
             steps:
               - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-              - uses: ruby/setup-ruby@651ff0d62c5c79bed6d53ec518387aae20e72c1a # v1.329.0
-                with:
-                  # fastlane needs Ruby 3.2+; the macOS system Ruby is 2.6. Bundler cache is off because Gemfile.lock lives in the project root.
-                  ruby-version: "3.3"
+              - name: Ruby for fastlane (Homebrew)
+                # fastlane needs Ruby 3.2+; the macOS system Ruby is 2.6. Homebrew's Ruby is newer and ships bundler. Pools whose
+                # Actions allowlist permits ruby/setup-ruby can use that action with ruby-version 3.3 instead.
+                run: |
+                  brew list ruby >/dev/null 2>&1 || brew install ruby
+                  echo "$(brew --prefix ruby)/bin" >> "$GITHUB_PATH"
+                  "$(brew --prefix ruby)/bin/ruby" --version
               - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
                 with:
                   distribution: temurin
@@ -674,10 +677,13 @@ enum MobileTemplates {
                 working-directory: __DIR__
             steps:
               - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-              - uses: ruby/setup-ruby@651ff0d62c5c79bed6d53ec518387aae20e72c1a # v1.329.0
-                with:
-                  # fastlane needs Ruby 3.2+; the macOS system Ruby is 2.6. Bundler cache is off because Gemfile.lock lives in the project root.
-                  ruby-version: "3.3"
+              - name: Ruby for fastlane (Homebrew)
+                # fastlane needs Ruby 3.2+; the macOS system Ruby is 2.6. Homebrew's Ruby is newer and ships bundler. Pools whose
+                # Actions allowlist permits ruby/setup-ruby can use that action with ruby-version 3.3 instead.
+                run: |
+                  brew list ruby >/dev/null 2>&1 || brew install ruby
+                  echo "$(brew --prefix ruby)/bin" >> "$GITHUB_PATH"
+                  "$(brew --prefix ruby)/bin/ruby" --version
         __PREBUILD__
               - name: Write App Store Connect API key
                 env:
