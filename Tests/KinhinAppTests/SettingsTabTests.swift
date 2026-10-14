@@ -53,6 +53,41 @@ final class SettingsTabTests: MainWindowTestCase {
         XCTAssertFalse(AppPreferences.launchAtLogin(in: suite))
     }
 
+    func testARefusedLoginItemPutsTheToggleBackAndSaysWhy() {
+        tabs.showAdvanced(.app)
+        var shown: [Error] = []
+        models.presentLoginItemError = { shown.append($0) }
+        delegate.loginError = LaunchAtLoginError.registerFailed("Operation not permitted")
+
+        models.appModel.setLaunchAtLogin(true)
+        XCTAssertFalse(models.appModel.launchAtLogin, "the toggle shows what the system really has")
+        XCTAssertFalse(AppPreferences.launchAtLogin(in: suite), "the next launch must not retry a refused item")
+        XCTAssertEqual(delegate.loginToggles, [true], "putting the toggle back applies nothing")
+        XCTAssertEqual(shown.map { $0 as? LaunchAtLoginError }, [.registerFailed("Operation not permitted")])
+        XCTAssertTrue(shown.first?.localizedDescription.contains("Operation not permitted") == true)
+    }
+
+    func testALoginItemAwaitingApprovalStaysOnAndPointsToSystemSettings() {
+        tabs.showAdvanced(.app)
+        var shown: [Error] = []
+        models.presentLoginItemError = { shown.append($0) }
+        delegate.loginError = LaunchAtLoginError.requiresApproval
+
+        models.appModel.setLaunchAtLogin(true)
+        XCTAssertTrue(models.appModel.launchAtLogin, "the item is registered; approving it is the user's step")
+        XCTAssertTrue(AppPreferences.launchAtLogin(in: suite))
+        XCTAssertTrue(shown.first?.localizedDescription.contains("Login Items") == true)
+    }
+
+    func testAnAppliedLoginItemShowsNothing() {
+        tabs.showAdvanced(.app)
+        var shown: [Error] = []
+        models.presentLoginItemError = { shown.append($0) }
+        models.appModel.setLaunchAtLogin(true)
+        XCTAssertTrue(models.appModel.launchAtLogin)
+        XCTAssertTrue(shown.isEmpty)
+    }
+
     func testAutoStartCheckboxPersists() {
         tabs.showAdvanced(.app)
         XCTAssertFalse(models.appModel.autoStartFleet)

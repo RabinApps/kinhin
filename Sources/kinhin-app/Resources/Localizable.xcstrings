@@ -697,6 +697,9 @@
     "Commit this as .kinhin/config.yml in the repo, then enable it in config.yaml with the second snippet." : {
       "comment" : "Toolchains guide example note"
     },
+    "Config change not applied" : {
+      "comment" : "Alert title when a saved config edit couldn't be applied to the running fleet"
+    },
     "config.yaml can't be read — %@. Fix it in Advanced → Edit YAML." : {
       "comment" : "Form status line; %@ is the YAML parse error"
     },
@@ -710,7 +713,7 @@
       "comment" : "Routing tab empty state; %@ is the parse error"
     },
     "config.yaml has a problem — %@. Use Advanced → App → Open config file." : {
-      "comment" : "Capacity form status; %@ is the config error"
+      "comment" : "Config-error status in the Capacity form and the More accounts section; %@ is the config error"
     },
     "Connect" : {
       "comment" : "Forge card button that saves the token"
@@ -776,6 +779,9 @@
     },
     "Copy into .kinhin/config.yml in a repo (or into config.yaml)." : {
       "comment" : "CollapsibleFormCard in ToolchainsCatalogCards"
+    },
+    "Could not check for a running benchmark — %@" : {
+      "comment" : "Benchmarks status line; %@ is the error's description"
     },
     "Could not read that report — %@" : {
       "comment" : "Benchmarks status line; %@ is the error's description"
@@ -1302,6 +1308,12 @@
     "kinhin can't start the fleet yet" : {
       "comment" : "Alert title when Start Fleet is pressed before setup finished"
     },
+    "kinhin could not be added to your login items: %@" : {
+      "comment" : "Launch-at-login alert message; %@ is the system's error"
+    },
+    "kinhin could not be removed from your login items: %@" : {
+      "comment" : "Launch-at-login alert message; %@ is the system's error"
+    },
     "kinhin crashed unexpectedly:\n\n%@\n\nLogs: ~/Library/Application Support/Kinhin/logs/" : {
       "comment" : "Body of the crash alert; %@ is the exception reason; the logs path stays verbatim"
     },
@@ -1325,6 +1337,9 @@
     },
     "kinhin needs attention" : {
       "comment" : "Notification title when the fleet reports an error"
+    },
+    "kinhin needs your approval to open at login. Approve it in System Settings → General → Login Items." : {
+      "comment" : "Launch-at-login alert message; keep kinhin and the System Settings path verbatim"
     },
     "kinhin runs your CI jobs on this Mac. Select the forges to serve — %@ — then paste a token and choose the repository, project or group to serve for each." : {
       "comment" : "Setup wizard step 1 subtitle; %@ is a localized list of forge names"
@@ -1425,6 +1440,9 @@
     },
     "Launch" : {
       "comment" : "FormCard in AppSectionView"
+    },
+    "Launch at login" : {
+      "comment" : "Alert title for a launch-at-login failure"
     },
     "Launch kinhin at login" : {
       "comment" : "Toggle in AppSectionView"
@@ -2371,6 +2389,15 @@
     "The fleet can run inside this app (in-process) or in a background LaunchAgent that survives app restarts and reboots." : {
       "comment" : "FormCard in AppSectionView"
     },
+    "The fleet didn't start at launch: %@. Start it from the menu or the Fleet tab." : {
+      "comment" : "Status line when auto-start at launch fails; %@ is the reason"
+    },
+    "The fleet engine couldn't be created: %@. The fleet can't run until this is fixed and kinhin is reopened." : {
+      "comment" : "Status line when the app can't build its fleet engine; %@ is the reason"
+    },
+    "the fleet engine didn't restart with it (%@)" : {
+      "comment" : "Reason a config edit wasn't applied; %@ is the engine's startup error"
+    },
     "The fleet has %lld live VMs. It is paused while the benchmark runs and resumed afterwards; busy VMs finish their jobs first." : {
       "comment" : "Benchmarks confirmation body; plural by the number of live VMs",
       "localizations" : {
@@ -2423,6 +2450,12 @@
     },
     "The forge" : {
       "comment" : "Generic forge name used in a sentence when the real forge is unknown"
+    },
+    "the forge token couldn't be read from the Keychain (%@)" : {
+      "comment" : "Reason a config edit wasn't applied; %@ is the Keychain error"
+    },
+    "the forge token is missing from the Keychain" : {
+      "comment" : "Reason a config edit wasn't applied"
     },
     "The hard ceiling on VMs running together." : {
       "comment" : "row in CapacityView"
@@ -2681,6 +2714,9 @@
     },
     "Xcode" : {
       "comment" : "Benchmark suite name; the product name stays verbatim"
+    },
+    "Your config change was saved but couldn't be applied: %@. The fleet is still using the previous config." : {
+      "comment" : "Alert and status line when a config edit can't reach the fleet; %@ is the reason"
     },
     "Your fleet labels include “macos”, so macOS jobs would be sent to this Linux VM. In config.yaml, remove “macos” from labels (add “linux” if jobs ask for it)." : {
       "comment" : "Warning under the Tart (Linux VM) row; macos, linux and config.yaml are literal names"

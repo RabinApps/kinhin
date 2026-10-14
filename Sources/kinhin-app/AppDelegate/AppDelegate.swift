@@ -128,16 +128,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let daemonBackend = await FleetBackend.attachToDaemon()
         // A broken config stays a broken config for the wizard to surface;
         // loading it here is only a fast-path gate for "skip onboarding".
-        let loadedConfig: KinhinConfig? =
+        // Through ConfigStore, so a parse error is said (under the status
+        // line) instead of looking like "nothing configured yet".
+        let loaded: Result<KinhinConfig?, any Error> =
             daemonBackend != nil
-            ? nil
-            : await Task.detached { () -> KinhinConfig? in
-                guard FileManager.default.fileExists(atPath: Paths.config.path) else { return nil }
-                return try? ConfigLoader.load()
-            }.value
+            ? .success(nil)
+            : await Task.detached { Self.loadLaunchConfig() }.value
+        var loadedConfig: KinhinConfig?
+        var configProblem: String?
+        switch loaded {
+        case .success(let cfg):
+            loadedConfig = cfg
+        case .failure(let error):
+            Log.warn("app", "config.yaml can't be read at launch: \(error.localizedDescription)")
+            configProblem = StatusLine.unreadableConfig(error).text
+        }
         if let daemonBackend {
             fleet.backend = daemonBackend
             setupIncomplete = false
+            fleet.setProblem(.launch, nil)
             Log.info("app", "attaching to running daemon")
         } else if let cfg = loadedConfig,
             // A template config (placeholder repo, no gitea:) is not a
@@ -149,17 +158,46 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // tart, or a Linux runtime (Docker / Apple container) to run on.
             cfg.canRunOnThisHost()
         {
-            do {
-                fleet.backend = .inProcess(try FleetEngine.production(config: cfg, token: pat))
-                setupIncomplete = false
-                Log.info("app", "no daemon; running engine in-process (not started yet)")
-            } catch {
-                Log.error("app", "could not build engine: \(error.localizedDescription)")
-            }
+            installInProcessEngine(config: cfg, token: pat)
         } else {
             setupIncomplete = true
+            fleet.setProblem(.launch, configProblem)
             Log.info("app", "setup incomplete — the guided setup opens")
             if reopenSetupOnFailure { openMainWindow() }
+        }
+    }
+
+    /// config.yaml for the launch gate, read through `ConfigStore`: nil when
+    /// there is none yet (or it is blank), a failure when it exists but can't
+    /// be read or parsed.
+    nonisolated static func loadLaunchConfig(at url: URL = Paths.config) -> Result<KinhinConfig?, any Error> {
+        Result {
+            let yaml = try ConfigStore.text(at: url)
+            guard !yaml.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+            return try ConfigLoader.parse(yaml)
+        }
+    }
+
+    /// Builds the in-process engine for a complete config. The config and
+    /// token are there, so the guided setup has nothing left to ask: a build
+    /// failure (e.g. tart or softnet missing) is shown under the status line
+    /// instead of reopening setup, which would only show a finished checklist.
+    func installInProcessEngine(config cfg: KinhinConfig, token pat: String) {
+        do {
+            fleet.backend = .inProcess(try fleet.environment.makeEngine(cfg, pat))
+            setupIncomplete = false
+            fleet.setProblem(.launch, nil)
+            Log.info("app", "no daemon; running engine in-process (not started yet)")
+        } catch is CancellationError {
+            Log.info("app", "engine build cancelled")
+        } catch {
+            Log.error("app", "could not build engine: \(error.localizedDescription)")
+            fleet.setProblem(
+                .launch,
+                String(
+                    localized:
+                        "The fleet engine couldn't be created: \(error.localizedDescription). The fleet can't run until this is fixed and kinhin is reopened.",
+                    bundle: .l10n, comment: "Status line when the app can't build its fleet engine; %@ is the reason"))
         }
     }
 
@@ -183,14 +221,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func autoStartFleetIfEnabled(enabled: Bool = AppPreferences.autoStartFleet) {
         guard enabled, fleet.engine != nil else { return }
         Log.info("app", "auto-starting the fleet (Settings → App)")
-        // Through `perform`, so the status item shows "Starting…" and a
-        // failure is logged instead of vanishing.
-        Task {
-            do {
-                try await fleet.perform(.start)
-            } catch {
-                Log.error("app", "auto-start failed: \(error.localizedDescription)")
-            }
+        Task { await runAutoStart() }
+    }
+
+    /// Starts the fleet through `perform`, so the status item shows
+    /// "Starting…". Nobody pressed anything, so a failure isn't a modal at
+    /// launch: it stays under the status line until a start works.
+    func runAutoStart() async {
+        do {
+            try await fleet.perform(.start)
+        } catch is CancellationError {
+            return
+        } catch {
+            Log.error("app", "auto-start failed: \(error.localizedDescription)")
+            fleet.setProblem(
+                .launch,
+                String(
+                    localized:
+                        "The fleet didn't start at launch: \(error.localizedDescription). Start it from the menu or the Fleet tab.",
+                    bundle: .l10n, comment: "Status line when auto-start at launch fails; %@ is the reason"))
         }
     }
 
@@ -216,6 +265,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         _ = fleet.status
         _ = fleet.pendingFleetAction
         _ = fleet.unreachableReason
+        _ = fleet.problems
         _ = updates.pendingUpdate
         _ = updates.updateCardState
         renderFleetState()
