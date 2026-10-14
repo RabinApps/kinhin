@@ -66,8 +66,8 @@ struct ScalePlan: Equatable {
     var slots: [Slot]
     /// Idle instances to delete.
     var scaleDown: [String]
-    /// Warm instances bound to Tart slots instead of cloning (each slot's `claim`), oldest first.
-    var claims: [String] = []
+    /// Warm instances bound to Tart slots instead of cloning, in slot order (each slot's `claim`).
+    var claims: [String] { slots.compactMap(\.claim) }
     /// Warm instances to delete: stale, or in the way of a slot the cap needs.
     var evict: [String] = []
     /// Warm instances to start so each pool is full, per image ("" = the base image).
@@ -127,17 +127,18 @@ struct ScalePlan: Equatable {
             }.map(\.id))
         let fresh = warm.filter { !stale.contains($0.id) }
         // A Tart slot binds the oldest fresh warm instance of its own image, if there is one.
+        var claimed = Set<String>()
         for index in plan.slots.indices where plan.slots[index].runtime == .tart {
             let image = plan.slots[index].image ?? ""
-            guard let match = fresh.first(where: { ($0.image ?? "") == image && !plan.claims.contains($0.id) })
+            guard let match = fresh.first(where: { ($0.image ?? "") == image && !claimed.contains($0.id) })
             else { continue }
             plan.slots[index].claim = match.id
-            plan.claims.append(match.id)
+            claimed.insert(match.id)
         }
         var evict = warm.filter { stale.contains($0.id) }.map(\.id)
 
         // Warm instances left after the claims still occupy slots: drop the surplus the cap cannot hold.
-        let unclaimed = fresh.filter { !plan.claims.contains($0.id) }
+        let unclaimed = fresh.filter { !claimed.contains($0.id) }
         let overflow = live + plan.slots.count + unclaimed.count - cap
         var dropped = Set<String>()
         if overflow > 0 {

@@ -367,18 +367,27 @@ private struct WarmPoolStepper: View {
     let count: Int
     let id: String
     let commit: (Int) -> Void
+    /// The value while the user is still clicking. Nil shows `count`, the saved value.
+    @State private var pending: Int?
 
     var body: some View {
+        let value = pending ?? count
         HStack(spacing: 6) {
-            Stepper(
-                value: Binding(get: { count }, set: { commit($0) }), in: 0...8
-            ) {
-                Text(count == 0 ? String(localized: "Off", bundle: .l10n) : "\(count)")
+            Stepper(value: Binding(get: { value }, set: { pending = $0 }), in: 0...8) {
+                Text(value == 0 ? String(localized: "Off", bundle: .l10n) : "\(value)")
                     .font(.system(size: 12))
                     .monospacedDigit()
             }
             .controlSize(.small)
             .accessibilityIdentifier("mac-image-warm-\(id)")
+            // Each change restarts this task, so the config is written once the clicks settle, not per click.
+            .task(id: pending) {
+                guard let target = pending, target != count else { return }
+                try? await Task.sleep(for: .milliseconds(600))
+                guard !Task.isCancelled else { return }
+                commit(target)
+                pending = nil
+            }
         }
     }
 }

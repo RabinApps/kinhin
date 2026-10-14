@@ -8,9 +8,17 @@
 
 - `warm_pool` on an `images:` entry keeps booted, unregistered VMs of that image ready, so jobs routed to it (for example
   `xcode`) skip the clone and boot. The top-level `warm_pool` still covers `image:`; the two share `max_runners`.
+- "VMs kept ready" controls: each image in the "More images" card has a stepper for its warm pool, and the Capacity view
+  has a row for the base image's. Changes are saved after the stepper settles.
 
 **Fixed**
 
+- Disk checks before a Tart clone use the size of the image being cloned, so a large `images:` image no longer passes as
+  if it were the base VM.
+- A warm VM is recycled at once when its pool is turned off or its `images:` entry is removed, instead of holding a
+  `max_runners` slot for up to an hour.
+- A named image that has not been prepared no longer triggers a `tart list` and a warning on every poll. The listing is
+  reused for a minute, and the skip is logged once.
 - Video text no longer runs off the frame: titles, statements, outro lines, step rows and burned captions wrap on whole words
   and shrink to fit. A slide over its character limit (`TEXT_LIMITS` in `video/shared/resolve.mjs`) fails the build with the
   prop and the limit named.
