@@ -278,9 +278,9 @@ extension Infra {
             }
         }
 
-        @Test("with no advisor, repeated spawn failures on a healthy runtime are surfaced, not acted on")
+        @Test("with the advisor off, repeated spawn failures on a healthy runtime are surfaced, not acted on")
         func brokenImageIsSurfaced() async throws {
-            try await Lane.with(forge: .gitea, runtime: .docker, options: Self.options("")) { lane in
+            try await Lane.with(forge: .gitea, runtime: .docker, options: Self.options("healing:\n  ai: off")) { lane in
                 try await Self.breakImage(lane)
                 let entry = try await Self.spawnFailureEntry(lane, outcome: "surfaced")
                 #expect(entry.source == "playbook")
