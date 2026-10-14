@@ -235,6 +235,16 @@ final class FleetEdgeTests: XCTestCase {
         XCTAssertTrue(tart.deleteCalls.isEmpty, "an unreadable runner list must not read as idle")
     }
 
+    /// A token swapped in over the daemon socket never passed through the Keychain loader: it is masked in the
+    /// daemon's logs from the moment it is attached.
+    func testASwappedTokenIsMaskedInLogs() async {
+        defer { LogRedactor.forgetAllSecretsForTesting() }
+        let engine = makeEngine(tart: FakeTart(), github: FakeGitHub(), ssh: FakeSSH())
+        let token = "swapped-token-" + UUID().uuidString
+        await engine.replaceCredentials(pat: token)
+        XCTAssertFalse(LogRedactor.redact("request with \(token) failed").contains(token))
+    }
+
     /// A failed `tart delete` must not make the engine forget the VM: the
     /// record stays (`.deleting`) and the next pass retries until it is gone.
     func testFailedTeardownKeepsTheRecordAndRetries() async throws {

@@ -82,20 +82,16 @@ extension RunnerBootstrap {
     /// line), so a registration failure fails this script: it exits non-zero
     /// with the tail of `agent.log` on stderr instead of vanishing into a
     /// background shell. The registered agent then runs in the background
-    /// (`run.sh --once` when `ephemeral`, plain `run.sh` otherwise) and removes
-    /// itself from the pool afterwards: the "deregistered" signal the engine's
-    /// ephemeral watch waits for. `capabilities` (`name=value`, names already
-    /// valid environment variable names) and `extraEnvironment` (for the
-    /// runtime, e.g. allowing root in containers) are exported before
-    /// registration so the agent advertises them.
+    /// (`run.sh --once` when `ephemeral`, plain `run.sh` otherwise).
+    /// `capabilities` (`name=value`, names already valid environment variable
+    /// names) and `extraEnvironment` (for the runtime, e.g. allowing root in
+    /// containers) are exported before registration so the agent advertises them.
     ///
-    /// Residual exposure (not changed, cannot be verified without a real
-    /// agent): the background shell keeps the PAT in its *unexported*
-    /// variable `tok` until the final `config.sh remove`, because the engine's
-    /// ephemeral watch treats the agent leaving the pool as "job finished", so
-    /// removal has to stay in the guest. The PAT reaches that shell through a
-    /// pipe (a shell builtin writes it, so it is on no command line), `tok` is
-    /// in no environment, and no file holds it.
+    /// The PAT never outlives registration in the guest: `tok` is unset as soon
+    /// as `config.sh` returns, so job code cannot read it from a waiting shell.
+    /// The agent does not remove itself afterwards; the host deletes its record
+    /// once it has gone offline (`AgentPresence`), which is also the "finished"
+    /// signal the engine's ephemeral watch waits for.
     ///
     /// `template` and `baseDir` are shell words (already quoted, or `$HOME/…`).
     static func azureRegistrationScript(
@@ -123,13 +119,9 @@ extension RunnerBootstrap {
                   tail -n 40 agent.log >&2
                   exit 1
                 fi
-                printf '%s\\n' "$tok" | nohup /bin/bash -c '
-                  IFS= read -r tok
-                  \(run)
-                  VSTS_AGENT_INPUT_TOKEN="$tok" ./config.sh remove --unattended --auth pat
-                ' azure-agent >> agent.log 2>&1 &
-                echo $! > agent.pid
                 unset tok
+                nohup /bin/bash -c \(shellQuote(run)) azure-agent >> agent.log 2>&1 &
+                echo $! > agent.pid
 
                 """
         }

@@ -62,7 +62,7 @@ Output is `GET /{project}/_apis/build/builds/{id}/logs/{logId}`, with the log id
 ## Registration flow
 
 - Registration mode `sharedLongLived`, exit semantics `deregisters` (`AzureDevOpsForge.swift:28-29`).
-- The registration credential **is the PAT itself**: `mintRegistrationToken` returns `credentials.token`. The agent is configured **in the foreground** with `config.sh --unattended --url --auth pat --pool --agent`, the token passed through `VSTS_AGENT_INPUT_TOKEN` for that command only, so a failed registration fails the script with the tail of `agent.log`. Registration is sequential, one runner after another. The registered agent then runs in the background (`run.sh --once` when the instance is ephemeral, plain `run.sh` when `vm.ephemeral` is false) and finally `config.sh remove`. The PAT is no longer written to a `.pat` file: it reaches the background shell through a pipe, in an unexported variable. It is still copied into every runner VM, which `TokenRequirements` already warns about.
+- The registration credential **is the PAT itself**: `mintRegistrationToken` returns `credentials.token`. The agent is configured **in the foreground** with `config.sh --unattended --url --auth pat --pool --agent`, the token passed through `VSTS_AGENT_INPUT_TOKEN` for that command only, so a failed registration fails the script with the tail of `agent.log`. Registration is sequential, one runner after another. The registered agent then runs in the background (`run.sh --once` when the instance is ephemeral, plain `run.sh` when `vm.ephemeral` is false). The agent does **not** remove itself: an in-guest `config.sh remove` would need the PAT for the whole job, where job code could read it. The script unsets the PAT as soon as `config.sh` returns, and the host deletes the agent's record once it goes offline (below). The PAT still reaches every runner VM for registration, which `TokenRequirements` already warns about.
 
 ## Demand and label matching
 
@@ -70,7 +70,7 @@ Output is `GET /{project}/_apis/build/builds/{id}/logs/{logId}`, with the log id
 - Labels are exported to the agent as capabilities (`name=true` or `name=value`). The pool's labels join the account's (the account wins on a name clash), and every name is made a valid environment variable name, so `kinhin-docker` becomes `kinhin_docker=true`. A job on a docker pool must therefore demand both `kinhin` and `kinhin_docker`. A `kinhin_docker` demand is translated back to the `kinhin-docker` marker for routing.
 - Queued means `assignTime == nil` with no result **and no reserved agent**: a request already reserved for an agent is not demand for another. A request demanding `Agent.OS -equals` something other than Darwin or Linux (Windows) is not demand either, since no guest could take it.
 - Running means `assignTime != nil` with no result and a reserved agent.
-- An agent seen online that stays offline for 60 s is reported gone and its record deleted, so a failed `config.sh remove` in the guest no longer keeps the instance's exit watch waiting.
+- An agent seen online that then goes offline is reported gone and its record deleted by the host. This is how a finished agent leaves the pool, and the "finished" signal the instance's exit watch waits for. An idle offline agent (its one job done) is reaped after 15 s; one still holding a job (a heartbeat blip) gets 60 s.
 
 ## Pagination, rate limits, retries
 
@@ -94,7 +94,7 @@ No pagination: every list is a single `{value: [...]}` read. `withTransientRetry
 - **Highest-impact risk: an empty pool plus a `demands:` job may fail fast rather than queue.** Azure may reject a request whose demands no agent in the pool satisfies instead of leaving it waiting, so kinhin would never see demand to scale up from. If so, the pool needs a placeholder offline agent that advertises the capabilities, or `min_runners >= 1`. Not verified.
 - That an exported `kinhin_docker=true` environment variable is picked up as a capability by the agent, and that the demand arrives as `kinhin_docker`.
 - That `installdependencies.sh` under `sudo` succeeds on the Tart Linux image and that `Agent.Listener --version` runs there.
-- That the 60 s offline grace never reaps an agent that is merely between jobs.
+- That the 60 s busy grace never reaps an agent mid-job, and how often an idle agent blips offline before its first job (each such blip costs a respawn under the 15 s idle grace).
 - That a request carries `reservedAgent` before `assignTime`, as the queued rule assumes.
 - That a redirect really is how an expired PAT presents on Azure DevOps Services and Server.
 - That sequential registration of several runners in one VM is fast enough.

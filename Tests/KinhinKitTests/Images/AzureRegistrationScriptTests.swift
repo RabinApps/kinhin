@@ -109,12 +109,14 @@ final class AzureRegistrationScriptTests: XCTestCase {
         }
     }
 
-    func testEachAgentRegistersRunsOneJobAndRemovesItself() throws {
+    /// The agent does not remove itself: that would keep the PAT in the guest for the whole job. The host
+    /// deletes the record once the agent goes offline (`AgentPresence`).
+    func testEachAgentRegistersAndRunsOneJobWithoutRemovingItself() throws {
         let harness = try Harness()
         let outcome = try harness.run(
             harness.script(runners: ["kinhin-1-r1", "kinhin-1-r2"], capabilities: ["kinhin_docker=true"]))
         XCTAssertEqual(outcome.status, 0, outcome.stderr)
-        let log = harness.waitForLog(containing: "remove:", count: 2)
+        let log = harness.waitForLog(containing: "run:", count: 2)
         let lines = log.split(separator: "\n").map(String.init)
         for runner in ["kinhin-1-r1", "kinhin-1-r2"] {
             XCTAssertTrue(
@@ -126,9 +128,11 @@ final class AzureRegistrationScriptTests: XCTestCase {
         }
         XCTAssertTrue(
             lines.contains("env: kinhin_docker=true evil=unset root=unset"), "capabilities are exported: \(log)")
-        // The job and the removal both ran, once per agent, with `--once`.
+        // The job ran once per agent, with `--once`, and nothing removed the agent from the guest.
         XCTAssertEqual(lines.filter { $0 == "run: --once token=" }.count, 2, log)
-        XCTAssertEqual(lines.filter { $0 == "remove: remove --unattended --auth pat token=set" }.count, 2, log)
+        Thread.sleep(forTimeInterval: 0.3)
+        let settled = (try? String(contentsOf: harness.log, encoding: .utf8)) ?? ""
+        XCTAssertFalse(settled.contains("remove:"), settled)
     }
 
     /// The point of registering in the foreground: a refused registration is an error of the script itself, with
@@ -153,18 +157,19 @@ final class AzureRegistrationScriptTests: XCTestCase {
         let harness = try Harness()
         let outcome = try harness.run(harness.script(ephemeral: false))
         XCTAssertEqual(outcome.status, 0, outcome.stderr)
-        let log = harness.waitForLog(containing: "remove:")
+        let log = harness.waitForLog(containing: "run:")
         XCTAssertTrue(log.contains("run:  token=\n"), "plain run.sh: \(log)")
         XCTAssertFalse(log.contains("--once"), log)
     }
 
-    /// The PAT reaches config.sh and the removal only through the environment of that one command: no file in the
-    /// agent directory (the log included) ever holds it.
+    /// The PAT reaches config.sh only through the environment of that one command: no file in the agent directory
+    /// (the log included) ever holds it, and no shell left running for the job keeps it.
     func testThePATIsOnlyEverInTheEnvironmentOfTheCommandsThatNeedIt() throws {
         let harness = try Harness()
-        let outcome = try harness.run(harness.script(token: "pat-secret-value"))
+        let script = harness.script(token: "pat-secret-value")
+        let outcome = try harness.run(script)
         XCTAssertEqual(outcome.status, 0, outcome.stderr)
-        let log = harness.waitForLog(containing: "remove:")
+        let log = harness.waitForLog(containing: "run:")
         XCTAssertTrue(log.contains("run: --once token=\n"), "run.sh and the jobs inherit no PAT: \(log)")
         let files = try XCTUnwrap(FileManager.default.enumerator(at: harness.base, includingPropertiesForKeys: nil))
         for case let file as URL in files where !file.hasDirectoryPath {
@@ -173,6 +178,11 @@ final class AzureRegistrationScriptTests: XCTestCase {
         }
         XCTAssertFalse(outcome.stdout.contains("pat-secret-value"))
         XCTAssertFalse(outcome.stderr.contains("pat-secret-value"))
+        // The PAT is assigned once and unset before the agent is started in the background.
+        XCTAssertEqual(script.components(separatedBy: "pat-secret-value").count - 1, 1, script)
+        let unset = try XCTUnwrap(script.range(of: "unset tok"))
+        let start = try XCTUnwrap(script.range(of: "nohup"))
+        XCTAssertLessThan(unset.lowerBound, start.lowerBound, "tok must be gone before the job can run")
     }
 
     /// Tart VMs can be macOS or Linux guests: the copy tries the APFS clone
@@ -238,7 +248,7 @@ final class AzureRegistrationScriptTests: XCTestCase {
         let hostile = "evil=1'; touch \(marker); echo '$(touch \(marker))"
         let outcome = try harness.run(harness.script(capabilities: [hostile]))
         XCTAssertEqual(outcome.status, 0, outcome.stderr)
-        let log = harness.waitForLog(containing: "remove:")
+        let log = harness.waitForLog(containing: "run:")
         XCTAssertFalse(FileManager.default.fileExists(atPath: marker), "the value was executed")
         XCTAssertTrue(log.contains("evil=1'; touch \(marker); echo '$(touch \(marker))"), log)
     }
@@ -247,7 +257,7 @@ final class AzureRegistrationScriptTests: XCTestCase {
         let harness = try Harness()
         let outcome = try harness.run(harness.script(extraEnvironment: ["AGENT_ALLOW_RUNASROOT=1"]))
         XCTAssertEqual(outcome.status, 0, outcome.stderr)
-        let log = harness.waitForLog(containing: "remove:")
+        let log = harness.waitForLog(containing: "run:")
         XCTAssertTrue(log.contains("root=1"), log)
     }
 

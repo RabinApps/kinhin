@@ -12,6 +12,12 @@ enum LogRedactor {
     /// occurrence of a known value is masked literally.
     private static let knownSecrets = Mutex<Set<String>>([])
 
+    /// Recent registration material (registration tokens, JIT configs, per-runner
+    /// tokens), newest last. Minted for every spawn, so bounded: an evicted one
+    /// has long since expired or been used.
+    private static let registrationSecrets = Mutex<[String]>([])
+    static let registrationSecretLimit = 256
+
     /// Shortest value worth masking: anything shorter would mangle ordinary text.
     private static let minimumSecretLength = 8
 
@@ -21,8 +27,22 @@ enum LogRedactor {
         _ = knownSecrets.withLock { $0.insert(trimmed) }
     }
 
+    /// Masks short-lived registration material, keeping only the newest
+    /// `registrationSecretLimit` values so a long-running fleet does not grow
+    /// the per-line scan without bound.
+    static func registerRegistrationSecret(_ secret: String) {
+        let trimmed = secret.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count >= minimumSecretLength else { return }
+        registrationSecrets.withLock { secrets in
+            secrets.removeAll { $0 == trimmed }
+            secrets.append(trimmed)
+            if secrets.count > registrationSecretLimit { secrets.removeFirst(secrets.count - registrationSecretLimit) }
+        }
+    }
+
     static func forgetAllSecretsForTesting() {
         knownSecrets.withLock { $0.removeAll() }
+        registrationSecrets.withLock { $0.removeAll() }
     }
 
     /// A redaction rule plus the cheap literals any match must contain. The
@@ -93,7 +113,9 @@ enum LogRedactor {
 
     static func redact(_ text: String) -> String {
         var result = applyRules(to: text, gated: true)
-        for secret in knownSecrets.withLock({ $0 }) {
+        // Longest first, so a secret that contains another is masked whole.
+        let secrets = knownSecrets.withLock { Array($0) } + registrationSecrets.withLock { $0 }
+        for secret in secrets.sorted(by: { $0.count > $1.count }) {
             result = result.replacingOccurrences(of: secret, with: mask)
         }
         return result
