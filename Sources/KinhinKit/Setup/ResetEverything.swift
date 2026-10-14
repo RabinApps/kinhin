@@ -52,8 +52,14 @@ public enum ResetScope: String, CaseIterable, Sendable {
 public struct ResetPlan: Equatable, Sendable {
     public let scope: ResetScope
     /// The config could not be read (reset may be the reason it is broken);
-    /// image names then come from the defaults and say so.
+    /// image names and the tart path then come from the defaults and say so.
     public var configBroken = false
+    /// Why the config could not be read, when ``configBroken``.
+    public var configError: String?
+    /// What planning could not inventory, so execution cannot remove it.
+    /// Never silently dropped: both surfaces show these before the user
+    /// confirms, and execution carries them into ``ResetReport/leftBehind``.
+    public var planningProblems: [PlanningProblem] = []
     /// config.yaml and its backup, when they exist.
     public var configFiles: [URL] = []
     /// Keychain accounts with a stored token, across kinhin's services
@@ -76,6 +82,27 @@ public struct ResetPlan: Equatable, Sendable {
     public init(scope: ResetScope, supportRoot: URL) {
         self.scope = scope
         self.supportRoot = supportRoot
+    }
+
+    /// Something the plan could not inventory, and so will not remove.
+    public struct PlanningProblem: Equatable, Sendable {
+        public enum Area: Equatable, Sendable {
+            /// tart could not be run or listed: VMs and images are not removed.
+            case tart
+            /// The Keychain could not be read: the tokens were not listed
+            /// (execution still tries the wipe, and drops this problem if it
+            /// succeeds).
+            case keychain
+        }
+
+        public let area: Area
+        /// One user-readable line naming the failure and what it leaves behind.
+        public let message: String
+
+        public init(area: Area, message: String) {
+            self.area = area
+            self.message = message
+        }
     }
 
     /// The logs and per-VM state directories (config and all scopes).
@@ -106,7 +133,12 @@ public struct ResetPlan: Equatable, Sendable {
             lines.append("  note: the running daemon keeps serving with its in-memory token until restarted")
         }
         if configBroken, scope == .all {
-            lines.append("  note: the config could not be read — image names come from the defaults")
+            let reason = configError.map { " (\($0))" } ?? ""
+            lines.append(
+                "  note: the config could not be read\(reason) — the tart path and image names come from the defaults")
+        }
+        for problem in planningProblems {
+            lines.append("  warning: \(problem.message)")
         }
         lines.append("  this cannot be undone")
         return lines.joined(separator: "\n")
@@ -118,17 +150,21 @@ public struct ResetPlan: Equatable, Sendable {
 /// another step just deleted: fleet first, then the LaunchAgent, then VMs and
 /// files, then the Keychain.
 public enum ResetEverything {
-    /// Builds the plan for one scope. Never throws for missing state — an
-    /// unreadable config degrades to the defaults (flagged in the plan), a
-    /// missing tart contributes no VMs, an unreadable Keychain leaves the
-    /// token list empty (execution warns).
+    /// Builds the plan for one scope. Throws only `CancellationError`; missing
+    /// or unreadable state is recorded instead of hidden: an unreadable config
+    /// degrades to the defaults (``ResetPlan/configBroken``), and a tart that
+    /// cannot be run or listed, or a Keychain that cannot be read, becomes a
+    /// ``ResetPlan/planningProblems`` entry. A Mac with no tart at all (and
+    /// none configured) has no VMs to remove, so that is not a problem.
+    /// `keychainAccounts` is injectable so tests can fail the Keychain read.
     public static func plan(
         scope: ResetScope,
         configURL: URL = Paths.config,
         supportRoot: URL? = nil,
         isDaemonAlive: @escaping @Sendable () -> Bool = { RPCClient.isDaemonAlive() },
-        tart: (any TartControlling)? = nil
-    ) async -> ResetPlan {
+        tart: (any TartControlling)? = nil,
+        keychainAccounts: () throws -> [String] = { try KeychainTokenStore.accounts() }
+    ) async throws -> ResetPlan {
         let supportRoot = supportRoot ?? Paths.appSupport
         var plan = ResetPlan(scope: scope, supportRoot: supportRoot)
         let config: KinhinConfig
@@ -140,11 +176,14 @@ public enum ResetEverything {
             // anything else (bad YAML, unreadable) is flagged in the plan.
             switch error {
             case .notFound: break
-            default: plan.configBroken = true
+            default:
+                plan.configBroken = true
+                plan.configError = error.localizedDescription
             }
         } catch {
             config = .default
             plan.configBroken = true
+            plan.configError = error.localizedDescription
         }
         plan.tartPath = config.tartPath
 
@@ -157,28 +196,72 @@ public enum ResetEverything {
         plan.daemonInstalled = scope.includesDaemon && Daemon.agentPlistURL != nil
         plan.daemonAlive = isDaemonAlive()
         if scope == .all {
-            let controller = tart ?? (try? TartController(configuredPath: config.tartPath))
             let cacheRoot = supportRoot.appendingPathComponent(ToolchainCacheMount.hostDirectoryName, isDirectory: true)
-            // A tart that cannot be listed contributes no VMs; the cache is
-            // still counted and the directory still emptied.
-            plan.cleanup =
-                (try? await CleanupPlan.plan(
+            let controller = tart ?? tartController(for: config, plan: &plan)
+            do {
+                plan.cleanup = try await CleanupPlan.plan(
                     targets: .all, tart: controller, baseImage: config.image,
-                    namedImages: config.images.map(\.name), cacheRoot: cacheRoot)) ?? CleanupPlan()
+                    namedImages: config.images.map(\.name), cacheRoot: cacheRoot)
+            } catch let error as CancellationError {
+                throw error
+            } catch {
+                // A tart that cannot be listed contributes no VMs, and the
+                // plan says so; the cache is still counted and the directory
+                // still emptied.
+                Log.warn("reset", "listing tart VMs failed: \(error.localizedDescription)")
+                plan.planningProblems.append(
+                    .init(
+                        area: .tart,
+                        message:
+                            "could not list Tart VMs (\(error.localizedDescription)); VMs and images were not removed"))
+                plan.cleanup = try await CleanupPlan.plan(
+                    targets: CleanupPlan.Targets(cache: true), tart: nil, baseImage: config.image, cacheRoot: cacheRoot)
+            }
         }
         if scope.includesConfig {
-            plan.keychainAccounts = (try? KeychainTokenStore.accounts()) ?? []
+            do {
+                plan.keychainAccounts = try keychainAccounts()
+            } catch {
+                Log.warn("reset", "reading the keychain failed: \(error.localizedDescription)")
+                plan.planningProblems.append(
+                    .init(
+                        area: .keychain,
+                        message:
+                            "could not read the Keychain (\(error.localizedDescription)); stored tokens were not listed and may not be removed"
+                    ))
+            }
         }
         return plan
     }
 
-    /// Runs the plan. Returns one report line per completed step (for stdout
-    /// or the app's status line). Per-item failures are logged and reported
-    /// instead of stranding the rest of the reset; the LaunchAgent removal is
-    /// the only step allowed to throw (a surviving KeepAlive daemon would
-    /// recreate everything the reset just deleted). The daemon uninstall and
-    /// directory re-creation are injectable so tests never touch the real
-    /// LaunchAgents or the developer's support directory.
+    /// The production tart for the "everything" scope. No tart on this Mac
+    /// (and none configured, from a readable config) means there are no tart
+    /// VMs or images to remove; any other failure is a planning problem.
+    private static func tartController(for config: KinhinConfig, plan: inout ResetPlan) -> (any TartControlling)? {
+        do {
+            return try TartController(configuredPath: config.tartPath)
+        } catch TartError.missingBinary where config.tartPath == nil && !plan.configBroken {
+            Log.info("reset", "tart is not installed; no VMs or images to remove")
+            return nil
+        } catch {
+            Log.warn("reset", "tart is not available: \(error.localizedDescription)")
+            plan.planningProblems.append(
+                .init(
+                    area: .tart,
+                    message: "could not run tart (\(error.localizedDescription)); VMs and images were not removed"))
+            return nil
+        }
+    }
+
+    /// Runs the plan and reports what it did and what it left behind (for the
+    /// CLI's output or the app's status line). Per-item failures are logged
+    /// and reported in ``ResetReport/leftBehind`` instead of stranding the
+    /// rest of the reset, and the plan's ``ResetPlan/planningProblems`` lead
+    /// that list. The LaunchAgent removal is the only step allowed to throw (a
+    /// surviving KeepAlive daemon would recreate everything the reset just
+    /// deleted); cancellation propagates. The daemon uninstall and directory
+    /// re-creation are injectable so tests never touch the real LaunchAgents
+    /// or the developer's support directory.
     @discardableResult
     public static func execute(
         _ plan: ResetPlan,
@@ -187,8 +270,10 @@ public enum ResetEverything {
         stopFleet: (@Sendable () async -> Void)? = nil,
         uninstallDaemon: (@Sendable () async throws -> Void)? = nil,
         ensureDirs: (@Sendable () -> Void)? = nil
-    ) async throws -> [String] {
-        var report: [String] = []
+    ) async throws -> ResetReport {
+        var report = ResetReport()
+        // The Keychain problem is re-judged by the wipe in step 5.
+        report.leftBehind = plan.planningProblems.filter { $0.area != .keychain }.map(\.message)
         let fm = FileManager.default
 
         // 1. Stop the fleet so VMs tear down and nothing recreates state.
@@ -198,7 +283,7 @@ public enum ResetEverything {
             } else {
                 await stopDaemonFleetIfAlive()
             }
-            report.append("stopped the fleet")
+            report.completed.append("stopped the fleet")
         }
 
         // 2. Remove the LaunchAgent before touching anything it could revive.
@@ -208,42 +293,21 @@ public enum ResetEverything {
             } else {
                 try await Daemon.stopAndUninstall(shell: shell)
             }
-            report.append("removed the daemon LaunchAgent")
+            report.completed.append("removed the daemon LaunchAgent")
         }
 
         // 3. VMs, images, toolchain cache (the "everything" scope). One bad VM
-        //    must not strand the others: best-effort per item.
+        //    must not strand the others: each item is attempted and reported.
         if let cleanup = plan.cleanup {
-            let controller =
-                tart ?? (try? TartController(configuredPath: plan.tartPath))
-            if let controller {
-                for vm in cleanup.vms + cleanup.scratchVMs {
-                    await bestEffortAsync("reset", "deleting \(vm)") {
-                        try? await controller.stop(name: vm)  // not running is what we want
-                        try await controller.delete(name: vm)
-                    }
-                }
-                for image in cleanup.images {
-                    await bestEffortAsync("reset", "deleting image \(image)") {
-                        try await controller.delete(name: image)
-                    }
-                }
-            } else if !cleanup.vms.isEmpty || !cleanup.images.isEmpty {
-                report.append(
-                    "warning: tart is not available — \(cleanup.vms.count + cleanup.images.count) VM(s)/image(s) were left on disk (re-run `kinhin cleanup --yes`)"
-                )
-            }
+            try await removeVMsAndImages(cleanup, plan: plan, tart: tart, report: &report)
             if cleanup.cacheBytes != nil {
                 let cacheRoot = plan.supportRoot.appendingPathComponent(
                     ToolchainCacheMount.hostDirectoryName, isDirectory: true)
-                bestEffort("reset", "emptying the toolchain cache") {
+                try attempt("empty the toolchain cache", &report) {
                     let entries = try fm.contentsOfDirectory(at: cacheRoot, includingPropertiesForKeys: nil)
                     for entry in entries { try fm.removeItem(at: entry) }
                 }
             }
-            let removed =
-                "removed \(cleanup.vms.count + cleanup.scratchVMs.count) VM(s) and \(cleanup.images.count) image(s)"
-            report.append(removed)
         }
 
         // 4. Files: the whole support directory (everything), or config +
@@ -251,20 +315,32 @@ public enum ResetEverything {
         //    re-created 0700 so the next launch starts clean.
         if plan.scope.includesConfig {
             for url in plan.configFiles {
-                bestEffort("reset", "deleting \(url.lastPathComponent)") { try fm.removeItem(at: url) }
+                try attempt("delete \(url.lastPathComponent)", &report) { try fm.removeItem(at: url) }
             }
             if plan.scope == .all {
-                let entries = (try? fm.contentsOfDirectory(at: plan.supportRoot, includingPropertiesForKeys: nil)) ?? []
-                for entry in entries {
-                    bestEffort("reset", "deleting \(entry.lastPathComponent)") { try fm.removeItem(at: entry) }
+                // A directory that cannot be listed is reported, not read as
+                // "already empty".
+                do {
+                    let entries = try fm.contentsOfDirectory(at: plan.supportRoot, includingPropertiesForKeys: nil)
+                    for entry in entries {
+                        try attempt("delete \(entry.lastPathComponent)", &report) { try fm.removeItem(at: entry) }
+                    }
+                    report.completed.append("emptied \(plan.supportRoot.path)")
+                } catch let error as CancellationError {
+                    throw error
+                } catch {
+                    Log.warn("reset", "listing \(plan.supportRoot.path) failed: \(error.localizedDescription)")
+                    report.leftBehind.append(
+                        "could not list \(plan.supportRoot.path) (\(error.localizedDescription)); nothing in it was removed"
+                    )
                 }
             } else {
-                for directory in [plan.logsDirectory, plan.stateDirectory] {
-                    bestEffort("reset", "deleting \(directory.lastPathComponent)") { try fm.removeItem(at: directory) }
+                for directory in [plan.logsDirectory, plan.stateDirectory] where fm.fileExists(atPath: directory.path) {
+                    try attempt("delete \(directory.lastPathComponent)", &report) { try fm.removeItem(at: directory) }
                 }
+                report.completed.append("removed config, logs and state")
             }
             (ensureDirs ?? { Paths.ensureSupportDirectories() })()
-            report.append(plan.scope == .all ? "emptied \(plan.supportRoot.path)" : "removed config, logs and state")
         }
 
         // 5. Tokens last: once the files are gone a surviving token is the
@@ -272,16 +348,23 @@ public enum ResetEverything {
         if plan.scope.includesConfig {
             do {
                 let removed = try KeychainTokenStore.deleteAll()
-                report.append(
+                report.completed.append(
                     removed.isEmpty ? "no stored tokens found" : "removed \(removed.count) keychain token(s)")
             } catch {
                 Log.warn("reset", "keychain wipe failed: \(error.localizedDescription)")
-                report.append(
-                    "warning: the keychain could not be wiped (\(error.localizedDescription)) — remove the tokens with `kinhin auth clear`"
+                report.leftBehind.append(
+                    "the Keychain could not be wiped (\(error.localizedDescription)); remove the tokens with `kinhin auth clear`"
                 )
             }
         }
-        Log.info("reset", "kinhin was reset (scope: \(plan.scope.rawValue)) — this cannot be undone")
+        if report.isComplete {
+            Log.info("reset", "kinhin was reset (scope: \(plan.scope.rawValue)) — this cannot be undone")
+        } else {
+            Log.warn(
+                "reset",
+                "kinhin was reset (scope: \(plan.scope.rawValue)) but \(report.leftBehind.count) item(s) were left behind"
+            )
+        }
         return report
     }
 

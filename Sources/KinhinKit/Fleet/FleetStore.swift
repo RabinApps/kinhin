@@ -9,24 +9,34 @@ public final class FleetStore: Sendable {
     /// this, so the last write to land is always the newest state.
     private let writeLock = Mutex(())
 
+    /// Where an unreadable fleet.json found at construction or reload was
+    /// set aside (see `StateFile`); nil when none was.
+    private let corruptFile: Mutex<URL?>
+
     public init(directory: URL = Paths.stateDirectory) {
         self.url = directory.appendingPathComponent("fleet.json")
-        // A missing or corrupt fleet.json reads as "no fleet" — restart
-        // recovery then adopts the live instances again. A corrupt one is
-        // logged: its records (job/repo attribution) are lost.
-        self.mutex = Mutex(Self.readRecords(at: url) ?? [])
+        // A missing fleet.json reads as "no fleet". A corrupt one is moved
+        // aside and reported: restart recovery adopts the live instances
+        // again, but their records (job/repo attribution) are lost.
+        var initial: [VMRecord] = []
+        var corrupt: URL?
+        switch Self.readRecords(at: url) {
+        case .missing: break
+        case .loaded(let records): initial = records
+        case .corrupt(let kept): corrupt = kept
+        }
+        self.mutex = Mutex(initial)
+        self.corruptFile = Mutex(corrupt)
     }
 
-    /// The records in `file`; nil when it is missing or unreadable.
-    private static func readRecords(at file: URL) -> [VMRecord]? {
-        guard FileManager.default.fileExists(atPath: file.path) else { return nil }
-        do {
-            return try JSONDecoder().decode([VMRecord].self, from: Data(contentsOf: file))
-        } catch {
-            Log.warn("store", "could not read \(file.path) (\(error.localizedDescription)); starting empty")
-            return nil
-        }
+    private static func readRecords(at file: URL) -> StateFile.Load<[VMRecord]> {
+        StateFile.load(file, component: "store") { try JSONDecoder().decode([VMRecord].self, from: $0) }
     }
+
+    /// Where an unreadable fleet.json was moved aside (or, if that move
+    /// failed, its original path); nil when the file read cleanly or was
+    /// missing. The engine raises it as a status alert.
+    public var recoveredFromCorruptFile: URL? { corruptFile.withLock { $0 } }
 
     /// Re-reads fleet.json, replacing the in-memory records. A store built
     /// before another engine finished writing (the daemon builds a replacement
@@ -34,11 +44,15 @@ public final class FleetStore: Sendable {
     /// calls this once the previous owner is detached, so recovery adopts what
     /// that engine last wrote instead of what the file held at construction.
     /// A missing or unreadable file keeps the records in memory (the write
-    /// that would have produced it may have failed).
+    /// that would have produced it may have failed); an unreadable one is
+    /// also moved aside and reported like a corrupt file at construction.
     func reload() {
         writeLock.withLock { _ in
-            guard let records = Self.readRecords(at: url) else { return }
-            mutex.withLock { $0 = records }
+            switch Self.readRecords(at: url) {
+            case .missing: return
+            case .loaded(let records): mutex.withLock { $0 = records }
+            case .corrupt(let kept): corruptFile.withLock { $0 = kept }
+            }
         }
     }
 

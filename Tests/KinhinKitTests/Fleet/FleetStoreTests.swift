@@ -61,4 +61,52 @@ final class FleetStoreTests: XCTestCase {
         let onDisk = try JSONDecoder().decode([VMRecord].self, from: data)
         XCTAssertEqual(onDisk, store.all)
     }
+
+    // MARK: - Corrupt file
+
+    private func corruptCopies() throws -> [URL] {
+        try FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)
+            .filter { $0.lastPathComponent.hasPrefix("fleet.json.corrupt-") }
+    }
+
+    /// A corrupt fleet.json is moved aside, not overwritten by the next save,
+    /// and the store reports where it went.
+    func testCorruptFileIsQuarantinedAndSurvivesTheNextSave() throws {
+        let garbage = Data("{not json".utf8)
+        try garbage.write(to: root.appendingPathComponent("fleet.json"))
+
+        let store = FleetStore(directory: root)
+
+        XCTAssertTrue(store.all.isEmpty)
+        let copies = try corruptCopies()
+        XCTAssertEqual(copies.count, 1)
+        XCTAssertEqual(store.recoveredFromCorruptFile?.lastPathComponent, copies.first?.lastPathComponent)
+        store.upsert(VMRecord(id: "kinhin-1-a"))
+        let copy = try XCTUnwrap(copies.first)
+        XCTAssertEqual(try Data(contentsOf: copy), garbage, "the next save must not touch the kept copy")
+        XCTAssertEqual(FleetStore(directory: root).all.map(\.id), ["kinhin-1-a"])
+    }
+
+    func testMissingFileIsNotQuarantined() throws {
+        let store = FleetStore(directory: root)
+        XCTAssertTrue(store.all.isEmpty)
+        XCTAssertNil(store.recoveredFromCorruptFile)
+        store.reload()
+        XCTAssertNil(store.recoveredFromCorruptFile)
+        XCTAssertEqual(try corruptCopies(), [])
+    }
+
+    /// A corrupt file at reload keeps the in-memory records but is still set
+    /// aside and reported.
+    func testCorruptFileAtReloadKeepsRecordsAndQuarantines() throws {
+        let store = FleetStore(directory: root)
+        store.upsert(VMRecord(id: "kinhin-1-a"))
+        try Data("garbage".utf8).write(to: root.appendingPathComponent("fleet.json"))
+
+        store.reload()
+
+        XCTAssertEqual(store.all.map(\.id), ["kinhin-1-a"])
+        XCTAssertEqual(try corruptCopies().count, 1)
+        XCTAssertNotNil(store.recoveredFromCorruptFile)
+    }
 }

@@ -62,7 +62,8 @@ final class StoreHandOverTests: XCTestCase {
         try Data("not json".utf8).write(to: file)
         store.reload()
         XCTAssertEqual(store.all.map(\.id), ["kinhin-1"], "an unreadable file must not wipe the fleet")
-        try FileManager.default.removeItem(at: file)
+        // The unreadable file was moved aside, so the next reload finds none.
+        XCTAssertFalse(FileManager.default.fileExists(atPath: file.path), "a corrupt file is quarantined")
         store.reload()
         XCTAssertEqual(store.all.map(\.id), ["kinhin-1"], "a failed write must not wipe the fleet")
     }

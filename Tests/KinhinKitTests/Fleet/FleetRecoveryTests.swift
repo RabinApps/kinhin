@@ -107,4 +107,37 @@ final class FleetRecoveryTests: XCTestCase {
         XCTAssertNotEqual(store.all.first { $0.id == "kinhin-t1" }?.phase, .cloning)
         await engine.detachKeepingInstances()
     }
+
+    /// A corrupt fleet.json (and project-images.json) must reach the status
+    /// as alerts naming the kept copy, not only the log.
+    func testCorruptStateFilesRaiseStatusAlerts() async throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("kinhin-corrupt-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: dir) }  // test temp dir
+        try Data("garbage".utf8).write(to: dir.appendingPathComponent("fleet.json"))
+        try Data("garbage".utf8).write(to: dir.appendingPathComponent("project-images.json"))
+        let store = FleetStore(directory: dir)
+        var dependencies = FleetEngine.Dependencies(lifecycleDrainTimeout: .milliseconds(200))
+        dependencies.projectImageStore = ProjectImageStore(directory: dir)
+        let engine = FleetEngine(
+            config: makeTestConfig(), github: FakeGitHub(), tart: FakeTart(), store: store, ssh: FakeSSH(),
+            host: host, dependencies: dependencies)
+
+        await engine.recoverIfNeeded()
+
+        let alerts = await engine.status().alerts ?? []
+        let fleet = try XCTUnwrap(alerts.first { $0.source == "store:fleet" })
+        let kept = try XCTUnwrap(store.recoveredFromCorruptFile)
+        XCTAssertTrue(fleet.message.contains(kept.lastPathComponent), fleet.message)
+        XCTAssertTrue(alerts.contains { $0.source == "store:project-images" })
+        await engine.detachKeepingInstances()
+    }
+
+    func testCleanStateRaisesNoStoreAlert() async {
+        let (engine, _) = makeMixedEngine(store: makeTestStore())
+        await engine.recoverIfNeeded()
+        let alerts = await engine.status().alerts ?? []
+        XCTAssertFalse(alerts.contains { $0.source.hasPrefix("store:") })
+        await engine.detachKeepingInstances()
+    }
 }

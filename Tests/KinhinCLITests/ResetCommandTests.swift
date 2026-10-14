@@ -62,4 +62,40 @@ final class ResetCommandTests: XCTestCase {
         XCTAssertTrue(ResetCommand.nextSteps(for: .all).contains("kinhin auth set"))
         XCTAssertTrue(ResetCommand.nextSteps(for: .daemon).contains("kinhin daemon install"))
     }
+
+    // MARK: - Leftovers
+
+    func testLeftoversAreWarnedAndEndInNeedsAttention() {
+        var plan = ResetPlan(scope: .all, supportRoot: URL(fileURLWithPath: "/tmp/kinhin-reset-cli"))
+        plan.configBroken = true
+        plan.configError = "bad YAML"
+        let report = ResetReport(
+            completed: ["removed the daemon LaunchAgent"],
+            leftBehind: ["could not list Tart VMs (tart list failed); VMs and images were not removed"])
+        let warnings = ResetCommand.warnings(plan: plan, report: report)
+        XCTAssertEqual(
+            warnings,
+            [
+                "the config could not be read (bad YAML); the tart path and image names came from the defaults",
+                "could not list Tart VMs (tart list failed); VMs and images were not removed",
+            ])
+        XCTAssertTrue(ResetCommand.leftBehindSummary(report).contains("1 item(s) were left behind"))
+        XCTAssertEqual(ExitRule.code(healthy: report.isComplete), .needsAttention)
+        XCTAssertEqual(CLIExit.needsAttention.rawValue, 1)
+    }
+
+    func testACompleteResetHasNoWarningsAndExitsZero() {
+        let plan = ResetPlan(scope: .config, supportRoot: URL(fileURLWithPath: "/tmp/kinhin-reset-cli"))
+        let report = ResetReport(completed: ["removed config, logs and state"])
+        XCTAssertEqual(ResetCommand.warnings(plan: plan, report: report), [])
+        XCTAssertNil(ExitRule.code(healthy: report.isComplete))
+    }
+
+    func testABrokenConfigOnlyWarnsForTheEverythingScope() {
+        var plan = ResetPlan(scope: .config, supportRoot: URL(fileURLWithPath: "/tmp/kinhin-reset-cli"))
+        plan.configBroken = true
+        XCTAssertEqual(
+            ResetCommand.warnings(plan: plan, report: ResetReport()), [],
+            "the config scope deletes the broken config; its defaults are never used")
+    }
 }
