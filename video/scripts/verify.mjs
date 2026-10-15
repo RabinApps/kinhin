@@ -17,11 +17,22 @@ import {fileURLToPath} from 'node:url';
 const probe = (file, entries, select) =>
   JSON.parse(execFileSync('ffprobe', ['-v', 'error', ...(select ? ['-select_streams', select] : []), '-show_entries', entries, '-of', 'json', file]).toString());
 
+/**
+ * Integrated loudness (LUFS), loudness range (LU) and true peak (dBTP) of a file's audio, or null when it has none.
+ * The range and peak are facts for comparing builds, not checks.
+ */
+export function loudnessStats(file) {
+  const r = spawnSync('ffmpeg', ['-nostdin', '-hide_banner', '-i', file, '-vn', '-af', 'ebur128=peak=true:framelog=quiet', '-f', 'null', '-'], {encoding: 'utf8'});
+  const m = r.stderr.match(/Integrated loudness:\s*\n\s*I:\s*(-?[\d.]+) LUFS/);
+  if (!m) return null;
+  const range = r.stderr.match(/Loudness range:\s*\n\s*LRA:\s*(-?[\d.]+) LU/);
+  const peak = r.stderr.match(/True peak:\s*\n\s*Peak:\s*(-?[\d.]+) dBFS/);
+  return {lufs: Number(m[1]), lra: range ? Number(range[1]) : null, truePeak: peak ? Number(peak[1]) : null};
+}
+
 /** Integrated loudness (LUFS) of a file's audio, or null when it has none. */
 export function loudness(file) {
-  const r = spawnSync('ffmpeg', ['-nostdin', '-hide_banner', '-i', file, '-vn', '-af', 'ebur128=framelog=quiet', '-f', 'null', '-'], {encoding: 'utf8'});
-  const m = r.stderr.match(/Integrated loudness:\s*\n\s*I:\s*(-?[\d.]+) LUFS/);
-  return m ? Number(m[1]) : null;
+  return loudnessStats(file)?.lufs ?? null;
 }
 
 /** Spans of black longer than half a second, as [start, end] seconds. */
@@ -74,6 +85,7 @@ export function verifyVideo(file, {timeline, maxMB, maxSeconds, loudnessTarget =
   }
   const duration = Number(probe(file, 'format=duration').format.duration);
   facts.seconds = Math.round(duration * 10) / 10;
+  if (duration > 0) facts.kbps = Math.round((facts.bytes * 8) / duration / 1000);
   if (timeline && Math.abs(duration - timeline.total) > 1) fail(`duration ${duration.toFixed(1)} s is not within 1 s of the timeline's ${timeline.total} s`);
   if (maxSeconds && duration > maxSeconds) fail(`duration ${duration.toFixed(1)} s exceeds the ${maxSeconds} s budget`);
   if (maxMB && facts.bytes > maxMB * 1024 * 1024) fail(`size ${(facts.bytes / 1048576).toFixed(1)} MB exceeds the ${maxMB} MB budget`);
@@ -82,8 +94,13 @@ export function verifyVideo(file, {timeline, maxMB, maxSeconds, loudnessTarget =
     const a = probe(file, 'stream=codec_name', 'a:0').streams?.[0];
     if (!a) fail('no audio stream');
     else {
-      const lufs = loudness(file);
+      const stats = loudnessStats(file);
+      const lufs = stats?.lufs ?? null;
       facts.lufs = lufs;
+      if (stats) {
+        facts.lra = stats.lra;
+        facts.truePeak = stats.truePeak;
+      }
       if (lufs === null) fail('could not measure loudness');
       else if (Math.abs(lufs - loudnessTarget) > loudnessTolerance) fail(`loudness ${lufs} LUFS is more than ${loudnessTolerance} LU from ${loudnessTarget}`);
     }
