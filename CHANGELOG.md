@@ -4,6 +4,8 @@
 
 <!-- changelog: entries for the next release go here -->
 
+## v0.0.1-beta-2
+
 **Added**
 
 - `kinhin video record <app or title>` records one window of your app as a clip, with the mouse pointer left out, for a video's app scene. `--list-windows` shows what can be recorded and `--window ID` picks one. It needs Screen Recording permission for your terminal once. See [docs/video-adapters.md](docs/video-adapters.md#recording-clips).
