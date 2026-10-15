@@ -104,8 +104,9 @@ Tart VM:
 - `--headless`: no desktop, so no recording. It runs the demo unit tests and renders the offscreen UI captures
   (`shots/capture`) instead.
 
-Both set `KINHIN_DEMO` the same way (`KINHIN_DEMO=path/in/repo.json video/adapters/kinhin/record-app.sh`). For auto-zoom and a
-smoothed cursor, run the raw take through an open-source editor such as OpenScreen or Screenize.
+Both set `KINHIN_DEMO` the same way (`KINHIN_DEMO=path/in/repo.json video/adapters/kinhin/record-app.sh`). The pointer is
+left out of the take, so no cursor smoothing is needed; for auto-zoom, run the raw take through an editor such as
+OpenScreen or Screenize.
 
 ## Build the launch video
 

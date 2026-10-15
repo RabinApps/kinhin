@@ -30,11 +30,6 @@
       "how": "Xcode 26+"
     },
     {
-      "tool": "screencapture",
-      "why": "record-app.sh",
-      "how": "built into macOS"
-    },
-    {
       "tool": "vhs",
       "why": "the terminal clips (record-terminal.sh)",
       "how": "brew install vhs"

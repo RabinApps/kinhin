@@ -234,6 +234,9 @@ private final class FrameWriter: NSObject, SCStreamOutput, SCStreamDelegate, @un
     }
 
     func finish() async throws {
+        // No picture arrived (a minimised or empty window): the writer never started, and marking its input finished would
+        // raise an Objective-C exception. The caller reports that no frames came.
+        guard started else { return }
         input.markAsFinished()
         await withCheckedContinuation { continuation in
             writer.finishWriting { continuation.resume() }
