@@ -144,13 +144,17 @@ final class VideoTests: XCTestCase {
         options.captionStyle = "box"
         options.music = "audio/bed.mp3"
         options.fast = true
+        options.quality = "high"
+        options.fps = "60"
         let tail = Array(plan(options).run.drop { $0 != "/work/scripts/container-build.sh" })
         XCTAssertEqual(
             tail,
             [
                 "/work/scripts/container-build.sh", "--project", "social/vertical", "--theme", "midnight", "--format",
                 "9:16",
-                "--captions", "off", "--caption-style", "box", "--music", "audio/bed.mp3", "--fast",
+                "--captions", "off", "--caption-style", "box", "--music", "audio/bed.mp3", "--quality", "high", "--fps",
+                "60",
+                "--fast",
             ])
     }
 
@@ -405,7 +409,8 @@ final class VideoTests: XCTestCase {
         process.currentDirectoryURL = dir
         process.environment = [
             "PATH": "\(dir.path):/usr/bin:/bin", "VIDEO_IMAGE": "img:1", "VIDEO_PROJECT": "launch",
-            "VIDEO_THEME": "midnight", "VIDEO_MUSIC": "a track; rm -rf /", "VIDEO_FAST": "true",
+            "VIDEO_THEME": "midnight", "VIDEO_MUSIC": "a track; rm -rf /", "VIDEO_QUALITY": "high", "VIDEO_FPS": "60",
+            "VIDEO_FAST": "true",
         ]
         try process.run()
         process.waitUntilExit()
@@ -416,7 +421,7 @@ final class VideoTests: XCTestCase {
             Array(args.drop { $0 != "img:1" }.dropFirst()),
             [
                 "/work/scripts/container-build.sh", "--project", "launch", "--theme", "midnight", "--music",
-                "a track; rm -rf /", "--fast",
+                "a track; rm -rf /", "--quality", "high", "--fps", "60", "--fast",
             ], "an unset option is left out, and a value stays one argument: \(args)")
     }
 
@@ -435,10 +440,15 @@ final class VideoTests: XCTestCase {
             ["/gh", "workflow", "run", "kinhin-video.yml", "--ref", "main", "-f", "project=launch"])
         options.theme = "midnight"
         options.captions = "off"
+        options.quality = "high"
+        options.fps = "60"
         options.fast = true
         XCTAssertEqual(
-            VideoFleet.dispatchArguments(gh: "/gh", options: options, ref: "dev").suffix(6),
-            ["-f", "theme=midnight", "-f", "captions=off", "-f", "fast=true"])
+            VideoFleet.dispatchArguments(gh: "/gh", options: options, ref: "dev").suffix(10),
+            [
+                "-f", "theme=midnight", "-f", "captions=off", "-f", "quality=high", "-f", "fps=60", "-f",
+                "fast=true",
+            ])
     }
 
     func testTheRunIsTheNewestOneStartedAfterTheDispatch() throws {

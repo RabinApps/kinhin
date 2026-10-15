@@ -8,7 +8,8 @@
 // Outputs, in out/<name>/ (one folder per video; out/.work is scratch): <name>.mp4, .webm, -poster.png, -hero.gif, <name>.srt (every caption, for a player) and music-credit.txt
 // Captions follow the project's `captions` block (burn on or off, which scenes, a style); out/<name>/<name>.srt has every cue for a player either way.
 // Usage: node scripts/assemble.mjs      Env: VIDEO_CAPTIONS=on|off|all, VIDEO_CAPTION_STYLE, the music settings from out/.work/music.json (see fetch-music.mjs),
-//        VIDEO_FAST=1 (a preview: quicker encode, no WebM)
+//        VIDEO_QUALITY=draft|standard|high (default standard; draft is a preview: quicker encode, no WebM; high is slower and
+//        larger), VIDEO_FPS=24|30|60 (default 30), VIDEO_FAST=1 (the same as VIDEO_QUALITY=draft)
 import {execFileSync, spawnSync} from 'node:child_process';
 import {copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
 import {assColor} from '../shared/resolve.mjs';
@@ -22,9 +23,19 @@ const look = loadProject();
 const {format, theme, outName} = look;
 const ff = (args) => execFileSync('ffmpeg', ['-nostdin', '-y', '-loglevel', 'error', ...args], {stdio: 'inherit'});
 const FADE = 0.25;
-const FAST = !!process.env.VIDEO_FAST;
+// Encode profiles: the CRF and preset of each scene clip, of the delivered MP4, and of the WebM (null: not made).
+const PROFILES = {
+  draft: {scene: 23, mp4: 28, preset: 'veryfast', webm: null},
+  standard: {scene: 17, mp4: 18, preset: 'medium', webm: 33},
+  high: {scene: 14, mp4: 15, preset: 'slow', webm: 28},
+};
+const quality = process.env.VIDEO_FAST ? 'draft' : process.env.VIDEO_QUALITY || 'standard';
+if (!PROFILES[quality]) throw new Error(`VIDEO_QUALITY must be draft, standard or high, not "${quality}"`);
+const FPS = Number(process.env.VIDEO_FPS || 30);
+if (![24, 30, 60].includes(FPS)) throw new Error(`VIDEO_FPS must be 24, 30 or 60, not "${process.env.VIDEO_FPS}"`);
+const profile = PROFILES[quality];
 
-// 1. One normalised clip per scene (format-sized, 30 fps), cut or held to the scene's length, faded at both ends.
+// 1. One normalised clip per scene (format-sized, VIDEO_FPS, 30 by default), cut or held to the scene's length, faded at both ends.
 const mix = (a, b) => '0x' + [1, 3, 5].map((i) => Math.round((parseInt(a.slice(i, i + 2), 16) + parseInt(b.slice(i, i + 2), 16)) / 2).toString(16).padStart(2, '0')).join('');
 const bg = mix(theme.background.from, theme.background.to); // the middle of the backdrop, for fades and padding
 const parts = Object.entries(S).map(([id, s], i) => {
@@ -33,11 +44,11 @@ const parts = Object.entries(S).map(([id, s], i) => {
   const vf = [
     `scale=${format.width}:${format.height}:force_original_aspect_ratio=decrease`,
     `pad=${format.width}:${format.height}:(ow-iw)/2:(oh-ih)/2:${bg}`,
-    'fps=30', 'tpad=stop_mode=clone:stop_duration=30', 'format=yuv420p',
+    `fps=${FPS}`, 'tpad=stop_mode=clone:stop_duration=30', 'format=yuv420p',
   ].join(',');
   const out = `out/.work/part-${i + 1}.mp4`;
   ff(['-i', file, '-vf', `${vf},trim=duration=${s.length},setpts=PTS-STARTPTS,fade=t=in:st=0:d=${FADE}:color=${bg},fade=t=out:st=${Math.max(0, s.length - FADE)}:d=${FADE}:color=${bg}`,
-    '-an', '-c:v', 'libx264', '-crf', '17', out]);
+    '-an', '-c:v', 'libx264', '-crf', String(profile.scene), out]);
   return {id, out, length: s.length};
 });
 const total = parts.reduce((a, p) => a + p.length, 0);
@@ -147,9 +158,11 @@ const vf = !cap.burn || !filters.length ? 'null' : filters.join(',');
 const dir = `out/${outName}`; // everything a build delivers lives in its own folder; out/.work is scratch
 mkdirSync(dir, {recursive: true});
 const video = `${dir}/${outName}.mp4`;
-ff(['-i', 'out/.work/picture.mp4', '-i', audio, '-vf', vf, '-map', '0:v', '-map', '1:a', '-c:v', 'libx264', '-crf', FAST ? '28' : '18', '-preset', FAST ? 'veryfast' : 'medium', '-pix_fmt', 'yuv420p',
+// Flat colour and text (every scene drawn, none recorded) is what x264's animation tuning is for.
+const allCanvas = Object.values(S).every((s) => s.kind === 'canvas');
+ff(['-i', 'out/.work/picture.mp4', '-i', audio, '-vf', vf, '-map', '0:v', '-map', '1:a', '-c:v', 'libx264', '-crf', String(profile.mp4), '-preset', profile.preset, ...(allCanvas && quality === 'high' ? ['-tune', 'animation'] : []), '-pix_fmt', 'yuv420p',
   '-c:a', 'aac', '-b:a', '192k', '-shortest', '-movflags', '+faststart', video]);
-if (!FAST) ff(['-i', video, '-c:v', 'libvpx-vp9', '-crf', '33', '-b:v', '0', '-c:a', 'libopus', `${dir}/${outName}.webm`]);
+if (profile.webm !== null) ff(['-i', video, '-c:v', 'libvpx-vp9', '-crf', String(profile.webm), '-b:v', '0', '-c:a', 'libopus', `${dir}/${outName}.webm`]);
 // The poster and the hero GIF come from the most detailed scene: a frame near the end of each scene is scored by how
 // much of it is edges (text, shapes, the product), and the best one wins; a clip scene (the product on screen) is
 // preferred when it scores about as well.

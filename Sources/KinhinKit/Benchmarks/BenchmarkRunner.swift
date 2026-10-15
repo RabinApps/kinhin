@@ -60,7 +60,9 @@ public actor BenchmarkRunner {
         sink.set(phase: "preflight", suite: .some(nil), runtime: .some(nil), step: .some(nil))
         let profile = BenchmarkProfile.make(options.intensity, iterations: options.iterations)
 
-        if let impact = await fleetImpact(), impact.active > 0, !options.confirmed {
+        // A video-only run builds in a container on the host and touches no VM, so it leaves the fleet alone.
+        let usesFleet = options.suites.contains { $0 != .video }
+        if usesFleet, let impact = await fleetImpact(), impact.active > 0, !options.confirmed {
             throw BenchmarkError.fleetBusy(active: impact.active, busy: impact.busy)
         }
         let status = await availability(of: runtimesToProbe(options), includeHost: options.includeHost)
@@ -69,7 +71,7 @@ public actor BenchmarkRunner {
         await sweepStrays(status: status)
 
         let scratch = BenchmarkScratch(benchRoot: env.root, runID: runID)
-        let hold = env.fleet.map { FleetHold(fleet: $0) }
+        let hold = usesFleet ? env.fleet.map { FleetHold(fleet: $0) } : nil
         var suites: [BenchmarkSuiteResult] = []
         var failure: Error?
         do {
@@ -228,6 +230,14 @@ public actor BenchmarkRunner {
                 switch suite {
                 case .boot:
                     record(try await BootBenchmark.run(ctx, runtime: id, unavailable: reason))
+                case .video:
+                    // The video image is not the bench image, so an image-missing reason does not apply: the
+                    // suite checks its own runtime and image and skips with its own reason.
+                    if let reason, !reason.hasPrefix("image '") {
+                        record([.skipped(name, runtime: id, reason: reason)])
+                    } else {
+                        record([try await VideoBenchmark.run(ctx, runtime: id)])
+                    }
                 case .toolchains:
                     if let reason {
                         record([.skipped(name, runtime: id, reason: reason)])
@@ -307,6 +317,8 @@ struct RunPlan: Sendable {
         for id in explicit ?? [] {
             if let reason = status[id]?.reason {
                 if reason.hasPrefix("image '") {
+                    // The video suite builds in its own image, so the bench guest image is not its prerequisite.
+                    if options.suites == [.video] { continue }
                     throw BenchmarkError.imageMissing(runtime: id, image: imageName(reason))
                 }
                 throw BenchmarkError.runtimeUnavailable(runtime: id, why: reason)
@@ -328,6 +340,15 @@ struct RunPlan: Sendable {
                 map[suite] = explicit ?? workloadDefault
             case .xcode:
                 map[suite] = [.tart]
+            case .video:
+                // Builds run in a container runtime: the named one(s), else the first that works.
+                let containers = [RuntimeID.appleContainer, .docker]
+                if let explicit {
+                    map[suite] = explicit.filter { containers.contains($0) }
+                } else {
+                    let usable = containers.first { status[$0]?.reason.map { $0.hasPrefix("image '") } ?? true }
+                    map[suite] = [usable ?? .appleContainer]
+                }
             case .toolchains:
                 if let explicit {
                     map[suite] = explicit.filter { $0 != .host }

@@ -1263,6 +1263,9 @@
     "Install method" : {
       "comment" : ".accessibilityLabel in InstallConfirmationSheet"
     },
+    "Image pull and clean and cached video builds in a container" : {
+      "comment" : "Benchmark suite description"
+    },
     "Install, verify and build with every catalog toolchain" : {
       "comment" : "Benchmark suite description"
     },

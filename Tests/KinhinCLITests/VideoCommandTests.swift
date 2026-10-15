@@ -59,7 +59,7 @@ final class VideoCommandTests: XCTestCase {
         let options = try VideoCommand.options(
             from: [
                 "launch", "--theme", "midnight", "--format", "9:16", "--captions", "all", "--caption-style", "box",
-                "--music", "off", "--fast",
+                "--music", "off", "--fast", "--quality", "high", "--fps", "60",
             ], repo: repo)
         XCTAssertEqual(options.project, "launch")
         XCTAssertEqual(options.theme, "midnight")
@@ -68,6 +68,14 @@ final class VideoCommandTests: XCTestCase {
         XCTAssertEqual(options.captionStyle, "box")
         XCTAssertEqual(options.music, "off")
         XCTAssertTrue(options.fast)
+        XCTAssertEqual(options.quality, "high")
+        XCTAssertEqual(options.fps, "60")
+    }
+
+    func testQualityAndFrameRateAreChecked() throws {
+        try VideoCommand.initialize(["launch", "--dir", repo.path])
+        XCTAssertThrowsError(try VideoCommand.options(from: ["launch", "--quality", "ultra"], repo: repo))
+        XCTAssertThrowsError(try VideoCommand.options(from: ["launch", "--fps", "50"], repo: repo))
     }
 
     func testTheNameCanBeLeftOutOnlyWhenThereIsOneVideo() throws {

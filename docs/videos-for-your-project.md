@@ -92,7 +92,7 @@ including CI, must run `kinhin video music add` again, or the build stops with a
 | `kinhin video init [name]` | Writes a starter `.kinhin/videos/<name>.yml` (default `launch`) and a `.gitignore`. Never overwrites. |
 | `kinhin video list` | Lists the videos (`--json` for scripts). |
 | `kinhin video validate [name]` | Checks a video without rendering it: the same checks the build makes, plus that its clips and music files exist. `--all` checks every video. Exit 3 when one has a problem. |
-| `kinhin video build [name]` | Builds one. `--theme`, `--format`, `--captions on\|off\|all`, `--caption-style`, `--music <track\|file\|off>` change the look for one build. `--fast` is a quicker preview with no WebM. |
+| `kinhin video build [name]` | Builds one. `--theme`, `--format`, `--captions on\|off\|all`, `--caption-style`, `--music <track\|file\|off>` change the look for one build. `--fast` is a quicker preview with no WebM. `--quality draft\|standard\|high` sets the encode (`draft` is `--fast`; `high` is slower and larger) and `--fps 24\|30\|60` the frame rate (30 by default). |
 | `kinhin video music search <words>` | Finds free music. Then `preview`, `add` and `list`; see [Music](video-config.md#music). |
 | `kinhin video theme new <name> --from <theme>` | Starts your own theme file; see [Your own theme](video-config.md#your-own-theme). |
 

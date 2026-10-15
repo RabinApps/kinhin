@@ -1,7 +1,8 @@
 # Benchmarks
 
 `kinhin bench` measures, on this Mac, how fast every runtime boots, how fast representative workloads run inside
-them, and how fast every toolchain in the [catalog](toolchains.md) installs and builds. It writes a
+them, how fast every toolchain in the [catalog](toolchains.md) installs and builds, and how long a
+[demo video](videos-for-your-project.md) takes to render. It writes a
 machine-readable report and removes everything it created. The same runs are available in the app under
 **Advanced → Benchmarks**.
 
@@ -15,6 +16,7 @@ kinhin bench boot --thorough         # 3 boot iterations per runtime, with min/m
 kinhin bench xcode --project ~/src/MyApp
 kinhin bench toolchains              # verify + a tiny build of every catalog tool (minutes)
 kinhin bench toolchains --thorough --toolchains node,go,rust   # time the cold install too
+kinhin bench video                   # time a short video build in a container runtime
 kinhin bench --json > bench.json     # the report, on stdout only
 ```
 
@@ -27,6 +29,7 @@ kinhin bench --json > bench.json     # the report, on stdout only
 | `xcode`      | `xcodebuild` clean and incremental builds of a generated multi-file Swift package, or of your checkout with `--project`. Skipped when the guest has no Xcode. |
 | `large`      | Multi-gigabyte disk write, read and checksum, multi-core gzip throughput, and (with `--network`) a timed shallow `git clone`.                              |
 | `toolchains` | One row per catalog tool and stack, per platform: cold install, verify, and a small offline workload. Opt-in: a thorough pass over the whole catalog takes tens of minutes (see [How long it takes](#how-long-it-takes)). |
+| `video`      | A short generated video built with the [video pipeline](videos-for-your-project.md) in Apple `container` or Docker: the image pull (only when the image is missing), a `clean-build`, a `cached-build` that reuses the render cache, and with `--thorough` a `full-build` at full quality. Opt-in; skipped when no container runtime is running. |
 
 `--quick` (the default) uses one boot iteration and small payloads. `--thorough` uses three iterations and larger
 payloads (still capped at 4 GB), and makes the toolchains suite time the cold install.
@@ -124,6 +127,7 @@ Measured on the M1 Max above (fast home connection, nothing else running):
 | `kinhin bench toolchains --thorough --all-toolchains`, macOS (4 category VMs, 66 rows) | about 15 min  |
 | the same, Linux on Apple container (one container per tool, 65 rows) | about 25 min  |
 | `kinhin bench toolchains` (quick: verify + workload, nothing installed) | minutes     |
+| `kinhin bench video` (image already pulled)                          | a few minutes; the first run also pulls the roughly 1 GB image |
 
 The toolchains pass is dominated by downloads, so a slow connection can multiply it. The app and `bench_status` report
 elapsed time and the current step while it runs.
@@ -180,7 +184,7 @@ these tests found no races.
 
 | Flag                              | Meaning                                                                                  |
 | --------------------------------- | ---------------------------------------------------------------------------------------- |
-| `boot casual xcode large toolchains` | Which suites to run (default: the first four).                                        |
+| `boot casual xcode large toolchains video` | Which suites to run (default: the first four).                                  |
 | `--quick` / `--thorough`          | Payload sizes and iterations.                                                            |
 | `--iterations N`                  | Boot iterations, 1 to 10.                                                                |
 | `--runtime tart,docker,…`         | Only these runtimes (`tart`, `appleContainer`, `docker`, `host`, `all`).                 |
@@ -205,8 +209,9 @@ free disk, the fleet would not drain).
 - Tart VMs and containers named `kinhin-bench-*`, cloned from your configured image. They are stopped and deleted, and
   their pinned SSH host keys are dropped.
 - A `kinhin-bench/` directory inside each guest. (Deleting the guest discards it anyway.)
-- A host scratch directory, `~/Library/Application Support/Kinhin/bench/<run-id>/`, holding generated sources and the
-  `--project` archive. Removed whole unless `--keep`.
+- A host scratch directory, `~/Library/Application Support/Kinhin/bench/<run-id>/`, holding generated sources, the
+  `--project` archive and the `video` suite's throwaway repository, its rendered output and render cache. Removed whole
+  unless `--keep`. Your own `.kinhin/videos/` folders are never touched.
 
 **Kept:** the report, `results-<timestamp>-<id>.json` in `~/Library/Application Support/Kinhin/bench/`, newest 20.
 Reports hold no credentials. The base image, the config file, the Keychain and the toolchain cache are never touched.
@@ -216,7 +221,8 @@ A crashed run can leave a `kinhin-bench-*` VM behind. The next `kinhin bench` sw
 
 ## The fleet is paused while it runs
 
-A benchmark needs the Mac to itself, so a running fleet is held while it measures:
+A benchmark needs the Mac to itself, so a running fleet is held while it measures (a `video`-only run builds in a
+container on the host, uses no VM and leaves the fleet alone):
 
 1. If the fleet has live VMs, the CLI asks first (`--yes` agrees up front; a script that is not attached to a terminal
    must pass it). The app shows a confirmation dialog.

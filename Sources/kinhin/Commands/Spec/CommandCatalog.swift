@@ -522,8 +522,9 @@ enum CommandCatalog {
                 jsonFlag,
             ],
             details: [
-                "SUITE is boot, casual, xcode, large or toolchains. Bare `kinhin bench` runs the first four; the "
-                    + "toolchains suite takes 15 to 30 minutes when thorough, so it is opt-in. A running fleet is paused while the benchmark runs (--yes "
+                "SUITE is boot, casual, xcode, large, toolchains or video. Bare `kinhin bench` runs the first four; the "
+                    + "toolchains suite takes 15 to 30 minutes when thorough and the video suite builds a short video in a "
+                    + "container runtime, so both are opt-in. A running fleet is paused while the benchmark runs (--yes "
                     + "agrees to that without a prompt). Bench VMs and containers are named kinhin-bench-* and are "
                     + "deleted afterwards, also when the run fails or is cancelled.",
                 "The JSON report is kept under Application Support/Kinhin/bench (the newest 20). Exits 1 when a "
@@ -592,6 +593,8 @@ enum CommandCatalog {
                         .value("--caption-style", "STYLE", "outline, box, shadow, bold or minimal"),
                         .value("--music", "TRACK", "A catalog track, a file in the repository, or off"),
                         .bool("--fast", "A preview: quicker encode, no WebM"),
+                        .value("--quality", "draft|standard|high", "Encode quality (draft is --fast; high is slower)"),
+                        .value("--fps", "24|30|60", "Frames per second (default 30)"),
                         .value("--runtime", "container|docker", "Which container runtime builds it"),
                         .value("--image", "REF", "Use this video image instead of the released one"),
                         .bool("--on-fleet", "Build on a runner via the repository's GitHub workflow (uses gh)"),
