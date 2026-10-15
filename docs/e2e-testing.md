@@ -22,6 +22,11 @@ container, a real kinhin daemon, a real runner image, and a job that really runs
 
 ## Running it
 
+**Run it in CI.** The script refuses to run outside CI unless `KINHIN_E2E_LOCAL=1` is set, and that is for a local
+test the user asks for, never routine. Start the `e2e.yml` workflow by hand
+(`workflow_dispatch`, choosing the tier) and read its logs. The commands below are what the workflow runs, for
+reference; do not type them locally.
+
 ```bash
 scripts/e2e.sh                # quick: CLI, security and coverage guards. Seconds, no Docker.
 scripts/e2e.sh --local        # + real Gitea/Forgejo lifecycle, fleet behavior, smoke toolchains (Docker, container)
@@ -72,7 +77,8 @@ nothing while another run is active.
 - It cannot run in `kinhin-xcode` CI: that runner is itself a Tart VM, and Apple Silicon does not nest VMs. See
   [`.github/workflows/e2e.yml`](../.github/workflows/e2e.yml): run by hand (`workflow_dispatch`) on a dedicated Mac
   labelled `kinhin-e2e`, never on pull requests. The nightly and weekly schedules are switched on once that Mac exists
-  (beta-2); until then the T2 and T3 cadences below are the target, and the tiers run locally with `scripts/e2e.sh`.
+  (beta-2); until then the T2 and T3 cadences below are the target. Until that Mac is registered the workflow has no runner and
+the tiers cannot run at all: do not run them locally instead.
 
 ## The tiers
 
