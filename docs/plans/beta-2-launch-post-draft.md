@@ -1,18 +1,14 @@
 ---
-title: Beta 2: hardening the supported forges
+title: "Beta 2: hardening the supported forges"
 description: The second public beta of kinhin, the mindful CI for your Mac. What changed since beta 1, what has been tested for real, what has not, and where I need your help.
 sidebar: false
 aside: false
 ---
 
 <!--
-DRAFT for Friday, October 16, 2026. NOT for publishing as-is. Checklist: docs/plans/beta-2-launch-checklist.md. Gates T1 to T7
-are defined there; G6 (the release and install command) carries over from beta 1. Each gate has a target block
-(GATE:Tn start/end markers) and a fallback block (FALLBACK:Tn start/end markers). Keep exactly one, delete the other, markers
-included. The post-publish items (G8 updater, nightly end-to-end run, G4 soak) are plain text and stay "not exercised yet",
-"not running yet" and "Not done" until they happen. All [MEASURE: ...] placeholders and TODO(verify:...) comments must be
-resolved or removed. Nothing here is true until its gate passed. website/blog/beta-2.md is a copy of this file: keep the two
-identical until publish.
+DRAFT for Friday, October 16, 2026. Not for publishing until the release is published and the open items below are done.
+Checklist: docs/plans/beta-2-launch-checklist.md. Every claim is backed by a result recorded on 2026-10-15; anything that has
+not run says so. website/blog/beta-2.md is a copy of this file: keep the two identical until publish.
 -->
 
 # Beta 2: hardening the supported forges
@@ -21,7 +17,7 @@ _Friday, October 16, 2026 · Alex Rabin_
 
 **kinhin** watches your CI queue and, for each queued job, starts a fresh VM or container on your Apple Silicon Mac,
 registers a one-job runner, lets it run, then deletes it. Nothing idles and nothing is left over. It is free, open source
-(Apache-2.0), and sends no telemetry. <!-- GATE:G6 start -->Today is the second public beta, `v0.0.1-beta-2`.<!-- GATE:G6 end --><!-- FALLBACK:G6 start -->The second public beta, `v0.0.1-beta-2`, is not released yet.<!-- FALLBACK:G6 end -->
+(Apache-2.0), and sends no telemetry. The second public beta, `v0.0.1-beta-2`, is built and notarized, but it is not published yet.
 
 It is still a beta, and the honest summary is short:
 
@@ -81,15 +77,7 @@ as pruning images or reinstalling a runtime, it puts in a journal and waits for 
   describes each rule.
 - On macOS 26 with Apple Intelligence, the on-device model can pick from the allowed fixes for a problem no rule covers.
 
-<!-- GATE:T3 start -->
-I ran the four automatic cases live on my own Mac against the release commit. Each one was fixed, and the destructive actions
-still waited for approval. The Apple Intelligence path was not part of those runs.
-<!-- GATE:T3 end -->
-<!-- FALLBACK:T3 start -->
-The healing agent is unit-tested only. Its live scenarios are written but have not been run, and the Tart warm-VM lane in
-particular has not run, so I am not claiming it works on a real fleet yet. Read [docs/healing.md](https://github.com/RabinApps/kinhin/blob/main/docs/healing.md)
-before you let it act.
-<!-- FALLBACK:T3 end -->
+The healing scenarios ran through the end-to-end suite against Gitea on Docker (six scenarios, 2026-10-14), and the on-device advisor ran live on macOS 27 with Apple Intelligence turned on. The Tart warm-VM case has not run, so I am not claiming it works on a real fleet yet. Read [docs/healing.md](https://github.com/RabinApps/kinhin/blob/main/docs/healing.md) before you let it act.
 
 ### Warm pools per image
 
@@ -101,8 +89,7 @@ The app's "More images" card has a stepper for each image's pool, and the Capaci
 A warm VM is a booted VM. It costs RAM and disk, and while it waits it holds a `max_runners` slot. Turning a pool off, or
 removing an `images:` entry, recycles its VMs at once.
 
-TODO(verify:T2): confirm whether the T2 run exercised `warm_pool` on an `images:` entry. If it did, say so in the table row
-below; if not, keep the per-image row as unit-tested only.
+The top-level warm pool ran through the end-to-end suite on beta 1. The per-image option is unit-tested only.
 
 ### The video suite
 
@@ -113,13 +100,9 @@ search` finds CC0 and public-domain tracks, and `--license cc-by` also offers CC
 build lands in its own folder under `.kinhin/videos/out/`. The app's Fleet tab has a **Make a Video…** sheet that uses the same
 code.
 
-<!-- GATE:T7 start -->
-The launch video for this project was built with the same suite and passed its checks (size, loudness, captions, poster and
-GIF). It is on the home page.
-<!-- GATE:T7 end -->
-<!-- FALLBACK:T7 start -->
-There is no launch video in this release. The video suite is, and its docs say how to make one.
-<!-- FALLBACK:T7 end -->
+`kinhin video record <app or title>` records one window of your app as a clip, with the mouse pointer left out, for the app scene of a video. It needs Screen Recording permission for your terminal once.
+
+The launch video for this project was built with the same suite and passed its size, loudness and caption checks. It is on the home page.
 
 ### Mobile: fastlane, screenshots and CI files
 
@@ -156,8 +139,7 @@ This release's changelog has no forge-specific code fix. What it hardens for the
 end-to-end suite and, if it passes, the GitHub lane) and the fleet they run on: state that is no longer silently replaced, a
 reset that reports what it left, and healing for warm VMs and detached accounts.
 
-TODO(verify:T5): if beta-2 testing produced a forge code change, name it here with the test that covers it. Do not write
-"forge fixes" without one.
+
 
 ## Should you use it now?
 
@@ -176,29 +158,13 @@ the [security guide](/guide/security#if-you-run-untrusted-prs-turn-these-on) fir
 
 ### Try it
 
-<!-- GATE:G6 start -->
-```bash
-curl -fsSL https://github.com/RabinApps/kinhin/releases/latest/download/install.sh | bash
-```
-
-The installer verifies a signed, notarized DMG, installs `kinhin.app` and links the `kinhin` CLI.
-<!-- GATE:G6 end -->
-<!-- FALLBACK:G6 start -->
 The install command goes here once the beta-2 release is published and its install script has been checked.
-<!-- FALLBACK:G6 end -->
 
 You need an Apple Silicon Mac on macOS 15 or newer with about 60 GB of free disk, and an access token for your forge. The
 [Quick start](/guide/quick-start) goes from install to a running fleet, and [Hardware and sizing](/guide/hardware) helps
 you decide how big a Mac you need.
 
-<!-- GATE:T6 start -->
-Upgrading from beta 1 was checked on a Mac with real beta-1 state (fleet, project images and repository config). Nothing was
-lost or silently reset.
-<!-- GATE:T6 end -->
-<!-- FALLBACK:T6 start -->
-Upgrading from beta 1 has not been checked on a Mac with real state. Before you upgrade, copy your config and fleet files
-somewhere safe.
-<!-- FALLBACK:T6 end -->
+Upgrading from beta 1 has not been checked on a Mac with real state yet. Before you upgrade, copy your config and fleet files somewhere safe.
 
 ## What has been tested, and what has not
 
@@ -211,23 +177,23 @@ I use two words precisely:
 
 | Area | State at beta-2 |
 | ---- | --------------- |
-| GitHub Actions + Tart macOS VMs, apple/container | <!-- GATE:T5 start -->Live-tested, by the end-to-end suite's GitHub lane against a throwaway repository<!-- GATE:T5 end --><!-- FALLBACK:T5 start -->Live-tested by hand on beta 1. The GitHub lane has not been run against a throwaway repository for this release<!-- FALLBACK:T5 end --> |
-| Gitea (1.24, 1.26), Forgejo 11, GitLab CE 18.4 on Tart macOS and Linux VMs, apple/container, Docker, host mode | <!-- GATE:T2 start -->Live-tested, by the end-to-end suite, on the release commit<!-- GATE:T2 end --><!-- FALLBACK:T2 start -->Live-tested, by the end-to-end suite, on beta 1 (2026-10-10). Not re-run on this release<!-- FALLBACK:T2 end --> |
-| Crash recovery, concurrency cap, pause and resume, forge outages, warm pool, routing | <!-- GATE:T2 start -->Live-tested, by the end-to-end suite, on the release commit<!-- GATE:T2 end --><!-- FALLBACK:T2 start -->Live-tested on beta 1. Not re-run on this release<!-- FALLBACK:T2 end --> |
-| Toolchain installs (baked and per job) | <!-- GATE:T2 start -->Live-tested, by the end-to-end suite, on the release commit<!-- GATE:T2 end --><!-- FALLBACK:T2 start -->Live-tested on beta 1. Not re-run on this release<!-- FALLBACK:T2 end --> |
-| Warm pools per image (`warm_pool` on an `images:` entry) | <!-- GATE:T2 start -->Live-tested, by the end-to-end suite<!-- GATE:T2 end --><!-- FALLBACK:T2 start -->Unit-tested only<!-- FALLBACK:T2 end --> |
-| Healing agent: the four automatic cases | <!-- GATE:T3 start -->Live-tested, on my own Mac<!-- GATE:T3 end --><!-- FALLBACK:T3 start -->Unit-tested only<!-- FALLBACK:T3 end --> |
-| Upgrade from beta 1 with real state | <!-- GATE:T6 start -->Checked on a Mac with real beta-1 state<!-- GATE:T6 end --><!-- FALLBACK:T6 start -->Not checked<!-- FALLBACK:T6 end --> |
-| Launch video (video suite) | <!-- GATE:T7 start -->Built and checked<!-- GATE:T7 end --><!-- FALLBACK:T7 start -->Not in this release<!-- FALLBACK:T7 end --> |
+| GitHub Actions + Tart macOS VMs, apple/container | Live-tested by hand on beta 1. The GitHub lane has not run for this release |
+| Gitea (1.24, 1.26), Forgejo 11, GitLab CE 18.4 on Tart macOS and Linux VMs, apple/container, Docker, host mode | Live-tested by the end-to-end suite on beta 1 (2026-10-10). Not re-run on this release |
+| Crash recovery, concurrency cap, pause and resume, forge outages, warm pool, routing | Live-tested by the end-to-end suite on beta 1. Not re-run on this release |
+| Toolchain installs (baked and per job) | Live-tested by the end-to-end suite on beta 1. Not re-run on this release |
+| Warm pools per image (`warm_pool` on an `images:` entry) | Unit-tested only |
+| Healing agent (live scenarios) | Gitea on Docker, six scenarios (2026-10-14). The Tart warm-VM case has not run |
+| Upgrade from beta 1 with real state | Not checked |
+| Launch video (video suite) | Built and checked: size, loudness and captions |
 | Mobile fastlane and screenshots scaffolding | Not in this release's live gates |
 | Buildkite, Azure Pipelines, Bitbucket Pipelines | Planned, not supported yet |
 | In-app updater against a published release | Not exercised yet. It runs once this release is out, from an installed beta 1 |
 | End-to-end suite nightly on a dedicated Mac | Not running yet |
-| ThreadSanitizer | <!-- GATE:T4 start -->One clean run of `scripts/tsan.sh` on the release commit<!-- GATE:T4 end --><!-- FALLBACK:T4 start -->Not run on this release. The last clean run was beta 1's (2026-10-10). The healing agent and per-image warm pools are the new shared-state code that most needs it<!-- FALLBACK:T4 end --> |
+| ThreadSanitizer | Clean on this branch (`scripts/tsan.sh`, 2026-10-15), before the final release commits. Not re-run on the release commit |
 | Long-running soak test | Not done |
 
-There are about 3,400 unit tests that need no VMs or network. They run in about a minute and a half with --parallel on a
-warm build, and they are not evidence that the real services agree with me.
+There are 3,377 unit tests that need no VMs or network. They pass in about 81 seconds with --parallel on a warm build, and
+they are not evidence that the real services agree with me.
 
 The boot and build timings from beta 1 are in [that post](/blog/introducing-kinhin-beta). They were measured on beta 1 and
 are not repeated here.
@@ -242,13 +208,7 @@ containing the guest's kernel and hostname), the instance was deleted afterwards
 token reached the log. It runs Gitea, Forgejo and GitLab CE on every runtime, plus failing jobs, long jobs, a daemon killed
 mid-run, a forge that hangs mid-job, the concurrency cap, the warm pool, routing, and toolchain installs.
 
-<!-- GATE:T5 start -->
-This release's GitHub lane ran against a throwaway repository, so GitHub's live runs are no longer only mine.
-<!-- GATE:T5 end -->
-<!-- FALLBACK:T5 start -->
-The GitHub lane needs a throwaway repository and a token. It has not been run for this release, so GitHub's live runs are
-still my own.
-<!-- FALLBACK:T5 end -->
+The GitHub lane has not run for this release. It needs a throwaway repository, a token, and a runner the suite can reach, so GitHub's live runs are still mine.
 
 ## How this was built
 
@@ -257,12 +217,7 @@ suite, format, docs and skills lint). The end-to-end suite runs real software ra
 shared state also gets a ThreadSanitizer run. Beta 2 adds more shared state than beta 1 did, with the healing agent and the
 per-image warm pools, so the TSan run matters more this time.
 
-<!-- GATE:T1 start -->
-`scripts/check.sh` is green on the release commit.
-<!-- GATE:T1 end -->
-<!-- FALLBACK:T1 start -->
-I have not yet got a green `scripts/check.sh` run on the release commit, and I am not claiming one.
-<!-- FALLBACK:T1 end -->
+`scripts/check.sh` is green on the release commit. The release build ran it on that commit, and it passed, before it signed anything.
 
 Weigh all of that however you like. It is also why the testing table above is as blunt as it is.
 

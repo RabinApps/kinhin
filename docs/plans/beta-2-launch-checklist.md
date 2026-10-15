@@ -12,6 +12,24 @@ Marker forms in the draft: `<!-- GATE:Tn start -->` / `<!-- GATE:Tn end -->` (ta
 The copy in `website/blog/beta-2.md` must stay identical to the draft until publish. Edit both, or copy the draft over it
 once the draft is resolved.
 
+## Status on 2026-10-15
+
+The post resolves each gate to what has run. Nothing below has run beyond what is listed.
+
+| Gate | Result |
+| ---- | ------ |
+| T1 | Passed. `scripts/release.sh 0.0.1-beta-2` ran `scripts/check.sh` on the release commit (`e82ed18`) before signing, and it passed. |
+| T2 | Not run. The suite needs the `kinhin-e2e` CI runner, which is not registered. The post keeps the beta 1 results, marked not re-run. |
+| T3 | Partly. The six Gitea-on-Docker healing scenarios passed on 2026-10-14 (recorded in `docs/e2e-testing.md`). The Tart warm-VM case has not run, and the post says so. |
+| T4 | Passed on the branch on 2026-10-15, before the last release commits. Not re-run on the release commit. |
+| T5 | Not run. The GitHub lane needs the CI runner. |
+| T6 | Not run. |
+| T7 | Passed for the launch video (size, loudness and captions) and the video unit tests (81 of 81). The smoke tier has not run. |
+| G6 | Not met. The release is built and notarized, but not published. The post has no install command. |
+| G8 | Not run. It needs the release published first. |
+
+Before publishing, re-run T4 on the release commit, and decide whether T2 and T5 wait for the runner.
+
 ## Gates
 
 | Id | Evidence needed | On pass | On fail |
@@ -48,9 +66,9 @@ Optional gates from beta 1 (O1 to O6) are not part of this release.
 
 ## Publish steps (before launch day)
 
-1. Keep the post out of the site build until launch day. `website/.vitepress/config.ts` `srcExclude` covers `docs/plans/**`
-   but not `website/blog/beta-2.md`, so the next site build would publish it. Add `"website/blog/beta-2.md"` to `srcExclude`
-   on `develop`, and remove that line in the launch-day site commit.
+1. Keep the post out of the site build until launch day. `website/.vitepress/config.ts` `srcExclude` lists
+   `website/blog/beta-2.md` on this branch, so the site build leaves the draft out. Remove that line in the launch-day site
+   commit, together with the blog index entry.
 2. Resolve every gate above, then check nothing is left. Remove the leading DRAFT comment from both files first, since it
    names the marker forms. Then:
    `grep -nE 'GATE:|FALLBACK:|TODO\(verify|MEASURE' docs/plans/beta-2-launch-post-draft.md website/blog/beta-2.md` must print
