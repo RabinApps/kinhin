@@ -50,7 +50,7 @@ are already set. Narrow the matrix with environment variables:
 A run that is killed (a closed terminal, a `pkill` from another session, a sleeping Mac) can leave a daemon, forge
 containers and `/tmp/ke2e-*` sandboxes behind. `scripts/e2e.sh` sweeps those before it starts and again when it exits,
 and `scripts/e2e-sweep.sh` does the same on its own. It only touches things the suite created (sandboxes named `ke2e-*`,
-containers named `ke2e-*` or built from a `ke2e-*` image, and daemons recorded in a sandbox's `daemon.pid`), and does
+containers named `ke2e-*` or `ke2ed-*`, or built from a `ke2e-*` image, and daemons recorded in a sandbox's `daemon.pid`), and does
 nothing while another run is active.
 
 ### What the machine needs
@@ -58,12 +58,12 @@ nothing while another run is active.
 - Apple Silicon, with **Docker** (Docker Desktop, OrbStack or Colima), and/or the `container` CLI, and/or Tart.
   Lanes whose runtime is missing are skipped.
 - **A real fleet can keep running for Docker, Apple container and host lanes.** The suite's daemon mints and adopts only
-  `ke2e-*` instances (`KINHIN_INSTANCE_PREFIX`, a debug-build switch), so a fleet's `kinhin-*` containers are never
+  `ke2ed-*` instances (`KINHIN_INSTANCE_PREFIX`, a debug-build switch), so a fleet's `kinhin-*` containers are never
   touched. The fleet and the suite still share the Mac's CPU, memory and disk. kinhin sizes each daemon from host totals
   and does not see the other one, so before an e2e run raise the fleet's `reserve` (cpu, memory) by the suite's share,
   and lower it afterward.
 - **Tart lanes need the fleet's macOS and Linux VMs stopped.** Apple caps macOS VMs at two per Mac, and `Lane.start`
-  refuses a Tart lane while any `kinhin-*` VM exists. Leftovers of an earlier run (`ke2e-*`) also block a lane, and
+  refuses a Tart lane while any `kinhin-*` VM exists. Leftovers of an earlier run (`ke2ed-*`) also block a lane, and
   `scripts/e2e-sweep.sh` removes them.
 - Plenty of free disk (the Docker VM filled up once during this work and silently broke pulls and container starts). Forge images, runner images and the Docker VM's own disk add up; a full Docker VM makes pulls
   fail with `no space left on device`.

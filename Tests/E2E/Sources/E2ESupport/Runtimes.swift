@@ -200,8 +200,10 @@ public enum Instances {
     }
 
     /// The prefix this suite's daemon gives every instance it mints (`KINHIN_INSTANCE_PREFIX`, see `Sandbox.environment`).
-    /// A real fleet's `kinhin-*` instances never carry it, so the suite neither adopts nor deletes them.
-    public static let ownPrefix = "ke2e-"
+    /// A real fleet's `kinhin-*` instances never carry it, so the suite neither adopts nor deletes them. It must not be
+    /// `ke2e-`: the suite names its own forge containers and baked images `ke2e-*`, and a daemon that adopted them would
+    /// try to register a runner inside a forge.
+    public static let ownPrefix = "ke2ed-"
     /// A real kinhin install's prefix. Tart lanes still refuse to run beside these: Apple caps macOS VMs at two per Mac.
     public static let fleetPrefix = "kinhin-"
 
@@ -231,7 +233,7 @@ public enum Instances {
         }
     }
 
-    /// Instances that would stop `runtime` from being a clean lane: leftovers of an earlier e2e run (`ke2e-*`) on
+    /// Instances that would stop `runtime` from being a clean lane: leftovers of an earlier e2e run (`ke2ed-*`) on
     /// that runtime, and for Tart also a real fleet's macOS/Linux VMs (`kinhin-*`), since Tart's VM cap is per Mac.
     /// A Docker or Apple container lane ignores a real fleet entirely: kinhin tells its instances apart by prefix.
     public static func foreign(for runtime: RuntimeKind) async -> [String] {

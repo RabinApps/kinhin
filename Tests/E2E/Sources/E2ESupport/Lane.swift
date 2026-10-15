@@ -37,7 +37,7 @@ public final class Lane: @unchecked Sendable {
         -> Lane
     {
         guard runtime.isAvailable else { throw E2EError.unavailable(runtime.unavailableReason) }
-        // kinhin adopts every instance its runtime lists that carries its prefix. This suite's daemon uses `ke2e-`, so a
+        // kinhin adopts every instance its runtime lists that carries its prefix. This suite's daemon uses `ke2ed-`, so a
         // real fleet's `kinhin-*` instances are never adopted. Leftovers of an earlier run are, and Tart's VM cap is
         // per Mac, so a Tart lane also refuses to run beside a real fleet's VMs.
         let foreign = await Instances.foreign(for: runtime)

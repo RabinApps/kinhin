@@ -42,7 +42,7 @@ public final class Sandbox: @unchecked Sendable {
         var env = Shell.baseEnvironment()
         env["KINHIN_SUPPORT_DIR"] = supportDirectory.path
         env["KINHIN_TOKEN_STORE"] = "env"
-        // Mint and adopt only `ke2e-*` instances, so a real fleet on this Mac is never touched (see `Instances.ownPrefix`).
+        // Mint and adopt only `ke2ed-*` instances, so a real fleet on this Mac is never touched (see `Instances.ownPrefix`).
         env["KINHIN_INSTANCE_PREFIX"] = Instances.ownPrefix
         // Never inherit a developer's real forge tokens, nor healing switches meant for one scenario.
         for key in env.keys

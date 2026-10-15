@@ -33,7 +33,7 @@ done
 
 if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
   docker ps -a --format '{{.Names}} {{.Image}}' | while read -r name image; do
-    case "$name" in ke2e-*) docker rm -f -v "$name" >/dev/null 2>&1 ;; esac
+    case "$name" in ke2e-*|ke2ed-*) docker rm -f -v "$name" >/dev/null 2>&1 ;; esac
     case "$image" in ke2e-*) docker rm -f -v "$name" >/dev/null 2>&1 ;; esac
   done
 fi
@@ -42,7 +42,7 @@ fi
 # left alone: the suite's daemon never mints or adopts them, and a Tart lane refuses to start while any exist.
 if command -v tart >/dev/null 2>&1; then
   tart list --source local --quiet 2>/dev/null | while read -r name; do
-    case "$name" in ke2e-*) tart stop "$name" >/dev/null 2>&1; tart delete "$name" >/dev/null 2>&1 ;; esac
+    case "$name" in ke2e-*|ke2ed-*) tart stop "$name" >/dev/null 2>&1; tart delete "$name" >/dev/null 2>&1 ;; esac
   done
 fi
 
