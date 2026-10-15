@@ -7,7 +7,7 @@ enum VideoCommand {
     /// Flags that take a value, so a value is never mistaken for the video's name.
     private static let valueFlags: Set<String> = [
         "--dir", "--theme", "--format", "--captions", "--caption-style", "--music", "--runtime", "--image", "--ref",
-        "--runs-on", "--from", "--ci",
+        "--runs-on", "--from", "--ci", "--quality", "--fps",
     ]
 
     /// `--ci SYSTEM`, or the system the repository uses when it is absent or `auto`.
@@ -129,6 +129,14 @@ enum VideoCommand {
         options.captionStyle = flag("--caption-style", in: rest)
         options.music = flag("--music", in: rest)
         options.fast = hasFlag("--fast", in: rest)
+        options.quality = flag("--quality", in: rest)
+        if let quality = options.quality, !VideoBuildOptions.qualities.contains(quality) {
+            throw CLIError("--quality takes draft, standard or high", exit: .usage)
+        }
+        options.fps = flag("--fps", in: rest)
+        if let fps = options.fps, !VideoBuildOptions.frameRates.contains(fps) {
+            throw CLIError("--fps takes 24, 30 or 60", exit: .usage)
+        }
         return options
     }
 

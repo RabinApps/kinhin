@@ -11,6 +11,7 @@
 #   video/scripts/build.sh --adapter my-product            use another adapter's clips (video/adapters/)
 #   video/scripts/build.sh --music off                     no music; or a catalog track, a file (music/my-track.mp3), or an https URL (with VIDEO_MUSIC_SHA256)
 #   video/scripts/build.sh --fast                          a preview: quicker encode, no WebM
+#   video/scripts/build.sh --quality high --fps 60         slower, larger encode (draft, standard or high); 24, 30 or 60 fps
 #   video/scripts/build.sh --captions off                  no burned-in captions (on, off, or all scenes); the .srt is still written
 #   video/scripts/build.sh --caption-style box             outline, box, shadow, bold or minimal
 #
@@ -36,6 +37,8 @@ while [ $# -gt 0 ]; do
     --music) export VIDEO_MUSIC="${2:?--music needs a track, a file, a URL, or off}"; shift ;;
     --adapter) export VIDEO_ADAPTER="${2:?--adapter needs a name (see video/adapters/)}"; shift ;;
     --fast) export VIDEO_FAST=1 ;;
+    --quality) export VIDEO_QUALITY="${2:?--quality needs draft, standard or high}"; shift ;;
+    --fps) export VIDEO_FPS="${2:?--fps needs 24, 30 or 60}"; shift ;;
     --captions) export VIDEO_CAPTIONS="${2:?--captions needs on, off or all}"; shift ;;
     --caption-style) export VIDEO_CAPTION_STYLE="${2:?--caption-style needs a name (outline, box, shadow, bold, minimal)}"; shift ;;
     -h|--help) sed -n '2,/^set -euo/p' "$0" | sed '$d'; exit 0 ;;
@@ -96,7 +99,7 @@ if [ "$CONTAINER" = 1 ] && [ -z "${KINHIN_VIDEO_IN_CONTAINER:-}" ]; then
   "$RUNTIME" run --rm "${SIZE[@]}" ${SRCMOUNT[@]+"${SRCMOUNT[@]}"} ${NET[@]+"${NET[@]}"} \
     -v "$PWD":/src -v "$PWD/raw":/work/raw -v "$PWD/out":/work/out \
     -e NO_MUSIC="${NO_MUSIC:-}" -e VIDEO_MUSIC="${VIDEO_MUSIC:-}" -e VIDEO_MUSIC_SHA256="${VIDEO_MUSIC_SHA256:-}" -e VIDEO_MUSIC_VOLUME="${VIDEO_MUSIC_VOLUME:-}" -e NO_CAPTIONS="${NO_CAPTIONS:-}" -e VOICE_ENGINE="${VOICE_ENGINE:-}" -e VOICE="${VOICE:-}" \
-    -e VIDEO_THEME="${VIDEO_THEME:-}" -e VIDEO_FORMAT="${VIDEO_FORMAT:-}" -e VIDEO_PLATFORM="${VIDEO_PLATFORM:-}" -e VIDEO_PROJECT="${VIDEO_PROJECT:-}" -e VIDEO_ADAPTER="${VIDEO_ADAPTER:-}" -e VIDEO_FAST="${VIDEO_FAST:-}" -e VIDEO_CAPTIONS="${VIDEO_CAPTIONS:-}" -e VIDEO_CAPTION_STYLE="${VIDEO_CAPTION_STYLE:-}" \
+    -e VIDEO_THEME="${VIDEO_THEME:-}" -e VIDEO_FORMAT="${VIDEO_FORMAT:-}" -e VIDEO_PLATFORM="${VIDEO_PLATFORM:-}" -e VIDEO_PROJECT="${VIDEO_PROJECT:-}" -e VIDEO_ADAPTER="${VIDEO_ADAPTER:-}" -e VIDEO_FAST="${VIDEO_FAST:-}" -e VIDEO_QUALITY="${VIDEO_QUALITY:-}" -e VIDEO_FPS="${VIDEO_FPS:-}" -e VIDEO_CAPTIONS="${VIDEO_CAPTIONS:-}" -e VIDEO_CAPTION_STYLE="${VIDEO_CAPTION_STYLE:-}" \
     "$IMAGE" bash -c 'rsync -a --exclude node_modules --exclude raw --exclude out --exclude .venv-tts --exclude output --exclude .generated /src/ /work/ && cd /work && { cp -r fonts/. /usr/local/share/fonts/ 2>/dev/null; fc-cache -f; } && scripts/build.sh'
   echo "==> done: see video/out/<name>/"
   exit 0

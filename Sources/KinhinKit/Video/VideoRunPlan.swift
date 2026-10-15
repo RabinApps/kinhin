@@ -17,6 +17,13 @@ public struct VideoBuildOptions: Equatable, Sendable {
     /// A catalog track, a file in the repository, or `off`.
     public var music: String?
     public var fast = false
+    /// `draft`, `standard` or `high`: the encode's CRF and preset. `--fast` is the same as `draft`.
+    public var quality: String?
+    /// `24`, `30` or `60` frames per second (the pipeline's default is 30).
+    public var fps: String?
+
+    public static let qualities: Set<String> = ["draft", "standard", "high"]
+    public static let frameRates: Set<String> = ["24", "30", "60"]
 
     public init(project: String) { self.project = project }
 }
@@ -70,6 +77,8 @@ public struct VideoRunPlan: Equatable, Sendable {
         add("--captions", options.captions)
         add("--caption-style", options.captionStyle)
         add("--music", options.music)
+        add("--quality", options.quality)
+        add("--fps", options.fps)
         if options.fast { entry.append("--fast") }
 
         let run =

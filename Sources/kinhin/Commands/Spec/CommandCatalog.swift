@@ -593,6 +593,8 @@ enum CommandCatalog {
                         .value("--caption-style", "STYLE", "outline, box, shadow, bold or minimal"),
                         .value("--music", "TRACK", "A catalog track, a file in the repository, or off"),
                         .bool("--fast", "A preview: quicker encode, no WebM"),
+                        .value("--quality", "draft|standard|high", "Encode quality (draft is --fast; high is slower)"),
+                        .value("--fps", "24|30|60", "Frames per second (default 30)"),
                         .value("--runtime", "container|docker", "Which container runtime builds it"),
                         .value("--image", "REF", "Use this video image instead of the released one"),
                         .bool("--on-fleet", "Build on a runner via the repository's GitHub workflow (uses gh)"),

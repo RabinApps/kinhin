@@ -207,6 +207,7 @@ A track you supply is your responsibility to have the right to use.
 ```bash
 kinhin video build launch                                   # your .kinhin/videos/launch.yml
 kinhin video build launch --fast                            # a preview: quicker encode, no WebM
+kinhin video build launch --quality high --fps 60            # slower, larger encode at 60 fps
 kinhin video build launch --theme midnight --format 9:16    # another look or frame, without editing the file
 kinhin video build launch --runtime docker                  # pick the runtime
 ```

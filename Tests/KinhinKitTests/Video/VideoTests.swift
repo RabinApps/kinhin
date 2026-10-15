@@ -144,13 +144,17 @@ final class VideoTests: XCTestCase {
         options.captionStyle = "box"
         options.music = "audio/bed.mp3"
         options.fast = true
+        options.quality = "high"
+        options.fps = "60"
         let tail = Array(plan(options).run.drop { $0 != "/work/scripts/container-build.sh" })
         XCTAssertEqual(
             tail,
             [
                 "/work/scripts/container-build.sh", "--project", "social/vertical", "--theme", "midnight", "--format",
                 "9:16",
-                "--captions", "off", "--caption-style", "box", "--music", "audio/bed.mp3", "--fast",
+                "--captions", "off", "--caption-style", "box", "--music", "audio/bed.mp3", "--quality", "high", "--fps",
+                "60",
+                "--fast",
             ])
     }
 

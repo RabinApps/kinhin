@@ -112,6 +112,7 @@ smoothed cursor, run the raw take through an open-source editor such as OpenScre
 ```bash
 video/scripts/build.sh --container                  # video/script/launch.json, in a container
 video/scripts/build.sh --container --fast           # a preview
+video/scripts/build.sh --container --quality high   # slower, larger encode
 video/scripts/build.sh --project examples/kinhin-30s --container   # the 30-second cut
 ```
 
