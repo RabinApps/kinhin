@@ -5,6 +5,7 @@ import GitHubActions from "./GitHubActions.vue";
 import AudienceTabs from "./AudienceTabs.vue";
 import LaunchVideo from "./LaunchVideo.vue";
 import DocsGrid from "./DocsGrid.vue";
+import HomeBanners from "./HomeBanners.vue";
 import "./version-banner.css";
 import "./home.css";
 
@@ -561,8 +562,8 @@ export default {
                   "beta",
                 )
               : null,
-          // The launch video sits right under the hero buttons, above the feature cards (home layout only).
-          "home-hero-after": () => h(LaunchVideo),
+          // The launch video and the beta and sponsor banners sit right under the hero buttons, above the feature cards (home layout only).
+          "home-hero-after": () => [h(LaunchVideo), h(HomeBanners)],
           "nav-bar-content-after": () => h(GitHubActions),
           "nav-screen-content-after": () => h(GitHubActions),
           "layout-top": () =>

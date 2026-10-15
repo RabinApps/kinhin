@@ -72,15 +72,3 @@ kinhin image prepare && kinhin start
 <DocsGrid />
 
 </div>
-
-<div class="home-section">
-
-::: warning Beta (v0.0.1-beta-1)
-Supports **GitHub, Gitea, Forgejo and GitLab CE**. See [what has been tested](/guide/forges#what-has-been-tested), the [roadmap to v0.1.0](/guide/beta-roadmap) and the [beta announcement](/blog/introducing-kinhin-beta). [Report what you find](https://github.com/RabinApps/kinhin/issues/new/choose).
-:::
-
-::: tip Sponsored by SupDesk
-kinhin is sponsored by [SupDesk](https://supdesk.app), the feedback and support console for solo founders, devs and small teams. kinhin is free and built by one developer: [donate or sponsor](/guide/support), or [add your project to the list](/guide/used-by).
-:::
-
-</div>
