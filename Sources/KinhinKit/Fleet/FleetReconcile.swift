@@ -40,6 +40,8 @@ extension FleetEngine {
                 // pre-rename build spawned ("orchard-") so in-flight VMs are still
                 // recovered, attributed, and cleaned up across the rename.
                 guard InstanceNaming.isOurs(name) else { continue }
+                // A scratch VM an image bake left behind is not a runner: adopting it would register it on a forge.
+                guard !name.hasPrefix(ImagePreparer.scratchPrefix) else { continue }
                 // A benchmark's instances are not runners: adopting one would register it on a forge.
                 guard !name.hasPrefix(BenchmarkNaming.instancePrefix) else { continue }
                 if ownerByName[name] == nil {
