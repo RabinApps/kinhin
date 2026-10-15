@@ -1,3 +1,12 @@
+<script setup lang="ts">
+import { computed } from "vue";
+import { sponsors } from "../sponsors";
+
+const heading = computed(() =>
+  sponsors.length > 0 ? `Sponsored by ${sponsors.map((s) => s.name).join(", ")}` : "Support kinhin",
+);
+</script>
+
 <template>
   <div class="home-banners vp-doc">
     <div class="warning custom-block">
@@ -11,11 +20,16 @@
       </p>
     </div>
     <div class="tip custom-block">
-      <p class="custom-block-title">Sponsored by SupDesk</p>
+      <p class="custom-block-title">{{ heading }}</p>
+      <p v-if="sponsors.length > 0">
+        kinhin is sponsored by
+        <template v-for="(sp, i) in sponsors" :key="sp.name">
+          <a :href="sp.url" target="_blank" rel="noopener sponsored">{{ sp.name }}</a
+          >, {{ sp.blurb.charAt(0).toLowerCase() + sp.blurb.slice(1) }}<span v-if="i < sponsors.length - 1">; </span>
+        </template>.
+      </p>
       <p>
-        kinhin is sponsored by <a href="https://supdesk.app">SupDesk</a>, the feedback and
-        support console for solo founders, devs and small teams. kinhin is free and built by
-        one developer: <a href="/guide/support">donate or sponsor</a>, or
+        kinhin is free and built by one developer: <a href="/guide/support">donate or sponsor</a>, or
         <a href="/guide/used-by">add your project to the list</a>.
       </p>
     </div>
