@@ -49,6 +49,8 @@ export default defineConfig({
     "{Sources,Tests,Plugins,scripts,dist,shots,assets,video}/**",
     "**/node_modules/**",
     "docs/plans/**",
+    // Draft of the next post: not published until its checklist passes (docs/plans/beta-2-launch-checklist.md).
+    "website/blog/beta-2.md",
     "docs/{app,adding-a-forge}.md",
     "skills/**",
     "examples/**",

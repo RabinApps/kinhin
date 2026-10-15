@@ -17,6 +17,10 @@ narrated launch videos built from files in your repo.
 **Sponsored by [SupDesk](https://supdesk.app)**, the feedback and support console for solo founders, devs and small teams.
 Want to become a sponsor? [See how](docs/support.md#become-a-sponsor).
 
+[![kinhin launch video](docs/assets/launch-hero.gif)](https://kinhin.dev/launch.mp4)
+
+*The kinhin launch video, built from files in this repo. [Watch it](https://kinhin.dev/launch.mp4).*
+
 ## What it does
 
 - **CI that scales to your queue.** Self-hosted runners appear for one job and are gone when it ends.

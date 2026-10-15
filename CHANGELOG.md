@@ -6,6 +6,7 @@
 
 **Added**
 
+- `kinhin video record <app or title>` records one window of your app as a clip, with the mouse pointer left out, for a video's app scene. `--list-windows` shows what can be recorded and `--window ID` picks one. It needs Screen Recording permission for your terminal once. See [docs/video-adapters.md](docs/video-adapters.md#recording-clips).
 - The healing agent: kinhin fixes the fleet problems it safely can on its own (a warm VM deleted out of band, a toolchain
   cache filling the disk, a detached account, a stopped Apple container system) and asks before anything destructive
   (pruning images, reinstalling a runtime). `kinhin heal` shows the journal, and `kinhin heal approve|dismiss ID` acts
@@ -16,27 +17,6 @@
   `xcode`) skip the clone and boot. The top-level `warm_pool` still covers `image:`; the two share `max_runners`.
 - "VMs kept ready" controls: each image in the "More images" card has a stepper for its warm pool, and the Capacity view
   has a row for the base image's. Changes are saved after the stepper settles.
-
-**Fixed**
-
-- An unreadable `fleet.json`, `project-images.json` or scale-set session file is no longer silently replaced. It is moved
-  aside to `<name>.corrupt-<timestamp>` before kinhin starts empty, and the app and `kinhin status` show an alert naming
-  the kept copy (fleet and project images).
-- "Reset everything" no longer reports success when it left something behind. A Tart that cannot be listed, an unreadable
-  Keychain or a support directory that cannot be listed is shown before you confirm and again afterwards; `kinhin reset`
-  then exits 1 (needs attention), and the app's status line lists what is left.
-- Disk checks before a Tart clone use the size of the image being cloned, so a large `images:` image no longer passes as
-  if it were the base VM.
-- A warm VM is recycled at once when its pool is turned off or its `images:` entry is removed, instead of holding a
-  `max_runners` slot for up to an hour.
-- A named image that has not been prepared no longer triggers a `tart list` and a warning on every poll. The listing is
-  reused for a minute, and the skip is logged once.
-- Video text no longer runs off the frame: titles, statements, outro lines, step rows and burned captions wrap on whole words
-  and shrink to fit. A slide over its character limit (`TEXT_LIMITS` in `video/shared/resolve.mjs`) fails the build with the
-  prop and the limit named.
-
-**Added**
-
 - `kinhin mobile init --ci` and `kinhin video init --workflow --ci` write the pipeline for GitLab CI, Gitea and Forgejo
   Actions, Bitbucket Pipelines, Azure Pipelines or Buildkite, as well as GitHub Actions. The system is detected from the
   repository when the flag is left out. Mobile releases outside GitHub run one script, `.kinhin/mobile-release.sh`. See
@@ -83,6 +63,21 @@
 
 **Fixed**
 
+- An unreadable `fleet.json`, `project-images.json` or scale-set session file is no longer silently replaced. It is moved
+  aside to `<name>.corrupt-<timestamp>` before kinhin starts empty, and the app and `kinhin status` show an alert naming
+  the kept copy (fleet and project images).
+- "Reset everything" no longer reports success when it left something behind. A Tart that cannot be listed, an unreadable
+  Keychain or a support directory that cannot be listed is shown before you confirm and again afterwards; `kinhin reset`
+  then exits 1 (needs attention), and the app's status line lists what is left.
+- Disk checks before a Tart clone use the size of the image being cloned, so a large `images:` image no longer passes as
+  if it were the base VM.
+- A warm VM is recycled at once when its pool is turned off or its `images:` entry is removed, instead of holding a
+  `max_runners` slot for up to an hour.
+- A named image that has not been prepared no longer triggers a `tart list` and a warning on every poll. The listing is
+  reused for a minute, and the skip is logged once.
+- Video text no longer runs off the frame: titles, statements, outro lines, step rows and burned captions wrap on whole words
+  and shrink to fit. A slide over its character limit (`TEXT_LIMITS` in `video/shared/resolve.mjs`) fails the build with the
+  prop and the limit named.
 - Commands that run a child process could return its stderr without the last lines, under load. The result is now read
   only after the pipes reach end-of-file.
 - Advanced → Capacity: the This Mac base-image rows no longer run past the card's right edge (the **Pin…** button was clipped), the labels no longer collapse, and the empty gap above **More images** is gone. A custom base image now sits on its own line under the popup.
