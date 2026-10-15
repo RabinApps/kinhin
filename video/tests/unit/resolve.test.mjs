@@ -150,7 +150,7 @@ test('colours and the font can be overridden; a dark theme with a box caption ke
 test('bad captions settings are reported in words', () => {
   const bad = {burn: 'yes', style: 'neon', position: 'left', scenes: 'some', size: 9, color: 'red', boxColor: '#12'};
   const text = validateCaptions(bad).join('\n');
-  for (const piece of ['captions.burn must be', 'captions.style "neon" is not one of', 'captions.position "left"', 'captions.scenes must be', 'captions.size must be', 'captions.color must be a hex', 'captions.boxColor must be a hex']) assert.match(text, new RegExp(piece.replace(/[.()]/g, '\\$&')));
+  for (const piece of ['captions.burn must be', 'captions.style "neon" is not one of', 'captions.position "left"', 'captions.scenes must be', 'captions.size must be', 'captions.color must be a hex', 'captions.boxColor must be a hex']) assert.ok(text.includes(piece), `expected "${piece}" in the message`);
   assert.throws(() => caps({project: {captions: {style: 'neon'}}}), /captions.style "neon"/);
   assert.throws(() => caps({env: {VIDEO_CAPTIONS: 'maybe'}}), /VIDEO_CAPTIONS must be on, off or all/);
   assert.throws(() => caps({env: {VIDEO_CAPTION_STYLE: 'neon'}}), /unknown caption style "neon"/);
