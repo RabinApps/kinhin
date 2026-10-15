@@ -57,6 +57,7 @@ enum VideoCommand {
             case "init": try initialize(rest)
             case "list": try list(rest)
             case "validate": try await validate(rest)
+            case "record": try await VideoRecordCommand.run(rest)
             default: try await build(rest)
             }
         } catch {

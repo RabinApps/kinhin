@@ -20,7 +20,7 @@ no Mac, no desktop session and no permission grant, so they are the easy path fo
 |---|---|---|
 | Adapter | One product's recorders, tape and committed clips; kinhin's is `video/adapters/kinhin/`, a starting point is `adapters/template/` | `video/adapters/<name>/` |
 | Demo fleet (kinhin) | A debug-only `FleetServing` that replays a script; touches no config, Keychain, daemon or forge | `Sources/kinhin-app/Demo/` |
-| App clip | A screen recording of the product's window, from the adapter's `record-app.sh` (kinhin's: `screencapture` on a Mac or in a throwaway Tart VM) | `video/adapters/kinhin/record-app.sh`, `record-app-in-tart.sh` |
+| App clip | A screen recording of the product's window, from the adapter's `record-app.sh` (kinhin's: `kinhin video record` on a Mac, or in a throwaway Tart VM) | `video/adapters/kinhin/record-app.sh`, `record-app-in-tart.sh` |
 | Browser clip | Scripted Playwright session, in a container or locally; an adapter clip of kind `browser` | `video/sources/web/`, `video/adapters/<name>/scenarios/`, `video/scripts/record-web.sh` |
 | Terminal clip | A [VHS](https://github.com/charmbracelet/vhs) tape, recorded in four variants by `scripts/record-terminal.sh` (kinhin's runs the real CLI from a debug build in a throwaway support dir and hides the empty-config lines) | `video/adapters/kinhin/terminal/*.tape` |
 | Canvas scenes | [Motion Canvas](https://motioncanvas.io) (MIT), themed and sized by the project file | `video/src/` |
@@ -97,15 +97,17 @@ Accessibility if you want it to resize the window). Run it directly in a termina
 TTY that `scripts/dev-run.sh` insists on. The debug app's process and window are named `kinhin-app`.
 
 No spare desktop, or you want a clean repeatable one? `video/adapters/kinhin/record-app-in-tart.sh` records inside a throwaway
-Tart VM:
+Tart VM. The guest runs the same `record-app.sh`, which captures the window with `kinhin video record`, so the pointer is left out
+of the take whichever mode you use; the guest needs Screen Recording granted once.
 
 - `--gui`: a VM window on your Mac; the guest has a real desktop session.
 - `--vnc`: the same desktop with no window; connect with Screen Sharing.
 - `--headless`: no desktop, so no recording. It runs the demo unit tests and renders the offscreen UI captures
   (`shots/capture`) instead.
 
-Both set `KINHIN_DEMO` the same way (`KINHIN_DEMO=path/in/repo.json video/adapters/kinhin/record-app.sh`). For auto-zoom and a
-smoothed cursor, run the raw take through an open-source editor such as OpenScreen or Screenize.
+Both set `KINHIN_DEMO` the same way (`KINHIN_DEMO=path/in/repo.json video/adapters/kinhin/record-app.sh`). The pointer is
+left out of the take, so no cursor smoothing is needed; for auto-zoom, run the raw take through an editor such as
+OpenScreen or Screenize.
 
 ## Build the launch video
 
@@ -146,7 +148,7 @@ videos, and do not commit tracks under licences that forbid redistributing the f
 ## Recording the app
 
 kinhin's `record-app.sh` starts the demo at a known moment (`KINHIN_DEMO_ORIGIN`) and writes `app.json`; the `device` scene
-starts the shot there. Keep the mouse pointer off the window while it records. After recording,
+starts the shot there. The recorder leaves the pointer out of the clip, so the mouse can move during a take. After recording,
 `scripts/make-reference.sh --adapter <name>` refreshes the adapter's `reference/` clips (`--terminal` for just the terminal
 ones).
 

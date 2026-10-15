@@ -99,8 +99,11 @@ releases and pull requests ([docs/ci-video.md](docs/ci-video.md)). See [docs/mak
 `swift test` proves kinhin agrees with its fakes; `Tests/E2E` proves the fakes agree with reality. It is a **separate
 Swift package** (Swift Testing, driving the real `kinhin` binary) so `swift test` and `scripts/check.sh` never load it,
 and it is **not part of per-PR CI**: it runs real forges in containers and real jobs in real guests on a dedicated Mac
-(`.github/workflows/e2e.yml`). Run `scripts/e2e.sh` (seconds, no Docker) while iterating on CLI or security behavior,
-and `scripts/e2e.sh --local` before changing forge registration, runtimes, the engine or the runner scripts. See
+(`.github/workflows/e2e.yml`). **Run `scripts/e2e.sh` in CI, not on your own machine.** Local runs are the exception: only when the user asks for a
+specific local test, and then with `KINHIN_E2E_LOCAL=1` (the script refuses to run otherwise). Start the
+`e2e.yml` workflow by hand (`workflow_dispatch`, with the tier you need) and read the run's logs. The suite boots
+containers and VMs, drives the Docker daemon and runs jobs on the Mac it is on, so a local run can disturb your fleet
+and your Docker setup. The quick tier needs no Docker, but it still runs in CI. See
 [docs/e2e-testing.md](docs/e2e-testing.md) for the tiers, switches and what each suite proves.
 
 - **A fake that disagrees with the real thing is a bug in the fake.** When an e2e run finds one, fix the product, then

@@ -109,6 +109,8 @@ jobs:
     if: >-
       (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
       && needs.plan.outputs.enabled == 'true' && needs.plan.outputs.screens_platforms != '{"include":[]}'
+    # The capture runs repository code on the self-hosted Mac, so it waits for the same reviewer as the publish jobs.
+    environment: marketing
     runs-on: [self-hosted, kinhin-xcode]
     timeout-minutes: 60
     strategy:

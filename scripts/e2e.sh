@@ -32,6 +32,13 @@ while [ $# -gt 0 ]; do
   shift
 done
 
+# The suite boots containers and VMs on the machine it runs on, so it runs in CI (GITHUB_ACTIONS is set there). A local
+# run is the exception: only when the user asks for that specific test, and then with KINHIN_E2E_LOCAL=1 set.
+if [ -z "${GITHUB_ACTIONS:-}" ] && [ "${KINHIN_E2E_LOCAL:-}" != "1" ]; then
+  echo "scripts/e2e.sh runs in CI (the e2e.yml workflow). For a local run the user asked for, set KINHIN_E2E_LOCAL=1." >&2
+  exit 1
+fi
+
 # The suite needs a DEBUG kinhin: only debug builds read forge tokens from the environment
 # (KINHIN_TOKEN_STORE=env), which keeps the run off the developer's Keychain.
 echo "==> building kinhin (debug)"

@@ -40,6 +40,21 @@ final class FleetRecoveryTests: XCTestCase {
         await engine.detachKeepingInstances()
     }
 
+    /// A scratch VM an image bake left behind shares the fleet's prefix, but it is not a runner: recovery must not
+    /// adopt it, while a real instance next to it is still recovered.
+    func testRecoverySkipsAScratchVMAndAdoptsTheRealInstance() async {
+        let store = makeTestStore()
+        let (engine, tart) = makeMixedEngine(store: store)
+        tart.vms["kinhin-prepare-tmp-1760000000"] = TartVM(
+            name: "kinhin-prepare-tmp-1760000000", source: "tahoe-base", status: "stopped")
+
+        await engine.recoverIfNeeded()
+
+        XCTAssertNotNil(store.all.first { $0.id == "kinhin-t1" }, "the real instance is recovered")
+        XCTAssertNil(store.all.first { $0.id == "kinhin-prepare-tmp-1760000000" }, "a scratch VM is never adopted")
+        await engine.detachKeepingInstances()
+    }
+
     /// A runtime that can't be listed (tart wedged, a daemon down) must not
     /// read as "every instance vanished": its records are kept, not dropped
     /// (which would orphan the running VMs).
