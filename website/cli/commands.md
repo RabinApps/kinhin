@@ -79,6 +79,8 @@ OTHER:
     video validate [name]                   Check a video's config without rendering it
     video theme list                        List the built-in themes and yours
     video theme new <name>                  Write a starter theme file
+    video record <app or title>             Record one app window as a clip, without the mouse
+                                            pointer
     video music search <words>              Search openly licensed music
     video music preview <number|id>         Listen to a search result
     video music add <number|id|name>        Download a track into the repository and use it

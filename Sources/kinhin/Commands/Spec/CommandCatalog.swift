@@ -652,6 +652,24 @@ enum CommandCatalog {
                     ],
                     requiresSubcommand: true),
                 CommandSpec(
+                    name: "record",
+                    command: .video,
+                    summary: "Record one app window as a clip, without the mouse pointer",
+                    positionals: "<app or title>",
+                    flags: [
+                        .value("--window", "ID", "Record this window id instead (see --list-windows)"),
+                        .value("--seconds", "N", "How long to record (default 10, at most 600)"),
+                        .value(
+                            "--out", "PATH", "Where to write the .mov (default: the app's name in the current folder)"),
+                        .bool("--list-windows", "List the windows that can be recorded, with their ids"),
+                        jsonFlag,
+                    ],
+                    details: [
+                        "Captures only that window's pixels, so the pointer and the windows over it stay out of the clip. "
+                            + "The first run asks for Screen Recording permission for the app that runs kinhin (Terminal, iTerm or "
+                            + "kinhin); allow it in System Settings and run the command again. Docs: video-adapters.md#recording-clips."
+                    ]),
+                CommandSpec(
                     name: "music",
                     command: .video,
                     summary: "Find music and add it to a video",

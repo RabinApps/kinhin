@@ -41,6 +41,8 @@ struct CoverageTests {
         "video music add": "VideoTests.addToTheOnlyVideo (and the license, video and JSON cases)",
         "video music list": "VideoTests.addToTheOnlyVideo",
         "video theme list": "VideoTests.themeScaffold", "video theme new": "VideoTests.themeScaffold",
+        "video record":
+            "waived: needs Screen Recording permission and a window on screen; the window choice and the errors are unit-tested (WindowRecorderTests)",
         "video music preview":
             "waived: plays audio on this Mac (afplay); its download and resolve paths are the same as add",
         "auth set": "CLITests.accountLifecycle (token comes from the environment in e2e builds)",
