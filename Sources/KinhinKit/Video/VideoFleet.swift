@@ -74,6 +74,14 @@ public enum VideoFleet {
                     description: "A catalog track, a file in the repository, or off (empty: the video's own)"
                     required: false
                     type: string
+                  quality:
+                    description: "draft, standard or high (empty: standard)"
+                    required: false
+                    type: string
+                  fps:
+                    description: "24, 30 or 60 (empty: 30)"
+                    required: false
+                    type: string
                   fast:
                     description: "A preview: quicker encode, no WebM"
                     required: false
@@ -101,6 +109,8 @@ public enum VideoFleet {
                       CAPTIONS: ${{ inputs.captions }}
                       CAPTION_STYLE: ${{ inputs.caption_style }}
                       MUSIC: ${{ inputs.music }}
+                      QUALITY: ${{ inputs.quality }}
+                      FPS: ${{ inputs.fps }}
                       FAST: ${{ inputs.fast }}
                     run: |
                       set -euo pipefail
@@ -111,6 +121,8 @@ public enum VideoFleet {
                       [ -z "$CAPTIONS" ] || args+=(--captions "$CAPTIONS")
                       [ -z "$CAPTION_STYLE" ] || args+=(--caption-style "$CAPTION_STYLE")
                       [ -z "$MUSIC" ] || args+=(--music "$MUSIC")
+                      [ -z "$QUALITY" ] || args+=(--quality "$QUALITY")
+                      [ -z "$FPS" ] || args+=(--fps "$FPS")
                       [ "$FAST" != "true" ] || args+=(--fast)
                       docker run --rm \\
                         -v "$PWD":/project:ro \\
@@ -146,6 +158,8 @@ public enum VideoFleet {
         add("captions", options.captions)
         add("caption_style", options.captionStyle)
         add("music", options.music)
+        add("quality", options.quality)
+        add("fps", options.fps)
         if options.fast { argv += ["-f", "fast=true"] }
         return argv
     }

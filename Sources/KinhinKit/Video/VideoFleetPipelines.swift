@@ -44,6 +44,8 @@ extension VideoFleet {
         [ -z "${VIDEO_CAPTIONS:-}" ] || set -- "$@" --captions "$VIDEO_CAPTIONS"
         [ -z "${VIDEO_CAPTION_STYLE:-}" ] || set -- "$@" --caption-style "$VIDEO_CAPTION_STYLE"
         [ -z "${VIDEO_MUSIC:-}" ] || set -- "$@" --music "$VIDEO_MUSIC"
+        [ -z "${VIDEO_QUALITY:-}" ] || set -- "$@" --quality "$VIDEO_QUALITY"
+        [ -z "${VIDEO_FPS:-}" ] || set -- "$@" --fps "$VIDEO_FPS"
         [ "${VIDEO_FAST:-false}" != "true" ] || set -- "$@" --fast
         docker run --rm \\
           -v "$PWD":/project:ro \\
@@ -91,6 +93,8 @@ extension VideoFleet {
           VIDEO_CAPTIONS: { value: "", description: "kinhin video: on, off or all (empty: the video's own)" }
           VIDEO_CAPTION_STYLE: { value: "", description: "kinhin video: caption style (empty: the video's own)" }
           VIDEO_MUSIC: { value: "", description: "kinhin video: a catalog track, a file in the repository, or off" }
+          VIDEO_QUALITY: { value: "", options: ["", "draft", "standard", "high"], description: "kinhin video: encode quality (empty: standard)" }
+          VIDEO_FPS: { value: "", options: ["", "24", "30", "60"], description: "kinhin video: frames per second (empty: 30)" }
           VIDEO_FAST: { value: "false", options: ["false", "true"], description: "kinhin video: a quicker preview" }
 
         kinhin-video:
@@ -126,6 +130,8 @@ extension VideoFleet {
                   - name: VIDEO_CAPTIONS
                   - name: VIDEO_CAPTION_STYLE
                   - name: VIDEO_MUSIC
+                  - name: VIDEO_QUALITY
+                  - name: VIDEO_FPS
                   - name: VIDEO_FAST
                     default: "false"
                     allowed-values: ["false", "true"]
@@ -163,6 +169,8 @@ extension VideoFleet {
               - { name: captions, displayName: "on, off or all (empty: the video's own)", type: string, default: "" }
               - { name: captionStyle, displayName: "Caption style (empty: the video's own)", type: string, default: "" }
               - { name: music, displayName: "A catalog track, a file in the repository, or off", type: string, default: "" }
+              - { name: quality, displayName: "draft, standard or high (empty: standard)", type: string, default: "" }
+              - { name: fps, displayName: "24, 30 or 60 (empty: 30)", type: string, default: "" }
               - { name: fast, displayName: "A preview: quicker encode, no WebM", type: boolean, default: false }
               # The agent pool your kinhin Azure DevOps account serves (its scope in kinhin's config).
               - { name: pool, displayName: kinhin agent pool, type: string, default: kinhin }
@@ -188,6 +196,8 @@ extension VideoFleet {
                       VIDEO_CAPTIONS: ${{ parameters.captions }}
                       VIDEO_CAPTION_STYLE: ${{ parameters.captionStyle }}
                       VIDEO_MUSIC: ${{ parameters.music }}
+                      VIDEO_QUALITY: ${{ parameters.quality }}
+                      VIDEO_FPS: ${{ parameters.fps }}
                       VIDEO_FAST: ${{ lower(parameters.fast) }}
                   - publish: .kinhin/videos/out
                     artifact: \(artifactName)
@@ -215,6 +225,8 @@ extension VideoFleet {
                   - { text: "on, off or all (empty: the video's own)", key: captions, required: false }
                   - { text: "Caption style (empty: the video's own)", key: caption_style, required: false }
                   - { text: "A catalog track, a file in the repository, or off", key: music, required: false }
+                  - { text: "draft, standard or high (empty: standard)", key: quality, required: false }
+                  - { text: "24, 30 or 60 (empty: 30)", key: fps, required: false }
                   - select: "A preview: quicker encode, no WebM"
                     key: fast
                     default: "false"
@@ -233,6 +245,8 @@ extension VideoFleet {
                   export VIDEO_CAPTIONS="$$(buildkite-agent meta-data get captions --default '')"
                   export VIDEO_CAPTION_STYLE="$$(buildkite-agent meta-data get caption_style --default '')"
                   export VIDEO_MUSIC="$$(buildkite-agent meta-data get music --default '')"
+                  export VIDEO_QUALITY="$$(buildkite-agent meta-data get quality --default '')"
+                  export VIDEO_FPS="$$(buildkite-agent meta-data get fps --default '')"
                   export VIDEO_FAST="$$(buildkite-agent meta-data get fast --default false)"
             \(indentedShell(6, escapingDollars: true))
                 artifact_paths: ".kinhin/videos/out/**/*"
