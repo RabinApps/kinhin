@@ -38,8 +38,8 @@ if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
   done
 fi
 
-# Tart images the suite baked are named ke2e-*. Its runner clones are kinhin-* and cannot be told apart from a real
-# fleet's, so they are left alone (the suite refuses to start next to them and says so).
+# Tart images the suite baked and the runner clones it made are both named ke2e-*. A real fleet's kinhin-* VMs are
+# left alone: the suite's daemon never mints or adopts them, and a Tart lane refuses to start while any exist.
 if command -v tart >/dev/null 2>&1; then
   tart list --source local --quiet 2>/dev/null | while read -r name; do
     case "$name" in ke2e-*) tart stop "$name" >/dev/null 2>&1; tart delete "$name" >/dev/null 2>&1 ;; esac

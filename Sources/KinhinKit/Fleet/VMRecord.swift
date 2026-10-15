@@ -6,7 +6,22 @@ public enum InstanceNaming {
     /// The pre-rename prefix. Recognised as ours, but only alongside the default prefix.
     static let legacyPrefix = "orchard-"
     static let defaultPrefix = "kinhin-"
-    public static let prefix = defaultPrefix
+    /// Read once, at first use. Only a debug build honours `KINHIN_INSTANCE_PREFIX`.
+    public static let prefix = resolvePrefix(environment: ProcessInfo.processInfo.environment)
+
+    /// The prefix for `environment`. An invalid override stops the process rather than falling back: a fallback to
+    /// `kinhin-` would let a debug daemon adopt and delete the fleet's own instances.
+    static func resolvePrefix(environment: [String: String]) -> String {
+        #if DEBUG
+            guard let override = environment["KINHIN_INSTANCE_PREFIX"], !override.isEmpty else { return defaultPrefix }
+            precondition(
+                override.range(of: #"^[a-z][a-z0-9]{1,15}-$"#, options: .regularExpression) != nil,
+                "KINHIN_INSTANCE_PREFIX must be 2-16 lowercase letters or digits ending in '-', got '\(override)'")
+            return override
+        #else
+            return defaultPrefix
+        #endif
+    }
 
     /// Whether a runtime instance name belongs to this fleet: the current prefix, or the pre-rename one.
     public static func isOurs(_ name: String) -> Bool {
@@ -66,7 +81,8 @@ public struct VMRecord: Codable, Sendable, Identifiable, Equatable {
     /// Ids kinhin generates are `kinhin-<ts>-<hex>`; anything else (a stray
     /// runner name, `..` segments) is never an instance of ours.
     static func isValidID(_ id: String) -> Bool {
-        id.range(of: #"^\#(InstanceNaming.prefix)[A-Za-z0-9._-]+$"#, options: .regularExpression) != nil && !id.contains("..")
+        id.range(of: #"^\#(InstanceNaming.prefix)[A-Za-z0-9._-]+$"#, options: .regularExpression) != nil
+            && !id.contains("..")
     }
 
     static func newName(now: Date = Date()) -> String {

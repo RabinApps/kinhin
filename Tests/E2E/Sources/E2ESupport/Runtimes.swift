@@ -199,14 +199,19 @@ public enum Instances {
         }
     }
 
-    /// Tart VMs kinhin cloned (`kinhin-*`). Tart does not record a clone's source, so these cannot be told apart
-    /// from another fleet's; `Lane.start` refuses to run while any foreign one exists (see `foreign()`).
-    public static func tartClones() async -> [String] {
+    /// The prefix this suite's daemon gives every instance it mints (`KINHIN_INSTANCE_PREFIX`, see `Sandbox.environment`).
+    /// A real fleet's `kinhin-*` instances never carry it, so the suite neither adopts nor deletes them.
+    public static let ownPrefix = "ke2e-"
+    /// A real kinhin install's prefix. Tart lanes still refuse to run beside these: Apple caps macOS VMs at two per Mac.
+    public static let fleetPrefix = "kinhin-"
+
+    /// Tart VMs with `prefix` (Tart does not record a clone's source, so the prefix is the only owner marker).
+    public static func tartClones(prefix: String) async -> [String] {
         let result = try? await Shell.run("tart", ["list", "--source", "local", "--format", "json"], timeout: 30)
         guard let data = result?.stdout.data(using: .utf8),
             let list = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]
         else { return [] }
-        return list.compactMap { $0["Name"] as? String }.filter { $0.hasPrefix("kinhin-") }
+        return list.compactMap { $0["Name"] as? String }.filter { $0.hasPrefix(prefix) }
     }
 
     /// Host-mode instances: the work directories under a sandbox's `host-instances` (`image` is the sandbox's
@@ -214,34 +219,39 @@ public enum Instances {
     public static func hostInstances(supportDirectory: String) -> [String] {
         let base = URL(fileURLWithPath: supportDirectory).appendingPathComponent("host-instances")
         let entries = (try? FileManager.default.contentsOfDirectory(atPath: base.path)) ?? []
-        return entries.filter { $0.hasPrefix("kinhin-") }
+        return entries.filter { $0.hasPrefix(ownPrefix) }
     }
 
     public static func running(_ runtime: RuntimeKind, image: String) async -> [String] {
         switch runtime {
         case .docker: return await docker(image: image)
         case .appleContainer: return await appleContainers(image: image)
-        case .tartMacOS, .tartLinux: return await tartClones()
+        case .tartMacOS, .tartLinux: return await tartClones(prefix: ownPrefix)
         case .host: return hostInstances(supportDirectory: image)
         }
     }
 
-    /// `kinhin-*` instances on this Mac that no lane owns: a real fleet, another kinhin install, or a leak from a
-    /// killed run. kinhin's recovery adopts every `kinhin-*` instance its runtimes list, whoever made it, so a lane
-    /// started next to these would adopt (and could delete) them.
-    public static func foreign() async -> [String] {
+    /// Instances that would stop `runtime` from being a clean lane: leftovers of an earlier e2e run (`ke2e-*`) on
+    /// that runtime, and for Tart also a real fleet's macOS/Linux VMs (`kinhin-*`), since Tart's VM cap is per Mac.
+    /// A Docker or Apple container lane ignores a real fleet entirely: kinhin tells its instances apart by prefix.
+    public static func foreign(for runtime: RuntimeKind) async -> [String] {
         var found: [String] = []
-        if E2E.dockerAvailable {
+        switch runtime {
+        case .docker where E2E.dockerAvailable:
             let result = try? await Shell.run("docker", ["ps", "-a", "--format", "{{.Names}}"], timeout: 30)
             found += (result?.trimmedStdout ?? "").split(separator: "\n").map(String.init)
-                .filter { $0.hasPrefix("kinhin-") }.map { "docker:\($0)" }
-        }
-        if E2E.appleContainerAvailable {
+                .filter { $0.hasPrefix(ownPrefix) }.map { "docker:\($0)" }
+        case .appleContainer where E2E.appleContainerAvailable:
             let result = try? await Shell.run("container", ["list", "--all", "--quiet"], timeout: 30)
             found += (result?.trimmedStdout ?? "").split(separator: "\n").map(String.init)
-                .filter { $0.hasPrefix("kinhin-") }.map { "container:\($0)" }
+                .filter { $0.hasPrefix(ownPrefix) }.map { "container:\($0)" }
+        case .tartMacOS, .tartLinux:
+            guard E2E.tartAvailable else { break }
+            found += await tartClones(prefix: ownPrefix).map { "tart:\($0)" }
+            found += await tartClones(prefix: fleetPrefix).map { "tart:\($0)" }
+        default:
+            break
         }
-        if E2E.tartAvailable { found += await tartClones().map { "tart:\($0)" } }
         return found
     }
 
