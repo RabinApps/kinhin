@@ -59,6 +59,7 @@
         "frame": "macbook",
         "speed": 2.1
       },
+      "minLength": 19,
       "cues": [
         {
           "at": 0.5,
@@ -69,12 +70,8 @@
           "text": "Each job gets its own clean instance."
         },
         {
-          "at": 11.0,
+          "at": 12.4,
           "text": "When one fails, the next still starts clean."
-        },
-        {
-          "at": 14.6,
-          "text": "Every instance is deleted. Nothing lingers."
         }
       ]
     },

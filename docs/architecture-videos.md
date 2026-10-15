@@ -68,7 +68,7 @@ clips and claims rules.
 ```mermaid
 flowchart LR
     subgraph app["App clip"]
-        appRec["record-app.sh<br>screencapture on a Mac"] --> appClip["committed clip"]
+        appRec["record-app.sh<br>kinhin video record on a Mac"] --> appClip["committed clip"]
         appTart["record-app-in-tart.sh<br>throwaway Tart VM"] --> appClip
     end
     subgraph web["Browser clip"]

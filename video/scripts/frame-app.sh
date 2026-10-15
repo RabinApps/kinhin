@@ -53,6 +53,7 @@ XL="($CX-$HW*cos($TH)*$SL)"; XR="($CX+$HW*cos($TH)*$SR)"
 Y0L="($CY-$HH*$SL)"; Y1L="($CY+$HH*$SL)"; Y0R="($CY-$HH*$SR)"; Y1R="($CY+$HH*$SR)"
 
 SRC_LEN="$(python3 -c "print($LEN * $SPEED)")"   # seconds of the recording that fill LEN seconds at SPEED
+# The top-left toolbar button is covered with the toolbar's own colour (0x29282b), so the cover reads as empty toolbar.
 ffmpeg -nostdin -y -loglevel error -ss "$SS" -t "$SRC_LEN" -i "$IN" \
   -f lavfi -i "gradients=speed=0.00001:s=${W}x${H}:r=30:d=$LEN:c0=$BG_FROM:c1=$BG_TO:x0=0:y0=0:x1=0:y1=${H}:type=linear" \
   -f lavfi -i "gradients=speed=0.00001:s=${SW}x${SH}:r=30:d=$LEN:c0=$WALL_FROM:c1=$WALL_TO:x0=0:y0=0:x1=${SW}:y1=${SH}:type=linear" \
@@ -62,7 +63,7 @@ ffmpeg -nostdin -y -loglevel error -ss "$SS" -t "$SRC_LEN" -i "$IN" \
   -f lavfi -i "color=c=$LID_COLOR:s=$(sc 170)x$(sc 50):r=30:d=$LEN" \
   -f lavfi -i "color=c=black@0:s=${W}x${H}:r=30:d=$LEN,format=rgba" \
   -filter_complex "
-    [0:v]setpts=PTS/${SPEED},fps=30,drawbox=x=14:y=6:w=130:h=48:color=0xefeded:t=fill,scale=${WW}:${WH},format=rgba,$(GEQ "$(ALLR "$(sc 34)")")[win];
+    [0:v]setpts=PTS/${SPEED},fps=30,drawbox=x=14:y=6:w=130:h=48:color=0x29282b:t=fill,scale=${WW}:${WH},format=rgba,$(GEQ "$(ALLR "$(sc 34)")")[win];
     [win]split[w1][w2];
     [w2]alphaextract,pad=$((WW + 2 * M)):$((WH + 2 * M)):$M:$M:color=black,boxblur=lr=$(sc 16):lp=4,lutyuv=y='val*0.5'[wsa];
     color=c=black:s=$((WW + 2 * M))x$((WH + 2 * M)):r=30:d=$LEN,format=rgba[wsc];

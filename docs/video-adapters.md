@@ -51,7 +51,7 @@ A scene that names a clip the adapter does not declare stops the build and names
 
 Record each clip with anything you like, and save it as `reference/<clip>.mp4`:
 
-- **App:** QuickTime or `screencapture` on a Mac.
+- **App:** `kinhin video record <app>` on a Mac (one window, pointer left out; needs Screen Recording permission for your terminal once), or QuickTime.
 - **Terminal:** [VHS](https://github.com/charmbracelet/vhs), or any terminal recorder that writes an MP4.
 - **Website or browser:** any browser recorder. See [Record a web product](#record-a-web-product) for a scripted option.
 
