@@ -42,7 +42,8 @@ extension FleetController {
             try await reloadConfigIntoBackend()
             setProblem(.configPush, nil)
         } catch is CancellationError {
-            // Not a failure: whoever cancelled will push again.
+            // Not a failure: whoever cancelled will push again, and the alert request goes with it.
+            if alert { configPushAlertsOnFailure = true }
         } catch {
             let notApplied = ConfigNotAppliedError(reason: error.localizedDescription)
             setProblem(.configPush, notApplied.localizedDescription)

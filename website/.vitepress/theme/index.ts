@@ -4,7 +4,9 @@ import { onContentUpdated, type Theme } from "vitepress";
 import GitHubActions from "./GitHubActions.vue";
 import AudienceTabs from "./AudienceTabs.vue";
 import LaunchVideo from "./LaunchVideo.vue";
+import DocsGrid from "./DocsGrid.vue";
 import "./version-banner.css";
+import "./home.css";
 
 function addDiagramExpandButtons(): void {
   const diagrams = document.querySelectorAll<HTMLElement>(
@@ -506,6 +508,7 @@ export default {
     // Human / AI-agent split on the quick start (and any page that wants it).
     app.component("AudienceTabs", AudienceTabs);
     app.component("LaunchVideo", LaunchVideo);
+    app.component("DocsGrid", DocsGrid);
   },
   Layout: {
     setup() {

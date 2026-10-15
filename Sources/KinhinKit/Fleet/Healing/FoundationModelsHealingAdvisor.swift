@@ -109,18 +109,7 @@
         static func withDeadline<T: Sendable>(
             _ seconds: Double, _ operation: @escaping @Sendable () async throws -> T
         ) async throws -> T {
-            try await withThrowingTaskGroup(of: T.self) { group in
-                group.addTask { try await operation() }
-                group.addTask {
-                    try await Task.sleep(for: .seconds(seconds))
-                    throw EngineError.healingFailed("the on-device model did not answer within \(Int(seconds))s")
-                }
-                defer { group.cancelAll() }
-                guard let first = try await group.next() else {
-                    throw EngineError.healingFailed("the on-device model gave no answer")
-                }
-                return first
-            }
+            try await HealingDeadline.run(seconds: seconds, operation)
         }
     }
 #endif

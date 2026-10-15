@@ -4,80 +4,83 @@ layout: home
 hero:
   name: "kinhin ○"
   text: "Commit it. Screenshot it. Ship it."
-  tagline: "Your Mac is your CI. Your repo is your video studio, and your screenshot studio. Ephemeral runners that scale to your queue, then vanish. Store screenshots in every locale and narrated launch videos that rebuild from a file in your repo. All of it runs on the Mac you already own: no cloud bill for runners, no watermark on videos."
+  tagline: "Your Mac is your CI, your screenshot studio and your video studio. Ephemeral runners that scale to your queue, store screenshots in every locale, and launch videos that rebuild from your repo. No cloud bill, no watermark."
   actions:
     - theme: brand
       text: Get started
       link: /guide/quick-start
     - theme: alt
-      text: Make a video
-      link: /guide/videos-for-your-project
-    - theme: alt
-      text: Why does this exist?
+      text: Why kinhin?
       link: /guide/why-kinhin
-    - theme: alt
-      text: Read the beta announcement
-      link: /blog/introducing-kinhin-beta
-    - theme: alt
-      text: Beta roadmap
-      link: /guide/beta-roadmap
     - theme: alt
       text: CLI reference
       link: /cli/commands
-    - theme: alt
-      text: Sponsor
-      link: /guide/support
 
 features:
-  - title: In beta
-    details: GitHub, Gitea, Forgejo and GitLab CE are supported. Gitea, Forgejo and GitLab CE run end to end on every runtime in kinhin's own test suite; GitHub has run on Tart macOS VMs and apple/container. Buildkite, Azure Pipelines and Bitbucket are planned. <a href="/guide/forges#what-has-been-tested">What has been tested</a> · <a href="/guide/beta-roadmap">Roadmap to v0.1.0</a>
-  - title: Parallel jobs, not a queue
-    details: Self-hosted runners handle one job at a time. Kinhin scales a fleet of ephemeral runners to your queue so jobs run in parallel. <a href="/guide/why-kinhin">Why kinhin</a>
-  - title: Store screenshots from the same repo
-    details: "One fastlane lane captures localized App Store and Play screenshots in CI for iOS, Android, Flutter, React Native and Kotlin Multiplatform, and keeps them as artifacts. <a href=\"/guide/mobile-screenshots\">Store screenshots</a>"
-  - title: Launch videos from a config
-    details: "Write the story in YAML. Get a narrated video with your product on screen, captions, music and a vertical cut, then rebuild it whenever you ship. <a href=\"/guide/videos-for-your-project\">Add videos to your project</a>"
-  - title: Clean every time
-    details: Every job gets a fresh VM or container. The runner deregisters itself afterwards and the instance is deleted — nothing leaks between jobs.
-  - title: Multi-forge
-    details: GitHub Actions, GitLab CI/CD, Gitea Actions and Forgejo Actions served from one shared pool. Buildkite, Azure Pipelines and Bitbucket Pipelines are planned.
-  - title: Multi-runtime
-    details: macOS jobs on Tart VMs, Linux jobs on apple/container microVMs, Docker containers, or Tart Linux VMs — each job routed by repo, workflow, or runs-on label.
-  - title: Resource-aware
-    details: The scaler never exceeds what your Mac can handle. Host CPU, memory, and disk headroom are always reserved, and the budget is partitioned across runtime pools.
-  - title: Menu bar or headless
-    details: The same engine behind a macOS menu bar app or a LaunchAgent daemon — same config, either way, exactly one fleet.
-  - title: One-line install
-    details: curl … \| bash from GitHub Releases with sha256 verification, no Gatekeeper dance, and a clean uninstall.
+  - icon: { src: /icons/parallel.svg }
+    title: Parallel jobs, not a queue
+    details: A fleet of ephemeral runners scales to your queue, so jobs run side by side.
+    link: /guide/why-kinhin
+    linkText: Why kinhin
+  - icon: { src: /icons/clean.svg }
+    title: Clean every time
+    details: Every job gets a fresh VM or container, deleted when the job ends. Nothing leaks between jobs.
+    link: /guide/security
+    linkText: Security
+  - icon: { src: /icons/forge.svg }
+    title: Multi-forge, multi-runtime
+    details: GitHub, Gitea, Forgejo and GitLab served from one pool, on Tart, apple/container, Docker or host mode.
+    link: /guide/runtimes
+    linkText: Runtimes & routing
+  - icon: { src: /icons/screenshot.svg }
+    title: Store screenshots
+    details: One fastlane lane captures localized App Store and Play screenshots in CI.
+    link: /guide/mobile-screenshots
+    linkText: Store screenshots
+  - icon: { src: /icons/video.svg }
+    title: Launch videos from a config
+    details: Write the story in YAML. Get narration, captions, music and a vertical cut on every release.
+    link: /guide/videos-for-your-project
+    linkText: Add videos
+  - icon: { src: /icons/menubar.svg }
+    title: Menu bar or headless
+    details: The same engine as a macOS app or a LaunchAgent daemon, with one config and one fleet.
+    link: /guide/install
+    linkText: Install
 ---
 
-<div style="max-width: 1152px; margin: 32px auto; padding: 0 24px;">
+<div class="home-section">
 
-## Your repo is your video studio
-
-Edit a file, rebuild, ship the new cut. The same Mac that runs your CI turns a config in your repo into a narrated video:
-a voice, your product on screen, captions and music, built in a container.
+## Up and running in three commands
 
 ```bash
-kinhin video init launch                 # a starter config in .kinhin/videos/launch.yml
-kinhin video music search "calm piano"   # free CC0 music; `add 1` saves it into the repo
-kinhin video build launch                # .kinhin/videos/out/launch/launch.mp4
+curl -fsSL https://github.com/RabinApps/kinhin/releases/latest/download/install.sh | bash
+kinhin config init && kinhin auth set
+kinhin image prepare && kinhin start
 ```
 
-[Add videos to your project](/guide/videos-for-your-project) · [Video gallery](/guide/video-gallery)
+[Read the quick start](/guide/quick-start)
+
+</div>
+
+<div class="home-section">
+
+## Find your way around
+
+<p class="lead">Jump to the part of kinhin you need.</p>
+
+<DocsGrid />
+
+</div>
+
+<div class="home-section">
 
 ::: warning Beta (v0.0.1-beta-1)
-Supported: **GitHub, Gitea, Forgejo and GitLab CE**, on Tart macOS and Linux VMs, apple/container, Docker and host
-mode. Buildkite, Azure Pipelines and Bitbucket Pipelines are planned for a later release. See [what has been tested](/guide/forges#what-has-been-tested) and the
-[roadmap to v0.1.0](/guide/beta-roadmap). Tried one? [Report what you find](https://github.com/RabinApps/kinhin/issues/new/choose).
+Supports **GitHub, Gitea, Forgejo and GitLab CE**. See [what has been tested](/guide/forges#what-has-been-tested), the [roadmap to v0.1.0](/guide/beta-roadmap) and the [beta announcement](/blog/introducing-kinhin-beta). [Report what you find](https://github.com/RabinApps/kinhin/issues/new/choose).
 :::
 
-
-::: tip Support kinhin
-kinhin is free and built by one developer. [Donate or become a sponsor](/guide/support). Also from Rabin Apps: [SupDesk](https://supdesk.app/en).
-
-*Running kinhin in your project? [Add it to the list](/guide/used-by).*
-
+::: tip Sponsored by SupDesk
+kinhin is sponsored by [SupDesk](https://supdesk.app), the feedback and support console for solo founders, devs and small teams. kinhin is free and built by one developer: [donate or sponsor](/guide/support), or [add your project to the list](/guide/used-by).
 :::
 
 </div>

@@ -86,20 +86,19 @@ public struct MusicLibrary: Sendable {
         return false
     }
 
-    /// Reads the body, stopping as soon as it passes `maxBytes` instead of buffering whatever the server sends.
+    /// Downloads the body to a temporary file and checks its size, instead of iterating it byte by byte.
     static func fetch(_ request: URLRequest, with session: URLSession) async throws -> Data {
-        let (bytes, response) = try await session.bytes(for: request, delegate: HTTPSOnlyRedirects())
+        let (file, response) = try await session.download(for: request, delegate: HTTPSOnlyRedirects())
+        // best-effort cleanup of a temporary download; the system reaps leftovers
+        defer { try? FileManager.default.removeItem(at: file) }
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
             throw MusicError.downloadRefused("the server answered \((response as? HTTPURLResponse)?.statusCode ?? 0)")
         }
         let tooLarge = MusicError.downloadRefused("it is larger than \(maxBytes / 1_048_576) MB")
         if response.expectedContentLength > Int64(maxBytes) { throw tooLarge }
-        var data = Data()
-        for try await byte in bytes {
-            data.append(byte)
-            if data.count > maxBytes { throw tooLarge }
-        }
-        return data
+        let size = try FileManager.default.attributesOfItem(atPath: file.path)[.size] as? Int ?? 0
+        if size > maxBytes { throw tooLarge }
+        return try Data(contentsOf: file, options: .mappedIfSafe)
     }
 
     /// Downloads the audio to `destination`, refusing anything that is not https, too large, or not audio kinhin can mix.

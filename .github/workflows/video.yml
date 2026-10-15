@@ -38,7 +38,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: video-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  group: video-${{ github.event_name }}-${{ github.event.pull_request.number || github.event.workflow_run.head_sha || github.ref }}
   cancel-in-progress: true
 
 jobs:

@@ -34,6 +34,8 @@ public enum EngineError: LocalizedError, Sendable {
     case healingEventNotPending(id: String, outcome: String)
     /// A healing fix ran and did not work.
     case healingFailed(String)
+    /// The healing agent is stopped with the fleet; nothing can be approved until it starts.
+    case healingStopped
 
     public var errorDescription: String? {
         switch self {
@@ -64,6 +66,8 @@ public enum EngineError: LocalizedError, Sendable {
             return "healing event \(id) is \(outcome), not waiting on you"
         case .healingFailed(let reason):
             return reason
+        case .healingStopped:
+            return "the fleet is stopped; start it before approving a fix"
         }
     }
 }

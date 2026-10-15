@@ -152,7 +152,14 @@ enum HealCommand {
         } catch {
             let message = error.localizedDescription
             // An id that names nothing is the caller's mistake; anything else is the daemon's answer.
-            fail(message, exit: message.contains("is not a healing event") ? .usage : .runtime)
+            // In process the error is typed; through the daemon's socket only its text arrives.
+            let unknownID: Bool
+            if let engine = error as? EngineError {
+                if case .unknownHealingEvent = engine { unknownID = true } else { unknownID = false }
+            } else {
+                unknownID = message.contains("is not a healing event")
+            }
+            fail(message, exit: unknownID ? .usage : .runtime)
         }
         print(approve ? "approved \(id); it runs in the background — follow it with kinhin heal" : "dismissed \(id)")
     }

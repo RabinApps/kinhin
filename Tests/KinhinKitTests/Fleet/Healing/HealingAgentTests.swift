@@ -420,6 +420,23 @@ final class HealingAgentTests: XCTestCase {
         replacement.stopLoop()
     }
 
+    func testApprovingOnAStoppedAgentThrowsAndRunsNothing() async throws {
+        let actions = ScriptedActions([gone])
+        let agent = agent(KinhinConfig.HealingConfig(auto: .none))
+        await agent.pass(actions: actions, now: start)
+        let id = try XCTUnwrap(events(agent).first?.id)
+        agent.stopLoop()
+
+        do {
+            try await agent.approve(id, actions: actions)
+            XCTFail("expected healingStopped")
+        } catch {
+            XCTAssertEqual(error as? EngineError, .healingStopped)
+        }
+        XCTAssertTrue(actions.performed.isEmpty)
+        XCTAssertEqual(events(agent).first?.outcome, .pending)
+    }
+
     func testStopCancelsAnApprovedFixStillRunning() async throws {
         let actions = ScriptedActions([gone])
         actions.state.withLock { $0.slow = [.recycleInstance] }

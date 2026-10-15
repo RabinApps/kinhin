@@ -88,8 +88,13 @@ extension FleetEngine: HealingActions {
     /// A forge answer that only a new token fixes.
     static func looksLikeAuthFailure(_ message: String) -> Bool {
         let text = message.lowercased()
-        return ["401", "403", "unauthorized", "forbidden", "bad credentials", "token", "authentication"]
-            .contains { text.contains($0) }
+        // A rate limit also answers 403, and fixes itself.
+        guard !text.contains("rate limit") else { return false }
+        if ["unauthorized", "forbidden", "bad credentials", "authentication"].contains(where: { text.contains($0) }) {
+            return true
+        }
+        // Status codes only as whole numbers: "14031" or a port is not a 401/403.
+        return text.range(of: #"(?<![0-9])(401|403)(?![0-9])"#, options: .regularExpression) != nil
     }
 
     /// Runtimes held back by the spawn backoff, with what their health probe says.

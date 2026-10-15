@@ -344,6 +344,17 @@ final class VideoMusicTests: XCTestCase {
         } catch { XCTAssertTrue(error.localizedDescription.contains("had 2 results"), error.localizedDescription) }
     }
 
+    func testSearchSucceedsWhenTheLastSearchCacheCannotBeWritten() async throws {
+        StubProtocol.handler = { _ in (200, Self.page([Self.item(Self.id2, title: "Calm piano loop")]), [:]) }
+        let blocker = repo.appendingPathComponent("not-a-directory")
+        try Data().write(to: blocker)
+        let blocked = VideoMusicService(
+            openverse: OpenverseClient(session: session), library: MusicLibrary(session: session),
+            cacheFile: blocker.appendingPathComponent("search.json"))
+        let outcome = try await blocked.search(MusicSearchOptions(query: "calm piano"))
+        XCTAssertTrue(outcome.tracks.contains { $0.id == Self.id2 })
+    }
+
     func testBuiltInMatchesStillShowWhenTheLibraryIsUnreachable() async throws {
         StubProtocol.handler = { _ in (429, Data(), [:]) }
         let outcome = try await service().search(MusicSearchOptions(query: "calm piano"))

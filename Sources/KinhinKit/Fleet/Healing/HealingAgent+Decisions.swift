@@ -8,6 +8,7 @@ extension HealingAgent {
     /// unknown id or one that is not pending.
     func approve(_ id: String, actions: some HealingActions) async throws {
         let fix = try state.withLock { state -> Remediation in
+            guard !state.stopped else { throw EngineError.healingStopped }
             guard let event = state.journal.event(id) else { throw EngineError.unknownHealingEvent(id) }
             guard event.outcome == .pending, let fix = event.remediation else {
                 throw EngineError.healingEventNotPending(id: id, outcome: event.outcome.rawValue)

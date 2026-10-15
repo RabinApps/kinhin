@@ -50,7 +50,7 @@ enum HealingPlaybook {
     /// its subject. The advisor may also choose nothing.
     static func candidates(for signal: HealingSignal, context: Context) -> [Remediation] {
         switch signal.kind {
-        case .instanceGone, .teardownStuck:
+        case .instanceGone:
             return [Remediation(.recycleInstance, subject: signal.subject)]
         case .spawnFailures:
             guard let runtime = signal.subject.flatMap(RuntimeID.init(rawValue:)) else { return [] }
@@ -64,8 +64,8 @@ enum HealingPlaybook {
         case .diskPressure, .reconcileFailing:
             return context.cacheAutoPrune
                 ? [Remediation(.pruneToolchainCache), Remediation(.pruneImages)] : [Remediation(.pruneImages)]
-        case .credentials, .setupCheck:
-            // Tokens and setup are the user's: nothing for a model to pick.
+        case .credentials, .setupCheck, .teardownStuck:
+            // Tokens, setup and a stuck teardown are the user's: nothing for a model to pick.
             return []
         }
     }

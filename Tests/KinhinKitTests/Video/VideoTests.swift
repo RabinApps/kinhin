@@ -66,7 +66,7 @@ final class VideoTests: XCTestCase {
         let written = try VideoStarter.write(name: "launch", in: repo)
         XCTAssertEqual(written.map(\.lastPathComponent), ["launch.yml", ".gitignore"])
         let yaml = try String(contentsOf: repo.appendingPathComponent(".kinhin/videos/launch.yml"), encoding: .utf8)
-        XCTAssertTrue(yaml.contains("name: launch"))
+        XCTAssertTrue(yaml.contains("name: \"launch\""))
         XCTAssertTrue(yaml.contains("type: outro"))
         let ignore = try String(contentsOf: repo.appendingPathComponent(".kinhin/videos/.gitignore"), encoding: .utf8)
         XCTAssertTrue(ignore.contains("out/") && ignore.contains(".cache/"))

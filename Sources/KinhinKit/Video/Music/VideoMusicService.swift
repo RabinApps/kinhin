@@ -101,14 +101,17 @@ public struct VideoMusicService: Sendable {
             warning = error.localizedDescription
         }
         let tracks = Array((builtIn + online).prefix(max(1, options.limit)))
-        try remember(tracks)
+        remember(tracks)
         return MusicSearchOutcome(tracks: tracks, warning: warning)
     }
 
-    private func remember(_ tracks: [MusicTrack]) throws {
-        try FileManager.default.createDirectory(
-            at: cacheFile.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try JSONEncoder().encode(tracks).write(to: cacheFile, options: .atomic)
+    /// The cache only lets `add 3` mean the third result: failing to write it never fails the search.
+    private func remember(_ tracks: [MusicTrack]) {
+        bestEffort("video", "saving the last music search") {
+            try FileManager.default.createDirectory(
+                at: cacheFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try JSONEncoder().encode(tracks).write(to: cacheFile, options: .atomic)
+        }
     }
 
     private func remembered() -> [MusicTrack] {

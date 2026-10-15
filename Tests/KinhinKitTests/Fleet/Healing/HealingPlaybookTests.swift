@@ -99,6 +99,8 @@ final class HealingPlaybookTests: XCTestCase {
             HealingPlaybook.candidates(for: HealingSignal(kind: .credentials, detail: "x"), context: pruning), [])
         let setup = HealingSignal(kind: .setupCheck, subject: "tart", detail: "x", setupAction: "install_tart")
         XCTAssertEqual(HealingPlaybook.candidates(for: setup, context: pruning), [])
+        let stuck = HealingSignal(kind: .teardownStuck, subject: "kinhin-1-a", detail: "x")
+        XCTAssertEqual(HealingPlaybook.candidates(for: stuck, context: pruning), [], "a stuck teardown is the user's")
     }
 
     func testNoCandidateIsEverManual() {
