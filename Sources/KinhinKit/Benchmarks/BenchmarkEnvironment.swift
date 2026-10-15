@@ -28,6 +28,9 @@ public struct BenchmarkEnvironment: Sendable {
     var dockerImageArchitecture: @Sendable (String) async -> String?
     var hostResources: @Sendable () -> HostResources
     var hostInfo: @Sendable () -> (chip: String, os: String)
+    /// Builds the runner the video suite times. Builds go to the container runtimes through `shell`; their output is
+    /// dropped, because a benchmark reports durations, not a build log.
+    var videoRunner: @Sendable () -> VideoRunner
     /// The bench directory: history and per-run scratch.
     public var root: URL
     /// Nil = no fleet to pause (a CLI run with no daemon).
@@ -55,6 +58,7 @@ public struct BenchmarkEnvironment: Sendable {
         self.hostResources = { ResourceProbe().snapshot() }
         self.hostInfo = { (Self.chipName(), ProcessInfo.processInfo.operatingSystemVersionString) }
         self.makeRuntime = { _, _ in nil }
+        self.videoRunner = { VideoRunner(shell: shell, process: CapturingProcessRunner { _ in }) }
         self.health = { _, runtime in await runtime.health() }
         self.localImages = { _ in [] }
         self.dockerImageArchitecture = { _ in nil }

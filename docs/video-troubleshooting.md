@@ -26,4 +26,6 @@ usually says why. `kinhin doctor` checks your container runtimes.
 | `did not download the track` | The file is over 50 MB, is not mp3, m4a, wav, flac or ogg, is not served over https, or its source link is gone. Try another result. `preview` shows the source page. |
 | `--on-fleet`: `kinhin-video.yml is not on <branch>` | Run `kinhin video init --workflow`, commit and push the file, then try again. `--on-fleet` also needs `gh` signed in (`gh auth login`) and a runner with Docker that matches `--runs-on`. |
 
+Builds feel slow? `kinhin bench video` times the image pull, a clean build and a cached rebuild on this Mac; see [Benchmarks](benchmarks.md).
+
 Still stuck? Open an issue with the full build log, with any token or key removed.
