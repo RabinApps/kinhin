@@ -34,7 +34,7 @@ extension ConfigLoader {
                     "\(position).name '\(name)' is not valid. Use letters, numbers, '.', '_' or '-', starting with a letter or number"
                 )
             }
-            guard !name.hasPrefix("kinhin-"), !name.hasPrefix("orchard-") else {
+            guard !InstanceNaming.isOurs(name) else {
                 throw ConfigError.invalid(
                     "\(position).name '\(name)' must not start with 'kinhin-' or 'orchard-': those names are reserved for runner VMs"
                 )

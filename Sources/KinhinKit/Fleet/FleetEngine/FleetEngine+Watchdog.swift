@@ -91,7 +91,7 @@ extension FleetEngine {
     /// anything a user named by hand share the `kinhin-` prefix but are not
     /// runner instances.
     static func isGeneratedInstanceName(_ name: String) -> Bool {
-        name.range(of: #"^kinhin-\d{9,11}-[0-9a-f]{4,8}$"#, options: .regularExpression) != nil
+        name.range(of: InstanceNaming.generatedNamePattern, options: .regularExpression) != nil
     }
 
     /// Runs the orphan sweep when its interval has elapsed.

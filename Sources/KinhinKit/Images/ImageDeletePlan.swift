@@ -132,7 +132,7 @@ public struct ImageDeletePlan: Sendable, Equatable {
                 + " — remove it with `kinhin cleanup --vms`"
         }
         if !inventory.presentNames.contains(name),
-            name.hasPrefix("kinhin-") || name.hasPrefix("orchard-")
+            InstanceNaming.isOurs(name)
         {
             return "'\(name)' is a runner VM, not an image — remove it with `kinhin cleanup --vms`"
         }

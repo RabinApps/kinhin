@@ -1,5 +1,37 @@
 import Foundation
 
+/// The prefix on every instance name kinhin mints, and the test for names that belong to this fleet. Release builds
+/// always use `kinhin-`; a debug build can override it so the e2e suite's daemon mints and recognises only its own.
+public enum InstanceNaming {
+    /// The pre-rename prefix. Recognised as ours, but only alongside the default prefix.
+    static let legacyPrefix = "orchard-"
+    static let defaultPrefix = "kinhin-"
+    /// Read once, at first use. Only a debug build honours `KINHIN_INSTANCE_PREFIX`.
+    public static let prefix = resolvePrefix(environment: ProcessInfo.processInfo.environment)
+
+    /// The prefix for `environment`. An invalid override stops the process rather than falling back: a fallback to
+    /// `kinhin-` would let a debug daemon adopt and delete the fleet's own instances.
+    static func resolvePrefix(environment: [String: String]) -> String {
+        #if DEBUG
+            guard let override = environment["KINHIN_INSTANCE_PREFIX"], !override.isEmpty else { return defaultPrefix }
+            precondition(
+                override.range(of: #"^[a-z][a-z0-9]{1,15}-$"#, options: .regularExpression) != nil,
+                "KINHIN_INSTANCE_PREFIX must be 2-16 lowercase letters or digits ending in '-', got '\(override)'")
+            return override
+        #else
+            return defaultPrefix
+        #endif
+    }
+
+    /// Whether a runtime instance name belongs to this fleet: the current prefix, or the pre-rename one.
+    public static func isOurs(_ name: String) -> Bool {
+        name.hasPrefix(prefix) || (prefix == defaultPrefix && name.hasPrefix(legacyPrefix))
+    }
+
+    /// What a generated instance name matches: `<prefix><unix-ts>-<hex>`.
+    static let generatedNamePattern = #"^\#(prefix)\d{9,11}-[0-9a-f]{4,8}$"#
+}
+
 /// Tracked state for one VM. Persisted as JSON for crash recovery.
 public struct VMRecord: Codable, Sendable, Identifiable, Equatable {
     public let id: String  // tart VM name, e.g. "kinhin-1717000000-a1b2"
@@ -49,7 +81,8 @@ public struct VMRecord: Codable, Sendable, Identifiable, Equatable {
     /// Ids kinhin generates are `kinhin-<ts>-<hex>`; anything else (a stray
     /// runner name, `..` segments) is never an instance of ours.
     static func isValidID(_ id: String) -> Bool {
-        id.range(of: #"^kinhin-[A-Za-z0-9._-]+$"#, options: .regularExpression) != nil && !id.contains("..")
+        id.range(of: #"^\#(InstanceNaming.prefix)[A-Za-z0-9._-]+$"#, options: .regularExpression) != nil
+            && !id.contains("..")
     }
 
     static func newName(now: Date = Date()) -> String {
@@ -57,6 +90,6 @@ public struct VMRecord: Codable, Sendable, Identifiable, Equatable {
         // 32 bits of entropy: names are drawn in bursts (scale-up) within the
         // same second, so 16 bits collided observably under test.
         let suffix = String(format: "%08x", UInt32.random(in: 0..<UInt32.max))
-        return "kinhin-\(ts)-\(suffix)"
+        return "\(InstanceNaming.prefix)\(ts)-\(suffix)"
     }
 }

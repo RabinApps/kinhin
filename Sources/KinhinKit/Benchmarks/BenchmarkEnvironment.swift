@@ -4,7 +4,7 @@ import Foundation
 /// (so `kinhin cleanup` finds strays) yet out of the engine's own adoption
 /// and orphan paths, which only claim generated runner names.
 enum BenchmarkNaming {
-    static let instancePrefix = "kinhin-bench-"
+    static let instancePrefix = InstanceNaming.prefix + "bench-"
     static func instanceName(runShort: String, index: Int) -> String {
         "\(instancePrefix)\(runShort)-\(index)"
     }

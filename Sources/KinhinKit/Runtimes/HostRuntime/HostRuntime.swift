@@ -68,7 +68,7 @@ final class HostRuntime: Runtime {
         guard fm.fileExists(atPath: base.path) else { return [] }
         let entries = try fm.contentsOfDirectory(atPath: base.path)
         // Instance dirs are named exactly like the records ("kinhin-…").
-        return entries.filter { $0.hasPrefix("kinhin-") }
+        return entries.filter { $0.hasPrefix(InstanceNaming.prefix) }
     }
 
     /// The registration script for the forge, from its descriptor (the

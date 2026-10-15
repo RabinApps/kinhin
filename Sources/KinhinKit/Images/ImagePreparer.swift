@@ -160,7 +160,7 @@ public struct ImagePreparer: Sendable {
     /// (`kinhin-prepare-tmp-<unix-time>`); the pre-bake sweep and `kinhin
     /// cleanup` recognize leftovers by it. Container bakes (Docker and Apple
     /// container) name their scratch container the same way.
-    public static let scratchPrefix = "kinhin-prepare-tmp-"
+    public static let scratchPrefix = InstanceNaming.prefix + "prepare-tmp-"
 
     /// Removes scratch VMs left behind by earlier bakes that crashed or were
     /// killed before their cleanup ran. Runs before every bake, so orphans
