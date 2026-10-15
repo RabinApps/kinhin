@@ -11,7 +11,7 @@ lane by hand, then run it from CI. It takes about an hour the first time, most o
   old. Install Ruby 3.3 with Homebrew (`brew install ruby@3.3`) or rbenv.
 - For iOS: an Apple Developer Program membership. The **Account Holder** requests API access, and an **Account Holder** or **Admin** creates the team key.
 - For Android: a Google Play Console developer account, and a Google Cloud project you can create a service account in.
-- A repository for the app, on GitHub, Gitea, Forgejo or GitLab, with a runner that has the `kinhin-xcode` label.
+- A repository for the app on any supported forge (GitHub, Gitea, Forgejo, GitLab, Bitbucket, Azure DevOps or Buildkite), with a runner that has the `kinhin-xcode` label.
 
 Your app already builds locally. Check that first: `flutter build`, `npx react-native run-ios`, or Xcode and Android
 Studio for native apps.
@@ -27,8 +27,20 @@ kinhin mobile init ~/code/my-app
 
 It detects the framework. Flutter and React Native get fastlane in `ios/` and `android/`; a native app gets it at its root;
 an Expo app gets `eas.json` only, unless you run `npx expo prebuild` first (see the [reference](mobile-fastlane.md#expo)).
-It writes a `Gemfile` that pins fastlane, the lanes, and `.github/workflows/mobile-release.yml`. Existing files are kept, so
-you can run it again safely.
+It writes a `Gemfile` that pins fastlane, the lanes, and a release pipeline for your CI system. kinhin picks the system from
+your `origin` remote, or from `--ci github|gitea|forgejo|gitlab|bitbucket|azure|buildkite`:
+
+| Your forge | Pipeline file | Runner |
+| --- | --- | --- |
+| GitHub | `.github/workflows/mobile-release.yml` | `runs-on: [self-hosted, kinhin-xcode]` |
+| Gitea, Forgejo | `.gitea/workflows/mobile-release.yml`, `.forgejo/workflows/mobile-release.yml` | `runs-on: [kinhin-xcode]` |
+| GitLab | `.gitlab/mobile-release.yml`, included from `.gitlab-ci.yml` | `tags: [kinhin-xcode]` |
+| Bitbucket | `bitbucket-pipelines.yml` (custom pipeline) | `runs-on: [self.hosted, macos, kinhin-xcode]` |
+| Azure DevOps | `.azure-pipelines/mobile-release.yml` | pool `kinhin` |
+| Buildkite | `.buildkite/mobile-release.yml` | queue `kinhin` |
+
+Every non-GitHub system also gets `.kinhin/mobile-release.sh`, which holds the release steps. Existing files are kept, so you
+can run it again safely. The [reference](mobile-fastlane.md#other-ci-systems) has the details.
 
 Install the gems and list the lanes, from the folder that holds `fastlane/`:
 
@@ -55,13 +67,13 @@ Note the **Key ID** and the **Issuer ID**. You will store the `.p8` contents as 
 `match` keeps your signing certificates and profiles in a private, encrypted git repository, so CI can use them without
 you copying certificates by hand.
 
-1. Create an empty private repository for certificates, for example `my-org/certificates`.
+1. Create an empty private repository for certificates on any git host, for example `my-org/certificates`.
 2. Choose a passphrase for it and keep it safe. It becomes `MATCH_PASSWORD`.
 3. Run `match` once from your own Mac, not on CI, to create the certificates and profiles:
 
 ```bash
 cd ~/code/my-app/ios
-MATCH_GIT_URL=git@github.com:my-org/certificates.git MATCH_PASSWORD='your passphrase' \
+MATCH_GIT_URL=git@git.example.com:my-org/certificates.git MATCH_PASSWORD='your passphrase' \
   APP_IDENTIFIER=com.example.myapp APPLE_TEAM_ID=ABCDE12345 \
   MATCH_READONLY=false bundle exec fastlane match appstore
 ```
@@ -71,8 +83,18 @@ readonly, so it never creates or changes them.
 
 ## 4. Add the secrets
 
-In your repository, open **Settings**, then **Secrets and variables**, then **Actions**, and add the secrets listed in
-the header of `.github/workflows/mobile-release.yml`. For iOS you need `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8`,
+Add the secrets listed in the header of the pipeline file kinhin wrote. Where you add them depends on the forge:
+
+| Forge | Where |
+| --- | --- |
+| GitHub | **Settings** > **Secrets and variables** > **Actions** |
+| Gitea, Forgejo | Repository **Settings** > **Actions** > **Secrets** |
+| GitLab | **Settings** > **CI/CD** > **Variables** (mask them; protect them for protected branches) |
+| Bitbucket | **Repository settings** > **Pipelines** > **Repository variables** (secured) |
+| Azure DevOps | **Pipelines** > the pipeline > **Variables** (keep this value secret) |
+| Buildkite | the agent environment or a secrets manager; Buildkite has no secret store of its own |
+
+For iOS you need `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8`,
 `MATCH_GIT_URL`, `MATCH_PASSWORD`, `APPLE_TEAM_ID`, `APP_IDENTIFIER` and `IOS_SCHEME`. Each one is explained in
 [credentials](mobile-credentials.md).
 
@@ -105,7 +127,7 @@ in a file you do not commit, such as `~/.config/my-app/release.env`, and loading
 cd ~/code/my-app/ios
 export ASC_KEY_ID=... ASC_ISSUER_ID=... APP_IDENTIFIER=com.example.myapp APPLE_TEAM_ID=ABCDE12345
 export ASC_KEY_FILEPATH=~/keys/AuthKey_XXXX.p8     # the .p8 file, not its contents
-export MATCH_GIT_URL=git@github.com:my-org/certificates.git MATCH_PASSWORD=...
+export MATCH_GIT_URL=git@git.example.com:my-org/certificates.git MATCH_PASSWORD=...
 bundle exec fastlane beta
 ```
 
@@ -119,9 +141,18 @@ does not upload.
 
 ## 7. Run it from CI
 
-Open **Actions**, choose **mobile-release**, and choose **Run workflow**. Pick `beta` for the lane, and run it.
+Start the `mobile-release` pipeline by hand and pick `beta` for the lane:
 
-The job installs Ruby, and for Flutter and React Native the framework tools first, then runs the lane. If it fails, the
+| Forge | How |
+| --- | --- |
+| GitHub, Gitea, Forgejo | **Actions** > **mobile-release** > **Run workflow** |
+| GitLab | **Build** > **Pipelines** > **Run pipeline**, with `MOBILE_LANE` set to `beta` |
+| Bitbucket | **Pipelines** > **Run pipeline** > custom: `mobile-release` |
+| Azure DevOps | run the pipeline made from `.azure-pipelines/mobile-release.yml` |
+| Buildkite | build a pipeline whose steps upload `.buildkite/mobile-release.yml` |
+
+On GitHub the job installs Ruby, and for Flutter and React Native the framework tools first, then runs the lane. On the
+other systems `.kinhin/mobile-release.sh` does this, using the toolchains on your runner image. If it fails, the
 first error is in the log of the failing step. The [troubleshooting](mobile-fastlane-troubleshooting.md) page lists the
 failures we have seen, with what to do about each.
 
