@@ -23,7 +23,8 @@
 #
 # One-time, by hand, in --gui or --vnc mode (macOS will not let a script do these):
 #   1. log the guest user into the desktop (Cirrus images auto-login; verify with this script's check),
-#   2. System Settings > Privacy & Security > Screen Recording: allow Terminal (or the app you use),
+#   2. System Settings > Privacy & Security > Screen Recording: allow Terminal (or the app you use). The guest's
+#      `kinhin video record` window capture needs it; it leaves the pointer out of the take,
 #      then `tart stop` and re-run: the permission persists in the VM disk.
 set -euo pipefail
 
@@ -78,7 +79,8 @@ trap cleanup EXIT
 guest() { ${WRAP[@]+"${WRAP[@]}"} ssh "${SSH_OPTS[@]}" "$GUEST_USER@$IP" "$@"; }
 
 # Runs a command inside the guest's logged-in desktop session (a plain ssh session is not in it, so
-# GUI apps and screencapture would not see the display) and gives it a tty (dev-run.sh insists on one).
+# GUI apps and the window capture `kinhin video record` uses would not see the display) and gives it a tty
+# (dev-run.sh insists on one).
 guest_gui() {
   local cmd="$1"
   guest "sudo launchctl asuser \$(id -u $GUEST_USER) sudo -u $GUEST_USER -H /usr/bin/script -q /dev/null /bin/bash -lc $(printf '%q' "$cmd")"
@@ -130,8 +132,9 @@ if [ "$CONSOLE_USER" != "$GUEST_USER" ]; then
   echo "Log $GUEST_USER in (System Settings > Users & Groups > Automatically log in as), then re-run." >&2
   exit 1
 fi
-if ! guest_gui "screencapture -x /tmp/kinhin-demo-probe.png && test -s /tmp/kinhin-demo-probe.png" >/dev/null 2>&1; then
-  echo "screencapture failed in the guest: grant Screen Recording to Terminal in the guest" >&2
+# The recorder is kinhin video record, so the probe is that command: --list-windows needs the same Screen Recording grant.
+if ! guest_gui "cd \$HOME/kinhin-src && swift build --product kinhin >/dev/null && \"\$(swift build --product kinhin --show-bin-path)/kinhin\" video record --list-windows >/dev/null" >/dev/null 2>&1; then
+  echo "kinhin video record failed in the guest: grant Screen Recording to Terminal in the guest" >&2
   echo "(System Settings > Privacy & Security > Screen Recording), restart the VM, then re-run." >&2
   exit 1
 fi

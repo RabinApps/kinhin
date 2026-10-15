@@ -97,7 +97,8 @@ Accessibility if you want it to resize the window). Run it directly in a termina
 TTY that `scripts/dev-run.sh` insists on. The debug app's process and window are named `kinhin-app`.
 
 No spare desktop, or you want a clean repeatable one? `video/adapters/kinhin/record-app-in-tart.sh` records inside a throwaway
-Tart VM:
+Tart VM. The guest runs the same `record-app.sh`, which captures the window with `kinhin video record`, so the pointer is left out
+of the take whichever mode you use; the guest needs Screen Recording granted once.
 
 - `--gui`: a VM window on your Mac; the guest has a real desktop session.
 - `--vnc`: the same desktop with no window; connect with Screen Sharing.
