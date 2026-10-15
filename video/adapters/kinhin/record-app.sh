@@ -50,9 +50,10 @@ sleep 3
 WID="$(shots/tools/winid "$PROC" || true)"
 [ -n "$WID" ] || { echo "no kinhin window; open it from the menu bar item first" >&2; exit 1; }
 
-# A taller window shows the whole Fleet tab without scrolling (needs Accessibility for the terminal).
+# A taller window shows the whole Fleet tab without scrolling. Resizing needs Accessibility for the terminal; without
+# it the window keeps its default size, which is still a valid take.
 osascript -e "tell application \"System Events\" to tell process \"$PROC\" to set {position, size} of window 1 to {{300, 40}, {820, 880}}" \
-    >/dev/null 2>&1 || echo "(could not resize the window; grant Accessibility to your terminal)" >&2
+    >/dev/null 2>&1 || echo "(window kept its default size: grant Accessibility to your terminal to make it taller)"
 sleep 1
 
 echo "==> recording window $WID for ${SECONDS_TO_RECORD}s"
