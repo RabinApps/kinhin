@@ -317,6 +317,8 @@ struct RunPlan: Sendable {
         for id in explicit ?? [] {
             if let reason = status[id]?.reason {
                 if reason.hasPrefix("image '") {
+                    // The video suite builds in its own image, so the bench guest image is not its prerequisite.
+                    if options.suites == [.video] { continue }
                     throw BenchmarkError.imageMissing(runtime: id, image: imageName(reason))
                 }
                 throw BenchmarkError.runtimeUnavailable(runtime: id, why: reason)

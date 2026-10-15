@@ -43,7 +43,13 @@ enum VideoBenchmark {
         guard let preferred = videoRuntime(for: id) else {
             return .skipped(suiteName, runtime: id, reason: "videos build in a container runtime (container or docker)")
         }
-        let runner = ctx.env.videoRunner()
+        let log = Locked<[String]>([])
+        let runner = ctx.env.videoRunner { line in
+            log.withLock { lines in
+                lines.append(line)
+                if lines.count > 12 { lines.removeFirst(lines.count - 12) }
+            }
+        }
         let repo = ctx.scratch.root.appendingPathComponent("video-repo", isDirectory: true)
         let plan: VideoRunPlan
         do {
@@ -60,8 +66,8 @@ enum VideoBenchmark {
         }
         return try await ctx.suite(suiteName, runtime: id, platform: "linux", notes: ["image \(plan.image)"]) { steps in
             if let pull = try await pullStep(ctx, runner: runner, plan: plan) { steps.append(pull) }
-            steps.append(try await buildStep(ctx, runner: runner, plan: plan, name: "clean-build"))
-            steps.append(try await buildStep(ctx, runner: runner, plan: plan, name: "cached-build"))
+            steps.append(try await buildStep(ctx, runner: runner, log: log, plan: plan, name: "clean-build"))
+            steps.append(try await buildStep(ctx, runner: runner, log: log, plan: plan, name: "cached-build"))
             if ctx.options.intensity == .thorough {
                 // A full build is only a full build with nothing cached to lean on.
                 // Best effort: a cache that cannot be removed only makes the "full" build faster than it should be.
@@ -70,7 +76,7 @@ enum VideoBenchmark {
                 full.music = "off"
                 let fullPlan = VideoRunPlan.make(
                     options: full, runtime: preferred, binary: plan.inspect[0], image: plan.image, repo: repo)
-                steps.append(try await buildStep(ctx, runner: runner, plan: fullPlan, name: "full-build"))
+                steps.append(try await buildStep(ctx, runner: runner, log: log, plan: fullPlan, name: "full-build"))
             }
         }
     }
@@ -99,25 +105,29 @@ enum VideoBenchmark {
     }
 
     private static func buildStep(
-        _ ctx: BenchmarkContext, runner: VideoRunner, plan: VideoRunPlan, name: String
+        _ ctx: BenchmarkContext, runner: VideoRunner, log: Locked<[String]>, plan: VideoRunPlan, name: String
     ) async throws -> BenchmarkStep {
         ctx.sink.set(step: name)
         let timed = try await BenchmarkContext.measure { try await runner.build(plan: plan) }
         guard timed.value == 0 else {
-            throw BenchmarkError.stepFailed(step: name, detail: "the video build exited \(timed.value)")
+            let tail = log.withLock { $0.suffix(6).joined(separator: "\n") }
+            let detail = "the video build exited \(timed.value)"
+            throw BenchmarkError.stepFailed(step: name, detail: tail.isEmpty ? detail : "\(detail):\n\(tail)")
         }
         let size = outputBytes(plan.outputDirectory)
         let note = size.map { "\($0 / 1024) KB written" }
         return BenchmarkStep(name: name, durationMs: timed.ms, note: note)
     }
 
-    /// The total size of what the build wrote, nil when it wrote nothing.
+    /// The total size of what the build wrote, including subfolders, nil when it wrote nothing.
     private static func outputBytes(_ directory: URL) -> Int? {
         let keys: [URLResourceKey] = [.fileSizeKey]
         // The size is only a note on the step: an unreadable folder leaves the note out.
-        let listed = try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: keys)
-        let files = listed ?? []
-        // Likewise an unreadable file counts as zero bytes.
+        guard let walker = FileManager.default.enumerator(at: directory, includingPropertiesForKeys: keys) else {
+            return nil
+        }
+        let files = walker.compactMap { $0 as? URL }
+        // An unreadable file counts as zero bytes: the size is only a note.
         let sizes = files.map { (try? $0.resourceValues(forKeys: Set(keys)).fileSize) ?? 0 }
         let total = sizes.reduce(0, +)
         return total > 0 ? total : nil

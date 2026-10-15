@@ -42,7 +42,7 @@ final class VideoBenchmarkTests: XCTestCase {
     ) async throws -> BenchmarkReport {
         var env = harness.makeEnvironment(fleet: fleet)
         env.drainPoll = .milliseconds(1)
-        env.videoRunner = {
+        env.videoRunner = { _ in
             VideoRunner(
                 shell: ScriptedShell { _ in 0 }, process: process, environment: [:], cpuCount: 8,
                 binaries: { installed.contains($0) ? "/bin/\($0.rawValue)" : nil })
@@ -106,5 +106,14 @@ final class VideoBenchmarkTests: XCTestCase {
     func testVideoIsOptInAndParsesAsASuiteWord() {
         XCTAssertFalse(BenchmarkOptions.Suite.defaults.contains(.video))
         XCTAssertEqual(BenchmarkOptions.Suite(rawValue: "video"), .video)
+    }
+}
+
+extension VideoBenchmarkTests {
+    func testANamedRuntimeWithoutTheBenchImageStillRunsTheVideoSuite() async throws {
+        harness.missingImages = [.docker]
+        let report = try await run(
+            BenchmarkOptions(suites: [.video], runtimes: [.docker]), process: ScriptedProcess())
+        XCTAssertEqual(report.suite("video", runtime: .docker)?.status, .ran)
     }
 }
