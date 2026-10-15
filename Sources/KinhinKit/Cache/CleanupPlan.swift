@@ -60,7 +60,7 @@ public struct CleanupPlan: Equatable, Sendable {
             let local = try await tart.list()
             if targets.vms {
                 let ours = local.map(\.name)
-                    .filter { ($0.hasPrefix("kinhin-") || $0.hasPrefix("orchard-")) && !baked.contains($0) }
+                    .filter { InstanceNaming.isOurs($0) && !baked.contains($0) }
                     .sorted()
                 // Build scratch VMs (`kinhin-prepare-tmp-*`) get their own
                 // line: they are leftovers from a crashed or killed bake, not

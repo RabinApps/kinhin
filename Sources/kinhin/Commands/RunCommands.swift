@@ -219,7 +219,7 @@ enum RunCommands {
         } catch {
             return ([], "could not check for orphaned VMs: \(error.localizedDescription)")
         }
-        let ours = vms.filter { $0.name.hasPrefix("kinhin-") }
+        let ours = vms.filter { $0.name.hasPrefix(InstanceNaming.prefix) }
         guard !ours.isEmpty else { return ([], nil) }
         return (["orphaned kinhin VMs (daemon not managing them):"] + ours.map { "  \($0.name)  \($0.status)" }, nil)
     }

@@ -244,7 +244,7 @@ public struct ImageInventory: Sendable, Equatable, Codable {
         let users: [String]
         let usageUnknown: String?
         do {
-            users = try await list().filter { $0.hasPrefix("kinhin-") }
+            users = try await list().filter { $0.hasPrefix(InstanceNaming.prefix) }
             usageUnknown = nil
         } catch let cancelled as CancellationError {
             throw cancelled
@@ -363,7 +363,7 @@ public struct ImageInventory: Sendable, Equatable, Codable {
         if known.contains(name) { return false }
         if fleet.contains(where: { $0.id == name }) { return true }
         if name.hasPrefix(ImagePreparer.scratchPrefix) { return true }
-        return name.hasPrefix("kinhin-") || name.hasPrefix("orchard-")
+        return InstanceNaming.isOurs(name)
     }
 
     // MARK: - Container / Docker
