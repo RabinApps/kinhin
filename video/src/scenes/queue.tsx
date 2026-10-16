@@ -1,7 +1,7 @@
 import {Rect, Txt, makeScene2D} from '@motion-canvas/2d';
 import {all, createRef, createRefArray, waitFor} from '@motion-canvas/core';
 import {fit, format, narrow, props} from '../config';
-import {C, FONT, holdFor, stage} from '../stage';
+import {C, FONT, TYPE, holdFor, stage} from '../stage';
 
 // One runner, one job at a time, a queue that only grows. Wide frames: a row of jobs beside the runner.
 // Portrait and square frames: a column of jobs stacking up above the runner.
@@ -26,7 +26,7 @@ export default makeScene2D(function* (view) {
       {Array.from({length: count}, (_, i) => (
         <Rect ref={jobs} width={box} height={box} radius={box / 6} fill={C.ink} x={jobPos(i)[0]} y={jobPos(i)[1]} scale={0} />
       ))}
-      <Txt ref={caption} text={props.caption} fontFamily={FONT} fontSize={narrow ? 72 : 64} fill={C.ink} y={narrow ? runnerY + runnerSize / 2 + 110 : 300} textWrap width={1500} textAlign="center" opacity={0} />
+      <Txt ref={caption} text={props.caption} fontFamily={FONT} fontSize={narrow ? 72 : TYPE.caption} fill={C.ink} y={narrow ? runnerY + runnerSize / 2 + 110 : 300} textWrap width={1500} textAlign="center" opacity={0} />
     </>,
   );
 

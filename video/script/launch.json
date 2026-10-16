@@ -29,14 +29,41 @@
       "props": {
         "runner": "1 runner",
         "count": 7,
-        "caption": "Your queue waits its turn.",
-        "caption2": "A self-hosted runner does one job at a time."
+        "caption": "Your jobs wait in line.",
+        "caption2": "By default, one job at a time."
       },
       "minLength": 6,
-      "narration": "One runner, one job at a time. Whatever a job leaves behind, the next one inherits."
+      "cues": [
+        {
+          "text": "A runner is the machine that runs your CI jobs."
+        },
+        {
+          "text": "By default, a self-hosted runner only runs one job at a time."
+        },
+        {
+          "text": "Each job leaves things behind."
+        }
+      ]
     },
     {
       "id": "solution",
+      "type": "statement",
+      "props": {
+        "text": "kinhin scales the fleet to your queue.",
+        "sub": "One engine for every forge."
+      },
+      "minLength": 4.6,
+      "cues": [
+        {
+          "text": "kinhin fixes that."
+        },
+        {
+          "text": "It scales a fleet of runners to your queue, for every forge."
+        }
+      ]
+    },
+    {
+      "id": "fresh",
       "type": "parallel",
       "props": {
         "items": [
@@ -49,7 +76,7 @@
         "done": "Deleted when the job is done."
       },
       "minLength": 4.6,
-      "narration": "kinhin fixes that. A fresh VM or container for every job, deleted when it's done."
+      "narration": "Each job gets a fresh VM or container, deleted when the job is done. Nothing carries over."
     },
     {
       "id": "app",
@@ -63,20 +90,20 @@
       "cues": [
         {
           "at": 0.5,
-          "text": "Jobs arrive, and kinhin scales to the queue."
+          "text": "This is the Fleet tab: jobs, VMs and the cap."
         },
         {
-          "at": 4.6,
-          "text": "Each job gets its own clean instance."
+          "at": 6.0,
+          "text": "Each job runs in its own instance."
         },
         {
           "at": 12.4,
-          "text": "When one fails, the next still starts clean."
+          "text": "When one fails, the next job still gets a new one."
         }
       ]
     },
     {
-      "id": "lanes",
+      "id": "forges",
       "type": "map",
       "props": {
         "left": [
@@ -85,45 +112,88 @@
           "Gitea",
           "Forgejo"
         ],
+        "logos": [
+          "github",
+          "gitlab",
+          "gitea",
+          "forgejo"
+        ],
         "right": [
           "Tart macOS & Linux VMs",
           "apple/container",
           "Docker"
         ],
         "caption": "Four forges. Three runtimes. One fleet.",
-        "note": "Routed per repo, workflow or runs-on label."
+        "note": "Routed per repo, workflow or runs-on label.",
+        "soon": {
+          "logos": [
+            "buildkite",
+            "azuredevops",
+            "bitbucket"
+          ],
+          "caption": "Coming soon: Buildkite, Azure DevOps and Bitbucket."
+        }
       },
       "minLength": 6,
-      "narration": "It works with GitHub, GitLab, Gitea and Forgejo, on Tart, apple container or Docker."
+      "cues": [
+        {
+          "text": "A forge is where your code and CI live."
+        },
+        {
+          "text": "kinhin works with GitHub, GitLab, Gitea and Forgejo."
+        },
+        {
+          "text": "Buildkite, Azure DevOps and Bitbucket are coming soon."
+        }
+      ]
     },
     {
-      "id": "turn",
+      "id": "limit",
       "type": "statement",
       "props": {
-        "text": "And your repo can make the launch video.",
-        "sub": "Same Mac. Same calm."
+        "text": "Two macOS jobs per Mac, Apple's limit.",
+        "sub": "Linux jobs can run more."
       },
-      "minLength": 4.2,
-      "narration": "And your repo can make the launch video."
+      "minLength": 6,
+      "narration": "Apple allows two macOS virtual machines per Mac at a time, so two macOS jobs run at once."
     },
     {
       "id": "config",
       "type": "code",
       "props": {
-        "label": ".kinhin/videos/launch.yml",
+        "label": "config.yaml",
         "lines": [
-          "name: kinhin launch",
-          "theme: paper",
-          "music: first-light-particles",
-          "scenes:",
-          "  - type: title",
-          "    props: { title: \"Your Mac is your CI.\" }",
-          "    narration: Meet kinhin."
+          "accounts:",
+          "  - name: github",
+          "    forge: github",
+          "    scope: acme/api",
+          "max_runners: 2",
+          "runners_per_vm: 1"
         ],
-        "caption": "One file: your words, a theme, your music."
+        "caption": "max_runners: VMs at once. runners_per_vm: jobs per VM."
       },
-      "minLength": 7,
-      "narration": "Write the story in one file. Your words, a theme, your music."
+      "minLength": 9,
+      "narration": "In one config file, max_runners is how many VMs run at once, and runners_per_vm is how many jobs share one VM."
+    },
+    {
+      "id": "trust",
+      "type": "statement",
+      "props": {
+        "text": "Runs on Apple silicon, macOS 15 or later.",
+        "sub": "Free and open source, Apache-2.0. No telemetry."
+      },
+      "minLength": 4.6,
+      "narration": "Apple silicon, macOS 15 or later. Free, open source, and no telemetry."
+    },
+    {
+      "id": "bonus",
+      "type": "statement",
+      "props": {
+        "text": "Your repo can make its launch video too.",
+        "sub": "kinhin video build"
+      },
+      "minLength": 4.4,
+      "narration": "Your repo can make its launch video too."
     },
     {
       "id": "build",
@@ -145,20 +215,6 @@
       ]
     },
     {
-      "id": "ship",
-      "type": "steps",
-      "props": {
-        "title": "Edit it. Build it. Ship it.",
-        "steps": [
-          "Edit the file",
-          "Run kinhin video build",
-          "Ship the new cut"
-        ]
-      },
-      "minLength": 6,
-      "narration": "Edit the file, rebuild, ship the new cut."
-    },
-    {
       "id": "reveal",
       "type": "statement",
       "props": {
@@ -172,7 +228,7 @@
       "id": "outro",
       "type": "outro",
       "props": {
-        "line": "One job. One VM. Gone when it's done.",
+        "line": "Your jobs stop waiting in line.",
         "url": "kinhin.dev",
         "facts": [
           "Free",
@@ -184,11 +240,11 @@
       "minLength": 5,
       "cues": [
         {
-          "text": "One job. One VM. Gone when it's done."
+          "text": "Your jobs stop waiting in line."
         },
         {
-          "text": "kinhin.dev. Free and open source.",
-          "say": "kinhin dot dev. Free and open source."
+          "text": "kinhin.dev. Free, open source, in beta.",
+          "say": "kinhin dot dev. Free, open source, in beta."
         }
       ]
     }

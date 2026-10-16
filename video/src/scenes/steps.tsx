@@ -1,7 +1,7 @@
 import {Circle, Rect, Txt, makeScene2D} from '@motion-canvas/2d';
 import {all, createRef, createRefArray, waitFor} from '@motion-canvas/core';
 import {narrow, props} from '../config';
-import {C, FONT, WEIGHT, fitText, holdFor, stage} from '../stage';
+import {C, FONT, TYPE, WEIGHT, fitText, holdFor, stage} from '../stage';
 
 // A numbered list that fills in one step at a time: a title and `steps` (strings). Long steps wrap inside their row.
 export default makeScene2D(function* (view) {
@@ -17,13 +17,13 @@ export default makeScene2D(function* (view) {
 
   root.add(
     <>
-      <Txt ref={title} text={props.title ?? ''} fontFamily={FONT} fontSize={narrow ? 84 : 72} fontWeight={WEIGHT} fill={C.ink} y={-(steps.length * gap) / 2 - 120} textWrap width={1500} textAlign="center" opacity={0} />
+      <Txt ref={title} text={props.title ?? ''} fontFamily={FONT} fontSize={narrow ? 84 : TYPE.headline} fontWeight={WEIGHT} fill={C.ink} y={-(steps.length * gap) / 2 - 120} textWrap width={1500} textAlign="center" opacity={0} />
       {steps.map((step, i) => (
         <Rect ref={rows} y={y(i)} x={0} width={w} height={gap - 24} radius={26} fill={C.card} stroke={C.line} lineWidth={2} opacity={0} layout alignItems="center" gap={32} padding={[0, 40]}>
           <Circle size={72} fill={C.ink} layout alignItems="center" justifyContent="center">
             <Txt text={String(i + 1)} fontFamily={FONT} fontSize={40} fontWeight={WEIGHT} fill={C.paper} />
           </Circle>
-          <Txt text={step} fontFamily={FONT} fontSize={fitText(step, narrow ? 54 : 46, stepWidth, 2)} fill={C.ink} textWrap width={stepWidth} />
+          <Txt text={step} fontFamily={FONT} fontSize={fitText(step, narrow ? 54 : TYPE.label, stepWidth, 2)} fill={C.ink} textWrap width={stepWidth} />
         </Rect>
       ))}
     </>,

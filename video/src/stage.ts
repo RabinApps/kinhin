@@ -8,6 +8,13 @@ export const FONT = theme.font.css;
 export const WEIGHT = theme.font.weight ?? 600;
 
 /**
+ * The type scale every canvas scene uses, in design pixels. One size per role, so a caption in one scene is the same size
+ * as a caption in another: display (title), statement (one big sentence), headline (section and step titles, closing line),
+ * caption (the line under a diagram or a block), label (the names in a row or a card), note (the smallest line on a scene).
+ */
+export const TYPE = {display: 96, statement: 92, headline: 72, caption: 60, label: 46, note: 34} as const;
+
+/**
  * Paints the theme's backdrop and returns the node scenes add their content to. Content is laid out in a
  * 1920x1080 design space and scaled to fit whatever format is being rendered.
  */

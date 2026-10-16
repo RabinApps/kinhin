@@ -1,7 +1,7 @@
 import {Rect, Txt, makeScene2D} from '@motion-canvas/2d';
 import {all, createRef, createRefArray, waitFor} from '@motion-canvas/core';
 import {narrow, props, theme} from '../config';
-import {C, FONT, holdFor, stage} from '../stage';
+import {C, FONT, TYPE, holdFor, stage} from '../stage';
 
 const MONO = `${theme.font.mono ?? 'DejaVu Sans Mono'}, "SF Mono", Menlo, Consolas, monospace`;
 
@@ -27,7 +27,7 @@ export default makeScene2D(function* (view) {
           <Txt ref={texts} text="" fontFamily={MONO} fontSize={size} fill={color(line)} x={-width / 2 + 56} y={-height / 2 + 120 + i * pitch} offsetX={-1} />
         ))}
       </Rect>
-      <Txt ref={caption} text={props.caption ?? ''} fontFamily={FONT} fontSize={narrow ? 60 : 56} fill={C.ink} y={height / 2 + 110} textWrap width={1500} textAlign="center" opacity={0} />
+      <Txt ref={caption} text={props.caption ?? ''} fontFamily={FONT} fontSize={TYPE.caption} fill={C.ink} y={height / 2 + 110} textWrap width={1500} textAlign="center" opacity={0} />
     </>,
   );
 
