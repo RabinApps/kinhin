@@ -13,7 +13,7 @@ struct CatalogListingItem: Equatable, Identifiable {
     var copyText: String
 }
 
-/// A copyable `.kinhin.yml` snippet with a one-line note.
+/// A copyable `.kinhin/config.yml` snippet with a one-line note.
 struct ToolchainExample: Equatable, Identifiable {
     var id: String { title }
     var title: String
@@ -152,6 +152,6 @@ enum ToolchainsCatalogListing {
     static let howItWorks =
         String(
             localized:
-                "Each project's toolchains are baked once into an image cloned from the base image, so identical sets across repos share an image. A queued job resolves its set from the repo's .kinhin.yml at the job's branch or tag (only when the project entry has repo_file: true), then the project entry's own toolchains. Repos with neither get the plain base image and can still run kinhin-toolchain install per job. If the image is not baked yet, the bake starts in the background and the job runs on the base image meanwhile; later jobs use the baked image. Fork pull requests never use the repo's own file. Derived images that go unused, or exceed the image limit, are pruned.",
+                "Each project's toolchains are baked once into an image cloned from the base image, so identical sets across repos share an image. A queued job resolves its set from the repo's .kinhin/config.yml (or .kinhin.yml) at the job's branch or tag (only when the project entry has repo_file: true), then the project entry's own toolchains. Repos with neither get the plain base image and can still run kinhin-toolchain install per job. If the image is not baked yet, the bake starts in the background and the job runs on the base image meanwhile; later jobs use the baked image. Fork pull requests never use the repo's own file. Derived images that go unused, or exceed the image limit, are pruned.",
             bundle: .l10n, comment: "Toolchains tab explanation of how images bake; file and key names stay verbatim")
 }

@@ -21,7 +21,7 @@ final class PipelineLogFetchTests: XCTestCase {
     // MARK: - GitHub
 
     func testGitHubFollowsTheSignedRedirectWithoutCredentialsAndSlicesTheStep() async throws {
-        let seen = Mutex<[(String, String?)]>([])
+        let seen = Locked<[(String, String?)]>([])
         StubProtocol.handler = { request in
             seen.withLock {
                 $0.append((request.url?.absoluteString ?? "", request.value(forHTTPHeaderField: "Authorization")))
@@ -68,7 +68,7 @@ final class PipelineLogFetchTests: XCTestCase {
     func testGitHubLogRedirectFollowReturnsNilWhenTheSignedBlobIsNotFound() async throws {
         // A live job's log blob is not written yet; the signed URL answers 404
         // and the client returns nil rather than surfacing a hard error.
-        let redirected = Mutex(false)
+        let redirected = Locked(false)
         StubProtocol.handler = { request in
             if request.url?.path == "/repos/acme/widgets/actions/jobs/11/logs" {
                 redirected.withLock { $0 = true }
@@ -90,7 +90,7 @@ final class PipelineLogFetchTests: XCTestCase {
         // GHES answers the log endpoint with a redirect to its own blob
         // storage on another host; the signed URL must be followed, without
         // the token riding along.
-        let seen = Mutex<[(String, String?)]>([])
+        let seen = Locked<[(String, String?)]>([])
         StubProtocol.handler = { request in
             seen.withLock {
                 $0.append((request.url?.absoluteString ?? "", request.value(forHTTPHeaderField: "Authorization")))
@@ -124,7 +124,7 @@ final class PipelineLogFetchTests: XCTestCase {
     // MARK: - GitLab
 
     func testGitLabTraceIsCleanedAndJobScoped() async throws {
-        let path = Mutex("")
+        let path = Locked("")
         StubProtocol.handler = { request in
             path.withLock { $0 = request.url?.path ?? "" }
             return (200, Data("section_start:1:build\r\u{1B}[0K\u{1B}[32mcompiling\u{1B}[0m\n".utf8), [:])
@@ -144,7 +144,7 @@ final class PipelineLogFetchTests: XCTestCase {
     // MARK: - Buildkite
 
     func testBuildkiteReadsTheJobLogContent() async throws {
-        let path = Mutex("")
+        let path = Locked("")
         StubProtocol.handler = { request in
             path.withLock { $0 = request.url?.path ?? "" }
             return (200, Data(#"{"content":"\u001b_bk;t=1\u0007~~~ Running tests\nok\n"}"#.utf8), [:])
@@ -166,7 +166,7 @@ final class PipelineLogFetchTests: XCTestCase {
     // MARK: - Azure DevOps
 
     func testAzureReadsATasksOwnLog() async throws {
-        let path = Mutex("")
+        let path = Locked("")
         StubProtocol.handler = { request in
             path.withLock { $0 = request.url?.path ?? "" }
             return (200, Data("2026-10-02T10:00:01.0000000Z Starting task\n".utf8), ["Content-Type": "text/plain"])
@@ -194,7 +194,7 @@ final class PipelineLogFetchTests: XCTestCase {
     // MARK: - Bitbucket
 
     func testBitbucketReadsAStepsLog() async throws {
-        let path = Mutex("")
+        let path = Locked("")
         StubProtocol.handler = { request in
             path.withLock { $0 = request.url?.path ?? "" }
             return (200, Data("+ swift test\n".utf8), [:])

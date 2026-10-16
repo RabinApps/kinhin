@@ -154,7 +154,7 @@ final class MultiAccountEngineTests: XCTestCase {
             poll_interval: 5
 
             """)
-        let seen = Mutex<[String: String?]>([:])
+        let seen = Locked<[String: String?]>([:])
         let engine = FleetEngine(
             config: config, pat: "legacy", tart: FakeTart(), store: makeTestStore(), ssh: FakeSSH(),
             host: testHost,

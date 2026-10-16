@@ -132,6 +132,15 @@ struct KinhinCLI {
             default: await ToolchainsCommand.run(args)
             }
 
+        case .mobile:
+            switch invocation.subcommand {
+            case "init": MobileCommand.run(rest)
+            default:
+                fail(
+                    "usage: kinhin mobile init [DIR] [--framework NAME] [--ci SYSTEM] [--force] [--dry-run]",
+                    exit: .usage)
+            }
+
         case .start:
             try await RunCommands.start(args)
 
@@ -174,6 +183,9 @@ struct KinhinCLI {
         case .skip:
             try await RunCommands.skipQueuedJobs(args)
 
+        case .heal:
+            try await HealCommand.run(args, subcommand: invocation.subcommand)
+
         case .support:
             print(SupportLinks.summary())
 
@@ -188,6 +200,9 @@ struct KinhinCLI {
             case "test": try await WorkflowTestCommand.run(rest)
             default: try await WorkflowRouteCommand.run(rest)
             }
+
+        case .video:
+            try await VideoCommand.run(path: invocation.path, rest)
 
         case .version:
             print("kinhin \(kinhinVersion.current)")

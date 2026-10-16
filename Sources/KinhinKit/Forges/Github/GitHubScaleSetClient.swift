@@ -34,7 +34,7 @@ extension GitHubScaleSetServing {
         }
         do {
             return try await refreshSession(scaleSetId: scaleSetId, sessionId: sessionId)
-        } catch GitHubScaleSetClientError.sessionConflict {
+        } catch GitHubError.scaleSetSessionConflict {
             return try await createSession(scaleSetId: scaleSetId, ownerName: ownerName)
         } catch GitHubError.notFound {
             return try await createSession(scaleSetId: scaleSetId, ownerName: ownerName)
@@ -42,51 +42,6 @@ extension GitHubScaleSetServing {
             // GitHub answers a session it has dropped (after a network outage, say) with 400
             // "The session identifier … is not valid". Refreshing it again can never work.
             return try await createSession(scaleSetId: scaleSetId, ownerName: ownerName)
-        }
-    }
-}
-
-public enum GitHubScaleSetClientError: LocalizedError, Sendable {
-    case messageQueueTokenExpired
-    case sessionConflict
-
-    public var errorDescription: String? {
-        switch self {
-        case .messageQueueTokenExpired: "scale-set message queue token expired"
-        case .sessionConflict:
-            "scale-set session conflict: GitHub still holds an earlier session for this scale set "
-                + "(a previous run that did not shut down cleanly, or another kinhin instance); "
-                + "retrying until it expires"
-        }
-    }
-}
-
-public enum GitHubScaleSetError: LocalizedError, Sendable {
-    case adminTokenExchangeFailed(original: String)
-    case scaleSetNotFound(name: String)
-    case scaleSetUnavailable(id: Int, reason: String)
-    case sessionFailure(id: Int?, message: String)
-    case noSession
-    case messagePollFailed(original: String)
-    case jitConfigFailed(original: String)
-    case runnerNotFound(name: String)
-    /// A queue action (requeue / skip) the scale-set listener cannot perform.
-    case queueActionUnsupported(action: String)
-
-    public var errorDescription: String? {
-        switch self {
-        case .queueActionUnsupported(let action):
-            return
-                "\(action) is not supported for scale-set accounts: jobs are delivered by GitHub, not read from a queue"
-        case .adminTokenExchangeFailed(let original): return "scale-set admin token exchange failed: \(original)"
-        case .scaleSetNotFound(let name): return "scale set '\(name)' was not found"
-        case .scaleSetUnavailable(let id, let reason): return "scale set \(id) is unavailable: \(reason)"
-        case .sessionFailure(let id, let message):
-            return "scale-set session\(id.map { " \($0)" } ?? "") failed: \(message)"
-        case .noSession: return "no scale-set session is active"
-        case .messagePollFailed(let original): return "scale-set message poll failed: \(original)"
-        case .jitConfigFailed(let original): return "JIT config generation failed: \(original)"
-        case .runnerNotFound(let name): return "runner '\(name)' was not found"
         }
     }
 }
@@ -131,7 +86,7 @@ public struct GitHubScaleSetClient: GitHubScaleSetServing {
         credentials: GitHubCredentials,
         session: URLSession? = nil,
         adminJwtProvider: @escaping @Sendable () async throws -> String = {
-            throw ScaleSetError.adminTokenFailure(reason: "admin JWT provider is not configured")
+            throw GitHubError.scaleSetAdminTokenFailure(reason: "admin JWT provider is not configured")
         },
         actionsServiceURL: @escaping @Sendable () -> URL? = { nil }
     ) {
@@ -145,7 +100,7 @@ public struct GitHubScaleSetClient: GitHubScaleSetServing {
     private func adminRequest(method: String, path: String, body: Data? = nil) async throws -> URLRequest {
         let jwt = try await adminJwtProvider()
         guard let serviceURL = actionsServiceURL() else {
-            throw ScaleSetError.adminTokenFailure(reason: "Actions service URL is unavailable")
+            throw GitHubError.scaleSetAdminTokenFailure(reason: "Actions service URL is unavailable")
         }
         var request = try request(method: method, path: path, body: body, headers: [:], baseURL: serviceURL)
         request.setValue("Bearer \(jwt)", forHTTPHeaderField: "Authorization")
@@ -251,7 +206,7 @@ public struct GitHubScaleSetClient: GitHubScaleSetServing {
                 // elsewhere (e.g. generatejitconfig for a runner name that already exists) is
                 // a different conflict, so keep GitHub's own message.
                 if request.url?.path.contains("/sessions") == true {
-                    throw GitHubScaleSetClientError.sessionConflict
+                    throw GitHubError.scaleSetSessionConflict
                 }
                 throw GitHubError.http(409, body)
             }
@@ -330,7 +285,7 @@ public struct GitHubScaleSetClient: GitHubScaleSetServing {
         }
         let all = try await fetch(query: nil)
         guard let match = firstMatch(in: all.value) else {
-            throw ScaleSetError.messageServiceFailure(
+            throw GitHubError.scaleSetMessageServiceFailure(
                 reason: "runner group '\(name)' was not found; create it in GitHub before attaching")
         }
         return match
@@ -354,7 +309,7 @@ public struct GitHubScaleSetClient: GitHubScaleSetServing {
         let scaleSets = scaleSetList.value
         let matchCount = scaleSetList.count ?? scaleSets.count
         guard matchCount <= 1 else {
-            throw ScaleSetError.messageServiceFailure(
+            throw GitHubError.scaleSetMessageServiceFailure(
                 reason: "scale-set lookup for '\(name)' returned \(matchCount) results")
         }
         if let existing = scaleSets.first {
@@ -366,15 +321,25 @@ public struct GitHubScaleSetClient: GitHubScaleSetServing {
                 try await patchScaleSet(id: existing.id, labels: labels)
                 // GitHub may drop labels it does not accept for scale sets; say so, since jobs
                 // asking for a dropped label are never delivered.
-                if let (refreshedData, _) = try? await send(listRequest),
-                    let refreshed = try? JSONDecoder().decode(ScaleSetList.self, from: refreshedData).value.first
-                {
-                    let have = Set(refreshed.labels.map { $0.lowercased() })
-                    let missing = labels.filter { !have.contains($0.lowercased()) }
-                    Log.info(
+                do {
+                    let (refreshedData, _) = try await send(listRequest)
+                    if let refreshed = try JSONDecoder().decode(ScaleSetList.self, from: refreshedData).value.first {
+                        let have = Set(refreshed.labels.map { $0.lowercased() })
+                        let missing = labels.filter { !have.contains($0.lowercased()) }
+                        Log.info(
+                            "scaleset",
+                            "after update GitHub reports: \(refreshed.labels.sorted().joined(separator: ", "))"
+                                + (missing.isEmpty
+                                    ? "" : " — NOT accepted: \(missing.sorted().joined(separator: ", "))"))
+                    }
+                } catch is CancellationError {
+                    throw CancellationError()
+                } catch {
+                    // The patch itself succeeded; only the check for dropped labels is lost.
+                    Log.warn(
                         "scaleset",
-                        "after update GitHub reports: \(refreshed.labels.sorted().joined(separator: ", "))"
-                            + (missing.isEmpty ? "" : " — NOT accepted: \(missing.sorted().joined(separator: ", "))"))
+                        "could not re-read the labels of '\(name)' after updating them, so labels GitHub "
+                            + "did not accept are not reported: \(error.localizedDescription)")
                 }
             }
             return GitHubScaleSet(
@@ -382,7 +347,7 @@ public struct GitHubScaleSetClient: GitHubScaleSetServing {
                 labels: labels, statistics: existing.statistics)
         }
         guard matchCount == 0 else {
-            throw ScaleSetError.messageServiceFailure(reason: "scale-set lookup count did not match its response")
+            throw GitHubError.scaleSetMessageServiceFailure(reason: "scale-set lookup count did not match its response")
         }
         let scaleSetBody = try JSONEncoder().encode(
             ScaleSetCreate(name: name, labels: labels, runnerGroupId: runnerGroupId))
@@ -437,7 +402,7 @@ public struct GitHubScaleSetClient: GitHubScaleSetServing {
         session: GitHubScaleSetSession, lastMessageId: String?, maxCapacity: Int
     ) async throws -> [GitHubScaleSetMessage] {
         guard var components = URLComponents(url: session.messageQueueUrl, resolvingAgainstBaseURL: false) else {
-            throw ScaleSetError.messageServiceFailure(reason: "invalid message queue URL")
+            throw GitHubError.scaleSetMessageServiceFailure(reason: "invalid message queue URL")
         }
         var queryItems = components.queryItems ?? []
         if let lastMessageId {
@@ -446,7 +411,7 @@ public struct GitHubScaleSetClient: GitHubScaleSetServing {
         }
         components.queryItems = queryItems
         guard let url = components.url else {
-            throw ScaleSetError.messageServiceFailure(reason: "invalid message queue URL")
+            throw GitHubError.scaleSetMessageServiceFailure(reason: "invalid message queue URL")
         }
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
@@ -462,25 +427,26 @@ public struct GitHubScaleSetClient: GitHubScaleSetServing {
             () async throws -> ForgeRetryPolicy.Attempt<(Data, HTTPURLResponse)> in
             let (data, response) = try await pollSession.data(for: request)
             guard let http = response as? HTTPURLResponse else {
-                throw ScaleSetError.messageServiceFailure(reason: "non-HTTP message response")
+                throw GitHubError.scaleSetMessageServiceFailure(reason: "non-HTTP message response")
             }
             if case .retry(let after) = policy.verdict(for: http), (500...599).contains(http.statusCode) {
                 return .retry(
-                    ScaleSetError.messageServiceFailure(reason: "message poll returned \(http.statusCode)"),
+                    GitHubError.scaleSetMessageServiceFailure(reason: "message poll returned \(http.statusCode)"),
                     after: after)
             }
             return .done((data, http))
         }
         if http.statusCode == 202 { return [] }
         if http.statusCode == 401 {
-            throw GitHubScaleSetClientError.messageQueueTokenExpired
+            throw GitHubError.scaleSetMessageQueueTokenExpired
         }
         guard http.statusCode == 200 else {
-            throw ScaleSetError.messageServiceFailure(reason: "message poll returned \(http.statusCode)")
+            throw GitHubError.scaleSetMessageServiceFailure(reason: "message poll returned \(http.statusCode)")
         }
         let messageResponse = try JSONDecoder().decode(MessageResponse.self, from: data)
         guard messageResponse.messageType == "RunnerScaleSetJobMessages" else {
-            throw ScaleSetError.messageServiceFailure(reason: "unsupported message type \(messageResponse.messageType)")
+            throw GitHubError.scaleSetMessageServiceFailure(
+                reason: "unsupported message type \(messageResponse.messageType)")
         }
         let eventData = Data(messageResponse.body.utf8)
         let events = eventData.isEmpty ? [] : try JSONDecoder().decode([GitHubScaleSetJobEvent].self, from: eventData)
@@ -492,15 +458,15 @@ public struct GitHubScaleSetClient: GitHubScaleSetServing {
 
     public func ackMessage(session: GitHubScaleSetSession, messageId: String) async throws {
         guard var components = URLComponents(url: session.messageQueueUrl, resolvingAgainstBaseURL: false) else {
-            throw ScaleSetError.messageServiceFailure(reason: "invalid ack URL for message \(messageId)")
+            throw GitHubError.scaleSetMessageServiceFailure(reason: "invalid ack URL for message \(messageId)")
         }
         guard !messageId.contains("/") else {
-            throw ScaleSetError.messageServiceFailure(reason: "invalid ack message id")
+            throw GitHubError.scaleSetMessageServiceFailure(reason: "invalid ack message id")
         }
         if !components.path.hasSuffix("/") { components.path += "/" }
         components.path += messageId
         guard let url = components.url else {
-            throw ScaleSetError.messageServiceFailure(reason: "invalid ack URL for message \(messageId)")
+            throw GitHubError.scaleSetMessageServiceFailure(reason: "invalid ack URL for message \(messageId)")
         }
         var request = URLRequest(url: url)
         request.httpMethod = "DELETE"
@@ -518,20 +484,20 @@ public struct GitHubScaleSetClient: GitHubScaleSetServing {
                 return .retry(error, after: nil)
             }
             guard let http = response as? HTTPURLResponse else {
-                throw ScaleSetError.messageServiceFailure(reason: "non-HTTP acknowledgement response")
+                throw GitHubError.scaleSetMessageServiceFailure(reason: "non-HTTP acknowledgement response")
             }
             if case .retry(let after) = policy.verdict(for: http), (500...599).contains(http.statusCode) {
                 return .retry(
-                    ScaleSetError.messageServiceFailure(
+                    GitHubError.scaleSetMessageServiceFailure(
                         reason: "message acknowledgement failed (HTTP \(http.statusCode))"), after: after)
             }
             return .done(http)
         }
         if http.statusCode == 401 {
-            throw GitHubScaleSetClientError.messageQueueTokenExpired
+            throw GitHubError.scaleSetMessageQueueTokenExpired
         }
         guard http.statusCode == 204 else {
-            throw ScaleSetError.messageServiceFailure(
+            throw GitHubError.scaleSetMessageServiceFailure(
                 reason: "message acknowledgement failed (HTTP \(http.statusCode))")
         }
     }
@@ -544,7 +510,7 @@ public struct GitHubScaleSetClient: GitHubScaleSetServing {
     ) async throws -> [Int64] {
         guard !requestIds.isEmpty else { return [] }
         guard let serviceURL = actionsServiceURL() else {
-            throw ScaleSetError.messageServiceFailure(reason: "Actions service URL is unavailable")
+            throw GitHubError.scaleSetMessageServiceFailure(reason: "Actions service URL is unavailable")
         }
         var request = try request(
             method: "POST", path: "/_apis/runtime/runnerscalesets/\(scaleSetId)/acquirejobs",
@@ -555,10 +521,14 @@ public struct GitHubScaleSetClient: GitHubScaleSetServing {
         do {
             data = try await send(request).0
         } catch GitHubError.unauthorized {
-            throw GitHubScaleSetClientError.messageQueueTokenExpired
+            throw GitHubError.scaleSetMessageQueueTokenExpired
         }
         struct Response: Decodable { let value: [Int64]? }
-        return (try? JSONDecoder().decode(Response.self, from: data))?.value ?? []
+        do {
+            return try JSONDecoder().decode(Response.self, from: data).value ?? []
+        } catch {
+            throw GitHubError.decoding("acquirejobs response: \(error.localizedDescription)")
+        }
     }
 
     private struct MessageResponse: Decodable {
@@ -585,7 +555,7 @@ public struct GitHubScaleSetClient: GitHubScaleSetServing {
         } catch is CancellationError {
             throw CancellationError()
         } catch {
-            throw ScaleSetError.jitConfigFailure(reason: error.localizedDescription)
+            throw GitHubError.scaleSetJITConfigFailure(reason: error.localizedDescription)
         }
     }
 
@@ -597,7 +567,7 @@ public struct GitHubScaleSetClient: GitHubScaleSetServing {
         let (data, _) = try await send(request)
         let scaleSet = try JSONDecoder().decode(GitHubScaleSet.self, from: data)
         guard let statistics = scaleSet.statistics else {
-            throw ScaleSetError.statisticsUnavailable(reason: "scale-set response did not include statistics")
+            throw GitHubError.scaleSetStatisticsUnavailable(reason: "scale-set response did not include statistics")
         }
         return statistics
     }

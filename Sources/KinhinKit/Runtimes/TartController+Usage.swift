@@ -37,6 +37,7 @@ extension TartController {
     static let guestMemoryScript = "sysctl -n hw.pagesize; vm_stat"
 
     public func guestMemoryUsedMB(of name: String) async -> Int? {
+        // Usage display only: a guest that cannot answer shows no memory figure.
         guard let res = try? await exec(["exec", name, "bash", "-c", Self.guestMemoryScript], timeout: 5),
             res.succeeded
         else { return nil }
@@ -140,6 +141,7 @@ extension TartController {
     ) async -> [String: PsLine] {
         let disks = Dictionary(uniqueKeysWithValues: clients.keys.map { ($0, diskImage(for: $0)) })
         guard
+            // Usage display only: no lsof answer means no per-VM host samples.
             let res = try? await shell.run(
                 ["/usr/sbin/lsof", "-Fpn", "--"] + disks.values.sorted(), cwd: nil, timeout: 15)
         else { return [:] }

@@ -1,0 +1,27 @@
+  android:
+    # Android has no release lane yet, so the release choice runs only the iOS job.
+    if: inputs.lane != 'release'
+    runs-on: [kinhin-xcode]
+    steps:
+      - uses: https://github.com/actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Release
+        run: bash __SCRIPT__ android "${{ inputs.lane }}"
+        env:
+          ANDROID_PACKAGE_NAME: ${{ secrets.ANDROID_PACKAGE_NAME }}
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          UPLOAD_SCREENSHOTS: ${{ vars.UPLOAD_SCREENSHOTS }}
+          SCREENGRAB_LOCALES: ${{ vars.SCREENGRAB_LOCALES }}
+          SCREENGRAB_DEVICE_TYPE: ${{ vars.SCREENGRAB_DEVICE_TYPE }}
+      - name: Upload screenshots
+        if: ${{ always() && inputs.lane == 'screenshots' }}
+        uses: https://github.com/actions/upload-artifact@c6a3b2bd78b3985e4b2f15397fec357f0fd808de # v3.2.2-node20
+        with:
+          name: android-screenshots
+          path: __ANDROID_SCREENSHOTS__
+          if-no-files-found: warn
+          retention-days: 14
+

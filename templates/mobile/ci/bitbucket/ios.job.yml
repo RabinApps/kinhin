@@ -1,0 +1,9 @@
+      - step:
+          name: iOS
+          # A kinhin macOS runner: self.hosted and macos are Bitbucket's own labels, kinhin-xcode is the Xcode image label.
+          runs-on: [self.hosted, macos, kinhin-xcode]
+          script:
+            - bash __SCRIPT__ ios "$LANE"
+          # Screenshots are written inside the VM, which is deleted when the job ends. Keep them as an artifact.
+          artifacts:
+            - __IOS_SCREENSHOTS__/**

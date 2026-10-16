@@ -1,0 +1,42 @@
+{
+  "name": "clean",
+  "description": "Flat near-white with one blue accent.",
+  "font": {
+    "family": "Inter",
+    "fallback": "-apple-system, \"SF Pro Display\", \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+    "weight": 600,
+    "mono": "DejaVu Sans Mono"
+  },
+  "colors": {
+    "ink": "#1d1d1f",
+    "muted": "#6e6e73",
+    "paper": "#ffffff",
+    "accent": "#0a84ff",
+    "card": "#ffffff",
+    "track": "#e8e8ed",
+    "line": "#aeaeb2"
+  },
+  "background": {
+    "from": "#fbfbfd",
+    "to": "#f2f2f7"
+  },
+  "device": {
+    "wallpaper": {
+      "from": "#0a84ff",
+      "to": "#5e5ce6"
+    },
+    "lid": "#0b0b0c",
+    "baseFrom": "#dfe1e5",
+    "baseTo": "#b4b7bd",
+    "thumb": "#a2a5ab",
+    "windowBar": "#e9e8e8",
+    "windowBody": "#fbfbfb",
+    "shadow": 0.3,
+    "terminal": "light"
+  },
+  "caption": {
+    "text": "#1d1d1f",
+    "outline": "#ffffff",
+    "size": 11
+  }
+}

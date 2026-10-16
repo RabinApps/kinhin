@@ -72,8 +72,8 @@ final class DevToolsTests: XCTestCase {
 
     // MARK: - State matrix
 
-    func testUpToDateCLTIsOK() async {
-        let state = await makeProbe(
+    func testUpToDateCLTIsOK() async throws {
+        let state = try await makeProbe(
             receipt: receipt("27.0.0.0.1234"),
             productVersion: "27.0"
         ).check()
@@ -81,9 +81,9 @@ final class DevToolsTests: XCTestCase {
         XCTAssertTrue(state.isOK)
     }
 
-    func testOutdatedCLTWhenOlderThanMacOS() async {
+    func testOutdatedCLTWhenOlderThanMacOS() async throws {
         // This machine's real shape at the time of writing: CLT 26.6, macOS 27.0.
-        let state = await makeProbe(
+        let state = try await makeProbe(
             receipt: receipt("26.6.0.0.1781586589"),
             productVersion: "27.0"
         ).check()
@@ -92,16 +92,16 @@ final class DevToolsTests: XCTestCase {
         XCTAssertTrue(state.detail.contains("Homebrew will refuse"))
     }
 
-    func testMissingReceiptMeansMissing() async {
-        let state = await makeProbe(
+    func testMissingReceiptMeansMissing() async throws {
+        let state = try await makeProbe(
             receipt: ShellResult(exitCode: 1, stdout: "", stderr: "No receipt for com.apple.pkg.CLTools_Executables")
         ).check()
         XCTAssertEqual(state, .missing)
         XCTAssertFalse(state.isOK)
     }
 
-    func testBrokenSelectionWithReceiptMeansUnselected() async {
-        let state = await makeProbe(
+    func testBrokenSelectionWithReceiptMeansUnselected() async throws {
+        let state = try await makeProbe(
             receipt: receipt("27.0.0.0.0"),
             selected: ShellResult(exitCode: 0, stdout: "error: unable to get active developer directory\n", stderr: "")
         ).check()
@@ -109,8 +109,23 @@ final class DevToolsTests: XCTestCase {
         XCTAssertFalse(state.isOK)
     }
 
-    func testMalformedReceiptMeansMissing() async {
-        let state = await makeProbe(
+    /// A cancelled probe stops the check instead of reading as "not installed".
+    func testCancelledProbePropagatesCancellation() async {
+        struct CancellingShell: ShellRunning {
+            func run(_ argv: [String], cwd: URL?, timeout: TimeInterval) async throws -> ShellResult {
+                throw CancellationError()
+            }
+        }
+        do {
+            _ = try await CLTProbe(shell: CancellingShell(), osVersion: { "27.0" }).check()
+            XCTFail("a cancelled probe must not read as missing")
+        } catch {
+            XCTAssertTrue(error is CancellationError)
+        }
+    }
+
+    func testMalformedReceiptMeansMissing() async throws {
+        let state = try await makeProbe(
             receipt: ShellResult(exitCode: 0, stdout: "package-id: com.apple.pkg.CLTools_Executables\n", stderr: "")
         ).check()
         XCTAssertEqual(state, .missing)
@@ -126,7 +141,7 @@ final class DevToolsTests: XCTestCase {
 
     // MARK: - Checklist integration
 
-    func testCLTOutdatedBlocksTartInstallInChecklist() async {
+    func testCLTOutdatedBlocksTartInstallInChecklist() async throws {
         // The exact scenario that bit on a real machine: CLT outdated while
         // everything else is fine — the fleet must NOT report ready, and the
         // row must carry the fix action.

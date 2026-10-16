@@ -43,6 +43,13 @@ func loadConfigLeniently() -> KinhinConfig {
     }
 }
 
+/// The config when one exists, nil when there is none; a config that exists
+/// but does not load throws its error (never reads as "no config").
+func loadConfigIfPresent(at url: URL = Paths.config) throws -> KinhinConfig? {
+    guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+    return try ConfigLoader.load(from: url)
+}
+
 func loadConfigOrExit() -> KinhinConfig {
     do {
         let cfg = try ConfigLoader.load()

@@ -89,6 +89,55 @@ struct CLITests {
         }
     }
 
+    @Test(
+        "config export writes the config without tokens, and import validates it, writes it, and keeps a backup on replace"
+    )
+    func configExportAndImport() async throws {
+        let source = try Sandbox()
+        let target = try Sandbox()
+        defer {
+            source.dispose()
+            target.dispose()
+        }
+        try source.writeConfig(Self.dockerConfig)
+        let exported = try await source.kinhin(["config", "export"])
+        #expect(exported.ok, "\(exported.output)")
+        #expect(exported.stdout.contains("acme/widgets"))
+        #expect(!exported.stdout.lowercased().contains("token:"), "no token travels with the config")
+
+        let file = target.supportDirectory.appendingPathComponent("moved.yaml")
+        let toFile = try await source.kinhin(["config", "export", file.path])
+        #expect(toFile.ok, "\(toFile.output)")
+        let again = try await source.kinhin(["config", "export", file.path])
+        #expect(!again.ok, "an existing file is not overwritten without --force: \(again.output)")
+
+        // Importing into a machine with no config writes it; with one, it only reports unless --yes, then keeps a backup.
+        let imported = try await target.kinhin(["config", "import", file.path])
+        #expect(imported.ok, "\(imported.output)")
+        #expect(FileManager.default.fileExists(atPath: target.configURL.path))
+        // A different config is now in place, so importing has something to replace.
+        try target.writeConfig("version: 1\nmax_runners: 1\n")
+        let dry = try await target.kinhin(["config", "import", file.path])
+        #expect(dry.ok)
+        #expect(
+            try String(contentsOf: target.configURL, encoding: .utf8).contains("max_runners: 1"),
+            "a dry run changes nothing")
+        #expect(
+            !FileManager.default.fileExists(atPath: target.configURL.path + ".bak"), "nothing is replaced without --yes"
+        )
+        let replaced = try await target.kinhin(["config", "import", file.path, "--yes"])
+        #expect(replaced.ok, "\(replaced.output)")
+        #expect(FileManager.default.fileExists(atPath: target.configURL.path + ".bak"))
+        #expect(
+            try String(contentsOf: target.configURL, encoding: .utf8).contains("acme/widgets"),
+            "the imported config is in place")
+
+        let bad = target.supportDirectory.appendingPathComponent("bad.yaml")
+        try Data("version: 1\nmax_runner: 2\n".utf8).write(to: bad)
+        let rejected = try await target.kinhin(["config", "import", bad.path, "--yes"])
+        #expect(rejected.status == 3, "an invalid file is rejected: exit \(rejected.status): \(rejected.output)")
+    }
+
     @Test("config migrate translates a removed key and --write keeps a backup")
     func configMigrate() async throws {
         try await withSandbox { sandbox in

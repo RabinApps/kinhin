@@ -36,7 +36,7 @@ final class DoctorSecuritySectionTests: XCTestCase {
     /// token, and the doctor probes the Linux runtimes once (the section
     /// reuses the checklist's answers).
     func testDoctorReadsEachAccountTokenOnceAndProbesEachRuntimeOnce() async {
-        let reads = Mutex<[String: Int]>([:])
+        let reads = Locked<[String: Int]>([:])
         var cfg = config()
         cfg.docker = KinhinConfig.DockerForgeConfig(image: "kinhin-ci-linux")
         let report = await DoctorReportBuilder(

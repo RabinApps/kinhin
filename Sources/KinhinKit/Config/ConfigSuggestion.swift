@@ -11,7 +11,7 @@ enum ConfigSuggestion {
         var best: (candidate: String, distance: Int)?
         for candidate in candidates {
             let distance = editDistance(target, normalized(candidate))
-            if best == nil || distance < best!.distance { best = (candidate, distance) }
+            if distance < best?.distance ?? Int.max { best = (candidate, distance) }
         }
         guard let best else { return nil }
         // A typo is a couple of keystrokes: allow more slack for longer names, never more than a third of them.

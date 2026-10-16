@@ -161,6 +161,39 @@ final class AccountsModelTests: XCTestCase {
         XCTAssertEqual(model.rows.map(\.tokenStored), [true, false])
     }
 
+    /// A config.yaml that does not parse is shown as an error, not as an empty
+    /// account list (which would read as "no extra accounts").
+    func testAnUnreadableConfigShowsTheErrorInsteadOfAnEmptyList() async throws {
+        try AccountsConfigEditor.add(AccountConfig(name: "work", forge: .github, scope: "bigco"), to: url)
+        let model = makeModel()
+        model.reload()
+        await settle(model) { model.rows.count == 1 }
+        XCTAssertEqual(model.rows.count, 1)
+        XCTAssertNil(model.loadError)
+
+        try "accounts: [unclosed\n".write(to: url, atomically: true, encoding: .utf8)
+        model.reload()
+        let error = try XCTUnwrap(model.loadError)
+        XCTAssertEqual(error.style, .error)
+        XCTAssertTrue(error.text.contains("config.yaml"), error.text)
+        XCTAssertTrue(model.rows.isEmpty, "no stale rows next to the error")
+
+        try "labels: [a]\n".write(to: url, atomically: true, encoding: .utf8)
+        try AccountsConfigEditor.add(AccountConfig(name: "side", forge: .github, scope: "me/x"), to: url)
+        model.reload()
+        XCTAssertNil(model.loadError, "a fixed file clears the error")
+        await settle(model) { model.rows.map(\.account.name) == ["side"] }
+        XCTAssertEqual(model.rows.map(\.account.name), ["side"])
+    }
+
+    func testAMissingConfigIsNoAccountsNotAnError() async throws {
+        try FileManager.default.removeItem(at: url)
+        let model = makeModel()
+        model.reload()
+        XCTAssertNil(model.loadError)
+        XCTAssertTrue(model.rows.isEmpty)
+    }
+
     /// The forge cards own each forge's conventional account (`github`,
     /// `gitea`, …); "More accounts" lists only the rest, so no account is
     /// shown twice, and a GitHub account named `work` is never claimed by

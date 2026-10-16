@@ -241,9 +241,12 @@ public struct BenchmarkReportStore: Sendable {
     /// Reports newest first. An unreadable file is skipped, not fatal.
     public func list() -> [Entry] {
         let files =
+            // No results folder yet means no history.
             (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? []
         return files.filter { $0.lastPathComponent.hasPrefix("results-") && $0.pathExtension == "json" }
+            // Unreadable reports are skipped (documented above), not fatal to the list.
             .compactMap { url -> Entry? in
+                // Skipped like the line above says.
                 guard let report = try? load(url) else { return nil }
                 return Entry(url: url, runID: report.runID, startedAt: report.startedAt)
             }
@@ -255,6 +258,7 @@ public struct BenchmarkReportStore: Sendable {
     }
 
     public func latest() -> BenchmarkReport? {
+        // list() already decoded this file; a race with its deletion reads as no report.
         list().first.flatMap { try? load($0.url) }
     }
 

@@ -1,0 +1,7 @@
+  - label: "Android"
+    depends_on: lane-input
+    # Android has no release lane yet: for the release choice the script returns at once.
+    agents:
+      queue: kinhin
+    command: bash __SCRIPT__ android "$$(buildkite-agent meta-data get lane)"
+    artifact_paths: "__ANDROID_SCREENSHOTS__/**/*"

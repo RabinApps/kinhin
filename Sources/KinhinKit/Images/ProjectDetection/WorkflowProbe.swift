@@ -40,6 +40,7 @@ struct WorkflowProbe: ToolchainProbe {
 
     private static let commandPattern: NSRegularExpression? = {
         let names = commands.joined(separator: "|")
+        // A constant pattern (covered by tests); nil would only disable the command scan.
         return try? NSRegularExpression(
             pattern: "(^|&&|;|\\||\\$\\(|\\bnpx|\\bsudo|\\bbunx|\\bexec|\\bbundle exec)\\s*(\(names))(\\s|$)")
     }()

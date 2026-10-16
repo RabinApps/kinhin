@@ -84,6 +84,16 @@ extension ConfigLoader {
         if let images = partial.images {
             cfg.images = try Self.parseImages(images, primary: cfg.image, fleetLabels: cfg.labels)
         }
+        // Warm VMs take slots under max_runners, so the base and every image's warm_pool share that ceiling.
+        for image in cfg.images where image.warmPool > cfg.maxRunners {
+            throw ConfigError.invalid(
+                "images: \(image.name) warm_pool (\(image.warmPool)) must be <= max_runners (\(cfg.maxRunners))")
+        }
+        let warmTotal = cfg.warmPool + cfg.images.reduce(0) { $0 + $1.warmPool }
+        if warmTotal > cfg.maxRunners {
+            throw ConfigError.invalid(
+                "warm_pool across the base image and images: (\(warmTotal)) must be <= max_runners (\(cfg.maxRunners))")
+        }
         if let boot = partial.vmBootTimeout {
             guard Self.vmBootTimeoutRange.contains(boot) else {
                 throw ConfigError.invalid(
@@ -135,6 +145,33 @@ extension ConfigLoader {
             guard disk >= 0 else { throw ConfigError.invalid("reserve.disk_gb must be >= 0") }
             cfg.reserve.diskGB = disk
         }
+    }
+
+    /// `healing:`: every key optional, defaults from `HealingConfig`.
+    static func parseHealing(_ partial: PartialConfig.PartialHealing) throws -> KinhinConfig.HealingConfig {
+        var healing = KinhinConfig.HealingConfig.default
+        if let enabled = partial.enabled { healing.enabled = enabled }
+        if let auto = partial.auto {
+            guard let mode = KinhinConfig.HealingConfig.AutoMode(rawValue: auto) else {
+                throw ConfigError.invalid("healing.auto must be safe or none, got '\(auto)'")
+            }
+            healing.auto = mode
+        }
+        if let ai = partial.ai {
+            guard let mode = KinhinConfig.HealingConfig.AIMode(rawValue: ai) else {
+                throw ConfigError.invalid("healing.ai must be auto or off, got '\(ai)'")
+            }
+            healing.ai = mode
+        }
+        if let attempts = partial.maxAttempts {
+            let range = KinhinConfig.HealingConfig.maxAttemptsRange
+            guard range.contains(attempts) else {
+                throw ConfigError.invalid(
+                    "healing.max_attempts must be between \(range.lowerBound) and \(range.upperBound), got \(attempts)")
+            }
+            healing.maxAttempts = attempts
+        }
+        return healing
     }
 
     /// Removed keys: decoded only so they can be rejected with a pointer to

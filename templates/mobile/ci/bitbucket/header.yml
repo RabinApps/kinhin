@@ -1,0 +1,18 @@
+# Mobile release pipeline for a kinhin runner, written by `kinhin mobile init`. It is a custom pipeline, so it runs only
+# when started by hand (Pipelines > Run pipeline > custom: mobile-release) and store uploads never run by accident. Pick the
+# lane in LANE on that form. The steps are in .kinhin/mobile-release.sh.
+#
+# Repository variables used (Repository settings > Pipelines > Repository variables, secured):
+#   iOS:     ASC_KEY_ID, ASC_KEY_P8 (contents of the .p8 file), ASC_ISSUER_ID, MATCH_GIT_URL,
+#            MATCH_PASSWORD, APPLE_TEAM_ID, APP_IDENTIFIER, IOS_SCHEME
+#   Android: ANDROID_PACKAGE_NAME, PLAY_SERVICE_ACCOUNT_JSON, ANDROID_KEYSTORE_BASE64 (base64 of the
+#            upload keystore), ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
+# If the repository already has a bitbucket-pipelines.yml, kinhin leaves it alone and writes this file beside it: copy the
+# mobile-release entry under your own pipelines: custom: section.
+pipelines:
+  custom:
+    mobile-release:
+      - variables:
+          - name: LANE
+            default: beta
+            allowed-values: [beta, release, screenshots]

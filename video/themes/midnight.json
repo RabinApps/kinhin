@@ -1,0 +1,42 @@
+{
+  "name": "midnight",
+  "description": "Deep navy with a periwinkle accent.",
+  "font": {
+    "family": "Inter",
+    "fallback": "-apple-system, \"SF Pro Display\", \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+    "weight": 600,
+    "mono": "DejaVu Sans Mono"
+  },
+  "colors": {
+    "ink": "#f5f7ff",
+    "muted": "#8b93b5",
+    "paper": "#0b1020",
+    "accent": "#7aa2ff",
+    "card": "#161e3a",
+    "track": "#26305a",
+    "line": "#4a557f"
+  },
+  "background": {
+    "from": "#0b1020",
+    "to": "#18213f"
+  },
+  "device": {
+    "wallpaper": {
+      "from": "#0f1630",
+      "to": "#3b2f6b"
+    },
+    "lid": "#0b0b0c",
+    "baseFrom": "#9aa0b4",
+    "baseTo": "#6c728a",
+    "thumb": "#5b6178",
+    "windowBar": "#2a3150",
+    "windowBody": "#10162c",
+    "shadow": 0.55,
+    "terminal": "dark"
+  },
+  "caption": {
+    "text": "#ffffff",
+    "outline": "#000000",
+    "size": 11
+  }
+}

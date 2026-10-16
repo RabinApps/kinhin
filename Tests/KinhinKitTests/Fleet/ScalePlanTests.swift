@@ -216,6 +216,17 @@ final class ScalePlanTests: XCTestCase {
         XCTAssertEqual(result.blocked?.neededGB, 70)
     }
 
+    func testANamedImageCostsItsOwnDisk() {
+        // A 100 GB image takes 120 of 130 GB; the 50 GB base clone then no longer fits (10 left).
+        let slots = [
+            ScalePlan.Slot(account: "github", runtime: .tart, image: "xcode"),
+            ScalePlan.Slot(account: "github", runtime: .tart),
+        ]
+        let result = ScalePlan.admitByDisk(slots, freeDiskGB: 130, reserveGB: 20) { $0.image == "xcode" ? 100 : 50 }
+        XCTAssertEqual(result.admitted.map(\.image), ["xcode"])
+        XCTAssertEqual(result.blocked?.neededGB, 70)
+    }
+
     func testHostSlotsCostNoDisk() {
         let slots = [
             ScalePlan.Slot(account: "github", runtime: .host), ScalePlan.Slot(account: "github", runtime: .tart),
@@ -223,5 +234,30 @@ final class ScalePlanTests: XCTestCase {
         let result = ScalePlan.admitByDisk(slots, freeDiskGB: 10, reserveGB: 20, diskPerInstanceGB: { _ in 50 })
         XCTAssertEqual(result.admitted.map(\.runtime), [.host])
         XCTAssertNotNil(result.blocked)
+    }
+
+    func testWarmClaimsCostNoDiskAndAreNeverHeldBack() {
+        // 60 GB free: the first new clone needs 50 + 20 and is held, but the claims bind VMs already on disk.
+        let slots = [
+            ScalePlan.Slot(account: "github", runtime: .tart),
+            ScalePlan.Slot(account: "github", runtime: .tart, claim: "warm-1"),
+            ScalePlan.Slot(account: "github", runtime: .tart),
+            ScalePlan.Slot(account: "github", runtime: .tart, claim: "warm-2"),
+        ]
+        let result = ScalePlan.admitByDisk(slots, freeDiskGB: 60, reserveGB: 20, diskPerInstanceGB: { _ in 50 })
+        XCTAssertEqual(result.admitted.map(\.claim), ["warm-1", "warm-2"])
+        XCTAssertEqual(result.blocked?.availableGB, 60)
+        XCTAssertEqual(result.blocked?.neededGB, 70)
+    }
+
+    func testAClaimDoesNotSpendTheDiskOfTheCloneAfterIt() {
+        // 70 GB fits exactly one new clone; the claim ahead of it must not use that room up.
+        let slots = [
+            ScalePlan.Slot(account: "github", runtime: .tart, claim: "warm-1"),
+            ScalePlan.Slot(account: "github", runtime: .tart),
+        ]
+        let result = ScalePlan.admitByDisk(slots, freeDiskGB: 70, reserveGB: 20, diskPerInstanceGB: { _ in 50 })
+        XCTAssertEqual(result.admitted.count, 2)
+        XCTAssertNil(result.blocked)
     }
 }

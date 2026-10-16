@@ -65,7 +65,8 @@ struct MacToolsView: View {
                     "tart is serving Linux jobs — its base image is chosen under Linux jobs below. Add a macOS image under More images so macOS jobs still have somewhere to run."
                 )
             } else {
-                baseImageRow(value: model.tartBaseImage, runtime: .tart)
+                // The status line above already says "Base image", so this picker row has no label.
+                baseImageRow(value: model.tartBaseImage, runtime: .tart, label: nil)
             }
             if model.offersNamedImages { moreImagesSection }
             if model.busy || !model.busyLine.text.isEmpty {
@@ -96,7 +97,7 @@ struct MacToolsView: View {
                 "Extra prepared images, such as one on an Xcode base or a Linux base. Each has its own base and is rebuilt separately. A Linux-named image strips the fleet's `macos` label automatically."
             )
             ForEach(model.namedImages.rows) { row in
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 6) {
                     HStack(spacing: 8) {
                         Text(row.name).font(.system(size: 12, design: .monospaced))
                         StatusText(
@@ -112,24 +113,23 @@ struct MacToolsView: View {
                             model.namedImages.remove(row.name)
                         }
                     }
-                    HStack(spacing: 8) {
-                        Text("Run jobs with labels").font(.system(size: 11)).foregroundStyle(
-                            StatusStyle.secondary.color)
-                        Spacer(minLength: 0)
+                    formRow(Text("Run jobs with labels")) {
                         ImageLabelsField(
                             labels: row.labels, id: row.name, commit: { model.namedImages.setLabels($0, for: row.name) }
                         )
                     }
-                    HStack(spacing: 8) {
-                        Text("Base image").font(.system(size: 11)).foregroundStyle(StatusStyle.secondary.color)
-                        Spacer(minLength: 0)
+                    formRow(Text("Base image")) {
                         BaseImagePicker(
                             value: row.baseImage,
                             onChange: { model.namedImages.setBase($0, for: row.name) },
                             catalog: .tartVM,
                             pinDigest: { reference in await BaseImageChoice.pin(reference, in: .tartVM) }
                         )
-                        .fixedSize()
+                    }
+                    formRow(Text("VMs kept ready")) {
+                        WarmPoolStepper(
+                            count: row.warmPool, id: row.name,
+                            commit: { model.namedImages.setWarmPool($0, for: row.name) })
                     }
                 }
             }
@@ -143,8 +143,7 @@ struct MacToolsView: View {
                     value: newImageBase, onChange: { newImageBase = $0 }, catalog: .tartVM,
                     pinDigest: { reference in await BaseImageChoice.pin(reference, in: .tartVM) }
                 )
-                .fixedSize()
-                Spacer(minLength: 0)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 smallButton(Text("Add image"), id: "mac-image-add") {
                     model.namedImages.add(name: newImageName, baseImage: newImageBase)
                     newImageName = ""
@@ -279,12 +278,11 @@ struct MacToolsView: View {
         }
     }
 
-    private func baseImageRow(value: String?, runtime: RuntimeID, catalog: BaseImageChoice.Catalog? = nil)
-        -> some View
-    {
-        HStack(alignment: .top, spacing: 8) {
-            Text("Base image").font(.system(size: 12))
-            Spacer(minLength: 0)
+    private func baseImageRow(
+        value: String?, runtime: RuntimeID, catalog: BaseImageChoice.Catalog? = nil,
+        label: Text? = Text("Base image")
+    ) -> some View {
+        formRow(label) {
             BaseImagePicker(
                 value: value,
                 onChange: { model.saveBaseImage($0, for: runtime) },
@@ -293,7 +291,28 @@ struct MacToolsView: View {
                     ? { reference in await BaseImageChoice.pin(reference, in: catalog ?? .tartVM) }
                     : nil
             )
-            .fixedSize()
+        }
+    }
+
+    /// Width of the label column that `formRow` reserves, so the controls of
+    /// every labelled row start at the same x.
+    private static let labelWidth: CGFloat = 132
+
+    /// One labelled row of this form. The label sits in a fixed column; with no
+    /// label there is no column, and the control starts at the card's edge (for a
+    /// control that sits under a heading). The control takes the rest of the
+    /// card, so a popup, a text field or a Pin… button cannot spill past it.
+    private func formRow<Control: View>(
+        _ label: Text?, @ViewBuilder control: () -> Control
+    ) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            if let label {
+                label
+                    .font(.system(size: 12))
+                    .frame(width: Self.labelWidth, alignment: .leading)
+            }
+            control()
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
@@ -340,6 +359,37 @@ struct MacToolsView: View {
             .controlSize(.small)
             .disabled(model.busy)
             .accessibilityIdentifier(id)
+    }
+}
+
+/// How many VMs of one extra image stay warm. Each step saves the config (and restarts the engine).
+private struct WarmPoolStepper: View {
+    let count: Int
+    let id: String
+    let commit: (Int) -> Void
+    /// The value while the user is still clicking. Nil shows `count`, the saved value.
+    @State private var pending: Int?
+
+    var body: some View {
+        let value = pending ?? count
+        HStack(spacing: 6) {
+            Stepper(value: Binding(get: { value }, set: { pending = $0 }), in: 0...8) {
+                Text(value == 0 ? String(localized: "Off", bundle: .l10n) : "\(value)")
+                    .font(.system(size: 12))
+                    .monospacedDigit()
+            }
+            .controlSize(.small)
+            .accessibilityIdentifier("mac-image-warm-\(id)")
+            // Each change restarts this task, so the config is written once the clicks settle, not per click.
+            .task(id: pending) {
+                guard let target = pending, target != count else { return }
+                // Cancelled = another click restarted the debounce; the isCancelled check below stops this one.
+                try? await Task.sleep(for: .milliseconds(600))
+                guard !Task.isCancelled else { return }
+                commit(target)
+                pending = nil
+            }
+        }
     }
 }
 

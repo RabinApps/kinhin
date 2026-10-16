@@ -1,0 +1,50 @@
+{
+  "name": "kinhin",
+  "description": "kinhin's menu bar app on its scripted demo fleet, and its CLI. The recorders need a Mac; the committed clips in reference/ let anyone build the video without one.",
+  "captions": {
+    "burn": false
+  },
+  "music": {
+    "track": "first-light-particles"
+  },
+  "clips": {
+    "app": {
+      "kind": "app",
+      "record": "record-app.sh",
+      "recordInVm": "record-app-in-tart.sh"
+    },
+    "install": {
+      "kind": "terminal",
+      "tape": "terminal/install.tape",
+      "hideFromLine": 9
+    },
+    "video-build": {
+      "kind": "terminal",
+      "tape": "terminal/video-build.tape"
+    }
+  },
+  "needs": [
+    {
+      "tool": "swift",
+      "why": "building the demo app",
+      "how": "Xcode 26+"
+    },
+    {
+      "tool": "vhs",
+      "why": "the terminal clips (record-terminal.sh)",
+      "how": "brew install vhs"
+    },
+    {
+      "tool": "tart",
+      "why": "record-app-in-tart.sh",
+      "how": "kinhin setup repair tart",
+      "optional": true
+    },
+    {
+      "tool": "sshpass",
+      "why": "record-app-in-tart.sh password login (or use an ssh key)",
+      "how": "brew install sshpass",
+      "optional": true
+    }
+  ]
+}

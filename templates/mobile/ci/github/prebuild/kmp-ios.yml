@@ -1,0 +1,6 @@
+      - name: Java for the shared Kotlin module
+        # The Xcode build phase runs Gradle to build the shared framework, so Gradle needs a JDK on the runner.
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
+        with:
+          distribution: temurin
+          java-version: "17"

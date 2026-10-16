@@ -1,6 +1,6 @@
 # End-to-end testing
 
-`swift test` runs about 2,900 tests against fakes (`FakeTart`, `FakeSSH`, `FakeGitea`, ...) in a few minutes with no VMs
+`swift test` runs about 3,400 tests against fakes (`FakeTart`, `FakeSSH`, `FakeGitea`, ...) in about a minute and a half with `--parallel` (warm build) and no VMs
 and no network. That keeps the suite fast, but it can only prove kinhin agrees with its own model of a forge or a
 runner. The end-to-end (e2e) suite in `Tests/E2E` checks the model against the real thing: a real forge in a
 container, a real kinhin daemon, a real runner image, and a job that really runs inside a guest.
@@ -21,6 +21,11 @@ container, a real kinhin daemon, a real runner image, and a job that really runs
   `kinhin`.
 
 ## Running it
+
+**Run it in CI.** The script refuses to run outside CI unless `KINHIN_E2E_LOCAL=1` is set, and that is for a local
+test the user asks for, never routine. Start the `e2e.yml` workflow by hand
+(`workflow_dispatch`, choosing the tier) and read its logs. The commands below are what the workflow runs, for
+reference; do not type them locally.
 
 ```bash
 scripts/e2e.sh                # quick: CLI, security and coverage guards. Seconds, no Docker.
@@ -43,21 +48,28 @@ are already set. Narrow the matrix with environment variables:
 | `KINHIN_E2E_HOST=1`                                 | Turn on the host lane (jobs run on this Mac, in the sandbox's work dirs)       |
 | `KINHIN_E2E_GITHUB_TOKEN`, `KINHIN_E2E_GITHUB_REPO` | Turn on the GitHub lane against a **throwaway** repository                     |
 | `KINHIN_E2E_KEEP=1`                                 | Keep the sandbox directories (config, logs) of a failed run                    |
+| `KINHIN_E2E_VIDEO_IMAGE=<image>`                    | Turn on the real-video test of `kinhin video` (a built video image, e.g. `kinhin-video:local`); `KINHIN_E2E_VIDEO_RUNTIME=container\|docker` picks the runtime |
 | `KINHIN_E2E_GITEA_IMAGE`, `_FORGEJO_IMAGE`, `_GITLAB_IMAGE` | Override the pinned forge images                                       |
+| `KINHIN_E2E_AI=1`                                   | Turn on the live healing-advisor lane (macOS 26+ with Apple Intelligence turned on) |
 
 A run that is killed (a closed terminal, a `pkill` from another session, a sleeping Mac) can leave a daemon, forge
 containers and `/tmp/ke2e-*` sandboxes behind. `scripts/e2e.sh` sweeps those before it starts and again when it exits,
 and `scripts/e2e-sweep.sh` does the same on its own. It only touches things the suite created (sandboxes named `ke2e-*`,
-containers named `ke2e-*` or built from a `ke2e-*` image, and daemons recorded in a sandbox's `daemon.pid`), and does
+containers named `ke2e-*` or `ke2ed-*`, or built from a `ke2e-*` image, and daemons recorded in a sandbox's `daemon.pid`), and does
 nothing while another run is active.
 
 ### What the machine needs
 
 - Apple Silicon, with **Docker** (Docker Desktop, OrbStack or Colima), and/or the `container` CLI, and/or Tart.
   Lanes whose runtime is missing are skipped.
-- **No other kinhin fleet running.** kinhin adopts every `kinhin-*` container or VM its runtimes list, whoever made it,
-  so a lane started next to a real fleet could adopt (and delete) its instances. `Lane.start` refuses to run while any
-  `kinhin-*` instance exists and names them; stop the other fleet, or remove a killed run's leftovers, first.
+- **A real fleet can keep running for Docker, Apple container and host lanes.** The suite's daemon mints and adopts only
+  `ke2ed-*` instances (`KINHIN_INSTANCE_PREFIX`, a debug-build switch), so a fleet's `kinhin-*` containers are never
+  touched. The fleet and the suite still share the Mac's CPU, memory and disk. kinhin sizes each daemon from host totals
+  and does not see the other one, so before an e2e run raise the fleet's `reserve` (cpu, memory) by the suite's share,
+  and lower it afterward.
+- **Tart lanes need the fleet's macOS and Linux VMs stopped.** Apple caps macOS VMs at two per Mac, and `Lane.start`
+  refuses a Tart lane while any `kinhin-*` VM exists. Leftovers of an earlier run (`ke2ed-*`) also block a lane, and
+  `scripts/e2e-sweep.sh` removes them.
 - Plenty of free disk (the Docker VM filled up once during this work and silently broke pulls and container starts). Forge images, runner images and the Docker VM's own disk add up; a full Docker VM makes pulls
   fail with `no space left on device`.
 - A LAN address. Containers cannot reach the host's `localhost`, so the suite addresses its forges by the Mac's
@@ -65,7 +77,8 @@ nothing while another run is active.
 - It cannot run in `kinhin-xcode` CI: that runner is itself a Tart VM, and Apple Silicon does not nest VMs. See
   [`.github/workflows/e2e.yml`](../.github/workflows/e2e.yml): run by hand (`workflow_dispatch`) on a dedicated Mac
   labelled `kinhin-e2e`, never on pull requests. The nightly and weekly schedules are switched on once that Mac exists
-  (beta-2); until then the T2 and T3 cadences below are the target, and the tiers run locally with `scripts/e2e.sh`.
+  (beta-2); until then the T2 and T3 cadences below are the target. Until that Mac is registered the workflow has no runner and
+the tiers cannot run at all: do not run them locally instead.
 
 ## The tiers
 
@@ -104,8 +117,31 @@ shows the daemon's history with no token, and `requeue`/`skip` are refused clear
 Routing precedence with two pools (Docker default, Apple container by repo route): a repo route beats the default on
 Gitea and Forgejo; the workflow route is pinned as a known issue.
 
+**`VideoTests`** (quick tier, hermetic): `kinhin video init | list | build | music search | add | list` through the real binary against a local
+stand-in for the music library (`MusicLibraryStub`, a small Python server; a debug `kinhin` is pointed at it with
+`KINHIN_OPENVERSE_URL`, which release builds never read). It checks that search honors the license and length filters and lists
+built-in tracks first; that `add` downloads the file with the right SHA-256, writes the provenance `.json`, and sets `music:` in the
+video's YAML while keeping its comments; that a non-reusable license is refused (exit 2) before anything is saved and CC BY needs
+`--license cc-by` and brings its credit; that several videos need `--video` and only that one is edited; that a JSON config is
+not rewritten; that `theme new` writes a starter that extends a built-in theme and the video suite accepts it; and that a rate-limited or unreachable library is exit 4 with the built-in tracks still shown. One test builds a
+real video in a container from a track added with `music add` and checks `music.json` and the finished mix's loudness; it runs
+when `KINHIN_E2E_VIDEO_IMAGE` is set (it is skipped otherwise).
+
+**`HealingTests`** (Gitea on Docker; the healing agent on second-scale cadences with `KINHIN_HEALING_TIMINGS=fast`, a
+debug-build switch): a reserve no Mac can meet makes the agent prune a planted stale cache entry on its own, then queue an
+image prune for approval; `heal` exits 1 and `status` carries the `healing` alert until `heal dismiss` closes it, and a
+dismissed fix is not raised again. `healing.auto: none` turns the cache prune into an approval that `heal approve` runs;
+`healing.enabled: false` journals nothing while jobs still run. A broken image (runners failing on a healthy runtime,
+which no rule covers) is surfaced with no advisor; with a fixed advisor (`KINHIN_HEALING_ADVISOR=stub:…`, debug only) a
+pick outside the allowlist is ignored and a destructive pick only waits for approval. On the Tart Linux lane a warm VM
+deleted out of band is recycled on its own and the next job still runs. With `KINHIN_E2E_AI=1` the real on-device model
+answers from the daemon with an allowed fix or none. Every scenario checks that the daemon survived, the token never
+reached the log and the journal is owner-only. **`HealingCLITests`** (quick tier): `heal` with no daemon (exit 1, a
+stable document), `approve`/`dismiss` argument and daemon errors, `healing:` validation (exit 3) and export, and the MCP
+`heal_status` tool with no approving tool beside it.
+
 **`CLITests`**: version and exit codes (usage 2, config 3), `--json` errors, `config init` on a pristine machine,
-`config migrate`, the account lifecycle, `doctor` (and a support bundle with no token in it), runtimes and routes,
+`config migrate`, `config export` and `import`, the account lifecycle, `doctor` (and a support bundle with no token in it), runtimes and routes,
 read-only inventory commands, toolchain detection, `workflow test` and `workflow route`, `reset`, and an MCP
 handshake over stdio.
 
@@ -173,4 +209,8 @@ What has actually been run, so the table does not claim more than it checked (20
 | Toolchains: per-job `kinhin-toolchain install`            | Run, passing on Docker, Apple container, Tart Linux, Tart macOS            |
 | GitHub                                                    | Fixture written, **not run**: needs a throwaway repository and a token     |
 | Buildkite, Azure DevOps, Bitbucket                        | Planned forges, not supported yet; the fixture protocol is ready for them  |
+| Healing (quick tier: `HealingCLITests`)                   | Run, passing (2026-10-14)                                                  |
+| Healing on Gitea × Docker (`HealingTests`, 6 scenarios)   | Run, passing (2026-10-14)                                                  |
+| Healing, live on-device advisor (`KINHIN_E2E_AI=1`)       | Run, passing on macOS 27 with Apple Intelligence (2026-10-14)              |
+| Healing on Tart Linux (warm VM deleted out of band)       | Written, **not run**: needs the Tart Linux lane                            |
 | App UI, App Intents, upgrade/migration                    | **Not started** (out of scope of this pass)                                |

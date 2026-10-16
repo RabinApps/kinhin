@@ -36,6 +36,7 @@ enum ConfigCommands {
             return
         }
         let backup = configURL.appendingPathExtension("bak")
+        // No earlier backup is the usual case; one that cannot go makes copyItem throw below.
         try? FileManager.default.removeItem(at: backup)
         try FileManager.default.copyItem(at: configURL, to: backup)
         try migration.yaml.write(to: configURL, atomically: true, encoding: .utf8)

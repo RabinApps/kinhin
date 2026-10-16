@@ -1,0 +1,24 @@
+# Screenshot settings for `fastlane snapshot` (iOS). Reference: https://docs.fastlane.tools/actions/snapshot/
+# Each value can be overridden from the environment, so CI can change them without editing this file.
+
+# The scheme that runs your UI test target. The UI tests live in ios/UITests (see docs/mobile-screenshots.md).
+# An empty variable (an unset repository variable arrives as "") means "not set", not an empty name.
+scheme([ENV["SNAPSHOT_SCHEME"], ENV["IOS_SCHEME"]].map { |v| v.to_s.strip }.find { |v| !v.empty? })
+
+# Simulators to capture on. Use the names `xcrun simctl list devices available` prints.
+# Without a device list snapshot uses a generic destination, and Xcode may boot several simulators, which is slow.
+devices(ENV["SNAPSHOT_DEVICES"].to_s.split(",").map(&:strip).reject(&:empty?).then { |list| list.empty? ? ["iPhone 17e"] : list })
+
+# Languages to capture. Each one gets its own folder under output_directory.
+languages(ENV["SNAPSHOT_LANGUAGES"].to_s.split(",").map(&:strip).reject(&:empty?).then { |list| list.empty? ? ["en-US"] : list })
+
+# Where screenshots are written. The screenshots lane uploads from here.
+output_directory("./fastlane/screenshots")
+
+# Remove earlier screenshots first, so a screen you deleted does not stay in the upload.
+clear_previous_screenshots(true)
+
+# Stop after the first device fails, instead of running the rest.
+stop_after_first_error(false)
+# Xcode project or workspace, when it is not at the default place (Capacitor keeps its project in ios/App).
+project(ENV["IOS_PROJECT"]) unless ENV["IOS_PROJECT"].to_s.strip.empty?

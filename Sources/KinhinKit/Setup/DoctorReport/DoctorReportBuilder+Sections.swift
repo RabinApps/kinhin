@@ -43,6 +43,7 @@ extension DoctorReportBuilder {
             // No selection: report every populated top-level directory. An
             // unreadable cache root simply reports as empty ("no cache yet").
             let children =
+                // An unreadable cache root reports as empty, as the comment above says.
                 (try? fm.contentsOfDirectory(
                     at: root, includingPropertiesForKeys: [.isDirectoryKey, .totalFileAllocatedSizeKey])) ?? []
             for child in children.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {

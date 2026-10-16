@@ -29,8 +29,8 @@ export default defineConfig({
   base,
   title: "Kinhin",
   description:
-    "The mindful CI — autoscaling CI runners that live on your Mac. " +
-    "macOS jobs on Tart VMs, Linux jobs on apple/container microVMs or Docker.",
+    "Your Mac is your CI and your repo is your video studio. Autoscaling ephemeral runners for GitHub, GitLab, " +
+    "Gitea and Forgejo, plus narrated launch videos built from a config.",
   sitemap: { hostname: `${siteURL}${base}` },
   head: [
     ["link", { rel: "icon", type: "image/svg+xml", href: `${base}favicon.svg` }],
@@ -46,11 +46,14 @@ export default defineConfig({
   srcDir: "..",
   srcExclude: [
     "*.md",
-    "{Sources,Tests,Plugins,scripts,dist,shots,assets}/**",
+    "{Sources,Tests,Plugins,scripts,dist,shots,assets,video}/**",
     "**/node_modules/**",
     "docs/plans/**",
+    // Draft of the next post: not published until its checklist passes (docs/plans/beta-2-launch-checklist.md).
+    "website/blog/beta-2.md",
     "docs/{app,adding-a-forge}.md",
     "skills/**",
+    "examples/**",
   ],
   rewrites: {
     "website/index.md": "index.md",
@@ -148,8 +151,20 @@ export default defineConfig({
           { text: "How scaling works", link: "/guide/scaling" },
           { text: "Toolchains & shared cache", link: "/guide/toolchains" },
           { text: "Requeue and skip queued jobs", link: "/guide/requeue-skip" },
+          { text: "The healing agent", link: "/guide/healing" },
           { text: "Test workflows locally", link: "/guide/workflow-testing" },
           { text: "Benchmarks", link: "/guide/benchmarks" },
+        ],
+      },
+      {
+        text: "Mobile releases",
+        collapsed: false,
+        items: [
+          { text: "Tutorial: first build", link: "/guide/mobile-fastlane-tutorial" },
+          { text: "Reference", link: "/guide/mobile-fastlane" },
+          { text: "Credentials", link: "/guide/mobile-credentials" },
+          { text: "Store screenshots", link: "/guide/mobile-screenshots" },
+          { text: "Troubleshooting", link: "/guide/mobile-fastlane-troubleshooting" },
         ],
       },
       {
@@ -164,6 +179,18 @@ export default defineConfig({
         items: [
           { text: "Security", link: "/guide/security" },
           { text: "Open-source projects", link: "/guide/open-source" },
+        ],
+      },
+      {
+        text: "Product videos",
+        collapsed: true,
+        items: [
+          { text: "Add videos to your project", link: "/guide/videos-for-your-project" },
+          { text: "Video config reference", link: "/guide/video-config" },
+          { text: "Recordings of your product", link: "/guide/video-adapters" },
+          { text: "Video troubleshooting", link: "/guide/video-troubleshooting" },
+          { text: "Video gallery", link: "/guide/video-gallery" },
+          { text: "Marketing video in CI", link: "/guide/ci-video" },
         ],
       },
       {
@@ -202,6 +229,7 @@ export default defineConfig({
         items: [
           { text: "Contributing", link: "/guide/contributing" },
           { text: "End-to-end testing", link: "/guide/e2e-testing" },
+          { text: "Making kinhin's demo video", link: "/guide/making-a-video" },
           { text: "Debugging races (TSan)", link: "/guide/debugging-races" },
           { text: "Cutting a release", link: "/guide/releasing" },
         ],

@@ -1,0 +1,110 @@
+name: CodeQL
+
+# Advanced setup for code scanning, so each language can be skipped when a push or pull request changes none of its files.
+# Default setup (Settings → Code security) cannot filter by path and would otherwise keep analyzing every language; turn it
+# off before this workflow runs, or its uploads are rejected.
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+  schedule:
+    - cron: "30 6 * * 1" # weekly: every language, whatever changed
+  workflow_dispatch:
+
+concurrency:
+  group: codeql-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    name: Find changed languages
+    runs-on: ubuntu-latest
+    outputs:
+      any: ${{ steps.detect.outputs.any }}
+      matrix: ${{ steps.detect.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # the diff needs the base commit, or the push's previous commit
+
+      - name: Detect changed languages
+        id: detect
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          # The shared kinhin-xcode Mac never runs code from fork PRs (see ci.yml), so those use hosted macOS.
+          SWIFT_RUNNER: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'macos-latest' || 'kinhin-xcode' }}
+        run: |
+          # Scheduled and manual runs analyze everything. So does any diff git cannot compute (a new branch's
+          # `before` is all zeros, a force push may have dropped it), so a missed change never skips a language.
+          all=true
+          changed=""
+          if [[ "$EVENT_NAME" == pull_request ]]; then
+            diff_args=("$PR_BASE...HEAD")
+          elif [[ "$EVENT_NAME" == push ]]; then
+            diff_args=("$PUSH_BEFORE" "$GITHUB_SHA")
+          else
+            diff_args=()
+          fi
+          if [[ ${#diff_args[@]} -gt 0 ]] && changed=$(git diff --name-only "${diff_args[@]}"); then
+            all=false
+          fi
+          # Editing this workflow re-checks every language.
+          if grep -qx '.github/workflows/codeql.yml' <<<"$changed"; then
+            all=true
+          fi
+
+          include=()
+          # $1 language, $2 pattern for the files CodeQL extracts, $3 runner, $4 build mode
+          add() {
+            if [[ $all == true ]] || grep -Eq "$2" <<<"$changed"; then
+              include+=("{\"language\":\"$1\",\"os\":\"$3\",\"build-mode\":\"$4\"}")
+            fi
+          }
+          add actions '^\.github/workflows/' ubuntu-latest none
+          add javascript-typescript '\.(js|jsx|mjs|cjs|ts|tsx|mts|cts|vue)$' ubuntu-latest none
+          add python '\.py$' ubuntu-latest none
+          add ruby '(\.rb|(^|/)(Gemfile|Rakefile))$' ubuntu-latest none
+          # none analyzes Java only; Kotlin needs a build, which none does not run.
+          add java-kotlin '\.(java|kt|kts)$' ubuntu-latest none
+          # Swift needs macOS, and its build mode is autobuild (none is not supported for Swift).
+          add swift '\.swift$' "$SWIFT_RUNNER" autobuild
+
+          matrix="{\"include\":[$(IFS=,; echo "${include[*]}")]}"
+          if [[ ${#include[@]} -gt 0 ]]; then any=true; else any=false; fi
+          echo "CodeQL matrix: $matrix"
+          {
+            echo "any=$any"
+            echo "matrix=$matrix"
+          } >> "$GITHUB_OUTPUT"
+
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    needs: changes
+    if: needs.changes.outputs.any == 'true'
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.changes.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
+        with:
+          # The category default setup uses, so alerts keep their history after the switch.
+          category: "/language:${{ matrix.language }}"

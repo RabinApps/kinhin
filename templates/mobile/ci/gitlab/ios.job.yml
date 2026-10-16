@@ -1,0 +1,14 @@
+
+mobile-release-ios:
+  # kinhin-xcode is the Xcode image label. Change it if your pool uses another name.
+  tags: [kinhin-xcode]
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "web"
+  script:
+    - bash __SCRIPT__ ios "$MOBILE_LANE"
+  # Screenshots are written inside the VM, which is deleted when the job ends. Keep them, even when the lane fails.
+  artifacts:
+    when: always
+    expire_in: 14 days
+    paths:
+      - __IOS_SCREENSHOTS__

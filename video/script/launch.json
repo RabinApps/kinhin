@@ -1,0 +1,257 @@
+{
+  "voice": {
+    "engine": "kokoro",
+    "name": "af_heart",
+    "speed": 1
+  },
+  "pronounce": {
+    "kinhin": "kin-hin"
+  },
+  "lead": 0.5,
+  "gap": 0.3,
+  "tail": 0.8,
+  "scenes": [
+    {
+      "id": "intro",
+      "type": "title",
+      "props": {
+        "title": "Your Mac is your CI.",
+        "subtitle": "kinhin",
+        "mark": "ring"
+      },
+      "minLength": 5.4,
+      "lead": 1.0,
+      "narration": "Meet kinhin. Your Mac is your CI."
+    },
+    {
+      "id": "problem",
+      "type": "queue",
+      "props": {
+        "runner": "1 runner",
+        "count": 7,
+        "caption": "Your jobs wait in line.",
+        "caption2": "By default, one job at a time."
+      },
+      "minLength": 6,
+      "cues": [
+        {
+          "text": "A runner is the machine that runs your CI jobs."
+        },
+        {
+          "text": "By default, a self-hosted runner only runs one job at a time."
+        },
+        {
+          "text": "Each job leaves things behind."
+        }
+      ]
+    },
+    {
+      "id": "solution",
+      "type": "statement",
+      "props": {
+        "text": "kinhin scales the fleet to your queue.",
+        "sub": "One engine for every forge."
+      },
+      "minLength": 4.6,
+      "cues": [
+        {
+          "text": "kinhin fixes that."
+        },
+        {
+          "text": "It scales a fleet of runners to your queue, for every forge."
+        }
+      ]
+    },
+    {
+      "id": "fresh",
+      "type": "parallel",
+      "props": {
+        "items": [
+          "acme/api",
+          "acme/web",
+          "lab/infra"
+        ],
+        "card": "fresh VM",
+        "caption": "A fresh VM for every job.",
+        "done": "Deleted when the job is done."
+      },
+      "minLength": 4.6,
+      "narration": "Each job gets a fresh VM or container, deleted when the job is done. Nothing carries over."
+    },
+    {
+      "id": "app",
+      "type": "device",
+      "props": {
+        "clip": "app",
+        "frame": "macbook",
+        "speed": 2.1
+      },
+      "minLength": 19,
+      "cues": [
+        {
+          "at": 0.5,
+          "text": "This is the Fleet tab: jobs, VMs and the cap."
+        },
+        {
+          "at": 6.0,
+          "text": "Each job runs in its own instance."
+        },
+        {
+          "at": 12.4,
+          "text": "When one fails, the next job still gets a new one."
+        }
+      ]
+    },
+    {
+      "id": "forges",
+      "type": "map",
+      "props": {
+        "left": [
+          "GitHub",
+          "GitLab",
+          "Gitea",
+          "Forgejo"
+        ],
+        "logos": [
+          "github",
+          "gitlab",
+          "gitea",
+          "forgejo"
+        ],
+        "right": [
+          "Tart macOS & Linux VMs",
+          "apple/container",
+          "Docker"
+        ],
+        "caption": "Four forges. Three runtimes. One fleet.",
+        "note": "Routed per repo, workflow or runs-on label.",
+        "soon": {
+          "logos": [
+            "buildkite",
+            "azuredevops",
+            "bitbucket"
+          ],
+          "caption": "Coming soon: Buildkite, Azure DevOps and Bitbucket."
+        }
+      },
+      "minLength": 6,
+      "cues": [
+        {
+          "text": "A forge is where your code and CI live."
+        },
+        {
+          "text": "kinhin works with GitHub, GitLab, Gitea and Forgejo."
+        },
+        {
+          "text": "Buildkite, Azure DevOps and Bitbucket are coming soon."
+        }
+      ]
+    },
+    {
+      "id": "limit",
+      "type": "statement",
+      "props": {
+        "text": "Two macOS jobs per Mac, Apple's limit.",
+        "sub": "Linux jobs can run more."
+      },
+      "minLength": 6,
+      "narration": "Apple allows two macOS virtual machines per Mac at a time, so two macOS jobs run at once."
+    },
+    {
+      "id": "config",
+      "type": "code",
+      "props": {
+        "label": "config.yaml",
+        "lines": [
+          "accounts:",
+          "  - name: github",
+          "    forge: github",
+          "    scope: acme/api",
+          "max_runners: 2",
+          "runners_per_vm: 1"
+        ],
+        "caption": "max_runners: VMs at once. runners_per_vm: jobs per VM."
+      },
+      "minLength": 9,
+      "narration": "In one config file, max_runners is how many VMs run at once, and runners_per_vm is how many jobs share one VM."
+    },
+    {
+      "id": "trust",
+      "type": "statement",
+      "props": {
+        "text": "Runs on Apple silicon, macOS 15 or later.",
+        "sub": "Free and open source, Apache-2.0. No telemetry."
+      },
+      "minLength": 4.6,
+      "narration": "Apple silicon, macOS 15 or later. Free, open source, and no telemetry."
+    },
+    {
+      "id": "bonus",
+      "type": "statement",
+      "props": {
+        "text": "Your repo can make its launch video too.",
+        "sub": "kinhin video build"
+      },
+      "minLength": 4.4,
+      "narration": "Your repo can make its launch video too."
+    },
+    {
+      "id": "build",
+      "type": "terminal",
+      "props": {
+        "clip": "video-build",
+        "frame": "window"
+      },
+      "minLength": 11,
+      "cues": [
+        {
+          "at": 0.5,
+          "text": "One command builds it, in a container on your Mac."
+        },
+        {
+          "at": 6.0,
+          "text": "The voice, the music and the checks are all included."
+        }
+      ]
+    },
+    {
+      "id": "reveal",
+      "type": "statement",
+      "props": {
+        "text": "This video was built that way.",
+        "sub": "kinhin video build launch"
+      },
+      "minLength": 4.4,
+      "narration": "This video was built exactly that way."
+    },
+    {
+      "id": "outro",
+      "type": "outro",
+      "props": {
+        "line": "Your jobs stop waiting in line.",
+        "url": "kinhin.dev",
+        "facts": [
+          "Free",
+          "Apache-2.0",
+          "No telemetry",
+          "In beta"
+        ]
+      },
+      "minLength": 5,
+      "cues": [
+        {
+          "text": "Your jobs stop waiting in line."
+        },
+        {
+          "text": "kinhin.dev. Free, open source, in beta.",
+          "say": "kinhin dot dev. Free, open source, in beta."
+        }
+      ]
+    }
+  ],
+  "name": "kinhin launch video",
+  "adapter": "kinhin",
+  "theme": "paper",
+  "format": "16:9",
+  "overrides": {}
+}

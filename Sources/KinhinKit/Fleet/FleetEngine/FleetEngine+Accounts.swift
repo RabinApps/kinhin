@@ -29,8 +29,8 @@ extension FleetEngine {
         for cache in caches { cache.invalidate() }
     }
 
-    /// The scale-set listeners attached to running accounts.
-    func scaleSetListeners() -> [String: [GitHubScaleSetListener]] {
+    /// The listeners (GitHub scale-set sessions) attached to running accounts.
+    func scaleSetListeners() -> [String: [any ForgeListener]] {
         forgeState.withLock { state in state.scaleSetListeners }
     }
 
@@ -52,6 +52,9 @@ extension FleetEngine {
     /// Build and register the forge for one account.
     @discardableResult
     func attach(account: AccountConfig, token: String, verify: Bool) async -> Bool {
+        // A token swapped in over the daemon socket never passed through the
+        // Keychain loader that registers it; mask it from here on either way.
+        LogRedactor.registerSecret(token)
         if account.allowInsecureHTTP == true, account.sendsTokenOverPlainHTTP, let instance = account.instance {
             Log.warn(
                 "engine",
@@ -68,8 +71,8 @@ extension FleetEngine {
                         await self.makeScaleSetTargets(
                             account: account, token: token, client: client, scaleSet: scaleSet)
                     }))
-            let currentListeners = (forge as? GitHubScaleSetForge)?.targets.map(\.listener) ?? []
-            let previousListeners = forgeState.withLock { state -> [GitHubScaleSetListener] in
+            let currentListeners = (forge as? any ForgeWithListeners)?.listeners ?? []
+            let previousListeners = forgeState.withLock { state -> [any ForgeListener] in
                 let previous = state.scaleSetListeners[account.name] ?? []
                 state.byPlatform[account.name] = forge
                 state.scaleSetListeners[account.name] = currentListeners.isEmpty ? nil : currentListeners
@@ -189,7 +192,7 @@ extension FleetEngine {
         let scaleSetClient = GitHubScaleSetClient(
             credentials: credentials,
             adminJwtProvider: { [weak self] in
-                guard let self else { throw ScaleSetError.adminTokenFailure(reason: "the engine was replaced") }
+                guard let self else { throw GitHubError.scaleSetAdminTokenFailure(reason: "the engine was replaced") }
                 return try await self.adminJwtForAttach(account: account, token: token, client: client)
             },
             actionsServiceURL: { [weak self] in
@@ -198,7 +201,7 @@ extension FleetEngine {
         return GitHubScaleSetListener(
             client: scaleSetClient,
             scaleSetIdSupplier: { [weak self] in
-                guard let self else { throw ScaleSetError.scaleSetIdFailure(reason: "the engine was replaced") }
+                guard let self else { throw GitHubError.scaleSetIdFailure(reason: "the engine was replaced") }
                 return try await self.scaleSetIdForAttach(
                     account: account, token: token, githubClient: client, scaleSet: scaleSet, setName: setName)
             },
@@ -249,7 +252,7 @@ extension FleetEngine {
         } catch is CancellationError {
             throw CancellationError()
         } catch {
-            throw ScaleSetError.adminTokenFailure(reason: error.localizedDescription)
+            throw GitHubError.scaleSetAdminTokenFailure(reason: error.localizedDescription)
         }
     }
 
@@ -285,40 +288,30 @@ extension FleetEngine {
         } catch is CancellationError {
             throw CancellationError()
         } catch {
-            throw ScaleSetError.scaleSetIdFailure(reason: error.localizedDescription)
+            throw GitHubError.scaleSetIdFailure(reason: error.localizedDescription)
         }
     }
 
-    // MARK: - Lifecycle hooks for scale-set forges
+    // MARK: - Lifecycle hooks for listener forges
 
-    /// Start any scale-set listeners that were attached with their forge.
-    /// Classic forges have no listener to start.
+    /// Start the listeners attached with their forge (scale-set accounts).
+    /// Polled forges have no listener to start.
     func startAttachedListeners() async {
         let forges = forgeState.withLock { Array($0.byPlatform.values) }
-        for forge in forges {
-            if let scaleSetForge = forge as? GitHubScaleSetForge {
-                for target in scaleSetForge.targets { await target.listener.start() }
-            }
-        }
+        for case let forge as any ForgeWithListeners in forges { await forge.startListeners() }
     }
 
-    /// Stop any scale-set listeners that were attached with their forge.
+    /// Stop the listeners attached with their forge.
     func stopAttachedListeners() async {
         let forges = forgeState.withLock { Array($0.byPlatform.values) }
-        for forge in forges {
-            if let scaleSetForge = forge as? GitHubScaleSetForge {
-                for target in scaleSetForge.targets { await target.listener.stop() }
-            }
-        }
+        for case let forge as any ForgeWithListeners in forges { await forge.stopListeners() }
     }
 
-    /// True when any attached GitHub forge is org-scoped (an org fleet
-    /// reports a per-repo breakdown; single-repo scopes suppress it).
-    var githubOrgScoped: Bool {
-        forgeState.withLock { state in
-            state.byPlatform.values.contains { forge in
-                forge.credentials.forge == .github && !forge.credentials.scope.contains("/")
-            }
-        }
+    /// True when any attached forge attributes jobs per repository (an org,
+    /// group or workspace scope reports a per-repo breakdown of running jobs;
+    /// single-repo scopes suppress it), the same per-forge rule queued demand
+    /// is attributed by.
+    var attributesRunningByRepo: Bool {
+        forgeState.withLock { state in state.byPlatform.values.contains { $0.attributesByRepo } }
     }
 }

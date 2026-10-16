@@ -34,7 +34,7 @@ extension ConfigLoader {
                     "\(position).name '\(name)' is not valid. Use letters, numbers, '.', '_' or '-', starting with a letter or number"
                 )
             }
-            guard !name.hasPrefix("kinhin-"), !name.hasPrefix("orchard-") else {
+            guard !InstanceNaming.isOurs(name) else {
                 throw ConfigError.invalid(
                     "\(position).name '\(name)' must not start with 'kinhin-' or 'orchard-': those names are reserved for runner VMs"
                 )
@@ -61,7 +61,9 @@ extension ConfigLoader {
                         "\(position).labels duplicate another image's labels, so jobs could not tell them apart")
                 }
             }
-            result.append(.init(name: name, baseImage: entry.baseImage, labels: entry.labels))
+            let warm = entry.warmPool ?? 0
+            if warm < 0 { throw ConfigError.invalid("\(position).warm_pool must be >= 0") }
+            result.append(.init(name: name, baseImage: entry.baseImage, labels: entry.labels, warmPool: warm))
         }
         return result
     }

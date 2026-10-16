@@ -87,7 +87,7 @@ final class ResetEverythingTests: XCTestCase {
     func testConfigScopePlansFilesTokensAndNotTheDaemon() async throws {
         try populateSupportDirectory()
         try saveTokens()
-        let plan = await ResetEverything.plan(
+        let plan = try await ResetEverything.plan(
             scope: .config, configURL: configURL, supportRoot: supportRoot,
             isDaemonAlive: { true })
         XCTAssertEqual(plan.scope, .config)
@@ -101,19 +101,19 @@ final class ResetEverythingTests: XCTestCase {
 
     func testMissingConfigIsNotBrokenButUnreadableOneIs() async throws {
         try FileManager.default.removeItem(at: configURL)
-        let missing = await ResetEverything.plan(
+        let missing = try await ResetEverything.plan(
             scope: .config, configURL: configURL, supportRoot: supportRoot)
         XCTAssertFalse(missing.configBroken, "no config yet is the normal first-run state")
         XCTAssertFalse(missing.configFiles.contains(configURL))
 
         try "accounts: [oops".write(to: configURL, atomically: true, encoding: .utf8)
-        let broken = await ResetEverything.plan(
+        let broken = try await ResetEverything.plan(
             scope: .config, configURL: configURL, supportRoot: supportRoot)
         XCTAssertTrue(broken.configBroken, "bad YAML is flagged so the plan can say image names are guesses")
     }
 
     func testDaemonScopePlansStopAndUninstallOnly() async throws {
-        let plan = await ResetEverything.plan(
+        let plan = try await ResetEverything.plan(
             scope: .daemon, configURL: configURL, supportRoot: supportRoot,
             isDaemonAlive: { true })
         XCTAssertTrue(plan.daemonAlive)
@@ -126,7 +126,7 @@ final class ResetEverythingTests: XCTestCase {
         try populateSupportDirectory()
         try saveTokens()
         let tart = makeTart()
-        let plan = await ResetEverything.plan(
+        let plan = try await ResetEverything.plan(
             scope: .all, configURL: configURL, supportRoot: supportRoot,
             isDaemonAlive: { false }, tart: tart)
         let cleanup = try XCTUnwrap(plan.cleanup)
@@ -141,7 +141,7 @@ final class ResetEverythingTests: XCTestCase {
     func testPlanDescribeListsExactlyWhatExecutionRemoves() async throws {
         try populateSupportDirectory()
         try saveTokens()
-        let plan = await ResetEverything.plan(
+        let plan = try await ResetEverything.plan(
             scope: .all, configURL: configURL, supportRoot: supportRoot,
             isDaemonAlive: { true }, tart: makeTart())
         let text = plan.describe()
@@ -154,7 +154,7 @@ final class ResetEverythingTests: XCTestCase {
         XCTAssertTrue(text.contains("3 keychain token(s)"), text)
         XCTAssertTrue(text.contains("this cannot be undone"), text)
 
-        let configPlan = await ResetEverything.plan(
+        let configPlan = try await ResetEverything.plan(
             scope: .config, configURL: configURL, supportRoot: supportRoot, isDaemonAlive: { true })
         let configText = configPlan.describe()
         XCTAssertTrue(configText.contains("Config & credentials"), configText)
@@ -169,9 +169,9 @@ final class ResetEverythingTests: XCTestCase {
     private func executeHermetically(
         _ plan: ResetPlan, tart: (any TartControlling)? = nil,
         uninstallCalls: inout Int, stopCalls: inout Int
-    ) async throws -> [String] {
-        let uninstall = Mutex(0)
-        let stop = Mutex(0)
+    ) async throws -> ResetReport {
+        let uninstall = Locked(0)
+        let stop = Locked(0)
         let report = try await ResetEverything.execute(
             plan, tart: tart, shell: FakeShell(),
             stopFleet: { stop.withLock { $0 += 1 } },
@@ -186,7 +186,7 @@ final class ResetEverythingTests: XCTestCase {
         try populateSupportDirectory()
         try saveTokens()
         try Data("keep".utf8).write(to: supportRoot.appendingPathComponent("foreign.txt"))
-        let plan = await ResetEverything.plan(
+        let plan = try await ResetEverything.plan(
             scope: .config, configURL: configURL, supportRoot: supportRoot, isDaemonAlive: { true })
         var uninstallCalls = 0, stopCalls = 0
         let report = try await executeHermetically(plan, uninstallCalls: &uninstallCalls, stopCalls: &stopCalls)
@@ -204,14 +204,16 @@ final class ResetEverythingTests: XCTestCase {
         XCTAssertTrue(try KeychainTokenStore.load(forge: .github) == nil)
         XCTAssertTrue(try KeychainTokenStore.load(forge: .gitea) == nil)
         XCTAssertTrue(try KeychainTokenStore.load(forge: .github, name: "work") == nil)
-        XCTAssertTrue(report.contains("removed config, logs and state"), report.joined(separator: "\n"))
-        XCTAssertTrue(report.contains("removed 3 keychain token(s)"), report.joined(separator: "\n"))
+        XCTAssertTrue(
+            report.completed.contains("removed config, logs and state"), report.completed.joined(separator: "\n"))
+        XCTAssertTrue(
+            report.completed.contains("removed 3 keychain token(s)"), report.completed.joined(separator: "\n"))
     }
 
     func testDaemonScopeExecutionOnlyStopsAndUninstalls() async throws {
         try populateSupportDirectory()
         try saveTokens()
-        let plan = await ResetEverything.plan(
+        let plan = try await ResetEverything.plan(
             scope: .daemon, configURL: configURL, supportRoot: supportRoot, isDaemonAlive: { true })
         var uninstallCalls = 0, stopCalls = 0
         let report = try await executeHermetically(plan, uninstallCalls: &uninstallCalls, stopCalls: &stopCalls)
@@ -220,25 +222,26 @@ final class ResetEverythingTests: XCTestCase {
         XCTAssertEqual(uninstallCalls, 1)
         XCTAssertTrue(FileManager.default.fileExists(atPath: configURL.path), "the config stays")
         XCTAssertEqual(try KeychainTokenStore.load(forge: .github), "token-a", "the tokens stay")
-        XCTAssertTrue(report.contains("stopped the fleet"), report.joined(separator: "\n"))
-        XCTAssertTrue(report.contains("removed the daemon LaunchAgent"), report.joined(separator: "\n"))
+        XCTAssertTrue(report.completed.contains("stopped the fleet"), report.completed.joined(separator: "\n"))
+        XCTAssertTrue(
+            report.completed.contains("removed the daemon LaunchAgent"), report.completed.joined(separator: "\n"))
     }
 
     func testDaemonScopeWithoutARunningDaemonSkipsTheStop() async throws {
-        let plan = await ResetEverything.plan(
+        let plan = try await ResetEverything.plan(
             scope: .daemon, configURL: configURL, supportRoot: supportRoot, isDaemonAlive: { false })
         var uninstallCalls = 0, stopCalls = 0
         let report = try await executeHermetically(plan, uninstallCalls: &uninstallCalls, stopCalls: &stopCalls)
         XCTAssertEqual(stopCalls, 0)
         XCTAssertEqual(uninstallCalls, 1)
-        XCTAssertFalse(report.contains("stopped the fleet"))
+        XCTAssertFalse(report.completed.contains("stopped the fleet"))
     }
 
     func testAllScopeExecutionWipesEverythingUnderTheSupportRoot() async throws {
         try populateSupportDirectory()
         try saveTokens()
         let tart = makeTart()
-        let plan = await ResetEverything.plan(
+        let plan = try await ResetEverything.plan(
             scope: .all, configURL: configURL, supportRoot: supportRoot,
             isDaemonAlive: { true }, tart: tart)
         var uninstallCalls = 0, stopCalls = 0
@@ -255,15 +258,17 @@ final class ResetEverythingTests: XCTestCase {
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: supportRoot.path), [])
         XCTAssertTrue(FileManager.default.fileExists(atPath: supportRoot.path))
         XCTAssertTrue(try KeychainTokenStore.load(forge: .github) == nil)
-        XCTAssertTrue(report.contains("removed 2 VM(s) and 2 image(s)"), report.joined(separator: "\n"))
-        XCTAssertTrue(report.contains("emptied \(supportRoot.path)"), report.joined(separator: "\n"))
+        XCTAssertTrue(
+            report.completed.contains("removed 2 VM(s) and 2 image(s)"), report.completed.joined(separator: "\n"))
+        XCTAssertTrue(
+            report.completed.contains("emptied \(supportRoot.path)"), report.completed.joined(separator: "\n"))
     }
 
     func testOneFailedVMDoesNotStrandTheOthers() async throws {
         try populateSupportDirectory()
         let tart = makeTart()
         tart.failNext("delete", stderr: "injected failure")  // kinhin-1 (sorted first) fails once
-        let plan = await ResetEverything.plan(
+        let plan = try await ResetEverything.plan(
             scope: .all, configURL: configURL, supportRoot: supportRoot,
             isDaemonAlive: { false }, tart: tart)
         var uninstallCalls = 0, stopCalls = 0
@@ -273,21 +278,113 @@ final class ResetEverythingTests: XCTestCase {
             "a failed delete must not strand the rest: \(tart.deleteCalls)")
     }
 
-    func testAllScopeWithoutTartWarnsInsteadOfThrowing() async throws {
+    func testAllScopeWithoutTartReportsTheLeftoversInsteadOfThrowing() async throws {
         try populateSupportDirectory()
-        var plan = await ResetEverything.plan(
-            scope: .all, configURL: configURL, supportRoot: supportRoot, isDaemonAlive: { false })
+        var plan = try await ResetEverything.plan(
+            scope: .all, configURL: configURL, supportRoot: supportRoot, isDaemonAlive: { false },
+            tart: FakeTart())
         // A nonexistent tart binary: the controller cannot be built, so the
-        // VM/image steps are skipped with a warning (the same path a machine
-        // without tart takes).
+        // VM/image steps are skipped and reported as left behind.
         plan.tartPath = "/nonexistent/kinhin-test-tart"
         plan.cleanup = CleanupPlan(vms: ["kinhin-1"], images: ["tahoe-base"], cacheBytes: nil)
         var uninstallCalls = 0, stopCalls = 0
         let report = try await executeHermetically(
             plan, tart: nil, uninstallCalls: &uninstallCalls, stopCalls: &stopCalls)
+        XCTAssertFalse(report.isComplete)
         XCTAssertTrue(
-            report.contains(where: { $0.hasPrefix("warning:") }),
-            "a missing tart is reported, not fatal: \(report.joined(separator: "\n"))")
-        XCTAssertTrue(report.contains("removed 1 VM(s) and 1 image(s)"))
+            report.leftBehind.contains(where: {
+                $0.contains("tart is not available") && $0.contains("2 VM(s)/image(s)")
+            }),
+            "a missing tart is reported, not fatal: \(report.leftBehind)")
+        XCTAssertFalse(
+            report.completed.contains(where: { $0.hasPrefix("removed 1 VM") }),
+            "nothing was removed, so nothing is claimed: \(report.completed)")
+    }
+
+    // MARK: - Planning problems
+
+    func testAFailingTartListIsAPlanningProblemAndTheResetIsNotComplete() async throws {
+        try populateSupportDirectory()
+        let tart = makeTart()
+        tart.failList = true
+        let plan = try await ResetEverything.plan(
+            scope: .all, configURL: configURL, supportRoot: supportRoot, isDaemonAlive: { false },
+            tart: tart, keychainAccounts: { [] })
+        XCTAssertEqual(plan.planningProblems.map(\.area), [.tart])
+        let message = try XCTUnwrap(plan.planningProblems.first?.message)
+        XCTAssertTrue(message.contains("could not list Tart VMs"), message)
+        XCTAssertTrue(message.contains("VMs and images were not removed"), message)
+        XCTAssertEqual(plan.cleanup?.vms, [], "an unlisted tart contributes no VMs")
+        XCTAssertEqual(plan.cleanup?.cacheBytes, 4096, "the cache is still counted")
+        XCTAssertTrue(plan.describe().contains("warning: could not list Tart VMs"), "shown before confirming")
+
+        var uninstallCalls = 0, stopCalls = 0
+        let report = try await executeHermetically(
+            plan, tart: tart, uninstallCalls: &uninstallCalls, stopCalls: &stopCalls)
+        XCTAssertFalse(report.isComplete, "a reset that could not see the VMs is not a success")
+        XCTAssertEqual(report.leftBehind.first, message)
+    }
+
+    func testAFailingKeychainReadIsAPlanningProblem() async throws {
+        let plan = try await ResetEverything.plan(
+            scope: .config, configURL: configURL, supportRoot: supportRoot, isDaemonAlive: { false },
+            keychainAccounts: { throw KeychainTokenStore.TokenError.unhandled(errSecInteractionNotAllowed) })
+        XCTAssertEqual(plan.planningProblems.map(\.area), [.keychain])
+        let message = try XCTUnwrap(plan.planningProblems.first?.message)
+        XCTAssertTrue(message.contains("could not read the Keychain"), message)
+        XCTAssertTrue(message.contains("tokens were not listed"), message)
+        XCTAssertTrue(plan.keychainAccounts.isEmpty)
+        XCTAssertTrue(plan.describe().contains("warning: could not read the Keychain"), plan.describe())
+    }
+
+    func testAnExplicitTartPathThatIsMissingIsAPlanningProblem() async throws {
+        try (configBody + "\ntart_path: /nonexistent/kinhin-test-tart\n")
+            .write(to: configURL, atomically: true, encoding: .utf8)
+        let plan = try await ResetEverything.plan(
+            scope: .all, configURL: configURL, supportRoot: supportRoot, isDaemonAlive: { false },
+            keychainAccounts: { [] })
+        XCTAssertEqual(plan.planningProblems.map(\.area), [.tart])
+        XCTAssertTrue(plan.planningProblems[0].message.contains("could not run tart"), plan.planningProblems[0].message)
+    }
+
+    func testTheHappyPathHasNoPlanningProblemsAndCompletes() async throws {
+        try populateSupportDirectory()
+        let tart = makeTart()
+        let plan = try await ResetEverything.plan(
+            scope: .all, configURL: configURL, supportRoot: supportRoot, isDaemonAlive: { false },
+            tart: tart, keychainAccounts: { [] })
+        XCTAssertEqual(plan.planningProblems, [])
+        XCTAssertFalse(plan.describe().contains("warning:"), plan.describe())
+        var uninstallCalls = 0, stopCalls = 0
+        let report = try await executeHermetically(
+            plan, tart: tart, uninstallCalls: &uninstallCalls, stopCalls: &stopCalls)
+        XCTAssertTrue(report.isComplete, "\(report.leftBehind)")
+        XCTAssertTrue(report.completed.contains("removed 2 VM(s) and 2 image(s)"), "\(report.completed)")
+    }
+
+    func testAFailedVMDeleteIsReportedAsLeftBehind() async throws {
+        try populateSupportDirectory()
+        let tart = makeTart()
+        tart.failNext("delete", stderr: "injected failure")
+        let plan = try await ResetEverything.plan(
+            scope: .all, configURL: configURL, supportRoot: supportRoot, isDaemonAlive: { false },
+            tart: tart, keychainAccounts: { [] })
+        var uninstallCalls = 0, stopCalls = 0
+        let report = try await executeHermetically(
+            plan, tart: tart, uninstallCalls: &uninstallCalls, stopCalls: &stopCalls)
+        XCTAssertFalse(report.isComplete)
+        XCTAssertTrue(
+            report.leftBehind.contains(where: { $0.hasPrefix("could not delete VM kinhin-1") }), "\(report.leftBehind)")
+        XCTAssertTrue(report.completed.contains("removed 1 VM(s) and 2 image(s)"), "\(report.completed)")
+    }
+
+    func testAnUnlistableSupportDirectoryIsReportedAsLeftBehind() async throws {
+        var plan = ResetPlan(scope: .all, supportRoot: supportRoot.appendingPathComponent("missing-dir"))
+        plan.cleanup = CleanupPlan()
+        var uninstallCalls = 0, stopCalls = 0
+        let report = try await executeHermetically(plan, uninstallCalls: &uninstallCalls, stopCalls: &stopCalls)
+        XCTAssertTrue(
+            report.leftBehind.contains(where: { $0.contains("nothing in it was removed") }), "\(report.leftBehind)")
+        XCTAssertFalse(report.completed.contains(where: { $0.hasPrefix("emptied") }), "\(report.completed)")
     }
 }

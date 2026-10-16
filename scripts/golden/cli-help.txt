@@ -40,6 +40,8 @@ IMAGES AND TOOLCHAINS:
     toolchains list-images                  Derived per-project images: size and last used
     toolchains prune                        Expire stale cache entries and unused derived images
     toolchains helper                       Print the per-job kinhin-toolchain helper script
+    mobile                                  Set up fastlane store releases for a mobile app
+    mobile init [DIR]                       Add fastlane lanes and the CI release workflow
 
 RUNNING:
     start                                   Start the fleet in this terminal (Ctrl-C to stop)
@@ -55,6 +57,9 @@ RUNNING:
     pipeline [VM]                           Live jobs and steps of the VMs that are busy
     requeue <forge>                         Re-queue the fleet's queued jobs on a forge
     skip <forge>                            Mark the fleet's queued jobs as skipped on a forge
+    heal                                    What the healing agent fixed, and what waits on you
+    heal approve ID                         Carry out a fix that waits for approval
+    heal dismiss ID                         Close a pending or surfaced entry
     cleanup                                 Reclaim disk: leftover VMs, the base image, the cache
     bench [SUITE]…                          Benchmark runtimes, workloads and toolchains here
     reset                                   Reset config, the daemon install, or everything
@@ -64,6 +69,18 @@ WORKFLOWS:
     workflow route <FILE|name> <runtime>    Route a workflow's jobs to a runtime
 
 OTHER:
+    video init [name]                       Create a starter video in .kinhin/videos/
+    video list                              List the videos in .kinhin/videos/
+    video build [name]                      Build a video from its config
+    video validate [name]                   Check a video's config without rendering it
+    video theme list                        List the built-in themes and yours
+    video theme new <name>                  Write a starter theme file
+    video record <app or title>             Record one app window as a clip, without the mouse
+                                            pointer
+    video music search <words>              Search openly licensed music
+    video music preview <number|id>         Listen to a search result
+    video music add <number|id|name>        Download a track into the repository and use it
+    video music list                        Show the music each video uses
     support                                 Show ways to donate or sponsor kinhin
     issue                                   Submit an issue on GitHub
     mcp                                     Serve MCP over stdio for AI agents

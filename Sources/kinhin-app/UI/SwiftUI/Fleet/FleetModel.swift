@@ -14,6 +14,7 @@ final class FleetModel {
     @ObservationIgnored var onShowDiagnostics: () -> Void = {}
     @ObservationIgnored var onShowPipeline: (String) -> Void = { _ in }
     @ObservationIgnored var onShowWorkflowTest: () -> Void = {}
+    @ObservationIgnored var onShowVideos: () -> Void = {}
     /// Opens Advanced → Benchmarks (the Fleet tab's benchmark card).
     @ObservationIgnored var onShowBenchmarks: () -> Void = {}
     /// One line about the last benchmark ("Last run 2 hours ago: …"); nil until a report exists.
@@ -62,6 +63,12 @@ final class FleetModel {
     var attachedForges: [[String: Forge]] {
         controller.engine?.forges.map { [$0.key: $0.value] } ?? []
     }
+
+    #if DEBUG
+        /// The forges a `KINHIN_DEMO` script queues work on; nil outside demo mode. The demo has no live `Forge`
+        /// clients, so the Fleet tab lists these instead of `attachedForges`.
+        var demoForges: [String]? { (controller.service as? DemoFleetServing)?.forgeNames }
+    #endif
 
     init(controller: FleetController) {
         self.controller = controller
@@ -116,11 +123,11 @@ final class FleetModel {
     }
     var records: [VMRecord] { status?.records ?? [] }
 
-    /// The fleet mode (in-process engine / background daemon) and any
-    /// stale-daemon LaunchAgent warning, rendered as a compact footer
-    /// under the Fleet tab's status line with distinct styling.
+    /// Any app-side failure (launch, config push) and any stale-daemon
+    /// LaunchAgent warning, rendered as a compact footer under the Fleet
+    /// tab's status line with distinct styling.
     var fleetStatusFooter: [StatusLine] {
-        var lines: [StatusLine] = []
+        var lines = controller.problemLines.map { StatusLine(text: $0, style: .error) }
         if let stale = controller.staleDaemonPlist {
             lines.append(StatusLine(text: stale, style: .warn))
         }

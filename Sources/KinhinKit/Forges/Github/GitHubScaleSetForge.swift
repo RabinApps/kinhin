@@ -23,7 +23,7 @@ struct ScaleSetTarget: Sendable {
 /// mode. Demand comes from the scale-set message listener(s); everything else
 /// (runners, deletion, pipeline detail/log, project file) is delegated to the
 /// same REST `GitHubClient` path the classic poller uses.
-struct GitHubScaleSetForge: ForgeWithQueuedJobs, ForgeWithJITConfig {
+struct GitHubScaleSetForge: ForgeWithQueuedJobs, ForgeWithJITConfig, ForgeWithListeners {
     let id: ForgeID = .github
     let name = "github"
     let account: String
@@ -37,6 +37,8 @@ struct GitHubScaleSetForge: ForgeWithQueuedJobs, ForgeWithJITConfig {
     let targets: [ScaleSetTarget]
     /// The primary listener (single-set accounts have only this one).
     var listener: GitHubScaleSetListener { targets[0].listener }
+    /// One listener per scale set, started and stopped with the fleet.
+    var listeners: [any ForgeListener] { targets.map(\.listener) }
 
     init(
         account: AccountConfig,
@@ -78,6 +80,21 @@ struct GitHubScaleSetForge: ForgeWithQueuedJobs, ForgeWithJITConfig {
         self.targets = targets
     }
 
+    private init(copying other: GitHubScaleSetForge, labels: [String]) {
+        account = other.account
+        credentials = other.credentials
+        self.labels = labels
+        client = other.client
+        targets = other.targets
+    }
+
+    /// Demand arrives on the listeners, but running attribution filters by the
+    /// fleet's labels (GitHub accounts carry no `labels:` of their own). The
+    /// scale sets and their running listeners are kept as attached.
+    func relabeled(fleetLabels: [String], servedLabels: [String]) -> any Forge {
+        GitHubScaleSetForge(copying: self, labels: fleetLabels)
+    }
+
     // MARK: - Registration URL (delegated to the underlying client path)
 
     func registrationURL() -> String {
@@ -101,8 +118,14 @@ struct GitHubScaleSetForge: ForgeWithQueuedJobs, ForgeWithJITConfig {
     }
 
     func scaleSetStatusMessage() async -> String {
-        let id = (try? await currentScaleSetId()).map { String($0) } ?? "unknown"
-        return "scale-set \(id)"
+        do {
+            return "scale-set \(try await currentScaleSetId())"
+        } catch {
+            // Cosmetic: a status line. The listener's session refresh hits the same failure
+            // and reports it (`reportedError`), so this only notes it for debugging.
+            Log.debug("scaleset", "scale-set id unavailable for the status line: \(error.localizedDescription)")
+            return "scale-set unknown"
+        }
     }
 
     // MARK: - JIT config (per-runner)
@@ -157,6 +180,12 @@ struct GitHubScaleSetForge: ForgeWithQueuedJobs, ForgeWithJITConfig {
             }
         }
         return jobs
+    }
+
+    func runnersReportedFinished(_ names: [String]) async -> Set<String> {
+        var finished: Set<String> = []
+        for target in targets { finished.formUnion(await target.listener.finishedRunners(among: names)) }
+        return finished
     }
 
     func pendingScaleSetError() async -> String? {
@@ -226,10 +255,10 @@ struct GitHubScaleSetForge: ForgeWithQueuedJobs, ForgeWithJITConfig {
     // error path (`AlertKit` in the app, the RPC error for the CLI).
 
     func userRequeueQueuedJobs() async throws {
-        throw GitHubScaleSetError.queueActionUnsupported(action: "Requeueing queued jobs")
+        throw GitHubError.scaleSetQueueActionUnsupported(action: "Requeueing queued jobs")
     }
 
     func userSkipQueuedJobs() async throws {
-        throw GitHubScaleSetError.queueActionUnsupported(action: "Skipping queued jobs")
+        throw GitHubError.scaleSetQueueActionUnsupported(action: "Skipping queued jobs")
     }
 }

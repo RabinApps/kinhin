@@ -14,6 +14,8 @@ final class NamedImagesModel {
         var name: String
         var baseImage: String?
         var labels: [String] = []
+        /// VMs of this image kept booted and unregistered, so its jobs skip the clone and boot; 0 = off.
+        var warmPool: Int = 0
         var present: Bool
         var id: String { name }
     }
@@ -51,6 +53,14 @@ final class NamedImagesModel {
             if let index = images.firstIndex(where: { $0.name == name }) {
                 images[index].labels = labels.isEmpty ? nil : labels
             }
+        }
+    }
+
+    /// Sets how many VMs of this image stay warm. The engine restarts to apply it; running VMs are kept.
+    func setWarmPool(_ count: Int, for name: String) {
+        guard rows.first(where: { $0.name == name })?.warmPool != count else { return }
+        mutate { images in
+            if let index = images.firstIndex(where: { $0.name == name }) { images[index].warmPool = count }
         }
     }
 

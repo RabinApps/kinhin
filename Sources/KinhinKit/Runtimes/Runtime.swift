@@ -130,6 +130,12 @@ public protocol Runtime: Sendable {
     /// is the best a runtime without a finer signal can say.
     func state(id: String) async throws -> InstanceState
 
+    /// The states of several instances from one listing (a sweep over many
+    /// records must not list once per record). Throws when the runtime can't
+    /// be asked, like `state(id:)`. The default answers from one
+    /// `existingInstanceIDs()` (present = running).
+    func states(of ids: [String]) async throws -> [String: InstanceState]
+
     /// The bootstrap script that turns the provisioned instance into N
     /// registered runners. The engine executes it inside the instance.
     /// `token` is the shared registration token; `runnerTokens` holds the
@@ -150,6 +156,11 @@ public protocol Runtime: Sendable {
 extension Runtime {
     func state(id: String) async throws -> InstanceState {
         try await existingInstanceIDs().contains(id) ? .running : .gone
+    }
+
+    public func states(of ids: [String]) async throws -> [String: InstanceState] {
+        let present = Set(try await existingInstanceIDs())
+        return Dictionary(ids.map { ($0, present.contains($0) ? InstanceState.running : .gone) }) { first, _ in first }
     }
 
     /// Shared-token registration (every forge but GitLab).
@@ -175,6 +186,9 @@ struct TartRuntime: Runtime {
     /// `tart` — a configured-but-broken path reads as missing even when
     /// another tart sits on PATH, and an unconfigured one reads PATH.
     let tartPath: String?
+    /// Runs the health probe's `tart --version`. Injectable so tests can
+    /// answer without launching a real binary or reading the unified log.
+    let healthShell: ShellRunning
     let ssh: SSHExecuting
     let bootTimeout: @Sendable () -> Int
     /// How long registration keeps retrying while the guest's sshd is still
@@ -198,6 +212,7 @@ struct TartRuntime: Runtime {
 
     init(
         tart: TartControlling, bootTimeout: @escaping @Sendable () -> Int, tartPath: String? = nil,
+        healthShell: ShellRunning = Shell(),
         ssh: SSHExecuting = SSHExecutor(), sshReadyWindow: TimeInterval = 120,
         sshRetryInterval: Duration = .seconds(1), sshProbeInterval: Duration = .milliseconds(500),
         hostKeyWindow: TimeInterval = 30, hostKeyInterval: Duration = .seconds(2)
@@ -205,6 +220,7 @@ struct TartRuntime: Runtime {
         self.tart = tart
         self.bootTimeout = bootTimeout
         self.tartPath = tartPath
+        self.healthShell = healthShell
         self.ssh = ssh
         self.sshReadyWindow = sshReadyWindow
         self.sshRetryInterval = sshRetryInterval
@@ -214,7 +230,7 @@ struct TartRuntime: Runtime {
     }
 
     func health() async -> RuntimeHealth {
-        let probe = TartHealthProbe(configuredPath: tartPath)
+        let probe = TartHealthProbe(shell: healthShell, configuredPath: tartPath)
         let health = await probe.check()
         switch health {
         case .healthy:
@@ -301,6 +317,17 @@ struct TartRuntime: Runtime {
         return vm.status.lowercased() == "running" ? .running : .stopped
     }
 
+    /// One `tart list` for every id, keeping the stopped/running distinction.
+    func states(of ids: [String]) async throws -> [String: InstanceState] {
+        let listed = Dictionary(try await tart.list().map { ($0.name, $0.status) }) { first, _ in first }
+        return Dictionary(
+            ids.map { id in
+                guard let status = listed[id] else { return (id, InstanceState.gone) }
+                return (id, status.lowercased() == "running" ? .running : .stopped)
+            }
+        ) { first, _ in first }
+    }
+
     func registrationScript(
         forge: Forge, token: String, runnerTokens: [String: String], name: String,
         runnerCount: Int, route: RepoRoute, labels: [String]?
@@ -325,12 +352,13 @@ struct TartRuntime: Runtime {
         // VM that is already gone (double deletes from racing lifecycle
         // paths) is success, not a warning. A failed stop is only logged (the
         // delete below usually still works); a failed delete throws so the
-        // caller keeps the record instead of losing track of the disk.
+        // caller keeps the record instead of losing track of the disk; so does
+        // cancellation, since the VM may still exist.
         await ssh.forgetHostKey(vm: id)
         do {
             try await tart.stop(name: id)
         } catch is CancellationError {
-            return
+            throw CancellationError()
         } catch {
             if Self.vmIsGone(error) { return }
             Log.warn(id, "stopping VM failed: \(error.localizedDescription)")
@@ -338,7 +366,7 @@ struct TartRuntime: Runtime {
         do {
             try await tart.delete(name: id)
         } catch is CancellationError {
-            return
+            throw CancellationError()
         } catch {
             if Self.vmIsGone(error) { return }
             Log.warn(id, "deleting VM failed: \(error.localizedDescription)")

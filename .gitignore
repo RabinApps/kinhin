@@ -2,6 +2,12 @@
 .swiftpm/
 .DS_Store
 *.xcodeproj
+# Capacitor generates the iOS project and it is source, not a build output (its folder is ios/App).
+!examples/capacitor_app/ios/App/App.xcodeproj/
+!examples/capacitor_app/ios/App/App.xcodeproj/**
+# KMP keeps its generated Xcode project in iosApp/ (XcodeGen writes it; it is source, not a build output).
+!examples/kmp_app/iosApp/iosApp.xcodeproj/
+!examples/kmp_app/iosApp/iosApp.xcodeproj/**
 dist/
 *.dmg
 kinhin-cli-*.zip
@@ -14,3 +20,6 @@ bad.sha256
 # Local dev tokens for scripts/dev-run.sh --env-tokens
 .env.dev
 **/.vitepress/cache/
+
+# Screenshots copied in for a local video build (CI downloads them into this folder for a `screens` look).
+video/screens/

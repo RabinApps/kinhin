@@ -155,6 +155,18 @@ extension Daemon {
                     throw BenchmarkError.unknownRun(ask?.runID ?? "(none running)")
                 }
                 return RPCResponse(id: request.id, ok: true)
+            case .healingStatus:
+                return RPCResponse(id: request.id, ok: true, payload: try encoder.encode(await engine.healingStatus()))
+            case .healingApprove, .healingDismiss:
+                guard let id = decodePayload(HealingEventRequest.self)?.id else {
+                    return RPCResponse(id: request.id, ok: false, error: "expected {\"id\": \"...\"}")
+                }
+                if request.method == .healingApprove {
+                    try await engine.approveHealing(id: id)
+                } else {
+                    try await engine.dismissHealing(id: id)
+                }
+                return RPCResponse(id: request.id, ok: true)
             case .logs:
                 let entries = Log.snapshot(limit: 300)
                 return RPCResponse(id: request.id, ok: true, payload: try encoder.encode(entries))

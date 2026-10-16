@@ -47,28 +47,42 @@ public enum ConfigTransfer {
     }
 
     /// Validates `incoming` and works out what importing it into `configURL`
-    /// would change. Throws the loader's error when the YAML is not a usable config.
+    /// would change. Throws the loader's error when the YAML is not a usable config,
+    /// and the read error when an existing config cannot be read (it would
+    /// otherwise be replaced without a backup). A Keychain that cannot be
+    /// checked is a warning, not "no token".
     public static func plan(
         incoming: String,
         configURL: URL = Paths.config,
-        tokenStored: (ForgeID, String) -> Bool = defaultTokenStored,
+        tokenStored: (ForgeID, String) throws -> Bool = defaultTokenStored,
         fileExists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }
     ) throws -> ImportPlan {
         let yaml = stripHeader(incoming)
         let config = try ConfigLoader.parse(yaml)
-        let current = try? String(contentsOf: configURL, encoding: .utf8)
+        let current: String? =
+            FileManager.default.fileExists(atPath: configURL.path)
+            ? try String(contentsOf: configURL, encoding: .utf8) : nil
         var warnings: [String] = []
         if let tart = config.tartPath, !fileExists(tart) {
             warnings.append("tart_path \(tart) does not exist on this Mac; fix or remove it after the import")
+        }
+        var accounts: [AccountStatus] = []
+        for account in config.accounts {
+            var stored = false
+            do {
+                stored = try tokenStored(account.forge, account.name)
+            } catch {
+                warnings.append(
+                    "could not check the Keychain for account \(account.name): \(error.localizedDescription)")
+            }
+            accounts.append(AccountStatus(name: account.name, forge: account.forge, tokenStored: stored))
         }
         return ImportPlan(
             yaml: yaml,
             configURL: configURL,
             replacesExisting: current != nil,
             unchanged: current == yaml,
-            accounts: config.accounts.map {
-                AccountStatus(name: $0.name, forge: $0.forge, tokenStored: tokenStored($0.forge, $0.name))
-            },
+            accounts: accounts,
             warnings: warnings)
     }
 
@@ -80,6 +94,7 @@ public enum ConfigTransfer {
             at: plan.configURL.deletingLastPathComponent(), withIntermediateDirectories: true,
             attributes: [.posixPermissions: 0o700])
         if plan.replacesExisting {
+            // No earlier backup is the usual case; one that cannot go makes copyItem throw below.
             try? fm.removeItem(at: plan.backupURL)
             try fm.copyItem(at: plan.configURL, to: plan.backupURL)
         }
@@ -93,7 +108,7 @@ public enum ConfigTransfer {
         return lines.joined(separator: "\n")
     }
 
-    public static func defaultTokenStored(_ forge: ForgeID, _ name: String) -> Bool {
-        ((try? KeychainTokenStore.load(forge: forge, name: name)) ?? nil) != nil
+    public static func defaultTokenStored(_ forge: ForgeID, _ name: String) throws -> Bool {
+        try KeychainTokenStore.load(forge: forge, name: name) != nil
     }
 }

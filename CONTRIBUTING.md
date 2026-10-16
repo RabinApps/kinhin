@@ -34,7 +34,7 @@ scripts/check.sh                  # everything CI runs, in one command, failing 
                                   # format lint, l10n lint, docs lint, docs-sync --check, skills lint)
 scripts/check.sh --fast           # same, skips the ~2 min test run — iterate with this
 swift build
-swift test                        # ~2300 XCTest tests, ~2 min; no VMs or network needed
+swift test                        # ~3100 XCTest tests, ~5 min with --parallel; no VMs or network needed
 scripts/tsan.sh                   # ThreadSanitizer run (serial); recipe below
 scripts/e2e.sh                    # end-to-end suite against real forges and runners; see docs/e2e-testing.md
 scripts/l10n-lint.sh              # String Catalog vs. the app's sources; --sync adds/drops entries
@@ -65,6 +65,7 @@ release builds always use the Keychain.
 swift format lint --strict -r Sources Tests
 swift format format -i -r Sources Tests
 bash scripts/skills-lint.sh       # skills/*/SKILL.md frontmatter + command drift (in check.sh too)
+bash scripts/rules-lint.sh        # try!, as!, force unwraps, locks, uncommented try?, files over 450 lines (in check.sh too)
 ```
 
 Formatting is configured in `.swift-format` (4 spaces, 120 columns). Run the formatter before committing; CI lints with `--strict`.
@@ -85,13 +86,24 @@ The script is `swift test --sanitize thread` (debug, ~5–10 min) and never `--p
   (`StubProtocol.handler`) keep their storage behind a `Mutex`, which is what keeps the run
   clean; give any new test global the same treatment instead of `nonisolated(unsafe)`.
 
+### Demo videos and screenshots (video/)
+
+A debug build can replay a scripted fleet (`KINHIN_DEMO=launch`) so the app can be screen-recorded with no forge, token or
+VM, and `video/` builds narrated videos from a config file with open-source tools, in a container: one command
+(`video/scripts/build.sh --container`), themes, formats, a dozen examples ([gallery](docs/video-gallery.md)). Its unit tests
+run in `scripts/check.sh` (`video/scripts/test.sh --smoke` builds real videos); an opt-in CI workflow can build them on
+releases and pull requests ([docs/ci-video.md](docs/ci-video.md)). See [docs/making-a-video.md](docs/making-a-video.md) (kinhin's own video) and [docs/videos-for-your-project.md](docs/videos-for-your-project.md) (the suite for any product).
+
 ### End-to-end tests (scripts/e2e.sh)
 
 `swift test` proves kinhin agrees with its fakes; `Tests/E2E` proves the fakes agree with reality. It is a **separate
 Swift package** (Swift Testing, driving the real `kinhin` binary) so `swift test` and `scripts/check.sh` never load it,
 and it is **not part of per-PR CI**: it runs real forges in containers and real jobs in real guests on a dedicated Mac
-(`.github/workflows/e2e.yml`). Run `scripts/e2e.sh` (seconds, no Docker) while iterating on CLI or security behavior,
-and `scripts/e2e.sh --local` before changing forge registration, runtimes, the engine or the runner scripts. See
+(`.github/workflows/e2e.yml`). **Run `scripts/e2e.sh` in CI, not on your own machine.** Local runs are the exception: only when the user asks for a
+specific local test, and then with `KINHIN_E2E_LOCAL=1` (the script refuses to run otherwise). Start the
+`e2e.yml` workflow by hand (`workflow_dispatch`, with the tier you need) and read the run's logs. The suite boots
+containers and VMs, drives the Docker daemon and runs jobs on the Mac it is on, so a local run can disturb your fleet
+and your Docker setup. The quick tier needs no Docker, but it still runs in CI. See
 [docs/e2e-testing.md](docs/e2e-testing.md) for the tiers, switches and what each suite proves.
 
 - **A fake that disagrees with the real thing is a bug in the fake.** When an e2e run finds one, fix the product, then
@@ -99,6 +111,21 @@ and `scripts/e2e.sh --local` before changing forge registration, runtimes, the e
 - **Adding a forge or a CLI command** fails `CoverageTests` until you classify it there. That is the point.
 - The e2e suite sandboxes itself with `KINHIN_SUPPORT_DIR` (support files, daemon socket) and the debug-only
   `KINHIN_TOKEN_STORE=env`; it never touches your real config or Keychain.
+
+### Mobile release tooling (scripts/mobile-e2e.sh)
+
+`kinhin mobile init` scaffolds fastlane into an iOS, Android, Flutter, React Native, Expo, Capacitor, Kotlin Multiplatform or .NET MAUI project. Its Swift code lives in
+`Sources/KinhinKit/Mobile/`, and its templates are embedded there. After any change under `templates/mobile/`, run
+`python3 scripts/mobile-templates-embed.py` and commit the regenerated `MobileTemplates.swift`; `MobileScaffoldTests` fails
+if the two drift. `swift test` covers the scaffolding.
+
+`scripts/mobile-e2e.sh` checks the whole flow on a clean copy of the working tree's `examples/` (committed or not, so run it
+before you commit). Without flags it needs Ruby 3.2+ (set `RUBY_BIN` if it is not on the usual path), and it builds the
+`kinhin` binary with `swift build` if the binary is missing. `--with-builds` also needs JDK 17 (for `jarsigner` too), an
+Android SDK (`ANDROID_HOME`), Xcode, XcodeGen, Flutter, and for the React Native and Expo steps `npm` and CocoaPods. It is
+slower, since it builds each example. Nothing is uploaded and no store credentials are read. Regenerate the examples with the CLI after a template change
+(`kinhin mobile init --force examples/<app>`), or the drift stage fails. The reference is
+[docs/mobile-fastlane.md](docs/mobile-fastlane.md).
 
 ## Layout
 
@@ -160,13 +187,35 @@ generates `kinhin help`, each `kinhin <command> --help` page and the skills-lint
 - Access control defaults to `internal`. Mark `public` only what `kinhin` or `kinhin-app` actually imports. Tests use `@testable import`.
 - Classes are `final` unless subclassing is required. Prefer composition over subclassing view controllers.
 - Concurrency: `async/await`. UI classes are `@MainActor` at the class level (no per-method repeats, no `MainActor.run` inside them). Sleep with `Task.sleep(for:)`. Do not add new `DispatchQueue`, semaphores, or raw `NSLock`; use `Mutex` or an actor.
+- **Build with CI's compiler in mind.** CI uses Xcode 26.5 (Swift 6.3.x); a newer Xcode here accepts code that CI's compiler rejects or crashes on. Two patterns have bitten: a local `let x = Mutex(...)` that a `Task` or `addTask` closure captures while the enclosing task also uses it (`SendingClosureRisksDataRace`: use `Locked` from `KinhinKit` instead, it has the same `withLock`), and handing a main-actor method to a SwiftUI `Binding(set:)` or similar as a function value, which crashes IR generation (write `{ method($0) }`). Swift 6.3's default (native) build system only copies a String Catalog instead of compiling it, so plural forms are missing and the localization tests fail; every build and test command here passes `--build-system swiftbuild` (Swift 6.4 already defaults to it). Run the CI `test` job on your branch (Actions → CI → Run workflow) before assuming a green local build is green. The causes and fixes of each CI failure we have hit are in [Troubleshooting](website/guide/troubleshooting.md#building-kinhin-and-ci-failures-for-contributors).
 - Logging goes through `Log` (`Log.info/warn/error`) with a subsystem tag. No `print` in `KinhinKit` or the app; the CLI uses `print` only for command output on stdout.
 - Dependencies (shell, HTTP session, keychain, paths) are injected through protocols with a production default, so they can be faked in tests.
 
 ## Error handling
 
 - Functions that can fail `throw`. Do not return `nil`/`false`/`[]` to mean "it failed".
-- Each domain has one error enum conforming to `LocalizedError` with a user-readable `errorDescription`: `ConfigError` (load/parse), `ConfigEditError` (every config editor), `ImageError` (all image preparers), `TartError`/`ContainerManagerError`/`RuntimeWatchError` (runtimes), `GitHubError`/`GiteaError`/`GitLabError`/`BuildkiteError`/`AzureDevOpsError` (forge clients), `EngineError` (also the app's fleet-access errors), `RPCError`/`DaemonError`, `UpdateCheckError`. Add cases to these instead of creating a new enum per file.
+- Each domain has one error enum conforming to `LocalizedError` with a user-readable `errorDescription`. Add cases to
+  it instead of creating a new enum per file. The sanctioned error types, by domain:
+  - Config: `ConfigError` (load/parse), `ConfigEditError` (every config editor).
+  - Images and runtimes: `ImageError` (all image preparers), `TartError`, `ContainerManagerError`, `RuntimeWatchError`,
+    `RuntimeInstallerError`.
+  - Forges: `ForgeAPIError` (HTTP failures from the shared `ForgeTransport`), `GitHubError` (the GitHub REST and
+    scale-set clients and the scale-set listener), and `GiteaError`/`GitLabError`/`BuildkiteError`/`AzureDevOpsError`/
+    `BitbucketError` for each forge's non-HTTP problems (bad instance URL or scope, missing token scopes, unknown pool).
+  - Fleet: `EngineError` (also the app's fleet-access errors), `RPCError`, `Daemon.DaemonError` (nested in `Daemon`,
+    declared in `Daemon+Error.swift`), `BenchmarkError`.
+  - Core: `ShellError`, `KeychainTokenStore.TokenError` (`Core/TokenStore.swift`), `UpdateCheckError`.
+  - Workflows: `WorkflowError`, `WorkflowRouteEditor.EditError`.
+  - Video and mobile: `VideoError`, `MusicError`, `MobileScaffoldError`.
+  - CLI (`Sources/kinhin`): `CLIError` (a failure with its exit code); the usage and route errors
+    `MobileCommand.UsageError`, `RuntimesCommand.RouteError`, `WorkflowRoutePreFlight` and
+    `WorkflowRouteAvailabilityProblem`; `RunCommands.ControlFailure`, `PipelineCommandError` and `MCPToolError`.
+  - App (`Sources/kinhin-app`), whose messages are localized through the String Catalog and so stay out of
+    `KinhinKit`: `LaunchAtLoginError`, and `ConfigNotAppliedError`/`ConfigPushFailure` (a saved config edit the
+    running fleet could not take).
+
+  A type private to one view or parser that never escapes it (`BaseImagePicker.ProblemText`, `DemoTimeline.Invalid`)
+  is not a domain error and needs no entry.
 - Best-effort work (cleanup, cache dirs, idempotent teardown) goes through `bestEffort`/`bestEffortAsync` (`Core/BestEffort.swift`), which logs the failure instead of hiding it. Retry transient network failures with `withTransientRetry`.
 - `try?` is allowed only for genuinely best-effort work (cache cleanup, cosmetic reads) and carries a short comment saying why ignoring the failure is safe. If a failure changes what the user sees, handle it: log it and surface it.
 - No `try!`, `as!`, or force unwraps (`!`) outside tests. Use `guard let` / `if let` or a single documented `preconditionFailure` for true invariants.
@@ -255,11 +304,13 @@ Before opening a PR, run `scripts/check.sh`; it includes `bash scripts/docs-lint
 ## Cutting a release
 
 The full procedure — Developer ID signing, notarization credentials, the local rehearsal run, and the
-tag publish — is in [docs/releasing.md](docs/releasing.md). In short: bump
-`Sources/KinhinKit/Core/Version.swift` and add the `## v<version>` CHANGELOG heading in a commit,
-run `scripts/check.sh`, then `scripts/release.sh <version>`; it builds and verifies everything a tag
-publish would, and prints the tag commands when you are ready. The script never commits, tags or
-pushes.
+tag publish — is in [docs/releasing.md](docs/releasing.md). In short: run `scripts/changelog.sh promote <version>`,
+bump `Sources/KinhinKit/Core/Version.swift`, and commit both together; then run `scripts/check.sh`, then
+`scripts/release.sh <version>`. It builds and verifies everything a tag publish would, and prints the tag commands
+when you are ready. The script never commits, tags or pushes.
+
+User-visible changes go under `## Unreleased` in `CHANGELOG.md` in the same PR (see the pull request checklist).
+`scripts/changelog.sh check` validates the heading structure.
 
 ## Generated doc blocks
 

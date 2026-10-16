@@ -16,8 +16,9 @@ final class FleetControllerConfigPushTests: XCTestCase {
     private var url: URL!
     private var fleet: FleetController!
     private var builds: BuildLog!
+    private var alerts: [(title: String, body: String)] = []
     private final class AnswerBox: Sendable {
-        let value = Mutex<Result<String?, Error>>(.success("ghp_test"))
+        let value = Locked<Result<String?, Error>>(.success("ghp_test"))
     }
     private let tokenAnswerBox = AnswerBox()
     private var tokenAnswer: Result<String?, Error> {
@@ -42,9 +43,15 @@ final class FleetControllerConfigPushTests: XCTestCase {
         fleet.environment.daemonProbe = { false }
         let answer = tokenAnswerBox
         fleet.environment.engineToken = { _ in try answer.value.withLock { $0 }.get() }
+        alerts = []
+        AlertKit.runModal = { [unowned self] alert in
+            alerts.append((alert.messageText, alert.informativeText))
+            return .alertFirstButtonReturn
+        }
     }
 
     override func tearDown() async throws {
+        AlertKit.runModal = { $0.runModal() }
         try? FileManager.default.removeItem(at: dir)
         fleet = nil
         try await super.tearDown()
@@ -94,6 +101,30 @@ final class FleetControllerConfigPushTests: XCTestCase {
     }
 
     private var currentEngine: FleetEngine? { fleet.engine }
+    private var pushProblem: String? { fleet.problems[.configPush] }
+
+    /// Main-actor poll (the shared `waitUntil` is nonisolated, and this state is the controller's).
+    private func waitUntil(_ message: String, _ condition: () -> Bool) async {
+        let deadline = ContinuousClock.now + .seconds(5)
+        while !condition() {
+            if ContinuousClock.now > deadline { return XCTFail("timed out: \(message)") }
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+    }
+
+    /// The user-visible state after a push that didn't apply: the status-line
+    /// problem names the reason and says the old config is still running.
+    private func assertNotApplied(
+        mentioning reason: String, file: StaticString = #filePath, line: UInt = #line
+    ) {
+        guard let problem = pushProblem else { return XCTFail("no status-line problem", file: file, line: line) }
+        XCTAssertTrue(
+            problem.hasPrefix("Your config change was saved but couldn't be applied: "), problem, file: file, line: line
+        )
+        XCTAssertTrue(problem.contains(reason), "\(problem) should name \(reason)", file: file, line: line)
+        XCTAssertTrue(
+            problem.hasSuffix("The fleet is still using the previous config."), problem, file: file, line: line)
+    }
     private var buildCount: Int { builds?.count ?? 0 }
 
     // MARK: - Hot reload
@@ -165,6 +196,8 @@ final class FleetControllerConfigPushTests: XCTestCase {
         await fleet.applyConfigToEngine()
         XCTAssertTrue(currentEngine === engine)
         XCTAssertEqual(buildCount, 0)
+        assertNotApplied(mentioning: "config must be Mapping")  // the parse error is shown, not only logged
+        XCTAssertTrue(alerts.isEmpty, "a push nobody asked to alert on stays on the status line")
     }
 
     func testKeychainFailureKeepsTheCurrentEngine() async throws {
@@ -177,6 +210,7 @@ final class FleetControllerConfigPushTests: XCTestCase {
         await fleet.applyConfigToEngine()
         XCTAssertTrue(currentEngine === engine)
         XCTAssertEqual(buildCount, 0)
+        assertNotApplied(mentioning: "the forge token couldn't be read from the Keychain")
     }
 
     func testMissingTokenKeepsTheCurrentEngine() async throws {
@@ -188,15 +222,61 @@ final class FleetControllerConfigPushTests: XCTestCase {
         await fleet.applyConfigToEngine()
         XCTAssertTrue(currentEngine === engine)
         XCTAssertEqual(buildCount, 0)
+        assertNotApplied(mentioning: "the forge token is missing from the Keychain")
     }
 
     func testFactoryFailureKeepsTheCurrentEngine() async throws {
-        struct TartMissing: Error {}
+        struct TartMissing: LocalizedError { var errorDescription: String? { "tart is not installed" } }
         let engine = try install { _ in throw TartMissing() }
         try write(yaml(vmCPU: 6))
         await fleet.applyConfigToEngine()
         XCTAssertTrue(currentEngine === engine)
         XCTAssertEqual(buildCount, 1)
+        assertNotApplied(mentioning: "tart is not installed")
+    }
+
+    func testAFailedSaveFromTheWindowAlertsAndASuccessfulOneClearsTheProblem() async throws {
+        struct TartMissing: LocalizedError { var errorDescription: String? { "tart is not installed" } }
+        var fail = true
+        _ = try install { config in
+            if fail { throw TartMissing() }
+            return self.makeEngine(config)
+        }
+        fleet.configPush.delay = .milliseconds(10)
+        try write(yaml(vmCPU: 6))
+
+        fleet.pushConfigToEngine()  // the window's save path
+        await waitUntil("alerted") { alerts.count == 1 }
+        XCTAssertEqual(alerts.first?.title, "Config change not applied")
+        XCTAssertEqual(alerts.first?.body, pushProblem, "the alert and the status line say the same thing")
+        assertNotApplied(mentioning: "tart is not installed")
+
+        fail = false
+        try write(yaml(vmCPU: 8))
+        fleet.pushConfigToEngine()
+        await waitUntil("problem cleared") { pushProblem == nil }
+        XCTAssertEqual(currentEngine?.activeConfig.vm.cpuCount, 8)
+        XCTAssertEqual(alerts.count, 1, "a push that applied says nothing more")
+    }
+
+    func testAFailedPushFromShortcutsStaysOnTheStatusLine() async throws {
+        struct TartMissing: Error {}
+        _ = try install { _ in throw TartMissing() }
+        fleet.configPush.delay = .milliseconds(10)
+        try write(yaml(vmCPU: 6))
+
+        fleet.pushConfigToEngine(alertOnFailure: false)
+        await waitUntil("flushed") { pushProblem != nil && !fleet.configPush.isScheduled }
+        XCTAssertTrue(alerts.isEmpty, "no modal for an edit made from Shortcuts")
+    }
+
+    func testCancelledRebuildIsNotAFailure() async throws {
+        _ = try install { _ in throw CancellationError() }
+        fleet.configPushAlertsOnFailure = true
+        try write(yaml(vmCPU: 6))
+        await fleet.applyConfigToEngine()
+        XCTAssertNil(pushProblem, "cancellation is never shown as a failure")
+        XCTAssertTrue(alerts.isEmpty)
     }
 
     func testReplacementThatCannotStartKeepsTheRunningEngine() async throws {
@@ -213,22 +293,25 @@ final class FleetControllerConfigPushTests: XCTestCase {
         XCTAssertTrue(currentEngine === old, "a dead replacement must not displace a running fleet")
         let status = await old.status()
         XCTAssertTrue(status.running)
+        assertNotApplied(mentioning: "the fleet engine didn't restart with it")
         await old.stop()
     }
 
     // MARK: - Daemon backend
 
-    func testDeadDaemonReloadFailureIsLoggedNotThrown() async {
+    func testDeadDaemonReloadFailureIsShownNotThrown() async {
         let socket = dir.appendingPathComponent("no-daemon.sock")
         fleet.backend = .daemon(RPCClient(socketURL: socket))
         await fleet.applyConfigToEngine()
         XCTAssertNil(fleet.status, "the unreachable daemon reads as no status afterwards")
+        assertNotApplied(mentioning: "could not connect to daemon")
     }
 
     func testNoBackendIsANoOp() async {
         await fleet.applyConfigToEngine()
         XCTAssertNil(fleet.service)
         XCTAssertEqual(buildCount, 0)
+        XCTAssertNil(pushProblem)
     }
 
     // MARK: - Shutdown and auto-start

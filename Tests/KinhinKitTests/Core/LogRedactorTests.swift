@@ -109,4 +109,25 @@ final class LogRedactorTests: XCTestCase {
         LogRedactor.registerSecret("short")
         XCTAssertEqual(LogRedactor.redact("a short word"), "a short word")
     }
+
+    /// Registration material (tokens, JIT configs) has no prefix the rules know; it is masked literally, and only
+    /// the newest `registrationSecretLimit` values are kept so the per-line scan stays bounded.
+    func testMasksRecentRegistrationSecretsAndForgetsTheOldest() {
+        defer { LogRedactor.forgetAllSecretsForTesting() }
+        let limit = LogRedactor.registrationSecretLimit
+        let secrets = (0...limit).map { "jit-config-\($0)-" + String(repeating: "x", count: 12) }
+        for secret in secrets { LogRedactor.registerRegistrationSecret(secret) }
+        assertRedacts("runner failed: \(secrets[limit])", secret: secrets[limit])
+        XCTAssertTrue(LogRedactor.redact(secrets[0]).contains(secrets[0]), "the oldest was evicted")
+        LogRedactor.registerRegistrationSecret("tiny")
+        XCTAssertEqual(LogRedactor.redact("a tiny word"), "a tiny word")
+    }
+
+    /// A secret that contains another is masked whole, not left with the outer part showing.
+    func testMasksTheLongerOfNestedSecretsWhole() {
+        defer { LogRedactor.forgetAllSecretsForTesting() }
+        LogRedactor.registerSecret("inner-secret-value")
+        LogRedactor.registerRegistrationSecret("outer-inner-secret-value-tail")
+        XCTAssertEqual(LogRedactor.redact("x outer-inner-secret-value-tail y"), "x \(LogRedactor.mask) y")
+    }
 }

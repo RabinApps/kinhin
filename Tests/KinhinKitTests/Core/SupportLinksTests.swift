@@ -13,9 +13,9 @@ final class SupportLinksTests: XCTestCase {
         XCTAssertEqual(SupportLinks.becomeASponsor.url.scheme, "mailto")
     }
 
-    func testSupDeskIsAProjectNotASponsor() {
+    func testSupDeskIsASponsorAndAProject() {
         XCTAssertTrue(SupportLinks.projects.contains { $0.name == "SupDesk" })
-        XCTAssertFalse(SupportLinks.sponsors.contains { $0.name == "SupDesk" })
+        XCTAssertTrue(SupportLinks.sponsors.contains { $0.name == "SupDesk" })
     }
 
     func testSummaryListsEveryLink() {

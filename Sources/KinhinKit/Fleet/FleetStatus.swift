@@ -68,6 +68,8 @@ public struct FleetStatus: Codable, Sendable, Equatable {
     /// Per-runtime capacity caps (mixed fleets: the weighted partition;
     /// nil for single-runtime fleets). Keys are RuntimeID raw values.
     public var capacityByRuntime: [String: String]?
+    /// The healing agent's policy and journal. Nil from a daemon predating the field.
+    public var healing: HealingSnapshot?
 
     public init(
         running: Bool = false, paused: Bool = false, autoResume: Bool? = nil, pollInterval: Int? = nil,

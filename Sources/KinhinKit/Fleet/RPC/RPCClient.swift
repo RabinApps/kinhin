@@ -43,6 +43,7 @@ public struct RPCClient: Sendable {
     public func ping(timeout: TimeInterval = 2) throws -> PingReply {
         let response = try Self.requireOK(send(method: .ping, timeout: timeout))
         guard let payload = response.payload,
+            // An older daemon answers a bare pong (documented above); the versions then read nil.
             let reply = try? JSONDecoder().decode(PingReply.self, from: payload)
         else { return PingReply(pong: true, protocolVersion: nil, version: nil) }
         return reply
@@ -107,6 +108,29 @@ public struct RPCClient: Sendable {
             return true
         } catch RPCError.rejected(let why) where why.contains("no benchmark run") {
             return false
+        }
+    }
+
+    /// The healing agent's policy and journal. A daemon that predates healing
+    /// does not know the method and says so.
+    public func healingStatus() throws -> HealingSnapshot {
+        do {
+            let response = try command(.healingStatus)
+            guard let payload = response.payload else { throw RPCError.rejected("daemon returned no healing status") }
+            return try JSONDecoder().decode(HealingSnapshot.self, from: payload)
+        } catch RPCError.rejected("undecodable request") {
+            throw RPCError.rejected("this daemon predates healing — restart it after updating kinhin")
+        }
+    }
+
+    /// Approves (`approve: true`) or dismisses a healing event.
+    public func healingDecide(id: String, approve: Bool) throws {
+        do {
+            try command(
+                approve ? .healingApprove : .healingDismiss,
+                payload: JSONEncoder().encode(Daemon.HealingEventRequest(id: id)))
+        } catch RPCError.rejected("undecodable request") {
+            throw RPCError.rejected("this daemon predates healing — restart it after updating kinhin")
         }
     }
 

@@ -10,15 +10,18 @@ extension WorkflowRouteCommand {
     /// when both are given; one lone positional can only be the runtime —
     /// there would be no workflow to route).
     static func parse(_ args: [String]) throws -> Options {
-        var opt = Options()
+        var job: String?
+        var dryRun = false
+        var json = false
+        var consent = false
         var positionals: [String] = []
         var index = 0
         while index < args.count {
             let arg = args[index]
             switch arg {
-            case "--dry-run": opt.dryRun = true
-            case "--json": opt.json = true
-            case "--consent": opt.consent = true
+            case "--dry-run": dryRun = true
+            case "--json": json = true
+            case "--consent": consent = true
             case "--help", "-h":
                 throw CLIError(help, exit: .usage)
             case "--job":
@@ -26,7 +29,7 @@ extension WorkflowRouteCommand {
                 guard index < args.count else {
                     throw WorkflowRouteCLIError.usage("--job needs a job name")
                 }
-                opt.job = args[index]
+                job = args[index]
             case let v where v.hasPrefix("--"):
                 throw WorkflowRouteCLIError.usage("unknown option: \(v)")
             default:
@@ -51,12 +54,12 @@ extension WorkflowRouteCommand {
         }
         guard let runtime = chosenRuntime else {
             throw WorkflowRouteCLIError.usage(
-                positionals.isEmpty
-                    ? "missing target runtime — expected one of: tart, appleContainer, docker, host"
-                    : "missing target runtime after '\(positionals.last!)' — expected one of: tart, appleContainer, docker, host"
+                positionals.last.map {
+                    "missing target runtime after '\($0)' — expected one of: tart, appleContainer, docker, host"
+                } ?? "missing target runtime — expected one of: tart, appleContainer, docker, host"
             )
         }
-        opt.runtime = runtime
+        var opt = Options(runtime: runtime, job: job, dryRun: dryRun, json: json, consent: consent)
 
         switch positionals.count {
         case 0:

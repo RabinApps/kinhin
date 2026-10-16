@@ -17,6 +17,29 @@ final class ShellTests: XCTestCase {
         XCTAssertTrue(result.stderr.contains("oops"))
     }
 
+    /// Regression: the result used to be read while a pipe's last chunk was still in flight, so a short stderr line
+    /// from a fast-exiting child could come back empty under load. Many concurrent short children reproduce it.
+    func testShellNeverLosesShortStderrUnderConcurrency() async throws {
+        let shell = Shell()
+        let lost = await withTaskGroup(of: Int.self) { group in
+            for _ in 0..<16 {
+                group.addTask {
+                    var missing = 0
+                    for _ in 0..<250 {
+                        let result = try? await shell.run(
+                            ["/bin/sh", "-c", "echo fail-marker-line >&2; exit 1"], cwd: nil, timeout: 30)
+                        if result?.stderr.contains("fail-marker-line") != true { missing += 1 }
+                    }
+                    return missing
+                }
+            }
+            var total = 0
+            for await count in group { total += count }
+            return total
+        }
+        XCTAssertEqual(lost, 0, "stderr was missing from \(lost) of 4000 runs")
+    }
+
     func testShellTimeoutReturns124() async throws {
         let result = try await Shell().run(["/bin/sleep", "5"], cwd: nil, timeout: 0.5)
         XCTAssertEqual(result.exitCode, 124, "watchdog must mark timed-out processes")

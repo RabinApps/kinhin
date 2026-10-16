@@ -60,6 +60,35 @@ final class ProjectImageStoreTests: XCTestCase {
         store.upsert(record("fresh", used: now))
         XCTAssertEqual(store.pruneCandidates(maxImages: 0, maxAgeDays: 5, protected: [], now: now), ["stale"])
     }
+
+    // MARK: - Corrupt file
+
+    private func corruptCopies() throws -> [URL] {
+        try FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)
+            .filter { $0.lastPathComponent.hasPrefix("project-images.json.corrupt-") }
+    }
+
+    func testCorruptFileIsQuarantinedAndSurvivesTheNextSave() throws {
+        let garbage = Data("[{\"name\": 1".utf8)
+        try garbage.write(to: dir.appendingPathComponent("project-images.json"))
+
+        let store = ProjectImageStore(directory: dir)
+
+        XCTAssertTrue(store.all.isEmpty)
+        let copy = try XCTUnwrap(try corruptCopies().first)
+        XCTAssertEqual(try corruptCopies().count, 1)
+        XCTAssertEqual(store.recoveredFromCorruptFile?.lastPathComponent, copy.lastPathComponent)
+        store.upsert(record("a", used: Date(timeIntervalSince1970: 100)))
+        XCTAssertEqual(try Data(contentsOf: copy), garbage, "the next save must not touch the kept copy")
+        XCTAssertEqual(ProjectImageStore(directory: dir).all.map(\.name), ["a"])
+    }
+
+    func testMissingFileIsNotQuarantined() throws {
+        let store = ProjectImageStore(directory: dir)
+        XCTAssertTrue(store.all.isEmpty)
+        XCTAssertNil(store.recoveredFromCorruptFile)
+        XCTAssertEqual(try corruptCopies(), [])
+    }
 }
 
 final class ProjectImageInvalidateTests: XCTestCase {

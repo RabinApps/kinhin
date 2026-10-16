@@ -102,6 +102,9 @@ final class CLICommandTests: XCTestCase {
         // A stdio server must not touch disk on boot; its tools report a
         // missing config instead.
         XCTAssertFalse(CLICommand.shouldAutoCreateConfig(.mcp))
+        // Scaffolding a repo (even a --dry-run that promises to write nothing) must not create the fleet config.
+        XCTAssertFalse(CLICommand.shouldAutoCreateConfig(.mobile, args: ["mobile", "init", "--dry-run"]))
+        XCTAssertFalse(CLICommand.shouldAutoCreateConfig(.video, args: ["video", "list"]))
     }
 
     func testWorkingCommandsAutoCreate() {

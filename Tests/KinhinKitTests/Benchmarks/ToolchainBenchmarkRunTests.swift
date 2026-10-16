@@ -41,7 +41,7 @@ final class ToolchainBenchmarkRunTests: XCTestCase {
         XCTAssertNotNil(go.verifyMs)
         XCTAssertNotNil(go.workloadMs)
         XCTAssertEqual(go.workload, "go build")
-        XCTAssertEqual(go.installer, "mise go@latest")
+        XCTAssertEqual(go.installer, "mise \(try XCTUnwrap(ToolchainCatalog.tool(id: "go")).defaultSpec)")
         XCTAssertEqual(go.platform, "macOS")
         XCTAssertEqual(go.runtime, "tart")
 
@@ -136,7 +136,8 @@ final class ToolchainBenchmarkRunTests: XCTestCase {
         let typescript = try XCTUnwrap(rows(report, runtime: .tart)["typescript"])
         XCTAssertEqual(typescript.status, .ran)
         XCTAssertEqual(typescript.note, "preinstalled", "typescript itself was already there; only node was installed")
-        XCTAssertTrue(harness.ssh.scripts.contains { $0.contains("mise use --global 'node@22'") })
+        let nodePin = try XCTUnwrap(ToolchainCatalog.tool(id: "node")).defaultSpec
+        XCTAssertTrue(harness.ssh.scripts.contains { $0.contains("mise use --global '\(nodePin)'") })
     }
 
     func testTartThoroughBootsOneVMPerCategory() async throws {

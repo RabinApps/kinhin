@@ -138,7 +138,10 @@ final class ImageDeletePlanTests: XCTestCase {
             XCTFail("deleting a container image without the container CLI must fail")
         } catch let error as ImageError {
             guard case .runtimeUnavailable(let why) = error else { return XCTFail("wrong error: \(error)") }
-            XCTAssertEqual(why, "the container CLI is not available — brew install container && container system start")
+            XCTAssertEqual(
+                why,
+                "the container CLI is not available — brew install container && container system start --enable-kernel-install"
+            )
         } catch {
             XCTFail("expected ImageError.runtimeUnavailable, got \(error)")
         }
@@ -163,5 +166,17 @@ final class ImageDeletePlanTests: XCTestCase {
         var record = VMRecord(id: id)
         record.image = image
         return record
+    }
+
+    func testRefusesAnImageWhoseRuntimeInstancesCouldNotBeListed() {
+        let inventory = ImageInventory.build(
+            config: config(), tart: .init(names: ["tahoe-base"]),
+            docker: .init(names: ["old:1"], usageUnknown: "could not list docker instances: boom"))
+
+        let plan = ImageDeletePlan.plan(names: ["old:1"], inventory: inventory)
+
+        XCTAssertEqual(plan.targets, [])
+        XCTAssertEqual(plan.refusals.map(\.kind), [.inUse])
+        XCTAssertTrue(plan.refusals[0].reason.contains("could not list docker instances: boom"))
     }
 }

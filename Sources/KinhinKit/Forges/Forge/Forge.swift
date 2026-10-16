@@ -143,6 +143,10 @@ public protocol Forge: Sendable {
     /// Gitea 1.24+). `fresh` bypasses the forge's short cache; ask for it
     /// before acting on "nothing is running".
     func unlistedRunnerActivity(fresh: Bool) async throws -> Int?
+    /// Which of `names` the forge's own event stream reported finishing a job (the scale-set
+    /// listener's `JobCompleted`). A short job can start and end between two runner-list reads, so
+    /// the list alone never shows the runner; this is the evidence it ran. Empty by default.
+    func runnersReportedFinished(_ names: [String]) async -> Set<String>
     func deleteRunner(id: String) async throws
     /// Jobs waiting for a runner (per-repo attribution when the API gives it).
     func queuedJobs() async throws -> [ForgeJob]
@@ -150,8 +154,8 @@ public protocol Forge: Sendable {
     func runningJobs() async throws -> [ForgeJob]
     /// The API budget the forge last reported (nil: the forge reports none).
     var rateLimit: ForgeRateLimit? { get }
-    /// The bytes of `.kinhin.yml` in `repository` at `ref` (nil `ref` = the
-    /// default branch), or nil when the repo has none. Forges without a file
+    /// The bytes of the repo's `.kinhin/config.yml`, else its `.kinhin.yml`, in
+    /// `repository` at `ref` (nil `ref` = the default branch), or nil when the repo has neither. Forges without a file
     /// API return nil.
     func projectFile(repository: String, ref: String?) async throws -> Data?
     /// The live pipeline the runner named `runnerName` is executing (steps and
@@ -162,6 +166,14 @@ public protocol Forge: Sendable {
     /// forge has it so far, or nil when the forge can't provide it. `job` and
     /// `step` come from this forge's own `pipelineDetail`.
     func pipelineLog(job: PipelineJob, step: PipelineStep?) async throws -> PipelineLog?
+    /// This forge after a hot config reload: `fleetLabels` is the reloaded
+    /// top-level `labels:`, `servedLabels` every label some pool (or named
+    /// image) of the reloaded fleet registers runners with. A forge whose
+    /// demand or running query filters by either set returns a copy that
+    /// filters by the new one, keeping its client and caches. The default is
+    /// `self`: a forge whose queries filter by its account's own `labels:`
+    /// (an account edit rebuilds the engine) or by no labels at all.
+    func relabeled(fleetLabels: [String], servedLabels: [String]) -> any Forge
 }
 
 /// Forges whose runner API separates queued from running work, so the engine
@@ -183,11 +195,16 @@ extension Forge {
 
     func unlistedRunnerActivity(fresh: Bool) async throws -> Int? { nil }
 
+    func runnersReportedFinished(_ names: [String]) async -> Set<String> { [] }
+
     func freshRunners() async throws -> [ForgeRunner] { try await runners() }
 
     public func pipelineDetail(runnerName: String, repository: String?) async throws -> PipelineDetail? { nil }
 
     public func pipelineLog(job: PipelineJob, step: PipelineStep?) async throws -> PipelineLog? { nil }
+
+    /// Label-independent demand: nothing to swap.
+    public func relabeled(fleetLabels: [String], servedLabels: [String]) -> any Forge { self }
 
     /// Requeue the forge's queued jobs. The default is a no-op; forges with
     /// queue semantics override.
@@ -251,6 +268,31 @@ extension ForgeWithJITConfig {
             }
         }
         return out
+    }
+}
+
+/// A long-lived connection a forge receives demand over (the GitHub
+/// scale-set message session). The engine starts it with the fleet, stops it
+/// with the fleet, and stops a replaced forge's listeners on re-attach.
+protocol ForgeListener: AnyObject, Sendable {
+    func start() async
+    func stop() async
+}
+
+/// Forges whose demand arrives over listeners instead of a polled query.
+/// Only the GitHub scale-set forge conforms.
+protocol ForgeWithListeners: Forge {
+    /// Every listener this forge owns, started and stopped together.
+    var listeners: [any ForgeListener] { get }
+}
+
+extension ForgeWithListeners {
+    func startListeners() async {
+        for listener in listeners { await listener.start() }
+    }
+
+    func stopListeners() async {
+        for listener in listeners { await listener.stop() }
     }
 }
 

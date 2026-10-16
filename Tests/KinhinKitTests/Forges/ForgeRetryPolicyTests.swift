@@ -85,7 +85,7 @@ final class ForgeRetryPolicyTests: XCTestCase {
     // MARK: - run
 
     func testRunDoesNotRetryNetworkErrorsWhenTurnedOff() async {
-        let calls = Mutex(0)
+        let calls = Locked(0)
         var policy = ForgeRetryPolicy(retries: 3, baseDelay: 0.001)
         policy.retriesNetworkErrors = false
         do {
@@ -101,7 +101,7 @@ final class ForgeRetryPolicyTests: XCTestCase {
     }
 
     func testRunRetriesNetworkErrorsAndThenSucceeds() async throws {
-        let calls = Mutex(0)
+        let calls = Locked(0)
         let policy = ForgeRetryPolicy(retries: 3, baseDelay: 0.001)
         let value: String = try await policy.run {
             let n = calls.withLock { n -> Int in
@@ -128,7 +128,7 @@ final class ForgeRetryPolicyTests: XCTestCase {
     }
 
     func testTransportDoesNotRetryAPlainForbidden() async {
-        let calls = Mutex(0)
+        let calls = Locked(0)
         let sleeps = SleepLog()
         StubProtocol.handler = { _ in
             calls.withLock { $0 += 1 }
@@ -145,7 +145,7 @@ final class ForgeRetryPolicyTests: XCTestCase {
     }
 
     func testTransportHonorsRetryAfterOnRateLimitedResponses() async throws {
-        let calls = Mutex(0)
+        let calls = Locked(0)
         let sleeps = SleepLog()
         StubProtocol.handler = { _ in
             let n = calls.withLock { n -> Int in
@@ -177,7 +177,7 @@ final class ForgeRetryPolicyTests: XCTestCase {
     }
 
     func testGitHubPlainForbiddenSurfacesImmediately() async {
-        let calls = Mutex(0)
+        let calls = Locked(0)
         let sleeps = SleepLog()
         StubProtocol.handler = { _ in
             calls.withLock { $0 += 1 }
@@ -196,7 +196,7 @@ final class ForgeRetryPolicyTests: XCTestCase {
     }
 
     func testGitHubSecondaryRateLimitWaitsThenSucceeds() async throws {
-        let calls = Mutex(0)
+        let calls = Locked(0)
         let sleeps = SleepLog()
         StubProtocol.handler = { _ in
             let n = calls.withLock { n -> Int in
@@ -213,7 +213,7 @@ final class ForgeRetryPolicyTests: XCTestCase {
     }
 
     func testGitHubServerErrorsRetryThenGiveUpWithTheLastError() async {
-        let calls = Mutex(0)
+        let calls = Locked(0)
         let sleeps = SleepLog()
         StubProtocol.handler = { _ in
             calls.withLock { $0 += 1 }
@@ -251,7 +251,7 @@ final class ForgeRetryPolicyTests: XCTestCase {
     }
 
     func testMessagePollRetriesATransient5xx() async throws {
-        let calls = Mutex(0)
+        let calls = Locked(0)
         let sleeps = SleepLog()
         StubProtocol.handler = { _ in
             let n = calls.withLock { n -> Int in
@@ -268,7 +268,7 @@ final class ForgeRetryPolicyTests: XCTestCase {
     }
 
     func testMessagePollDoesNotRetryAPersistent401() async {
-        let calls = Mutex(0)
+        let calls = Locked(0)
         StubProtocol.handler = { _ in
             calls.withLock { $0 += 1 }
             return (401, Data(), [:])
@@ -278,7 +278,7 @@ final class ForgeRetryPolicyTests: XCTestCase {
                 session: queueSession, lastMessageId: nil, maxCapacity: 1)
             XCTFail("should throw")
         } catch {
-            guard case GitHubScaleSetClientError.messageQueueTokenExpired = error else {
+            guard case GitHubError.scaleSetMessageQueueTokenExpired = error else {
                 return XCTFail("wrong error: \(error)")
             }
         }
@@ -286,7 +286,7 @@ final class ForgeRetryPolicyTests: XCTestCase {
     }
 
     func testAckRetriesATransient5xx() async throws {
-        let calls = Mutex(0)
+        let calls = Locked(0)
         StubProtocol.handler = { _ in
             let n = calls.withLock { n -> Int in
                 n += 1

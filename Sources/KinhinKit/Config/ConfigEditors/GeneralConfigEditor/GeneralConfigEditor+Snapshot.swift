@@ -8,6 +8,7 @@ extension GeneralConfigEditor {
     public struct Snapshot: Equatable, Sendable {
         public var labels: [String]
         public var minRunners: Int
+        public var warmPool: Int
         public var maxRunners: Int
         public var runnersPerVM: Int
         public var pollInterval: Int
@@ -111,6 +112,7 @@ extension GeneralConfigEditor {
         return Snapshot(
             labels: partial.labels ?? d.labels,
             minRunners: partial.minRunners ?? d.minRunners,
+            warmPool: partial.warmPool ?? d.warmPool,
             maxRunners: partial.maxRunners ?? d.maxRunners,
             runnersPerVM: partial.runnersPerVM ?? d.runnersPerVM,
             pollInterval: partial.pollInterval ?? d.pollInterval,

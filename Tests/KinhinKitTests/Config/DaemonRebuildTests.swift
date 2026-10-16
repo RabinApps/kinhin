@@ -14,14 +14,14 @@ final class DaemonRebuildTests: XCTestCase {
     /// makeTestConfig) so the restart diff compares like with like.
     func makeEngine(
         _ config: KinhinConfig, store: FleetStore = makeTestStore(), tart: TartControlling = FakeTart(),
-        github: FakeGitHub = FakeGitHub(), drainTimeout: Duration = .seconds(5)
+        github: FakeGitHub = FakeGitHub(), ssh: FakeSSH = FakeSSH(), drainTimeout: Duration = .seconds(5)
     ) -> FleetEngine {
         FleetEngine(
             config: config,
             github: github,
             tart: tart,
             store: store,
-            ssh: FakeSSH(),
+            ssh: ssh,
             host: host,
             dependencies: .init(tokenLoader: { _, _ in "test-token" }, lifecycleDrainTimeout: drainTimeout)
         )
@@ -117,7 +117,7 @@ final class DaemonRebuildTests: XCTestCase {
         let ref = Daemon.EngineRef(makeEngine(try ConfigLoader.parse(yaml())))
 
         try yaml(vmCPU: 6).write(to: url, atomically: true, encoding: .utf8)
-        let builds = Mutex(0)
+        let builds = Locked(0)
         let factory: @Sendable (KinhinConfig) throws -> FleetEngine = { [host] cfg in
             builds.withLock { $0 += 1 }
             return FleetEngine(
@@ -229,19 +229,29 @@ final class DaemonRebuildTests: XCTestCase {
         let tart = FakeTart()
         tart.vms["kinhin-live"] = TartVM(name: "kinhin-live", source: "tahoe-base", status: "running")
         store.upsert(VMRecord(id: "kinhin-live", phase: .booting))
-        let engine = makeEngine(try ConfigLoader.parse(yaml()), store: store, tart: tart)
+        // Park the lifecycle at its first SSH step, so it cannot finish on its own before the reload. The fake's park ignores
+        // cancellation, so the reload's drain would wait on it; release it just after the reload starts instead.
+        let ssh = FakeSSH()
+        ssh.blockOnCall(0)
+        let engine = makeEngine(try ConfigLoader.parse(yaml()), store: store, tart: tart, ssh: ssh)
         let ref = Daemon.EngineRef(engine)
         await engine.start()
+        await ssh.waitUntilBlocked()
         XCTAssertEqual(engine.lifecycleTasks.withLock { Array($0.keys) }, ["kinhin-live"])
 
         try yaml(vmCPU: 6).write(to: url, atomically: true, encoding: .utf8)
         let replacement = makeEngine(try ConfigLoader.parse(yaml(vmCPU: 6)), store: store, tart: tart)
+        async let release: Void = {
+            try? await Task.sleep(for: .milliseconds(50))
+            ssh.releaseBlocked()
+        }()
         let response = await Daemon.handle(
             .init(id: 25, method: .reloadConfig),
             engineRef: ref,
             configURL: url,
             engineFactory: { _ in replacement }
         )
+        await release
         XCTAssertTrue(response.ok, "\(response.error ?? "")")
         XCTAssertTrue(engine.lifecycleTasks.withLock { $0.isEmpty }, "old engine's lifecycles drained")
         XCTAssertEqual(replacement.lifecycleTasks.withLock { Array($0.keys) }, ["kinhin-live"], "replacement adopted")
@@ -260,9 +270,15 @@ final class DaemonRebuildTests: XCTestCase {
         let tart = FakeTart()
         tart.vms["kinhin-live"] = TartVM(name: "kinhin-live", source: "tahoe-base", status: "running")
         store.upsert(VMRecord(id: "kinhin-live", phase: .booting))
-        let engine = makeEngine(try ConfigLoader.parse(yaml()), store: store, tart: tart)
+        // Park the lifecycle at its first SSH step. Without this the lifecycle can finish on its own (the fake
+        // runner never registers), which removed its entry from lifecycleTasks and made the assertions below race.
+        let ssh = FakeSSH()
+        ssh.blockOnCall(0)
+        let engine = makeEngine(try ConfigLoader.parse(yaml()), store: store, tart: tart, ssh: ssh)
         let ref = Daemon.EngineRef(engine)
         await engine.start()
+        await ssh.waitUntilBlocked()
+        XCTAssertTrue(ssh.isBlocked, "the lifecycle reached its first SSH call and is parked there")
 
         try yaml(vmCPU: 6).write(to: url, atomically: true, encoding: .utf8)
         let deniedGitHub = FakeGitHub()
@@ -282,6 +298,7 @@ final class DaemonRebuildTests: XCTestCase {
         XCTAssertEqual(engine.lifecycleTasks.withLock { Array($0.keys) }, ["kinhin-live"])
         XCTAssertTrue(replacement.lifecycleTasks.withLock { $0.isEmpty }, "the replacement adopted nothing")
         XCTAssertFalse(replacement.running)
+        ssh.releaseBlocked()
         await engine.detachKeepingInstances()
     }
 
@@ -291,7 +308,7 @@ final class DaemonRebuildTests: XCTestCase {
     /// cancellation (a shell command) must not stall the reload RPC.
     func testDrainIsBoundedForTasksIgnoringCancellation() async {
         let engine = makeEngine(makeTestConfig())
-        let gate = Mutex<CheckedContinuation<Void, Never>?>(nil)
+        let gate = Locked<CheckedContinuation<Void, Never>?>(nil)
         let stuck = Task {
             await withCheckedContinuation { continuation in gate.withLock { $0 = continuation } }
         }

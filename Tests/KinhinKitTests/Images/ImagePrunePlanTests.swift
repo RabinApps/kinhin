@@ -165,4 +165,17 @@ final class ImagePrunePlanTests: XCTestCase {
         record.image = image
         return record
     }
+
+    /// A runtime whose instances could not be listed is skipped, never swept:
+    /// an empty `usedBy` there does not mean the image is unused.
+    func testSkipsRuntimeWhoseInstancesCouldNotBeListed() {
+        let inventory = ImageInventory.build(
+            config: config(), tart: .init(names: ["tahoe-base"]),
+            docker: .init(names: ["old:1"], usageUnknown: "could not list docker instances: boom"))
+
+        let plan = ImagePrunePlan.plan(inventory: inventory, config: config())
+
+        XCTAssertEqual(plan.targets, [])
+        XCTAssertEqual(plan.unavailable, ["docker": "could not list docker instances: boom"])
+    }
 }

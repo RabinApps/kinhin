@@ -175,7 +175,7 @@ final class LinuxToolchainsTests: XCTestCase {
               - pattern: acme/widgets
                 toolchains: {specs: ["dotnet"]}
             """)
-        XCTAssertEqual(sel.aptPackages, ["dotnet-sdk-8.0"])
+        XCTAssertEqual(sel.aptPackages, ["dotnet-sdk-10.0"])
         XCTAssertTrue(sel.cacheEnvs.contains(ToolchainCacheEnv(variable: "NUGET_PACKAGES", subdirectory: "nuget")))
         XCTAssertTrue(sel.verifications.contains("dotnet --list-sdks"))
     }
@@ -235,7 +235,7 @@ final class LinuxToolchainsTests: XCTestCase {
             selection: sel, mountPath: ToolchainCacheMount.linuxGuestPath)
         XCTAssertTrue(script.contains("dpkg-query -W -f='${Status}'"), "guarded apt install: \(script)")
         XCTAssertTrue(script.contains("apt-get install -y --no-install-recommends"))
-        XCTAssertTrue(script.contains("dotnet-sdk-8.0"))
+        XCTAssertTrue(script.contains("dotnet-sdk-10.0"))
         XCTAssertTrue(script.contains("mise.run"), "mise is bootstrapped on Linux (not preinstalled)")
         XCTAssertTrue(script.contains("mise use --global 'node@22'"))
         XCTAssertTrue(script.contains("npm install -g 'vercel'"))
@@ -354,6 +354,20 @@ final class LinuxToolchainsTests: XCTestCase {
         XCTAssertTrue(runArgv.contains(ToolchainCacheMount.volumeSpec(host: Paths.toolchainCache.path)))
     }
 
+    func testContainerRunnerMountsOnlyTheProjectScopedCache() async throws {
+        let shell = FakeShell()
+        let runtime = AppleContainerRuntime(
+            shell: shell, image: "img", cpus: 2, memoryGB: 4, binPath: "/usr/local/bin/container")
+        try await runtime.provision(
+            id: "kinhin-s",
+            route: RepoRoute(
+                repo: "r", image: "img", ephemeral: true, bootTimeout: 30, cacheMount: true, cacheScope: "proj-key"))
+        let runArgv = try XCTUnwrap(shell.calls.last { $0.contains("run") })
+        let scoped = Paths.toolchainCache.appendingPathComponent("proj-key", isDirectory: true).path
+        XCTAssertTrue(runArgv.contains(ToolchainCacheMount.volumeSpec(host: scoped)))
+        XCTAssertFalse(runArgv.contains(ToolchainCacheMount.volumeSpec(host: Paths.toolchainCache.path)))
+    }
+
     func testContainerRegistrationScriptPrefixesLinuxCacheExports() async throws {
         let shell = FakeShell()
         let runtime = AppleContainerRuntime(
@@ -394,5 +408,38 @@ final class LinuxToolchainsTests: XCTestCase {
                 repo: "r", image: "img", ephemeral: true, bootTimeout: 30, toolchains: .init(specs: ["node@22"])),
             labels: nil)
         XCTAssertFalse(script.contains("export NPM_CONFIG_CACHE"), "no mount → no cache exports")
+    }
+
+    /// `a|b` installs the first name the guest's apt knows: libcurl4 on Ubuntu 22.04 and Debian 12, where libcurl4t64
+    /// does not exist. Runs the script's apt section in bash against stub dpkg-query, apt-cache and apt-get.
+    func testAlternativeAptPackageInstallsTheNameThisReleaseKnows() throws {
+        var selection = ManagedToolchainSelection()
+        selection.aptPackages = ["libcurl4t64|libcurl4", "tzdata"]
+        let script = RunnerBootstrap.linuxManagedToolchainsInstallScript(selection: selection, mountPath: nil)
+        let start = try XCTUnwrap(script.range(of: "# apt packages"))
+        let end = try XCTUnwrap(script.range(of: "\ndone", range: start.upperBound..<script.endIndex))
+        let aptSection = String(script[start.lowerBound..<end.upperBound])
+
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("apt-alt-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let stubs = [
+            "dpkg-query": "exit 1",  // nothing installed yet
+            "apt-cache": #"[ "$2" = libcurl4 ] || [ "$2" = tzdata ]"#,  // an Ubuntu 22.04 index
+            "apt-get": #"[ "$1" = install ] && echo "${@: -1}" >> "$(dirname "$0")/installed"; exit 0"#,
+        ]
+        for (name, body) in stubs {
+            let file = dir.appendingPathComponent(name)
+            try "#!/bin/bash\n\(body)\n".write(to: file, atomically: true, encoding: .utf8)
+            try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: file.path)
+        }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/bash")
+        process.arguments = ["-c", "set -euo pipefail\nPATH=\"\(dir.path):$PATH\"\n\(aptSection)"]
+        try process.run()
+        process.waitUntilExit()
+        XCTAssertEqual(process.terminationStatus, 0)
+        let installed = try String(contentsOf: dir.appendingPathComponent("installed"), encoding: .utf8)
+        XCTAssertEqual(installed, "libcurl4\ntzdata\n")
     }
 }

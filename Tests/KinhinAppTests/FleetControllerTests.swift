@@ -306,7 +306,7 @@ final class FleetControllerTests: XCTestCase {
     }
 
     func testNeverAdoptsADaemonWhileTheAppHasItsOwnBackend() async {
-        let probes = Mutex(0)
+        let probes = Locked(0)
         fleet.environment.daemonProbe = {
             probes.withLock { $0 += 1 }
             return true
@@ -328,7 +328,7 @@ final class FleetControllerTests: XCTestCase {
     /// writes when the answer differs, so an idle fleet re-renders nothing.
     func testAnEqualStatusIsNotRepublished() async {
         fake.status = FleetStatus(running: true)
-        let changes = Mutex(0)
+        let changes = Locked(0)
         @MainActor func track(_ fleet: FleetController) {
             withObservationTracking {
                 _ = fleet.status

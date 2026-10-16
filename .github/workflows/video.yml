@@ -1,0 +1,309 @@
+# Opt-in marketing video builds (docs/plans/marketing-suite-in-ci.md, docs/ci-video.md).
+#
+# Off unless the repository variable VIDEO_CI is "true"; after that each trigger has its own switch in video/ci.json
+# (triggers.release, triggers.pullRequest, triggers.schedule). A manual run builds exactly what you ask for. It never
+# runs for pull requests from forks, needs no secrets, and nothing else depends on it: a failure here blocks no release,
+# no docs deploy and no pull request. Assets go to the release or the site only after the `marketing` environment is
+# approved, and only when ci.json says so (publish.release, publish.site).
+name: Video
+
+on:
+  workflow_dispatch:
+    inputs:
+      project:
+        description: "Project in video/script/ (for example launch or examples/hello)"
+        required: false
+        type: string
+      theme:
+        description: "Theme in video/themes/ (empty: the project's own)"
+        required: false
+        type: string
+      format:
+        description: "16:9, 9:16, 4:5 or 1:1 (empty: the project's own)"
+        required: false
+        type: string
+      adapter:
+        description: "Adapter in video/adapters/ (empty: the project's own)"
+        required: false
+        type: string
+  workflow_run:
+    workflows: ["Release"]
+    types: [completed]
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+  schedule:
+    - cron: "0 6 1 * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: video-${{ github.event_name }}-${{ github.event.pull_request.number || github.event.workflow_run.head_sha || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Seconds long. Decides whether to build and what; every switch is read here, so a repository that has not opted in
+  # pays for nothing else.
+  plan:
+    # Enforced here, not only in video-ci.mjs: a fork PR controls that script (it runs from the PR's checkout), and
+    # mobile-capture below runs on the self-hosted Mac that shares the fleet and its Keychain.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    outputs:
+      enabled: ${{ steps.plan.outputs.enabled }}
+      matrix: ${{ steps.plan.outputs.matrix }}
+      publish_release: ${{ steps.plan.outputs.publish_release }}
+      publish_site: ${{ steps.plan.outputs.publish_site }}
+      screens_platforms: ${{ steps.plan.outputs.screens_platforms }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - id: plan
+        env:
+          VIDEO_CI: ${{ vars.VIDEO_CI }}
+          INPUT_PROJECT: ${{ inputs.project }}
+          INPUT_THEME: ${{ inputs.theme }}
+          INPUT_FORMAT: ${{ inputs.format }}
+          INPUT_ADAPTER: ${{ inputs.adapter }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            CHANGED_FILES="$(git diff --name-only "origin/$BASE_REF...HEAD")"
+            export CHANGED_FILES
+          fi
+          node video/scripts/video-ci.mjs validate
+          node video/scripts/video-ci.mjs plan
+
+  # The honesty gate, before any rendering: nothing the product does not support may be said or shown.
+  claims:
+    needs: plan
+    if: needs.plan.outputs.enabled == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - env:
+          PROJECT: ${{ matrix.project }}
+        run: node video/scripts/video-claims-lint.mjs --project "$PROJECT"
+
+  # One container build per look, from committed sources: the same command a maintainer runs locally.
+  # The store screenshots that looks with `screens` need, once per platform (ios, android). iOS capture needs the simulator
+  # and Android the emulator, so both run on the macOS pool; the build (Linux, in the container) gets the PNGs as artifacts.
+  # Each capture is copied to canonical names (en-US.png, fr-FR.png) that the project's `screens` paths use.
+  mobile-capture:
+    needs: plan
+    # Fork guard repeated as defense in depth: this job runs on the self-hosted Mac.
+    if: >-
+      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+      && needs.plan.outputs.enabled == 'true' && needs.plan.outputs.screens_platforms != '{"include":[]}'
+    # The capture runs repository code on the self-hosted Mac, so it waits for the same reviewer as the publish jobs.
+    environment: marketing
+    runs-on: [self-hosted, kinhin-xcode]
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.screens_platforms) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          persist-credentials: false
+      - name: Ruby for fastlane (Homebrew on the runner)
+        # ruby/setup-ruby is not on this repo's Actions allowlist. The pool's Homebrew Ruby ships bundler and is newer than
+        # the 3.2 fastlane needs, so the step installs it when missing and puts it on PATH for the steps after.
+        run: |
+          brew list ruby >/dev/null 2>&1 || brew install ruby
+          echo "$(brew --prefix ruby)/bin" >> "$GITHUB_PATH"
+          "$(brew --prefix ruby)/bin/ruby" --version
+      - name: iOS - generate the example project
+        if: matrix.platform == 'ios'
+        working-directory: examples/ios_native_app
+        run: |
+          command -v xcodegen >/dev/null || brew install xcodegen
+          xcodegen generate
+      - name: iOS - capture the store screenshots (en-US and fr-FR)
+        if: matrix.platform == 'ios'
+        working-directory: examples/ios_native_app
+        env:
+          IOS_SCHEME: IosNativeApp
+          SNAPSHOT_LANGUAGES: en-US,fr-FR
+        run: |
+          bundle install
+          bundle exec fastlane screenshots
+          mkdir -p "$RUNNER_TEMP/screens/ios"
+          cp fastlane/screenshots/en-US/*.png "$RUNNER_TEMP/screens/ios/en-US.png"
+          cp fastlane/screenshots/fr-FR/*.png "$RUNNER_TEMP/screens/ios/fr-FR.png"
+      - name: Android - boot an emulator
+        if: matrix.platform == 'android'
+        run: |
+          # The pool's Android SDK needs a complete system image (the emulator image the repair step installs).
+          "$ANDROID_HOME/emulator/emulator" -avd "${KINHIN_AVD:-Pixel_9}" -no-window -no-audio -no-snapshot-save &
+          "$ANDROID_HOME/platform-tools/adb" wait-for-device
+          until [ "$("$ANDROID_HOME/platform-tools/adb" shell getprop sys.boot_completed | tr -d '\r')" = 1 ]; do sleep 5; done
+      - name: Android - capture the store screenshots (en-US and fr-FR)
+        if: matrix.platform == 'android'
+        working-directory: examples/android_native_app
+        env:
+          ANDROID_PACKAGE_NAME: com.example.androidnative
+          SCREENGRAB_LOCALES: en-US,fr-FR
+        run: |
+          bundle install
+          bundle exec fastlane screenshots
+          mkdir -p "$RUNNER_TEMP/screens/android"
+          for locale in en-US fr-FR; do
+            cp "fastlane/metadata/android/$locale/images/phoneScreenshots/"01-home_*.png "$RUNNER_TEMP/screens/android/$locale.png"
+          done
+      - name: Keep the screenshots for the video build
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: mobile-screens-${{ matrix.platform }}
+          path: ${{ runner.temp }}/screens/${{ matrix.platform }}
+          retention-days: 14
+          if-no-files-found: error
+
+  build:
+    needs: [plan, claims, mobile-capture]
+    # Runs when the claims gate passed and the screenshots (when a look needs them) were captured, or were not needed.
+    if: >-
+      ${{ always() && needs.plan.outputs.enabled == 'true' && needs.claims.result == 'success' &&
+      (needs.mobile-capture.result == 'success' || needs.mobile-capture.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      # A release build uses the image published for that release (video-image.yml builds it from the same tag), so three looks
+      # do not build it three times. Anything else, and a release whose image is not there yet, builds from the checked-out
+      # sources: a pull request must test its own changes.
+      - name: Use the released image
+        if: github.event_name == 'workflow_run'
+        id: image
+        env:
+          RELEASE_TAG: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_TAG" =~ ^v[0-9][0-9A-Za-z._-]*$ ]] || { echo "not a release tag: building from source"; exit 0; }
+          image="ghcr.io/rabinapps/kinhin-video:${RELEASE_TAG#v}"
+          if docker pull "$image"; then
+            echo "image=$image" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::$image is not published (yet): building the image from source"
+          fi
+      # The screenshots of a `screens` look, from mobile-capture for its platform, go where the project's `screens` paths point.
+      - name: Store screenshots for this look
+        if: matrix.screens
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: mobile-screens-${{ matrix.platform }}
+          path: video/screens/mobile/${{ matrix.platform }}
+      - name: Build
+        env:
+          VIDEO_IMAGE: ${{ steps.image.outputs.image }}
+          PROJECT: ${{ matrix.project }}
+          THEME: ${{ matrix.theme }}
+          FORMAT: ${{ matrix.format }}
+          ADAPTER: ${{ matrix.adapter }}
+          PREVIEW: ${{ github.event_name == 'pull_request' }}
+        run: |
+          args=(--container --runtime docker --project "$PROJECT")
+          [ -n "$THEME" ] && args+=(--theme "$THEME")
+          [ -n "$FORMAT" ] && args+=(--format "$FORMAT")
+          [ -n "$ADAPTER" ] && args+=(--adapter "$ADAPTER")
+          [ "$PREVIEW" = true ] && args+=(--fast)
+          video/scripts/build.sh "${args[@]}"
+      - name: Verify
+        run: node video/scripts/video-ci.mjs verify video/out
+      - name: Summary
+        if: always()
+        run: node video/scripts/video-ci.mjs summary video/out || true
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: video-${{ matrix.name }}
+          # The build's own folder: <name>.mp4, .webm, .srt, -poster.png, -hero.gif (and music-credit.txt when the track needs one).
+          path: video/out/${{ matrix.name }}/
+          retention-days: 14
+          if-no-files-found: error
+
+  # Reviewed by a person (the protected `marketing` environment) and only when ci.json says publish.release is true:
+  # attaches the finished videos to the release that triggered the build.
+  publish-release:
+    needs: [plan, build]
+    if: needs.plan.outputs.publish_release == 'true' && github.event_name == 'workflow_run'
+    runs-on: ubuntu-latest
+    environment: marketing
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: video-*
+          path: assets
+          merge-multiple: true
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          shopt -s nullglob
+          files=(assets/*.mp4 assets/*.webm assets/*.srt assets/*-poster.png)
+          [ "${#files[@]}" -gt 0 ] || { echo "nothing to attach"; exit 1; }
+          gh release upload "$TAG" "${files[@]}" --clobber --repo "$GITHUB_REPOSITORY"
+
+  # Never a direct push: the site gets a pull request, so the usual review (and the docs build) still applies.
+  publish-site:
+    needs: [plan, build]
+    if: needs.plan.outputs.publish_site == 'true' && github.event_name == 'workflow_run'
+    runs-on: ubuntu-latest
+    environment: marketing
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: true
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: video-launch
+          path: assets
+          merge-multiple: true
+      - name: Open a pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          [ -f assets/launch.mp4 ] || { echo "no launch.mp4 in the build"; exit 1; }
+          branch="video/launch-$TAG"
+          git switch -c "$branch"
+          cp assets/launch.mp4 website/public/launch.mp4
+          cp assets/launch.webm website/public/launch.webm
+          cp assets/launch-poster.png website/public/launch-poster.png
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add website/public
+          git commit -m "site: launch video for $TAG"
+          git push origin "$branch"
+          gh pr create --base main --head "$branch" --title "site: launch video for $TAG" \
+            --body "Built by the Video workflow for $TAG. Review the video before merging."

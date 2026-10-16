@@ -34,7 +34,7 @@ final class AppResetTests: MainWindowTestCase {
         var planned: [ResetScope] = []
         model.resetPlanner = { scope in
             planned.append(scope)
-            return await ResetEverything.plan(
+            return try await ResetEverything.plan(
                 scope: scope, configURL: self.scratchConfig, supportRoot: self.supportRoot())
         }
 
@@ -52,7 +52,7 @@ final class AppResetTests: MainWindowTestCase {
         var ranPlans: [ResetPlan] = []
         model.resetRunner = { plan in
             ranPlans.append(plan)
-            return []
+            return ResetReport()
         }
 
         model.resetClicked()
@@ -67,7 +67,7 @@ final class AppResetTests: MainWindowTestCase {
         var ranPlans: [ResetPlan] = []
         model.resetRunner = { plan in
             ranPlans.append(plan)
-            return []
+            return ResetReport()
         }
 
         model.resetClicked()
@@ -86,7 +86,7 @@ final class AppResetTests: MainWindowTestCase {
         var stopped = false
         model.resetRunner = { ran in
             ranPlans.append(ran)
-            return ["removed config, logs and state"]
+            return ResetReport(completed: ["removed config, logs and state"])
         }
         model.fleetController = fleet
 
@@ -107,7 +107,7 @@ final class AppResetTests: MainWindowTestCase {
         stubGates(scope: .daemon, planConfirmed: true, wordConfirmed: true)
         let plan = ResetPlan(scope: .daemon, supportRoot: supportRoot())
         model.resetPlanner = { _ in plan }
-        model.resetRunner = { _ in ["removed the daemon LaunchAgent"] }
+        model.resetRunner = { _ in ResetReport(completed: ["removed the daemon LaunchAgent"]) }
 
         model.resetClicked()
         await waitUntil("the reset finishes") { !self.model.resetBusy }
@@ -124,7 +124,7 @@ final class AppResetTests: MainWindowTestCase {
         stubGates(scope: .daemon, planConfirmed: true, wordConfirmed: true)
         let plan = ResetPlan(scope: .daemon, supportRoot: supportRoot())
         model.resetPlanner = { _ in plan }
-        model.resetRunner = { _ in ["removed the daemon LaunchAgent"] }
+        model.resetRunner = { _ in ResetReport(completed: ["removed the daemon LaunchAgent"]) }
 
         model.resetClicked()
         await waitUntil("the reset finishes") { !self.model.resetBusy }
@@ -137,7 +137,7 @@ final class AppResetTests: MainWindowTestCase {
         stubGates(scope: .config, planConfirmed: true, wordConfirmed: true)
         let plan = ResetPlan(scope: .config, supportRoot: supportRoot())
         model.resetPlanner = { _ in plan }
-        model.resetRunner = { _ in ["removed config, logs and state"] }
+        model.resetRunner = { _ in ResetReport(completed: ["removed config, logs and state"]) }
 
         model.resetClicked()
         await waitUntil("the reset finishes") { !self.model.resetBusy }
@@ -157,18 +157,58 @@ final class AppResetTests: MainWindowTestCase {
         XCTAssertTrue(delegate.resetFinishedScopes.isEmpty, "a failed reset must not re-bootstrap")
     }
 
+    func testLeftoversAreShownInsteadOfAPlainSuccess() async {
+        showAppSection()
+        stubGates(scope: .daemon, planConfirmed: true, wordConfirmed: true)
+        let plan = ResetPlan(scope: .daemon, supportRoot: supportRoot())
+        model.resetPlanner = { _ in plan }
+        model.resetRunner = { _ in
+            ResetReport(
+                completed: ["removed the daemon LaunchAgent"],
+                leftBehind: [
+                    "could not read the Keychain (locked); stored tokens were not listed and may not be removed"
+                ])
+        }
+
+        model.resetClicked()
+        await waitUntil("the reset finishes") { !self.model.resetBusy && !self.model.resetLine.text.isEmpty }
+        XCTAssertEqual(model.resetLine.style, .warn, model.resetLine.text)
+        XCTAssertTrue(model.resetLine.text.contains("left behind"), model.resetLine.text)
+        XCTAssertTrue(model.resetLine.text.contains("could not read the Keychain"), model.resetLine.text)
+        XCTAssertEqual(delegate.resetFinishedScopes, [.daemon], "the reset still ran, so the app re-bootstraps")
+    }
+
+    func testPlanningProblemsAreInTheConfirmation() async {
+        showAppSection()
+        var plan = ResetPlan(scope: .all, supportRoot: supportRoot())
+        plan.planningProblems = [
+            .init(area: .tart, message: "could not list Tart VMs (boom); VMs and images were not removed")
+        ]
+        model.chooseResetScope = { .all }
+        var shown = ""
+        model.confirmResetPlan = { plan in
+            shown = plan.describe()
+            return false
+        }
+        model.resetPlanner = { _ in plan }
+
+        model.resetClicked()
+        await waitUntil("the flow settles") { !self.model.resetBusy }
+        XCTAssertTrue(shown.contains("warning: could not list Tart VMs (boom)"), shown)
+    }
+
     func testResetIsIgnoredWhileOneIsRunning() async {
         showAppSection()
         stubGates(scope: .config, planConfirmed: true, wordConfirmed: true)
         let plan = ResetPlan(scope: .config, supportRoot: supportRoot())
         model.resetPlanner = { _ in plan }
-        let gate = Mutex(false)
+        let gate = Locked(false)
         model.resetRunner = { _ in
             // Hold the wipe until the second click has been attempted.
             while !gate.withLock({ $0 }) {
                 try? await Task.sleep(for: .milliseconds(5))  // released by the test below
             }
-            return []
+            return ResetReport()
         }
 
         model.resetClicked()

@@ -199,15 +199,16 @@ extension AppDelegate {
     }
 
     /// The menu's first line: "Starting…"/"Stopping…" while a command runs,
-    /// otherwise the shared state line.
+    /// otherwise the shared state line plus any app-side problem.
     func statusLineText(pending: FleetAction?, status: FleetStatus?) -> String {
         if let pending {
             return pending == .start
                 ? String(localized: "Starting…", bundle: .l10n, comment: "Status line while a start command runs")
                 : String(localized: "Stopping…", bundle: .l10n, comment: "Status line while a stop command runs")
         }
-        guard let status else { return fleet.statusLine }
-        return statusLine(for: status)
+        let base = status.map(statusLine(for:)) ?? fleet.statusLine
+        // App-side failures (launch, config push) sit under the state line.
+        return fleet.problemLines.reduce(base) { $0 + "\n  ⚠ \($1)" }
     }
 
     /// Everything the status item and menu show that comes from the fleet

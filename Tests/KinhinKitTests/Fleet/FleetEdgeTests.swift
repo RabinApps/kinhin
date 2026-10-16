@@ -60,7 +60,7 @@ final class FleetEdgeTests: XCTestCase {
     /// One host probe per pass, whatever the burst size; each planned VM
     /// subtracts its own share, so a burst still cannot overrun the disk.
     func testHostIsProbedOncePerPassAndPlannedVMsConsumeDisk() async throws {
-        let probes = Mutex(0)
+        let probes = Locked(0)
         var cfg = makeTestConfig()
         cfg.maxRunners = 5
         cfg.diskGB = 30  // 30 + 10 reserve = 40 needed per spawn
@@ -235,6 +235,16 @@ final class FleetEdgeTests: XCTestCase {
         XCTAssertTrue(tart.deleteCalls.isEmpty, "an unreadable runner list must not read as idle")
     }
 
+    /// A token swapped in over the daemon socket never passed through the Keychain loader: it is masked in the
+    /// daemon's logs from the moment it is attached.
+    func testASwappedTokenIsMaskedInLogs() async {
+        defer { LogRedactor.forgetAllSecretsForTesting() }
+        let engine = makeEngine(tart: FakeTart(), github: FakeGitHub(), ssh: FakeSSH())
+        let token = "swapped-token-" + UUID().uuidString
+        await engine.replaceCredentials(pat: token)
+        XCTAssertFalse(LogRedactor.redact("request with \(token) failed").contains(token))
+    }
+
     /// A failed `tart delete` must not make the engine forget the VM: the
     /// record stays (`.deleting`) and the next pass retries until it is gone.
     func testFailedTeardownKeepsTheRecordAndRetries() async throws {
@@ -255,6 +265,46 @@ final class FleetEdgeTests: XCTestCase {
         try await engine.reconcileOnce()
         await engine.settleDeletes()  // the retry runs in the background
         XCTAssertNil(engine.store.all.first { $0.id == "kinhin-stuck" }, "the retry removes it")
+    }
+
+    /// A teardown interrupted by cancellation (engine stop running out of its
+    /// budget) must not drop the record: the VM may still exist, so the record
+    /// stays `.deleting` and a later pass finishes the idempotent teardown.
+    func testCancelledTeardownKeepsTheRecordAndRetries() async throws {
+        let tart = FakeTart()
+        let engine = makeEngine(tart: tart, github: FakeGitHub(), ssh: FakeSSH())
+        var record = VMRecord(id: "kinhin-cut", phase: .ready)
+        record.runtimeID = .tart
+        engine.store.upsert(record)
+        tart.vms["kinhin-cut"] = TartVM(name: "kinhin-cut", source: "base", status: "running")
+        tart.blockNextStop()
+
+        let delete = Task { await engine.deleteVMRecord(id: "kinhin-cut", reason: "test") }
+        await tart.waitUntilStopParked()
+        tart.releaseStop(throwing: CancellationError())
+        await delete.value
+
+        XCTAssertEqual(engine.store.all.first { $0.id == "kinhin-cut" }?.phase, .deleting, "the record is kept")
+        XCTAssertTrue(tart.deleteCalls.isEmpty, "the cancelled teardown never reached delete")
+
+        try await engine.reconcileOnce()
+        await engine.settleDeletes()
+        XCTAssertNil(engine.store.all.first { $0.id == "kinhin-cut" }, "the retry removes it")
+        XCTAssertEqual(tart.deleteCalls, ["kinhin-cut"])
+    }
+
+    /// A cancelled reconcile pass is not a forge outage: it propagates and
+    /// raises no `queue:` alert.
+    func testCancelledQueuePollRaisesNoForgeAlert() async throws {
+        let github = FakeGitHub()
+        github.queueError = CancellationError()
+        let engine = makeEngine(tart: FakeTart(), github: github, ssh: FakeSSH())
+        do {
+            try await engine.reconcileOnce()
+            XCTFail("cancellation must propagate out of the pass")
+        } catch is CancellationError {}
+        let alerts = await engine.status().alerts ?? []
+        XCTAssertFalse(alerts.contains { $0.source.hasPrefix("queue:") }, "\(alerts)")
     }
 
     func testPauseWithoutAutoResumeStillSkipsQueuePolling() async throws {

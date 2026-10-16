@@ -48,8 +48,12 @@ public enum SupportLinks {
     /// Individual donation channels, in display order.
     public static let donate: [Channel] = [githubSponsors, payPal, buyMeACoffee]
 
-    /// Companies that sponsor kinhin. Empty until the first paid sponsor signs up.
-    public static let sponsors: [Sponsor] = []
+    /// Companies that sponsor kinhin.
+    public static let sponsors: [Sponsor] = [
+        Sponsor(
+            name: "SupDesk", url: link("https://supdesk.app"),
+            blurb: "Feedback and support console for solo founders, devs and small teams")
+    ]
 
     /// Other Rabin Apps projects.
     public static let projects: [Project] = [

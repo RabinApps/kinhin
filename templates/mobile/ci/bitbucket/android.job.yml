@@ -1,0 +1,8 @@
+      - step:
+          name: Android
+          # Android has no release lane yet: for the release choice the script returns at once.
+          runs-on: [self.hosted, macos, kinhin-xcode]
+          script:
+            - bash __SCRIPT__ android "$LANE"
+          artifacts:
+            - __ANDROID_SCREENSHOTS__/**

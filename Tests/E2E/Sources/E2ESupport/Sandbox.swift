@@ -9,6 +9,10 @@ public final class Sandbox: @unchecked Sendable {
     public let supportDirectory: URL
     private let lock = NSLock()
     private var tokens: [String: String] = [:]
+    /// Extra variables for every kinhin this sandbox runs (debug-build switches such as `KINHIN_HEALING_TIMINGS`).
+    private var overrides: [String: String] = [:]
+    /// Every daemon this sandbox started, so `dispose()` can stop the ones a test forgot (or stopped too late).
+    private var daemons: [Daemon] = []
 
     public var configURL: URL { supportDirectory.appendingPathComponent("config.yaml") }
     public var logURL: URL { supportDirectory.appendingPathComponent("logs/kinhin.log") }
@@ -29,15 +33,26 @@ public final class Sandbox: @unchecked Sendable {
         lock.withLock { tokens[account] = token }
     }
 
+    /// Sets `value` (nil removes it) for every kinhin run in this sandbox from now on, the daemon included.
+    public func setEnvironment(_ key: String, _ value: String?) {
+        lock.withLock { overrides[key] = value }
+    }
+
     public var environment: [String: String] {
         var env = Shell.baseEnvironment()
         env["KINHIN_SUPPORT_DIR"] = supportDirectory.path
         env["KINHIN_TOKEN_STORE"] = "env"
-        // Never inherit a developer's real forge tokens.
-        for key in env.keys where key.hasPrefix("KINHIN_TOKEN_") && key != "KINHIN_TOKEN_STORE" { env[key] = nil }
+        // Mint and adopt only `ke2ed-*` instances, so a real fleet on this Mac is never touched (see `Instances.ownPrefix`).
+        env["KINHIN_INSTANCE_PREFIX"] = Instances.ownPrefix
+        // Never inherit a developer's real forge tokens, nor healing switches meant for one scenario.
+        for key in env.keys
+        where (key.hasPrefix("KINHIN_TOKEN_") && key != "KINHIN_TOKEN_STORE") || key.hasPrefix("KINHIN_HEALING_") {
+            env[key] = nil
+        }
         for (account, token) in lock.withLock({ tokens }) {
             env[Sandbox.tokenVariable(for: account)] = token
         }
+        for (key, value) in lock.withLock({ overrides }) { env[key] = value }
         return env
     }
 
@@ -69,6 +84,7 @@ public final class Sandbox: @unchecked Sendable {
     public func startDaemon() async throws -> Daemon {
         let daemon = Daemon(sandbox: self)
         try daemon.launch()
+        lock.withLock { daemons.append(daemon) }
         try await eventually("the daemon to answer on its socket", timeout: 60, interval: 1) {
             let result = try await self.kinhin(["status", "--json"], timeout: 15)
             return result.ok ? true : nil
@@ -77,6 +93,8 @@ public final class Sandbox: @unchecked Sendable {
     }
 
     public func dispose() {
+        // A daemon that outlives its sandbox is an orphan: its directory is gone, so the sweep script can no longer find it.
+        for daemon in lock.withLock({ daemons }) { daemon.kill() }
         try? FileManager.default.removeItem(at: supportDirectory)
     }
 }

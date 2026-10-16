@@ -173,23 +173,31 @@ public struct TartController: TartControlling {
     public func list() async throws -> [TartVM] {
         // Newer tart builds print only names for `--quiet`, so ask for JSON.
         let json = try await exec(["list", "--format", "json"])
-        if json.succeeded, let vms = Self.parseListJSON(json.stdout) { return vms }
+        var jsonError: Error?
+        if json.succeeded {
+            do { return try Self.parseListJSON(json.stdout) } catch { jsonError = error }
+        }
         let res = try await exec(["list", "--quiet"])
         guard res.succeeded else { throw TartError.commandFailed(what: "list", stderr: res.stderr) }
-        return Self.parseList(res.stdout)
+        let vms = Self.parseList(res.stdout)
+        // Newer tart prints bare names for `--quiet`, which parse to nothing:
+        // an empty result from non-empty output is unreadable, not "no VMs".
+        if vms.isEmpty, !res.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let why = jsonError.map { ": \($0.localizedDescription)" } ?? ""
+            throw TartError.commandFailed(what: "list", stderr: "could not read the output\(why)")
+        }
+        return vms
     }
 
-    /// Parse `tart list --format json`; nil when the output isn't that JSON.
-    static func parseListJSON(_ text: String) -> [TartVM]? {
+    /// Parse `tart list --format json`; throws when the output isn't that JSON.
+    static func parseListJSON(_ text: String) throws -> [TartVM] {
         struct Entry: Decodable {
             let Name: String
             let Source: String
             let State: String
             let Disk: Int?
         }
-        guard let data = text.data(using: .utf8),
-            let entries = try? JSONDecoder().decode([Entry].self, from: data)
-        else { return nil }
+        let entries = try JSONDecoder().decode([Entry].self, from: Data(text.utf8))
         return entries.map { TartVM(name: $0.Name, source: $0.Source, status: $0.State, diskGB: $0.Disk) }
     }
 

@@ -1,0 +1,55 @@
+  ios:
+    # kinhin-xcode is the Xcode image label. Change it if your pool uses another name.
+    runs-on: [self-hosted, kinhin-xcode]
+    defaults:
+      run:
+        working-directory: __DIR__
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Ruby for fastlane (Homebrew)
+        # fastlane needs Ruby 3.2+; the macOS system Ruby is 2.6. Homebrew's Ruby is newer and ships bundler. Pools whose
+        # Actions allowlist permits ruby/setup-ruby can use that action with ruby-version 3.3 instead.
+        run: |
+          brew list ruby >/dev/null 2>&1 || brew install ruby
+          echo "$(brew --prefix ruby)/bin" >> "$GITHUB_PATH"
+          "$(brew --prefix ruby)/bin/ruby" --version
+__PREBUILD__
+      - name: Write App Store Connect API key
+        env:
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/keys"
+          printf '%s' "$ASC_KEY_P8" > "$RUNNER_TEMP/keys/AuthKey.p8"
+          echo "ASC_KEY_FILEPATH=$RUNNER_TEMP/keys/AuthKey.p8" >> "$GITHUB_ENV"
+      - run: bundle install
+      - name: Install CocoaPods (React Native and Flutter)
+        run: if [ -f Podfile ]; then bundle exec pod install; fi
+      - run: bundle exec fastlane ios ${{ inputs.lane }}
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APP_IDENTIFIER: ${{ secrets.APP_IDENTIFIER }}
+          IOS_SCHEME: ${{ secrets.IOS_SCHEME }}
+          CI: "true"
+          # Screenshot settings, read from repository variables (not secrets). Empty means the default.
+          FRAME_SCREENSHOTS: ${{ vars.FRAME_SCREENSHOTS }}
+          UPLOAD_SCREENSHOTS: ${{ vars.UPLOAD_SCREENSHOTS }}
+          SNAPSHOT_DEVICES: ${{ vars.SNAPSHOT_DEVICES }}
+          SNAPSHOT_LANGUAGES: ${{ vars.SNAPSHOT_LANGUAGES }}
+      # Screenshots are written inside the VM, which is deleted when the job ends. Keep them as an artifact, even when the
+      # lane fails, so the captures can be inspected. __DIR__ is relative to the workspace, which artifact paths need.
+      - name: Upload screenshots
+        if: ${{ always() && inputs.lane == 'screenshots' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ios-screenshots
+          path: __DIR__/fastlane/screenshots
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Remove API key
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/keys"
+

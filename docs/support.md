@@ -22,6 +22,11 @@ Companies can sponsor kinhin and have their logo and a link shown on the website
 [support@rabinapps.com](mailto:support@rabinapps.com?subject=kinhin%20sponsorship) with your company name, link and
 logo. Sponsorship supports the project; it does not buy influence over the roadmap.
 
+## Sponsors
+
+kinhin is sponsored by [SupDesk](https://supdesk.app), the feedback and support console for solo founders, devs and small
+teams.
+
 ## Just using kinhin?
 
 Add your project to [Who uses kinhin](used-by.md). It's free and takes one line.

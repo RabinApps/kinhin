@@ -29,7 +29,7 @@ flowchart LR
     runners -- job results --> forge
 ```
 
-Job completion is observed through provider runner state or events; runners do not report completion directly to `FleetEngine`. The engine reconciles demand and runtime state, and removes ephemeral instances when their runners finish. [Scaling details](scaling.md) · [Runtime and routing details](runtimes.md) · [Security model](security.md).
+Job completion is observed through provider runner state or events; runners do not report completion directly to `FleetEngine`. The engine reconciles demand and runtime state, and removes ephemeral instances when their runners finish. Beside the reconcile loop, the healing agent (`Fleet/Healing/`) runs its own loop: it turns alerts, records, the spawn backoff and the setup checks into signals and applies fixes from a closed allowlist by tier. [Scaling details](scaling.md) · [Runtime and routing details](runtimes.md) · [Security model](security.md) · [The healing agent](healing.md).
 
 ## Low-level systems
 
@@ -70,6 +70,29 @@ flowchart TB
 
 The runtime protocol keeps the fleet independent of whether a job uses a VM, container, Docker instance, or host process. The CI provider schedules work to registered runners; the engine learns runner state and job completion through the provider API or scale-set event flow.
 
+## Videos and screenshots
+
+Two pipelines sit beside the fleet and do not go through `FleetEngine`. `kinhin video` renders a product video in a container
+image, using whichever of Apple's `container` or Docker is running. `kinhin mobile init` writes the fastlane setup that
+captures store screenshots on a macOS runner. CI runs both, and the video CI adds a plan, claims and publish flow.
+
+```mermaid
+flowchart LR
+    cli["kinhin video / kinhin mobile"] --> runner["VideoRunner<br>container or Docker"]
+    cli --> scaffold["MobileScaffold<br>writes fastlane files"]
+    runner --> image["Video image<br>Motion Canvas, Chromium, ffmpeg"]
+    scaffold --> lane["fastlane screenshots lane"]
+    ci["CI workflows"] --> runner
+    ci --> lane
+    image --> videos["Videos in out/"]
+    lane --> shots["Screenshot PNGs"]
+    shots -. "props.screens" .-> image
+```
+
+- [Videos](architecture-videos.md): the capture and render halves, the build steps, the CI job graph, and verification.
+- [Screenshots](architecture-screenshots.md): the scaffolding, what the lane does on iOS and Android, the CI artifact, and
+  how screenshots feed a video.
+
 ## Trust boundaries and security posture
 
 The host, daemon, and engine form the control plane; forge services and runner environments are separate trust domains. Treat job code as untrusted unless its repository is trusted. Key controls and known limitations are documented in the [security guide](security.md).
@@ -106,6 +129,7 @@ Inside the targets, code is organized by domain:
 | `KinhinKit/Forges/`        | `Forge` protocol and provider clients over shared `ForgeHTTP`; GitHub Scale Set API client, session and message DTOs, and JIT registration adapter; auth status reporting (per-forge API reference: [docs/forges/](forges/README.md))                                                                                       |
 | `KinhinKit/Runtimes/`      | Runtime protocol, Tart, Apple-container, Docker and Host runtimes, routing pools, capacity partition, daemon-side container manager                                                                                                                                                                                         |
 | `KinhinKit/Fleet/`         | FleetEngine (engine / reload / credentials / reconcile / lifecycle splits), status model, records, GitHub Scale Set message listener and per-pool scale-set attach, daemon dispatch + RPC client/server                                                                                                                     |
+| `KinhinKit/Fleet/Healing/` | The healing agent: signals, the playbook and its closed list of fixes by tier, budget, journal, the optional on-device advisor (see [The healing agent](healing.md))                                                                                                                                                        |
 | `KinhinKit/Images/`        | VM and container image preparation (tart macOS and Linux, container), runner bootstrap scripts, toolchain catalog, registry digest pinning and per-project derived images                                                                                                                                                   |
 | `KinhinKit/Setup/`         | Setup checklist computer, doctor report builder, CLT/tart health probes, host agent installer                                                                                                                                                                                                                               |
 | `KinhinKit/Cache/`         | Managed-toolchain cache pruning (auto-expiry)                                                                                                                                                                                                                                                                               |
@@ -155,15 +179,18 @@ The CLI and the app talk to the daemon over `RPCMethod` (`Sources/KinhinKit/Flee
 | `bench_start` | Start a benchmark run in the background; answers with its run id at once. |
 | `bench_status` | The progress, partial results and (when finished) report of a benchmark run. |
 | `bench_cancel` | Cancel a running benchmark; it still removes everything it created. |
+| `healing_status` | The healing agent's policy and journal. |
+| `healing_approve` | Carry out a healing fix that waits for approval. |
+| `healing_dismiss` | Close a pending or surfaced healing event. |
 <!-- docs-sync:end rpc-methods -->
 
 ## Tests
 
-`swift test` runs about 2,900 tests across three targets, all against fakes — no VMs or network required:
+`swift test` runs about 3,100 tests across three targets, all against fakes — no VMs or network required:
 
 - **`KinhinKitTests`** (engine, mirrored on the source folders):
   - `Core`: shell, SSH executor, Keychain failure reporting, log redaction, error categories
-  - `Config`: config parsing + editors (general/labels/runtimes/budget/accounts), the `projects:` section and `.kinhin.yml` parser (`ProjectFileLoader`), capacity, reload policy
+  - `Config`: config parsing + editors (general/labels/runtimes/budget/accounts), the `projects:` section and `.kinhin/config.yml` / `.kinhin.yml` parser (`ProjectFileLoader`), capacity, reload policy
   - `Forges`: GitHub/Gitea (including Forgejo)/GitLab/Buildkite/Azure DevOps/Bitbucket clients over `ForgeHTTP`, GitHub Scale Set client and adapter, demand attribution, registration-token cache, retry/backoff
   - `Runtimes`: Tart + Apple-container + Docker semantics, routing pools, health probes, cache mounts
   - `Images`: image pipeline (tart + container), runner bootstrap scripts, toolchain selection and helper scripts, digest pinning

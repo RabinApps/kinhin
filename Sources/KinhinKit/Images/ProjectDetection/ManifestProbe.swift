@@ -101,10 +101,14 @@ struct ManifestProbe: ToolchainProbe {
         }
 
         let gradleFiles = ["build.gradle", "build.gradle.kts", "settings.gradle", "settings.gradle.kts"]
+        // Kotlin Multiplatform often applies the plugin only in its shared and Android modules, so read those too.
+        let moduleGradleFiles = [
+            "shared/build.gradle.kts", "shared/build.gradle", "androidApp/build.gradle.kts", "androidApp/build.gradle",
+        ]
         if let file = gradleFiles.first(where: { reader.exists($0) }) {
             add("java", file, "\(file) present")
             add("gradle", file, "\(file) present")
-            let text = try gradleFiles.compactMap { try reader.text($0) }.joined(separator: "\n")
+            let text = try (gradleFiles + moduleGradleFiles).compactMap { try reader.text($0) }.joined(separator: "\n")
             if text.contains("org.jetbrains.kotlin") || text.contains("kotlin(") {
                 add("kotlin", file, "Kotlin Gradle plugin")
             }
@@ -119,6 +123,7 @@ struct ManifestProbe: ToolchainProbe {
         }
 
         if let data = try reader.read("composer.json") {
+            // Invalid composer.json still means PHP; only the version hint is lost.
             let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
             let php = (json?["require"] as? [String: Any])?["php"] as? String
             add(
@@ -129,6 +134,9 @@ struct ManifestProbe: ToolchainProbe {
 
         if let file = try reader.rootFiles(withSuffix: ".csproj", ".fsproj", ".sln").first {
             add("dotnet", file, "\(file) present")
+        } else if let file = try MobileScaffold.mauiProjectPath(list: reader.list, read: reader.text) {
+            // A .NET MAUI app keeps its .csproj one folder down in some layouts (App/App.csproj).
+            add("dotnet", file, "\(file) uses .NET MAUI")
         } else if reader.exists("global.json") {
             add("dotnet", "global.json", "global.json present")
         }
@@ -144,6 +152,7 @@ struct ManifestProbe: ToolchainProbe {
 
     private func packageJSON(_ reader: ProjectFileReading) throws -> [ToolchainHit] {
         guard let data = try reader.read("package.json") else { return [] }
+        // Not JSON is logged below and skipped: detection is advisory.
         guard let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
             Log.warn("Detect", "skipping package.json: not a JSON object")
             return []

@@ -1,0 +1,34 @@
+{
+  "name": "template",
+  "description": "A starting point for your own product: copy this directory to adapters/<your-product>/ and replace the recorders. Its clips are synthetic (a gradient, a tiny page, a short shell session), so it builds anywhere.",
+  "clips": {
+    "app": {
+      "kind": "app",
+      "record": "record-app.sh"
+    },
+    "demo": {
+      "kind": "terminal",
+      "tape": "terminal/demo.tape"
+    },
+    "site": {
+      "kind": "browser",
+      "scenario": "scenarios/site.json",
+      "serve": "python3 -m http.server 4175 --directory video/adapters/template/site",
+      "waitUrl": "http://localhost:4175/",
+      "runner": "local"
+    }
+  },
+  "needs": [
+    {
+      "tool": "ffmpeg",
+      "why": "record-app.sh (the synthetic clip)",
+      "how": "brew install ffmpeg-full"
+    },
+    {
+      "tool": "vhs",
+      "why": "the terminal clip (record-terminal.sh)",
+      "how": "brew install vhs",
+      "optional": true
+    }
+  ]
+}

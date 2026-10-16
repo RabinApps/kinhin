@@ -51,4 +51,32 @@ final class RunnerBootstrapQuotingTests: XCTestCase {
             XCTAssertFalse(script.contains("--name runner $(id)"), "unquoted name")
         }
     }
+
+    /// A quoted `~` is never expanded: the template copy for runners 2..N must
+    /// name `"$HOME"/…`, or the copy fails and every extra runner re-downloads.
+    func testJitTemplateCopyExpandsHome() {
+        let script = RunnerBootstrap.jitRegistrationScript(
+            encodedJitConfig: "abc", name: "vm", agentDirectory: "~/actions-runner-2",
+            agentTemplate: "~/actions-runner")
+        XCTAssertTrue(script.contains("cp -a \"$HOME\"/'actions-runner/.' \"$agent_dir/\""), script)
+        XCTAssertTrue(script.contains("agent_dir=\"$HOME\"/'actions-runner-2'"), script)
+        XCTAssertFalse(script.contains("'~/"), "a quoted tilde names a literal ~ directory")
+    }
+
+    /// The word evaluates to the expanded path in a real shell, and
+    /// metacharacters after `~/` stay inert.
+    func testGuestPathWordExpandsHomeInBash() throws {
+        let word = RunnerBootstrap.guestPathWord("~/runner $(echo pwned)")
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/bash")
+        process.arguments = ["-c", "printf %s \(word)"]
+        process.environment = ["HOME": "/home/ci"]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        try process.run()
+        process.waitUntilExit()
+        let output = String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        XCTAssertEqual(output, "/home/ci/runner $(echo pwned)")
+        XCTAssertEqual(RunnerBootstrap.guestPathWord("/opt/runner"), "'/opt/runner'")
+    }
 }

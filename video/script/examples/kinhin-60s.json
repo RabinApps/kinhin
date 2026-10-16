@@ -1,0 +1,138 @@
+{
+  "name": "kinhin launch, 60 seconds",
+  "adapter": "kinhin",
+  "theme": "paper",
+  "format": "16:9",
+  "voice": {
+    "engine": "kokoro",
+    "name": "af_heart",
+    "speed": 1
+  },
+  "pronounce": {
+    "kinhin": "kin-hin"
+  },
+  "lead": 0.5,
+  "gap": 0.3,
+  "tail": 0.8,
+  "overrides": {},
+  "scenes": [
+    {
+      "id": "intro",
+      "type": "title",
+      "props": {
+        "title": "Your Mac is your CI.",
+        "subtitle": "kinhin",
+        "mark": "ring"
+      },
+      "minLength": 5.4,
+      "lead": 1.0,
+      "narration": "Meet kinhin. Your Mac is your CI."
+    },
+    {
+      "id": "problem",
+      "type": "queue",
+      "props": {
+        "runner": "1 runner",
+        "count": 7,
+        "caption": "Your queue waits its turn.",
+        "caption2": "A self-hosted runner does one job at a time."
+      },
+      "minLength": 6,
+      "narration": "One runner, one job at a time, and leftovers carry over."
+    },
+    {
+      "id": "fresh",
+      "type": "stats",
+      "props": {
+        "items": [
+          {"value": "1", "label": "fresh VM per job"},
+          {"value": "4", "label": "forges"},
+          {"value": "3", "label": "runtimes"}
+        ],
+        "caption": "GitHub, GitLab, Gitea and Forgejo. Tart, apple/container and Docker."
+      },
+      "minLength": 5,
+      "narration": "Every job gets a fresh VM, on four forges and three runtimes."
+    },
+    {
+      "id": "fleet",
+      "type": "steps",
+      "props": {
+        "title": "Run the fleet your way.",
+        "steps": [
+          "Keep a warm pool ready",
+          "Pack several runners into one VM",
+          "Route each job by repo or runs-on label"
+        ]
+      },
+      "minLength": 6,
+      "narration": "Warm pools, packed runners, and routing by repo or label."
+    },
+    {
+      "id": "toolchains",
+      "type": "compare",
+      "props": {
+        "left": {
+          "title": "Without kinhin",
+          "items": ["Tools drift between jobs", "Stuck runners wait for a person"]
+        },
+        "right": {
+          "title": "With kinhin",
+          "items": ["Toolchains pinned per repo", "Pause, requeue, clean up"]
+        }
+      },
+      "minLength": 6,
+      "narration": "Toolchains pinned per repo. Pause, requeue and clean up from the terminal."
+    },
+    {
+      "id": "app",
+      "type": "statement",
+      "props": {
+        "text": "A menu bar app keeps the runners running.",
+        "sub": "A LaunchAgent, and a notarized, sha256-verified DMG."
+      },
+      "minLength": 4.8,
+      "narration": "A menu bar app, a LaunchAgent, and a notarized install."
+    },
+    {
+      "id": "video",
+      "type": "steps",
+      "props": {
+        "title": "Your videos, built the same way.",
+        "steps": [
+          "kinhin video init, to start a project",
+          "Pick a theme and your music",
+          "kinhin video build, for the cut"
+        ]
+      },
+      "minLength": 6,
+      "narration": "Start with kinhin video init. Pick a theme and music. Then build."
+    },
+    {
+      "id": "scenes",
+      "type": "statement",
+      "props": {
+        "text": "Titles, code, terminals and stats.",
+        "sub": "Built in CI too, if you opt in."
+      },
+      "minLength": 4.8,
+      "narration": "Titles, code and stats, and CI builds too, if you opt in."
+    },
+    {
+      "id": "outro",
+      "type": "outro",
+      "props": {
+        "line": "One job. One VM. Gone when it's done.",
+        "url": "kinhin.dev",
+        "facts": [
+          "Free",
+          "Apache-2.0",
+          "No telemetry",
+          "In beta"
+        ]
+      },
+      "minLength": 5,
+      "narration": "One job. One VM. Gone when it's done. Free and open source."
+    }
+  ]
+}

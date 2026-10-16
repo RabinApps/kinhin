@@ -1,0 +1,45 @@
+name: IosNativeApp
+options:
+  bundleIdPrefix: com.example
+  deploymentTarget:
+    iOS: "16.0"
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+targets:
+  IosNativeApp:
+    type: application
+    platform: iOS
+    sources: [App]
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDisplayName: IosNativeApp
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.iosnativeapp
+        GENERATE_INFOPLIST_FILE: NO
+  IosNativeAppUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [UITests]
+    dependencies:
+      - target: IosNativeApp
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.iosnativeapp.uitests
+        TEST_TARGET_NAME: IosNativeApp
+schemes:
+  IosNativeApp:
+    build:
+      targets:
+        IosNativeApp: all
+        IosNativeAppUITests: [test]
+    test:
+      targets:
+        - IosNativeAppUITests

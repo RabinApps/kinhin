@@ -13,7 +13,7 @@ enum WorkflowRouteCommand {
     struct Options: Sendable {
         var file: URL?
         var workflowName: String?
-        var runtime: RuntimeID?
+        var runtime: RuntimeID
         var job: String?
         var dryRun = false
         var json = false
@@ -27,7 +27,7 @@ enum WorkflowRouteCommand {
         let config = try ConfigLoader.load(from: configURL)
         let file = try resolveFile(options)
         let document = try loadWorkflow(at: file)
-        let runtime = options.runtime!  // parse guarantees it
+        let runtime = options.runtime
 
         // 1. The target pool must exist — checked against the exact table the
         //    engine builds, so a wrong guess is told how to set the runtime up.
@@ -71,14 +71,14 @@ enum WorkflowRouteCommand {
         /// the result — used for the dry-run "diff of planned runs-on: edits" text
         /// and the JSON `diff` field. Only the jobs whose plan changed are applied;
         /// everything else (comments, formatting, other keys) is preserved byte-for-byte.
-        func editedYAML(for planned: [PlannedEdit], originalYAML: String) -> String {
+        func editedYAML(for planned: [PlannedEdit], originalYAML: String) throws -> String {
             var edited = originalYAML
             for plan in planned where plan.changed {
-                edited = try! WorkflowRouteEditor.applyLabelEdit(jobID: plan.jobID, labels: plan.after, in: edited)
+                edited = try WorkflowRouteEditor.applyLabelEdit(jobID: plan.jobID, labels: plan.after, in: edited)
             }
             return edited
         }
-        let plannedEditsText = editedYAML(for: planned, originalYAML: originalYAML)
+        let plannedEditsText = try editedYAML(for: planned, originalYAML: originalYAML)
 
         // 5. The config route first, when routing precedence needs one: a
         //    route that lands first still carries the jobs (it outranks

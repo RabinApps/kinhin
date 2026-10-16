@@ -1,0 +1,13 @@
+
+mobile-release-android:
+  # Android has no release lane yet, so the release choice runs only the iOS job.
+  tags: [kinhin-xcode]
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "web" && $MOBILE_LANE != "release"
+  script:
+    - bash __SCRIPT__ android "$MOBILE_LANE"
+  artifacts:
+    when: always
+    expire_in: 14 days
+    paths:
+      - __ANDROID_SCREENSHOTS__

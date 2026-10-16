@@ -6,7 +6,7 @@ import XCTest
 final class SharedListCacheTests: XCTestCase {
     func testFreshListIsServedWithoutFetching() async throws {
         let cache = SharedListCache<Int>(ttl: 60)
-        let fetches = Mutex(0)
+        let fetches = Locked(0)
         for _ in 0..<5 {
             let list = try await cache.elements {
                 fetches.withLock { $0 += 1 }
@@ -19,7 +19,7 @@ final class SharedListCacheTests: XCTestCase {
 
     func testZeroTTLAlwaysFetches() async throws {
         let cache = SharedListCache<Int>(ttl: 0)
-        let fetches = Mutex(0)
+        let fetches = Locked(0)
         for _ in 0..<3 {
             _ = try await cache.elements {
                 fetches.withLock { $0 += 1 }
@@ -64,8 +64,8 @@ final class SharedListCacheTests: XCTestCase {
     /// N readers arriving while a fetch is running share it: one API call.
     func testConcurrentReadersAfterExpiryShareOneFetch() async throws {
         let cache = SharedListCache<Int>(ttl: 0)  // always expired: every reader needs a fetch
-        let fetches = Mutex(0)
-        let release = Mutex(false)
+        let fetches = Locked(0)
+        let release = Locked(false)
         let results = try await withThrowingTaskGroup(of: [Int].self) { group in
             for _ in 0..<8 {
                 group.addTask {
@@ -89,7 +89,7 @@ final class SharedListCacheTests: XCTestCase {
     func testAFailureReachesEveryJoinedReaderAndIsNotCached() async throws {
         struct Boom: Error {}
         let cache = SharedListCache<Int>(ttl: 60)
-        let release = Mutex(false)
+        let release = Locked(false)
         let failures = await withTaskGroup(of: Bool.self) { group in
             for _ in 0..<3 {
                 group.addTask {
@@ -114,7 +114,7 @@ final class SharedListCacheTests: XCTestCase {
     /// A reader after an invalidation must not join the outdated fetch.
     func testReaderAfterInvalidationStartsItsOwnFetch() async throws {
         let cache = SharedListCache<Int>(ttl: 60)
-        let release = Mutex(false)
+        let release = Locked(false)
         let slow = Task {
             try await cache.elements {
                 while !release.withLock({ $0 }) { try await Task.sleep(for: .milliseconds(5)) }

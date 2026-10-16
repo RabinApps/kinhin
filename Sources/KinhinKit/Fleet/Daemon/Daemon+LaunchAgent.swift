@@ -25,10 +25,19 @@ extension Daemon {
 
     /// Loads the installed LaunchAgent, which starts the daemon. An agent that is already
     /// loaded is booted out first: `launchctl load` alone ignores it, so a re-install (an
-    /// upgrade, a new binary path) kept the old daemon running.
+    /// upgrade, a new binary path) kept the old daemon running. A failed bootout is fine
+    /// when the agent was not loaded; when it still is, this throws instead of loading.
     public static func loadAgent(shell: ShellRunning = Shell()) async throws -> ShellResult {
         let plist = agentPlistPath().path
-        _ = try? await shell.run([launchctlPath, "bootout", "gui/\(getuid())", plist], cwd: nil, timeout: 30)
+        let domain = "gui/\(getuid())"
+        let bootout = try await shell.run([launchctlPath, "bootout", domain, plist], cwd: nil, timeout: 30)
+        if !bootout.succeeded {
+            let loaded = try await shell.run([launchctlPath, "print", "\(domain)/\(label)"], cwd: nil, timeout: 30)
+            if loaded.succeeded {
+                let why = bootout.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
+                throw DaemonError.bootoutFailed(why.isEmpty ? "exit \(bootout.exitCode)" : why)
+            }
+        }
         return try await shell.run([launchctlPath, "load", plist], cwd: nil, timeout: 30)
     }
 

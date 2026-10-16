@@ -162,7 +162,7 @@ final class GitHubClientTests: XCTestCase {
     /// list is requested most-recently-pushed first (a repo late in the
     /// default order once never had its queued jobs seen).
     func testOrgScopeRequestsReposMostRecentlyPushedFirst() async throws {
-        let queries = Mutex<[String]>([])
+        let queries = Locked<[String]>([])
         StubProtocol.handler = { request in
             let path = request.url?.path ?? ""
             if path == "/orgs/acme/repos" {
@@ -216,7 +216,7 @@ final class GitHubClientTests: XCTestCase {
     }
 
     func testOrgScopeNeverRequestsOrgRunsEndpointEvenIfItWouldAnswer() async throws {
-        let orgRunsCalls = Mutex(0)
+        let orgRunsCalls = Locked(0)
         StubProtocol.handler = { request in
             let path = request.url?.path ?? ""
             if path == "/orgs/acme/actions/runs" {

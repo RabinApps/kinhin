@@ -14,7 +14,7 @@ final class AzureDevOpsForgeTests: XCTestCase {
     }
 
     private func makeForge(
-        labels: [String] = ["kinhin"], offlineGrace: TimeInterval = 60,
+        labels: [String] = ["kinhin"], offlineGrace: TimeInterval = 60, idleOfflineGrace: TimeInterval? = nil,
         now: @escaping @Sendable () -> Date = { Date() }
     ) -> AzureDevOpsForge {
         let credentials = AzureDevOpsCredentials(
@@ -23,7 +23,8 @@ final class AzureDevOpsForgeTests: XCTestCase {
             credentials: ForgeCredentials(
                 forge: .azuredevops, token: "pat", scope: "Mac Fleet", instance: "https://dev.azure.com/acme/"),
             labels: labels, client: AzureDevOpsClient(credentials: credentials, session: session()), pool: pool,
-            account: "ado", listTTL: 0, offlineGrace: offlineGrace, now: now)
+            account: "ado", listTTL: 0, offlineGrace: offlineGrace,
+            idleOfflineGrace: idleOfflineGrace ?? offlineGrace, now: now)
     }
 
     override func tearDown() {
@@ -131,7 +132,7 @@ final class AzureDevOpsForgeTests: XCTestCase {
     }
 
     func testDeletingARunnerDeletesTheAgent() async throws {
-        let calls = Mutex<[String]>([])
+        let calls = Locked<[String]>([])
         StubProtocol.handler = { request in
             calls.withLock { $0.append("\(request.httpMethod ?? "") \(request.url?.path ?? "")") }
             return (204, Data(), [:])
@@ -169,13 +170,13 @@ final class AzureDevOpsForgeTests: XCTestCase {
         return Data(#"{"count":\#(entries.count),"value":[\#(items.joined(separator: ","))]}"#.utf8)
     }
 
-    /// `config.sh remove` can fail in the guest, leaving the record "offline" forever. The exit watch needs the
+    /// Agents never remove themselves, so a finished one stays "offline" in the pool. The exit watch needs the
     /// runner gone: an agent seen online and then offline past the grace period is reported gone and its record
     /// deleted. One that never came online is still registering, and a brief blip stays visible.
     func testAnAgentSeenOnlineThatStaysOfflineIsReapedAndReportedGone() async throws {
-        let clock = Mutex(Date(timeIntervalSince1970: 1_000_000))
-        let listing = Mutex(Self.agents([(1, "kinhin-1", "online"), (2, "kinhin-2", "offline")]))
-        let deletes = Mutex<[String]>([])
+        let clock = Locked(Date(timeIntervalSince1970: 1_000_000))
+        let listing = Locked(Self.agents([(1, "kinhin-1", "online"), (2, "kinhin-2", "offline")]))
+        let deletes = Locked<[String]>([])
         StubProtocol.handler = { request in
             if request.httpMethod == "DELETE" {
                 deletes.withLock { $0.append(request.url?.path ?? "") }
@@ -206,8 +207,8 @@ final class AzureDevOpsForgeTests: XCTestCase {
     }
 
     func testAnAgentThatComesBackOnlineIsNeverReaped() async throws {
-        let clock = Mutex(Date(timeIntervalSince1970: 1_000_000))
-        let listing = Mutex(Self.agents([(1, "kinhin-1", "online")]))
+        let clock = Locked(Date(timeIntervalSince1970: 1_000_000))
+        let listing = Locked(Self.agents([(1, "kinhin-1", "online")]))
         StubProtocol.handler = { _ in (200, listing.withLock { $0 }, [:]) }
         let forge = makeForge(offlineGrace: 30, now: { clock.withLock { $0 } })
         _ = try await forge.runners()
@@ -221,5 +222,40 @@ final class AzureDevOpsForgeTests: XCTestCase {
         clock.withLock { $0 = $0.addingTimeInterval(20) }
         let runners = try await forge.runners()
         XCTAssertEqual(runners.map(\.name), ["kinhin-1"], "the offline clock restarted when it was seen online")
+    }
+
+    /// A finished agent (offline and idle: `run.sh --once` exited) is reaped after the short idle grace, so its
+    /// instance is recycled quickly; one still holding a job (a heartbeat blip) keeps the long grace.
+    func testAnIdleOfflineAgentIsReapedSoonerThanABusyOne() async throws {
+        let clock = Locked(Date(timeIntervalSince1970: 1_000_000))
+        func listing(_ status: String) -> Data {
+            Data(
+                (#"{"count":2,"value":[{"id":1,"name":"kinhin-idle","status":"\#(status)"},"#
+                    + #"{"id":2,"name":"kinhin-busy","status":"\#(status)","assignedRequest":{"requestId":7}}]}"#)
+                    .utf8)
+        }
+        let current = Locked(listing("online"))
+        let deletes = Locked<[String]>([])
+        StubProtocol.handler = { request in
+            if request.httpMethod == "DELETE" {
+                deletes.withLock { $0.append(request.url?.lastPathComponent ?? "") }
+                return (204, Data(), [:])
+            }
+            return (200, current.withLock { $0 }, [:])
+        }
+        let forge = makeForge(offlineGrace: 60, idleOfflineGrace: 15, now: { clock.withLock { $0 } })
+        _ = try await forge.runners()
+
+        current.withLock { $0 = listing("offline") }
+        _ = try await forge.runners()
+        clock.withLock { $0 = $0.addingTimeInterval(16) }
+        var runners = try await forge.runners()
+        XCTAssertEqual(runners.map(\.name), ["kinhin-busy"], "the idle agent finished; the busy one may be a blip")
+        XCTAssertEqual(deletes.withLock { $0 }, ["1"])
+
+        clock.withLock { $0 = $0.addingTimeInterval(45) }
+        runners = try await forge.runners()
+        XCTAssertTrue(runners.isEmpty, "past the long grace the busy agent is gone too")
+        XCTAssertEqual(deletes.withLock { $0 }, ["1", "2"])
     }
 }

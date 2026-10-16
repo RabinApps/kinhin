@@ -19,8 +19,8 @@
     " (untested)" : {
       "comment" : "Suffix appended to a forge/runtime name in a menu picker when it hasn't been tested against the real service"
     },
-    ".kinhin.yml honored" : {
-      "comment" : "Toolchains tab row source label; keep .kinhin.yml verbatim"
+    ".kinhin/config.yml honored" : {
+      "comment" : "Toolchains tab row source label; keep .kinhin/config.yml verbatim"
     },
     "‹ All jobs" : {
       "comment" : "Text in PipelineView"
@@ -386,11 +386,23 @@
     "Add Route…" : {
       "comment" : "Button in RuntimesView"
     },
+    "Add to video" : {
+      "comment" : "Button in VideosView"
+    },
     "Added '%@' — paste its token below." : {
       "comment" : "Add-account status; %@ is the account name"
     },
+    "Added “%@” to %@." : {
+      "comment" : "Videos sheet: a music track was added to a video; %1$@ is its title, %2$@ the video"
+    },
     "Advanced" : {
       "comment" : "Main window tab title"
+    },
+    "Advisor: %@" : {
+      "comment" : "Diagnostics healing advisor line; %@ is the advisor's name (the on-device model)"
+    },
+    "Advisor's reasoning: %@" : {
+      "comment" : "Diagnostics healing entry; %@ is the on-device model's one-sentence reason"
     },
     "Agent pool" : {
       "comment" : "Label of the repository field"
@@ -433,6 +445,15 @@
     },
     "Apply" : {
       "comment" : "Button in CapacityView"
+    },
+    "Approval only: every fix waits for you." : {
+      "comment" : "Diagnostics healing policy when automatic fixes are off (healing.auto: none)"
+    },
+    "Approve" : {
+      "comment" : "Diagnostics healing card button that carries out a fix waiting for approval"
+    },
+    "Approve this fix" : {
+      "comment" : "Accessibility label of the Approve button on a pending healing fix"
     },
     "Architecture" : {
       "comment" : "Text in MacToolsView"
@@ -536,6 +557,12 @@
     "Boot" : {
       "comment" : "Benchmark suite name"
     },
+    "Booted VMs that wait for a job, so it skips the clone and boot. 0 is off." : {
+      "comment" : "row in CapacityView"
+    },
+    "Build" : {
+      "comment" : "Text in VideosView"
+    },
     "Build image…" : {
       "comment" : "Text in MacToolsView"
     },
@@ -544,6 +571,12 @@
     },
     "Building the Docker image — this takes a while…" : {
       "comment" : "This Mac form: progress line"
+    },
+    "Building…" : {
+      "comment" : "Text in VideosView"
+    },
+    "Builds run in a container (Apple container or Docker); the first build downloads the video image." : {
+      "comment" : "Text in VideosView"
     },
     "Bundled recipes: several tools installed together." : {
       "comment" : "CollapsibleFormCard in ToolchainsCatalogCards"
@@ -562,6 +595,9 @@
     },
     "Cancelled — the previous image is untouched" : {
       "comment" : "This Mac form: shown after cancelling an image build"
+    },
+    "Cancelled." : {
+      "comment" : "Videos sheet: the user stopped a build"
     },
     "Cannot continue yet: %@" : {
       "comment" : "VoiceOver label for the disabled Continue button's note; %@ lists what blocks it"
@@ -613,6 +649,9 @@
     "Casual" : {
       "comment" : "Benchmark suite name"
     },
+    "Change Repository…" : {
+      "comment" : "Text in VideosView"
+    },
     "Check for Updates…" : {
       "comment" : "Settings → App button"
     },
@@ -639,6 +678,9 @@
     },
     "Choose a workflow file" : {
       "comment" : "Text in WorkflowTestView"
+    },
+    "Choose Repository…" : {
+      "comment" : "Text in VideosView"
     },
     "Choose what runs your jobs: Linux (Docker, Apple container, or a full Linux VM), macOS virtual machines (tart), or both. You only need one — the button below walks the comparison." : {
       "comment" : "Setup wizard step 2 subtitle"
@@ -667,8 +709,11 @@
     "Command Line Tools" : {
       "comment" : "Diagnostics row title"
     },
-    "Commit this at the repo root, then enable it in config.yaml with the second snippet." : {
+    "Commit this as .kinhin/config.yml in the repo, then enable it in config.yaml with the second snippet." : {
       "comment" : "Toolchains guide example note"
+    },
+    "Config change not applied" : {
+      "comment" : "Alert title when a saved config edit couldn't be applied to the running fleet"
     },
     "config.yaml can't be read — %@. Fix it in Advanced → Edit YAML." : {
       "comment" : "Form status line; %@ is the YAML parse error"
@@ -683,7 +728,7 @@
       "comment" : "Routing tab empty state; %@ is the parse error"
     },
     "config.yaml has a problem — %@. Use Advanced → App → Open config file." : {
-      "comment" : "Capacity form status; %@ is the config error"
+      "comment" : "Config-error status in the Capacity form and the More accounts section; %@ is the config error"
     },
     "Connect" : {
       "comment" : "Forge card button that saves the token"
@@ -747,14 +792,23 @@
     "Copy Command" : {
       "comment" : "Button in InstallConfirmationSheet"
     },
-    "Copy into a .kinhin.yml at the root of a repo (or into config.yaml)." : {
+    "Copy into .kinhin/config.yml in a repo (or into config.yaml)." : {
       "comment" : "CollapsibleFormCard in ToolchainsCatalogCards"
+    },
+    "Could not check for a running benchmark — %@" : {
+      "comment" : "Benchmarks status line; %@ is the error's description"
     },
     "Could not read that report — %@" : {
       "comment" : "Benchmarks status line; %@ is the error's description"
     },
+    "Couldn't approve fix %@" : {
+      "comment" : "Alert title when approving a healing fix fails; %@ is the fix id (h-…)"
+    },
     "Couldn't delete %@" : {
       "comment" : "Alert title when deleting a VM fails; %@ is a VM id"
+    },
+    "Couldn't dismiss %@" : {
+      "comment" : "Alert title when dismissing a healing event fails; %@ is the event id (h-…)"
     },
     "couldn't find the kinhin CLI — install it with scripts/install.sh, then try again (a debug build alone can't install the daemon)" : {
       "comment" : "Settings → App daemon error; the script path stays verbatim"
@@ -882,6 +936,15 @@
     "Dismiss the disk pressure warning" : {
       "comment" : ".accessibilityLabel in FleetView"
     },
+    "Dismiss this fix" : {
+      "comment" : "Accessibility label of the Dismiss button on a pending healing fix"
+    },
+    "Dismiss this problem" : {
+      "comment" : "Accessibility label of the Dismiss button on a problem only the user can fix"
+    },
+    "Dismissed" : {
+      "comment" : "Healing event outcome"
+    },
     "Docker" : {
       "comment" : "Linux runtime option name"
     },
@@ -896,6 +959,9 @@
     },
     "Done" : {
       "comment" : "Button in MainTabsView"
+    },
+    "Done." : {
+      "comment" : "Text in VideosView"
     },
     "Download %@" : {
       "comment" : "Button in MissingBrewSheet"
@@ -918,7 +984,7 @@
     "e.g. xcode" : {
       "comment" : "TextField in MacToolsView"
     },
-    "Each project's toolchains are baked once into an image cloned from the base image, so identical sets across repos share an image. A queued job resolves its set from the repo's .kinhin.yml at the job's branch or tag (only when the project entry has repo_file: true), then the project entry's own toolchains. Repos with neither get the plain base image and can still run kinhin-toolchain install per job. If the image is not baked yet, the bake starts in the background and the job runs on the base image meanwhile; later jobs use the baked image. Fork pull requests never use the repo's own file. Derived images that go unused, or exceed the image limit, are pruned." : {
+    "Each project's toolchains are baked once into an image cloned from the base image, so identical sets across repos share an image. A queued job resolves its set from the repo's .kinhin/config.yml (or .kinhin.yml) at the job's branch or tag (only when the project entry has repo_file: true), then the project entry's own toolchains. Repos with neither get the plain base image and can still run kinhin-toolchain install per job. If the image is not baked yet, the bake starts in the background and the job runs on the base image meanwhile; later jobs use the baked image. Fork pull requests never use the repo's own file. Derived images that go unused, or exceed the image limit, are pruned." : {
       "comment" : "Toolchains tab explanation of how images bake; file and key names stay verbatim"
     },
     "Each VM" : {
@@ -951,7 +1017,7 @@
     "Errors" : {
       "comment" : "Log level filter option: errors only"
     },
-    "Every repo needs its own toolchains, and nothing is chosen in this app. Declare them in the repo's .kinhin.yml (enabled by a projects: entry with repo_file: true in config.yaml), or list them directly under projects[].toolchains in config.yaml." : {
+    "Every repo needs its own toolchains, and nothing is chosen in this app. Declare them in the repo's .kinhin/config.yml (or the older .kinhin.yml; enabled by a projects: entry with repo_file: true in config.yaml), or list them directly under projects[].toolchains in config.yaml." : {
       "comment" : "Toolchains guide intro; file and key names stay verbatim"
     },
     "Everything above is saved in config.yaml — open it for settings that have no control here." : {
@@ -969,6 +1035,9 @@
     "expanded" : {
       "comment" : "Text in FormComponents"
     },
+    "Expired" : {
+      "comment" : "Healing event outcome: left open when the fleet stopped"
+    },
     "Expo (React Native with Node)" : {
       "comment" : "Toolchain example title"
     },
@@ -980,6 +1049,9 @@
     },
     "Failed — %@" : {
       "comment" : "This Mac form: failure line; %@ is the reason"
+    },
+    "Fast preview" : {
+      "comment" : "Toggle in VideosView"
     },
     "Feedback" : {
       "comment" : "FormCard in AppSectionView"
@@ -999,8 +1071,17 @@
     "finished" : {
       "comment" : "Workflow test headline when there is no report"
     },
+    "Fix failed" : {
+      "comment" : "Healing event outcome"
+    },
     "Fix: %@" : {
       "comment" : "Diagnostics Tart row; %@ is a shell command to run"
+    },
+    "Fixed" : {
+      "comment" : "Healing event outcome: the fix worked"
+    },
+    "Fixing now" : {
+      "comment" : "Diagnostics healing card section header: fixes being carried out"
     },
     "Fleet" : {
       "comment" : "Main window tab title"
@@ -1058,6 +1139,9 @@
     },
     "group/subgroup or group/project" : {
       "comment" : "Placeholder in the repository field; keep the path syntax verbatim"
+    },
+    "Healing" : {
+      "comment" : "Diagnostics healing card title (the agent that fixes fleet problems)"
     },
     "healthy" : {
       "comment" : "Diagnostics Tart row detail"
@@ -1140,7 +1224,7 @@
     "Image:  still being prepared (about %lld GB). It keeps going in the background; macOS jobs start once it finishes." : {
       "comment" : "Setup wizard summary line; the number is the image size in GB"
     },
-    "Images from .kinhin.yml files" : {
+    "Images from .kinhin/config.yml files" : {
       "comment" : "FormCard in ToolchainsView"
     },
     "Implemented and unit-tested, but not yet run against the real service. Please report errors on GitHub to help us improve support for this forge." : {
@@ -1152,7 +1236,7 @@
     "In config.yaml: toolchains listed directly" : {
       "comment" : "Toolchains guide example title"
     },
-    "In the repo: .kinhin.yml" : {
+    "In the repo: .kinhin/config.yml" : {
       "comment" : "Toolchains guide example title"
     },
     "in-process engine" : {
@@ -1178,6 +1262,9 @@
     },
     "Install method" : {
       "comment" : ".accessibilityLabel in InstallConfirmationSheet"
+    },
+    "Image pull and clean and cached video builds in a container" : {
+      "comment" : "Benchmark suite description"
     },
     "Install, verify and build with every catalog toolchain" : {
       "comment" : "Benchmark suite description"
@@ -1269,8 +1356,17 @@
     "kinhin can't start the fleet yet" : {
       "comment" : "Alert title when Start Fleet is pressed before setup finished"
     },
+    "kinhin could not be added to your login items: %@" : {
+      "comment" : "Launch-at-login alert message; %@ is the system's error"
+    },
+    "kinhin could not be removed from your login items: %@" : {
+      "comment" : "Launch-at-login alert message; %@ is the system's error"
+    },
     "kinhin crashed unexpectedly:\n\n%@\n\nLogs: ~/Library/Application Support/Kinhin/logs/" : {
       "comment" : "Body of the crash alert; %@ is the exception reason; the logs path stays verbatim"
+    },
+    "kinhin fixed a problem" : {
+      "comment" : "Notification title when the healing agent's fix worked; kinhin stays verbatim"
     },
     "kinhin fleet not responding" : {
       "comment" : "Notification title when the fleet stops answering"
@@ -1292,6 +1388,9 @@
     },
     "kinhin needs attention" : {
       "comment" : "Notification title when the fleet reports an error"
+    },
+    "kinhin needs your approval to open at login. Approve it in System Settings → General → Login Items." : {
+      "comment" : "Launch-at-login alert message; keep kinhin and the System Settings path verbatim"
     },
     "kinhin runs your CI jobs on this Mac. Select the forges to serve — %@ — then paste a token and choose the repository, project or group to serve for each." : {
       "comment" : "Setup wizard step 1 subtitle; %@ is a localized list of forge names"
@@ -1393,6 +1492,9 @@
     "Launch" : {
       "comment" : "FormCard in AppSectionView"
     },
+    "Launch at login" : {
+      "comment" : "Alert title for a launch-at-login failure"
+    },
     "Launch kinhin at login" : {
       "comment" : "Toggle in AppSectionView"
     },
@@ -1404,6 +1506,9 @@
     },
     "Level" : {
       "comment" : "Picker in LogsView"
+    },
+    "Licenses are as declared by the source. You are responsible for how you use a track." : {
+      "comment" : "Text in VideosView"
     },
     "Linux image (Apple container)" : {
       "comment" : "Name of the Apple container runtime image"
@@ -1471,6 +1576,12 @@
     "Main window only" : {
       "comment" : "Launch-mode picker option in Settings → App"
     },
+    "Make a Video" : {
+      "comment" : "Text in VideosView"
+    },
+    "Make a Video…" : {
+      "comment" : "Button in FleetView"
+    },
     "Makes a pause hold until the fleet is resumed by hand." : {
       "comment" : "IntentDescription in AutoResumeIntent"
     },
@@ -1516,14 +1627,23 @@
     "Multi-gigabyte disk and multi-core CPU throughput" : {
       "comment" : "Benchmark suite description"
     },
+    "Music" : {
+      "comment" : "Text in VideosView"
+    },
     "name, e.g. work" : {
       "comment" : "Text in MoreAccountsCard"
     },
     "needs %@ in specs (never installed implicitly)" : {
       "comment" : "Toolchain catalog: dependency note; %@ lists spec examples such as node@22"
     },
+    "Needs approval" : {
+      "comment" : "Healing event outcome"
+    },
     "needs tart first" : {
       "comment" : "This Mac form: Base image row status"
+    },
+    "Needs you" : {
+      "comment" : "Healing event outcome: only the user can fix it"
     },
     "New account name" : {
       "comment" : ".accessibilityLabel in MoreAccountsCard"
@@ -1536,6 +1656,12 @@
     },
     "New image name" : {
       "comment" : "TextField in MacToolsView"
+    },
+    "New Video" : {
+      "comment" : "Button in VideosView"
+    },
+    "New video name (default: launch)" : {
+      "comment" : "TextField in VideosView"
     },
     "no @version" : {
       "comment" : "Toolchain catalog: this entry takes no @version suffix; keep @version verbatim"
@@ -1593,6 +1719,9 @@
     },
     "No toolchains on this project entry and repo_file is off: jobs use the base image." : {
       "comment" : "Toolchains tab row explanation; keep repo_file verbatim"
+    },
+    "No videos here yet. Create one below." : {
+      "comment" : "Text in VideosView"
     },
     "No VM named %@ is in the fleet." : {
       "comment" : "Spoken reply when a VM id is unknown; %@ is the id"
@@ -1654,6 +1783,9 @@
     "not supported on this Mac — %@" : {
       "comment" : "Diagnostics Docker row; %@ is the reason"
     },
+    "Nothing to fix so far." : {
+      "comment" : "Diagnostics healing card when the journal is empty"
+    },
     "nothing yet" : {
       "comment" : "Setup summary of what jobs can run"
     },
@@ -1662,6 +1794,12 @@
     },
     "Now serving %@ on %@ ✓" : {
       "comment" : "Forge card status; first is the repository or org, second the forge"
+    },
+    "Off" : {
+      "comment" : "String(localized:) in MacToolsView"
+    },
+    "Off — kinhin does not fix problems on its own (healing.enabled is false)." : {
+      "comment" : "Diagnostics healing policy when healing is disabled; healing.enabled is a config key, verbatim"
     },
     "Off by default: a repo file chooses what is installed on this Mac." : {
       "comment" : "Toolchains guide example note"
@@ -1749,6 +1887,9 @@
     },
     "Pick how this Mac runs Linux jobs. You can change this later in the Setup tab." : {
       "comment" : "Text in LinuxRuntimeSetupSheet"
+    },
+    "Pick the repository whose .kinhin/videos/ folder holds your videos." : {
+      "comment" : "Text in VideosView"
     },
     "Pick what to erase. The next screen lists exactly what will be deleted — this cannot be undone." : {
       "comment" : "Reset alert body"
@@ -1858,6 +1999,9 @@
     "Rebuilt the %@ ✓" : {
       "comment" : "Toolchains tab status; %@ is a runtime image name"
     },
+    "Recent" : {
+      "comment" : "Diagnostics healing card section header: recently closed healing events"
+    },
     "Redo" : {
       "comment" : "Edit menu item"
     },
@@ -1911,6 +2055,9 @@
     },
     "reset failed — %@" : {
       "comment" : "Settings → App reset error; %@ is the reason"
+    },
+    "Reset finished, but some things were left behind: %@" : {
+      "comment" : "Settings → App reset result when something could not be removed; %@ lists each leftover (English from the reset engine)"
     },
     "Reset kinhin" : {
       "comment" : "Reset alert title"
@@ -1966,6 +2113,9 @@
     "Routing" : {
       "comment" : "Advanced section title"
     },
+    "Rules only — no advisor available." : {
+      "comment" : "Diagnostics healing advisor line when no on-device model advises"
+    },
     "Run" : {
       "comment" : "Benchmarks confirmation button"
     },
@@ -2014,11 +2164,23 @@
     "runtimes section has a problem — %@" : {
       "comment" : "Routing tab empty state; %@ is the parse error"
     },
+    "Safe fixes run automatically; the rest wait for your approval." : {
+      "comment" : "Diagnostics healing policy when automatic fixes are on"
+    },
     "Save" : {
       "comment" : "Button in EditYAMLSheet"
     },
+    "Saved “%@”. Add this to the video's config:\n%@" : {
+      "comment" : "Videos sheet: a track was saved but the config is JSON and was not edited; %1$@ is the title, %2$@ the music: block"
+    },
     "Saved only if the whole file still passes the engine's config validation." : {
       "comment" : "HintText in EditYAMLSheet"
+    },
+    "Search" : {
+      "comment" : "Button in VideosView"
+    },
+    "Search free music (CC0 and public domain)" : {
+      "comment" : "TextField in VideosView"
     },
     "Search logs" : {
       "comment" : ".accessibilityLabel in LogsView"
@@ -2082,6 +2244,9 @@
     },
     "Show at launch" : {
       "comment" : "Picker in AppSectionView"
+    },
+    "Show in Finder" : {
+      "comment" : "Button in VideosView"
     },
     "Show pipeline of %@" : {
       "comment" : ".accessibilityLabel in FleetDiagramView"
@@ -2278,6 +2443,9 @@
     "The benchmark creates temporary VMs and containers and removes them when it ends." : {
       "comment" : "Benchmarks confirmation body"
     },
+    "The build failed (exit %@). The output above says why." : {
+      "comment" : "Videos sheet: a build exited non-zero; %lld is its exit code"
+    },
     "The classic tray app — open the window any time from the menu." : {
       "comment" : "Hint under the launch-mode picker"
     },
@@ -2292,6 +2460,15 @@
     },
     "The fleet can run inside this app (in-process) or in a background LaunchAgent that survives app restarts and reboots." : {
       "comment" : "FormCard in AppSectionView"
+    },
+    "The fleet didn't start at launch: %@. Start it from the menu or the Fleet tab." : {
+      "comment" : "Status line when auto-start at launch fails; %@ is the reason"
+    },
+    "The fleet engine couldn't be created: %@. The fleet can't run until this is fixed and kinhin is reopened." : {
+      "comment" : "Status line when the app can't build its fleet engine; %@ is the reason"
+    },
+    "the fleet engine didn't restart with it (%@)" : {
+      "comment" : "Reason a config edit wasn't applied; %@ is the engine's startup error"
     },
     "The fleet has %lld live VMs. It is paused while the benchmark runs and resumed afterwards; busy VMs finish their jobs first." : {
       "comment" : "Benchmarks confirmation body; plural by the number of live VMs",
@@ -2346,6 +2523,12 @@
     "The forge" : {
       "comment" : "Generic forge name used in a sentence when the real forge is unknown"
     },
+    "the forge token couldn't be read from the Keychain (%@)" : {
+      "comment" : "Reason a config edit wasn't applied; %@ is the Keychain error"
+    },
+    "the forge token is missing from the Keychain" : {
+      "comment" : "Reason a config edit wasn't applied"
+    },
     "The hard ceiling on VMs running together." : {
       "comment" : "row in CapacityView"
     },
@@ -2355,8 +2538,8 @@
     "The newest reports are kept; click one to see it." : {
       "comment" : "Subtitle of the benchmark history card; the newest 20 reports are kept"
     },
-    "The repo's .kinhin.yml is ignored (repo_file is off); these versions apply." : {
-      "comment" : "Toolchains tab row explanation; keep .kinhin.yml and repo_file verbatim"
+    "The repo's .kinhin/config.yml is ignored (repo_file is off); these versions apply." : {
+      "comment" : "Toolchains tab row explanation; keep .kinhin/config.yml and repo_file verbatim"
     },
     "The runtime list hasn't loaded yet. If this keeps happening, check that config.yaml exists and is valid (Advanced → App → Open config file)." : {
       "comment" : "Alert body"
@@ -2499,11 +2682,20 @@
     "Verify" : {
       "comment" : "Toolchains benchmark column"
     },
-    "Versions come from .kinhin.yml in the repo at each job's branch/tag. Used when a repo has no usable file: the project toolchains below." : {
-      "comment" : "Toolchains tab row explanation; keep .kinhin.yml verbatim"
+    "Versions come from .kinhin/config.yml (or the older .kinhin.yml) in the repo at each job's branch/tag. Used when a repo has no usable file: the project toolchains below." : {
+      "comment" : "Toolchains tab row explanation; keep .kinhin/config.yml and .kinhin.yml verbatim"
     },
-    "Versions come from .kinhin.yml in the repo at each job's branch/tag. With no usable file, jobs use the base image." : {
-      "comment" : "Toolchains tab row explanation; keep .kinhin.yml verbatim"
+    "Versions come from .kinhin/config.yml (or the older .kinhin.yml) in the repo at each job's branch/tag. With no usable file, jobs use the base image." : {
+      "comment" : "Toolchains tab row explanation; keep .kinhin/config.yml and .kinhin.yml verbatim"
+    },
+    "Video" : {
+      "comment" : "Picker in VideosView"
+    },
+    "Video to build" : {
+      "comment" : ".accessibilityLabel in VideosView"
+    },
+    "Videos" : {
+      "comment" : ".alert in VideosView"
     },
     "VM" : {
       "comment" : "Parameter in DeleteVMIntent"
@@ -2538,11 +2730,20 @@
     "VMs" : {
       "comment" : "Status-bar menu section header above the VM list"
     },
+    "VMs kept ready" : {
+      "comment" : "Text in MacToolsView"
+    },
     "Volumes" : {
       "comment" : "FormCard in ContainersView"
     },
+    "Waiting for your approval" : {
+      "comment" : "Diagnostics healing card section header: fixes waiting for approval"
+    },
     "Want your logo here?" : {
       "comment" : "HintText in SponsorSheet"
+    },
+    "Warm VMs kept ready (base image)" : {
+      "comment" : "row in CapacityView"
     },
     "warm, waiting to be claimed" : {
       "comment" : "VoiceOver phase description"
@@ -2555,6 +2756,9 @@
     },
     "Web app with pnpm and Playwright" : {
       "comment" : "Toolchain example title"
+    },
+    "Went away" : {
+      "comment" : "Healing event outcome: the problem cleared before anyone acted"
     },
     "What kinhin shows at launch" : {
       "comment" : ".accessibilityLabel in AppSectionView"
@@ -2588,6 +2792,9 @@
     },
     "Xcode" : {
       "comment" : "Benchmark suite name; the product name stays verbatim"
+    },
+    "Your config change was saved but couldn't be applied: %@. The fleet is still using the previous config." : {
+      "comment" : "Alert and status line when a config edit can't reach the fleet; %@ is the reason"
     },
     "Your fleet labels include “macos”, so macOS jobs would be sent to this Linux VM. In config.yaml, remove “macos” from labels (add “linux” if jobs ask for it)." : {
       "comment" : "Warning under the Tart (Linux VM) row; macos, linux and config.yaml are literal names"

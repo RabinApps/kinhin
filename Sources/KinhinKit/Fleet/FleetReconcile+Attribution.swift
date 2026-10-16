@@ -51,7 +51,7 @@ extension FleetEngine {
     /// single-repo fleet's breakdown carries no information (nil), while an
     /// org fleet always reports a map — empty when the API omitted repos.
     func attributionByRepo(_ repos: [String?]) -> [String: Int]? {
-        guard githubOrgScoped else { return nil }
+        guard attributesRunningByRepo else { return nil }
         return Dictionary(grouping: repos.compactMap { $0 }, by: { $0 }).mapValues(\.count)
     }
 
@@ -62,7 +62,7 @@ extension FleetEngine {
     /// Repo scope stamps the job name only — the repo breakdown would carry
     /// no information there (mirrors `queueByRepo` suppression).
     func applyRunningAttribution(_ running: [RunningJob]) async {
-        let isOrgScope = githubOrgScoped
+        let isOrgScope = attributesRunningByRepo
 
         // Map runner name → VM id. Single-runner VMs register under the VM
         // id itself; multi-runner VMs register as "<vmid>-r1…rN".

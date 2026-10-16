@@ -32,7 +32,7 @@ final class EngineDeallocationTests: XCTestCase {
         let config = scaleSetConfig()
         let engine = makeEngine(config)
         _ = await engine.attach(account: config.accounts[0], token: "t", verify: false)
-        let listener = engine.scaleSetListeners()["scale"]?.first
+        let listener = engine.scaleSetListeners()["scale"]?.first as? GitHubScaleSetListener
         XCTAssertNotNil(listener, "the scale-set account attached with a listener")
         // The listener's closures are what could pin the engine: exercise them once.
         _ = try? await listener?.currentScaleSetId()

@@ -15,6 +15,7 @@ extension BenchmarkOptions.Suite {
                 localized: "Xcode", bundle: .l10n, comment: "Benchmark suite name; the product name stays verbatim")
         case .large: return String(localized: "Large", bundle: .l10n, comment: "Benchmark suite name")
         case .toolchains: return String(localized: "Toolchains", bundle: .l10n, comment: "Benchmark suite name")
+        case .video: return String(localized: "Video", bundle: .l10n, comment: "Benchmark suite name")
         }
     }
 
@@ -39,6 +40,10 @@ extension BenchmarkOptions.Suite {
         case .toolchains:
             return String(
                 localized: "Install, verify and build with every catalog toolchain", bundle: .l10n,
+                comment: "Benchmark suite description")
+        case .video:
+            return String(
+                localized: "Image pull and clean and cached video builds in a container", bundle: .l10n,
                 comment: "Benchmark suite description")
         }
     }

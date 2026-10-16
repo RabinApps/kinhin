@@ -318,8 +318,8 @@ enum CommandCatalog {
                     positionals: "[path]",
                     flags: [
                         jsonFlag,
-                        .bool("--write", "Save the result as .kinhin.yml"),
-                        .bool("--force", "Overwrite an existing .kinhin.yml"),
+                        .bool("--write", "Save the result as .kinhin/config.yml"),
+                        .bool("--force", "Overwrite an existing .kinhin/config.yml (or .kinhin.yml)"),
                     ]),
                 CommandSpec(
                     name: "list-images",
@@ -337,6 +337,33 @@ enum CommandCatalog {
                     flags: [.bool("--linux", "The Linux variant")]),
             ],
             docs: "docs/toolchains.md"),
+
+        CommandSpec(
+            name: "mobile",
+            command: .mobile,
+            group: .images,
+            summary: "Set up fastlane store releases for a mobile app",
+            subcommands: [
+                CommandSpec(
+                    name: "init",
+                    command: .mobile,
+                    summary: "Add fastlane lanes and the CI release workflow",
+                    positionals: "[DIR]",
+                    flags: [
+                        .value(
+                            "--framework", "NAME",
+                            "auto (default), ios, android, native, flutter, react-native, expo, capacitor, kmp or maui"
+                        ),
+                        .value(
+                            "--ci", "SYSTEM",
+                            "auto (default: the repository's), github, gitea, forgejo, gitlab, bitbucket, azure or buildkite"
+                        ),
+                        .bool("--force", "Overwrite files that already exist"),
+                        .bool("--dry-run", "Print what would be written and write nothing"),
+                    ],
+                    docs: "docs/mobile-fastlane.md")
+            ],
+            docs: "docs/mobile-fastlane.md"),
 
         // MARK: running
         CommandSpec(
@@ -433,6 +460,30 @@ enum CommandCatalog {
             flags: [yesFlag],
             docs: "docs/requeue-skip.md"),
         CommandSpec(
+            name: "heal",
+            command: .heal,
+            group: .running,
+            summary: "What the healing agent fixed, and what waits on you",
+            flags: [jsonFlag, quietFlag],
+            subcommands: [
+                CommandSpec(
+                    name: "approve",
+                    command: .heal,
+                    summary: "Carry out a fix that waits for approval",
+                    positionals: "ID"),
+                CommandSpec(
+                    name: "dismiss",
+                    command: .heal,
+                    summary: "Close a pending or surfaced entry",
+                    positionals: "ID"),
+            ],
+            details: [
+                "Safe fixes (a vanished warm VM, a full cache, a detached account) run on their own; destructive "
+                    + "ones (pruning images, reinstalling a runtime) wait for heal approve. Exits 0 when nothing "
+                    + "waits on you, 1 when something does or no daemon runs."
+            ],
+            docs: "docs/healing.md"),
+        CommandSpec(
             name: "cleanup",
             command: .cleanup,
             group: .running,
@@ -471,8 +522,9 @@ enum CommandCatalog {
                 jsonFlag,
             ],
             details: [
-                "SUITE is boot, casual, xcode, large or toolchains. Bare `kinhin bench` runs the first four; the "
-                    + "toolchains suite takes 15 to 30 minutes when thorough, so it is opt-in. A running fleet is paused while the benchmark runs (--yes "
+                "SUITE is boot, casual, xcode, large, toolchains or video. Bare `kinhin bench` runs the first four; the "
+                    + "toolchains suite takes 15 to 30 minutes when thorough and the video suite builds a short video in a "
+                    + "container runtime, so both are opt-in. A running fleet is paused while the benchmark runs (--yes "
                     + "agrees to that without a prompt). Bench VMs and containers are named kinhin-bench-* and are "
                     + "deleted afterwards, also when the run fails or is cancelled.",
                 "The JSON report is kept under Application Support/Kinhin/bench (the newest 20). Exits 1 when a "
@@ -491,6 +543,198 @@ enum CommandCatalog {
             details: ["Asks twice. There is no undo."]),
 
         // MARK: workflows
+        CommandSpec(
+            name: "video",
+            command: .video,
+            group: .other,
+            summary: "Make a narrated video of your product from a config",
+            subcommands: [
+                CommandSpec(
+                    name: "init",
+                    command: .video,
+                    summary: "Create a starter video in .kinhin/videos/",
+                    positionals: "[name]",
+                    flags: [
+                        .value("--dir", "PATH", "The repository (default: the current directory)"),
+                        .bool("--workflow", "Also write the CI pipeline that builds it on a kinhin runner"),
+                        .value(
+                            "--ci", "SYSTEM",
+                            "auto (default: the repository's), github, gitea, forgejo, gitlab, bitbucket, azure or buildkite"
+                        ),
+                        .value(
+                            "--runs-on", "LABELS",
+                            "Runner labels for that pipeline (default: a self-hosted Linux runner, e.g. self-hosted,linux)"
+                        ),
+                        .value("--image", "REF", "The video image the workflow runs"),
+                    ],
+                    details: [
+                        "With --workflow and no name, only the pipeline is written. Nothing is overwritten. "
+                            + "GitHub's goes to .github/workflows/kinhin-video.yml, for --on-fleet; the other systems' are "
+                            + "started by hand."
+                    ]),
+                CommandSpec(
+                    name: "list",
+                    command: .video,
+                    summary: "List the videos in .kinhin/videos/",
+                    flags: [
+                        .value("--dir", "PATH", "The repository (default: the current directory)"),
+                        jsonFlag,
+                    ]),
+                CommandSpec(
+                    name: "build",
+                    command: .video,
+                    summary: "Build a video from its config",
+                    positionals: "[name]",
+                    flags: [
+                        .value("--dir", "PATH", "The repository (default: the current directory)"),
+                        .value("--theme", "NAME", "paper, clean, midnight, blueprint, chalk or your own"),
+                        .value("--format", "RATIO", "16:9, 9:16, 4:5 or 1:1"),
+                        .value("--captions", "on|off|all", "Burn captions into the picture"),
+                        .value("--caption-style", "STYLE", "outline, box, shadow, bold or minimal"),
+                        .value("--music", "TRACK", "A catalog track, a file in the repository, or off"),
+                        .bool("--fast", "A preview: quicker encode, no WebM"),
+                        .value("--quality", "draft|standard|high", "Encode quality (draft is --fast; high is slower)"),
+                        .value("--fps", "24|30|60", "Frames per second (default 30)"),
+                        .value("--runtime", "container|docker", "Which container runtime builds it"),
+                        .value("--image", "REF", "Use this video image instead of the released one"),
+                        .bool("--on-fleet", "Build on a runner via the repository's GitHub workflow (uses gh)"),
+                        .value("--ref", "BRANCH", "Branch to run the workflow on (default: the current one)"),
+                        .value("--ci", "SYSTEM", "With --on-fleet: the repository's CI system (default: detected)"),
+                    ],
+                    details: [
+                        "Builds in a container with the video suite from a published image (pulled on first use), "
+                            + "so there is nothing to copy into your repository. The repository is mounted read-only; "
+                            + "the video and the render cache land in .kinhin/videos/out and .kinhin/videos/.cache. "
+                            + "With one video in the folder the name may be left out."
+                    ]),
+                CommandSpec(
+                    name: "validate",
+                    command: .video,
+                    summary: "Check a video's config without rendering it",
+                    positionals: "[name]",
+                    flags: [
+                        .value("--dir", "PATH", "The repository (default: the current directory)"),
+                        .bool("--all", "Check every video in the repository"),
+                        .value("--runtime", "container|docker", "Which container runtime runs the check"),
+                        .value("--image", "REF", "Use this video image instead of the released one"),
+                    ],
+                    details: [
+                        "Runs the build's own checks (the config, theme, captions, music, text limits and claims) and "
+                            + "that each device or terminal scene's clip is in its adapter. It renders nothing, so it is "
+                            + "quick once the image is there. Exit 3 when a video has a problem."
+                    ]),
+                CommandSpec(
+                    name: "theme",
+                    command: .video,
+                    summary: "List themes or start one of your own",
+                    subcommands: [
+                        CommandSpec(
+                            name: "list",
+                            command: .video,
+                            summary: "List the built-in themes and yours",
+                            flags: [
+                                .value("--dir", "PATH", "The repository (default: the current directory)"),
+                                jsonFlag,
+                            ]),
+                        CommandSpec(
+                            name: "new",
+                            command: .video,
+                            summary: "Write a starter theme file",
+                            positionals: "<name>",
+                            flags: [
+                                .value("--dir", "PATH", "The repository (default: the current directory)"),
+                                .value("--from", "THEME", "Built-in theme to start from (default: paper)"),
+                            ],
+                            details: [
+                                "Writes .kinhin/videos/themes/<name>.yml: it extends the built-in theme and lists the values most "
+                                    + "people change, commented out with that theme's own values. Never overwrites."
+                            ]),
+                    ],
+                    requiresSubcommand: true),
+                CommandSpec(
+                    name: "record",
+                    command: .video,
+                    summary: "Record one app window as a clip, without the mouse pointer",
+                    positionals: "<app or title>",
+                    flags: [
+                        .value("--window", "ID", "Record this window id instead (see --list-windows)"),
+                        .value("--seconds", "N", "How long to record (default 10, at most 600)"),
+                        .value(
+                            "--out", "PATH", "Where to write the .mov (default: the app's name in the current folder)"),
+                        .bool("--list-windows", "List the windows that can be recorded, with their ids"),
+                        jsonFlag,
+                    ],
+                    details: [
+                        "Captures only that window's pixels, so the pointer and the windows over it stay out of the clip. "
+                            + "The first run asks for Screen Recording permission for the app that runs kinhin (Terminal, iTerm or "
+                            + "kinhin); allow it in System Settings and run the command again. Docs: video-adapters.md#recording-clips."
+                    ]),
+                CommandSpec(
+                    name: "music",
+                    command: .video,
+                    summary: "Find music and add it to a video",
+                    subcommands: [
+                        CommandSpec(
+                            name: "search",
+                            command: .video,
+                            summary: "Search openly licensed music",
+                            positionals: "<words>",
+                            flags: [
+                                .value("--limit", "N", "How many results (default 10, at most 50)"),
+                                .value(
+                                    "--min-seconds", "N",
+                                    "Shortest result (default 20; shorter ones are mostly sound effects)"),
+                                .value("--max-seconds", "N", "Longest result"),
+                                .value(
+                                    "--license", "cc0|cc-by",
+                                    "cc0 (default: CC0 and public domain) or cc-by (also CC BY, with credit)"),
+                                jsonFlag,
+                            ],
+                            details: [
+                                "Searches Openverse (Freesound, Wikimedia Commons and others) and the tracks built into the video image. "
+                                    + "No account is needed (200 searches a day). The results are numbered for `add` and `preview`. "
+                                    + "Licenses are as declared by each source; you are responsible for how you use a track."
+                            ]),
+                        CommandSpec(
+                            name: "preview",
+                            command: .video,
+                            summary: "Listen to a search result",
+                            positionals: "<number|id>"),
+                        CommandSpec(
+                            name: "add",
+                            command: .video,
+                            summary: "Download a track into the repository and use it",
+                            positionals: "<number|id|name>",
+                            flags: [
+                                .value("--dir", "PATH", "The repository (default: the current directory)"),
+                                .value("--video", "NAME", "The video to edit (default: the only one)"),
+                                .value("--volume", "V", "Music volume, 0 to 1.5 (default 0.35)"),
+                                .value(
+                                    "--license", "cc0|cc-by",
+                                    "Allow CC BY tracks too; the credit line is added to the config"),
+                                .bool("--no-config", "Only download it and print the music: block"),
+                            ],
+                            details: [
+                                "Saves the audio to .kinhin/videos/music/ with a .json file recording its source and license, then sets "
+                                    + "music: in the video's YAML config, keeping the rest of the file as it is. A built-in track is "
+                                    + "named in the config and downloads nothing."
+                            ]),
+                        CommandSpec(
+                            name: "list",
+                            command: .video,
+                            summary: "Show the music each video uses",
+                            flags: [
+                                .value("--dir", "PATH", "The repository (default: the current directory)"),
+                                jsonFlag,
+                            ]),
+                    ],
+                    requiresSubcommand: true),
+            ],
+            defaultSubcommand: "build",
+            details: [
+                "A video is one YAML or JSON file in .kinhin/videos/: scenes, a voice-over, music, captions, a theme."
+            ],
+            docs: "docs/videos-for-your-project.md"),
         CommandSpec(
             name: "workflow",
             command: .workflow,

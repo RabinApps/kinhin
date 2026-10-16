@@ -100,10 +100,12 @@ public struct GitHubScaleSetJobEvent: Sendable, Equatable {
     public let requestLabels: [String]
     public let runnerRequestId: String
     public let eventType: GitHubScaleSetJobEventKind
+    /// The runner that took the job (`JobStarted`, `JobCompleted`); absent on earlier events.
+    public let runnerName: String?
 
     public init(
         ownerName: String, repositoryName: String, jobDisplayName: String, requestLabels: [String],
-        runnerRequestId: String, eventType: GitHubScaleSetJobEventKind
+        runnerRequestId: String, eventType: GitHubScaleSetJobEventKind, runnerName: String? = nil
     ) {
         self.ownerName = ownerName
         self.repositoryName = repositoryName
@@ -111,6 +113,7 @@ public struct GitHubScaleSetJobEvent: Sendable, Equatable {
         self.requestLabels = requestLabels
         self.runnerRequestId = runnerRequestId
         self.eventType = eventType
+        self.runnerName = runnerName
     }
 }
 
@@ -145,6 +148,7 @@ extension GitHubScaleSetRegistrationToken: Codable {
             .replacingOccurrences(of: "_", with: "/")
         payload += String(repeating: "=", count: (4 - payload.count % 4) % 4)
         guard let data = Data(base64Encoded: payload),
+            // an undecodable token payload has no expiry to read; the caller treats nil as "refresh it"
             let claims = try? JSONDecoder().decode(Claims.self, from: data)
         else { return nil }
         return Date(timeIntervalSince1970: claims.exp)
@@ -157,6 +161,7 @@ extension GitHubScaleSet: Codable {
         id = try c.decode(Int.self, forKey: .id)
         name = try c.decode(String.self, forKey: .name)
         runnerGroupName = try c.decodeIfPresent(String.self, forKey: .runnerGroupName) ?? "default"
+        // labels arrive as plain strings or as {name} objects; the fallback below decodes the other shape
         if let plainLabels = try? c.decode([String].self, forKey: .labels) {
             labels = plainLabels
         } else {
@@ -256,11 +261,13 @@ extension GitHubScaleSetJobEvent: Codable {
         repositoryName = try c.decode(String.self, forKey: .repositoryName)
         jobDisplayName = try c.decode(String.self, forKey: .jobDisplayName)
         requestLabels = try c.decodeIfPresent([String].self, forKey: .requestLabels) ?? []
+        // the id arrives as a string or a number; the fallback below decodes the other shape
         if let string = try? c.decode(String.self, forKey: .runnerRequestId) {
             runnerRequestId = string
         } else {
             runnerRequestId = String(try c.decode(Int64.self, forKey: .runnerRequestId))
         }
+        runnerName = try c.decodeIfPresent(String.self, forKey: .runnerName)
     }
 
     enum CodingKeys: String, CodingKey {
@@ -270,6 +277,7 @@ extension GitHubScaleSetJobEvent: Codable {
         case jobDisplayName = "jobDisplayName"
         case requestLabels = "requestLabels"
         case runnerRequestId = "runnerRequestId"
+        case runnerName = "runnerName"
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -280,5 +288,6 @@ extension GitHubScaleSetJobEvent: Codable {
         try c.encode(jobDisplayName, forKey: .jobDisplayName)
         try c.encode(requestLabels, forKey: .requestLabels)
         try c.encode(runnerRequestId, forKey: .runnerRequestId)
+        try c.encodeIfPresent(runnerName, forKey: .runnerName)
     }
 }

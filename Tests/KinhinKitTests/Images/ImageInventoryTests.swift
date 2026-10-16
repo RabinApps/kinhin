@@ -223,4 +223,38 @@ final class ImageInventoryTests: XCTestCase {
         XCTAssertTrue(ImageInventory.ociUses(name: "x:latest", wanted: "x"))
         XCTAssertFalse(ImageInventory.ociUses(name: "x:v1", wanted: "x"), "an old tag is not what is running")
     }
+
+    // MARK: - Instances
+
+    private struct ListFailed: LocalizedError {
+        var errorDescription: String? { "daemon unreachable" }
+    }
+
+    func testFailedInstanceListingMarksUsageUnknownInsteadOfUnused() async throws {
+        let listed = ImageInventory.RuntimeImages(names: ["alpine:3.20"])
+        let images = try await ImageInventory.withInstances(listed, runtime: .docker) { throw ListFailed() }
+        XCTAssertEqual(images.instances, [])
+        XCTAssertEqual(images.usageUnknown, "could not list docker instances: daemon unreachable")
+
+        let inventory = ImageInventory.build(config: config(), tart: .init(), docker: images)
+        let docker = try XCTUnwrap(inventory.sections.first { $0.runtime == .docker })
+        XCTAssertNotNil(docker.usageUnknown, "the section carries why usedBy cannot be trusted")
+    }
+
+    func testInstanceListingKeepsOnlyKinhinInstances() async throws {
+        let images = try await ImageInventory.withInstances(.init(names: ["a"]), runtime: .container) {
+            ["kinhin-1", "other"]
+        }
+        XCTAssertEqual(images.instances, ["kinhin-1"])
+        XCTAssertNil(images.usageUnknown)
+    }
+
+    func testInstanceListingCancellationPropagates() async {
+        do {
+            _ = try await ImageInventory.withInstances(.init(), runtime: .docker) { throw CancellationError() }
+            XCTFail("cancellation must not read as usage-unknown")
+        } catch {
+            XCTAssertTrue(error is CancellationError)
+        }
+    }
 }

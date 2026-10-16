@@ -143,7 +143,7 @@ final class AzureDevOpsClientTests: XCTestCase {
     }
 
     func testDeletingAnAgentThatIsGoneSucceeds() async throws {
-        let calls = Mutex<[String]>([])
+        let calls = Locked<[String]>([])
         StubProtocol.handler = { request in
             calls.withLock { $0.append("\(request.httpMethod ?? "") \(request.url?.path ?? "")") }
             return (404, Data(), [:])

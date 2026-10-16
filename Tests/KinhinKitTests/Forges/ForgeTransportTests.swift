@@ -192,7 +192,7 @@ final class ForgeTransportTests: XCTestCase {
     }
 
     func testTransientStatusesRetryAndThenSucceed() async throws {
-        let attempts = Mutex<Int>(0)
+        let attempts = Locked<Int>(0)
         StubProtocol.handler = { _ in
             let n = attempts.withLock { n -> Int in
                 n += 1; return n
@@ -206,7 +206,7 @@ final class ForgeTransportTests: XCTestCase {
     }
 
     func testTransientStatusesExhaustIntoTheirLastError() async {
-        let attempts = Mutex<Int>(0)
+        let attempts = Locked<Int>(0)
         StubProtocol.handler = { _ in
             _ = attempts.withLock { $0 += 1 }
             return (500, Data("down".utf8), [:])

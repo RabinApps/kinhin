@@ -40,6 +40,21 @@ final class FleetRecoveryTests: XCTestCase {
         await engine.detachKeepingInstances()
     }
 
+    /// A scratch VM an image bake left behind shares the fleet's prefix, but it is not a runner: recovery must not
+    /// adopt it, while a real instance next to it is still recovered.
+    func testRecoverySkipsAScratchVMAndAdoptsTheRealInstance() async {
+        let store = makeTestStore()
+        let (engine, tart) = makeMixedEngine(store: store)
+        tart.vms["kinhin-prepare-tmp-1760000000"] = TartVM(
+            name: "kinhin-prepare-tmp-1760000000", source: "tahoe-base", status: "stopped")
+
+        await engine.recoverIfNeeded()
+
+        XCTAssertNotNil(store.all.first { $0.id == "kinhin-t1" }, "the real instance is recovered")
+        XCTAssertNil(store.all.first { $0.id == "kinhin-prepare-tmp-1760000000" }, "a scratch VM is never adopted")
+        await engine.detachKeepingInstances()
+    }
+
     /// A runtime that can't be listed (tart wedged, a daemon down) must not
     /// read as "every instance vanished": its records are kept, not dropped
     /// (which would orphan the running VMs).
@@ -105,6 +120,39 @@ final class FleetRecoveryTests: XCTestCase {
 
         XCTAssertTrue(ssh.scripts.isEmpty, "no registration script may run on a live busy instance")
         XCTAssertNotEqual(store.all.first { $0.id == "kinhin-t1" }?.phase, .cloning)
+        await engine.detachKeepingInstances()
+    }
+
+    /// A corrupt fleet.json (and project-images.json) must reach the status
+    /// as alerts naming the kept copy, not only the log.
+    func testCorruptStateFilesRaiseStatusAlerts() async throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("kinhin-corrupt-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: dir) }  // test temp dir
+        try Data("garbage".utf8).write(to: dir.appendingPathComponent("fleet.json"))
+        try Data("garbage".utf8).write(to: dir.appendingPathComponent("project-images.json"))
+        let store = FleetStore(directory: dir)
+        var dependencies = FleetEngine.Dependencies(lifecycleDrainTimeout: .milliseconds(200))
+        dependencies.projectImageStore = ProjectImageStore(directory: dir)
+        let engine = FleetEngine(
+            config: makeTestConfig(), github: FakeGitHub(), tart: FakeTart(), store: store, ssh: FakeSSH(),
+            host: host, dependencies: dependencies)
+
+        await engine.recoverIfNeeded()
+
+        let alerts = await engine.status().alerts ?? []
+        let fleet = try XCTUnwrap(alerts.first { $0.source == "store:fleet" })
+        let kept = try XCTUnwrap(store.recoveredFromCorruptFile)
+        XCTAssertTrue(fleet.message.contains(kept.lastPathComponent), fleet.message)
+        XCTAssertTrue(alerts.contains { $0.source == "store:project-images" })
+        await engine.detachKeepingInstances()
+    }
+
+    func testCleanStateRaisesNoStoreAlert() async {
+        let (engine, _) = makeMixedEngine(store: makeTestStore())
+        await engine.recoverIfNeeded()
+        let alerts = await engine.status().alerts ?? []
+        XCTAssertFalse(alerts.contains { $0.source.hasPrefix("store:") })
         await engine.detachKeepingInstances()
     }
 }

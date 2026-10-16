@@ -45,6 +45,9 @@ final class FleetController {
     @ObservationIgnored private var commandInFlight = false
     /// Config-edit push (debounced): a burst of edits flushes once.
     @ObservationIgnored let configPush = ConfigPushScheduler()
+    /// A pending config push came from a save in the window: a failure to
+    /// apply it also alerts. Read and reset by each flush.
+    @ObservationIgnored var configPushAlertsOnFailure = false
     /// Everything the controller reaches outside the process for (Keychain,
     /// host probes, daemon ping, engine construction, the config file).
     @ObservationIgnored var environment = Environment()
@@ -52,6 +55,12 @@ final class FleetController {
     /// on disk (e.g. the app was removed without `kinhin daemon uninstall`).
     /// Nil when the plist is absent, points at a live binary, or cannot be read.
     var staleDaemonPlist: String?
+    /// Failures the app hit on its own, keyed by where they came from: the
+    /// launch-time engine build or auto-start, a config edit that couldn't be
+    /// applied. They happen in the app, not the engine, so the polled status
+    /// can't carry them; the menu and the Fleet tab show them under the status
+    /// line until the same step next succeeds.
+    private(set) var problems: [FleetProblem: String] = [:]
     /// The disk-pressure banner was dismissed this session: keep it hidden while
     /// the same pressure episode persists. Re-armed once the engine reports
     /// pressure has eased, so the next episode shows the banner again.
@@ -280,6 +289,8 @@ final class FleetController {
             await refresh()
             throw error
         }
+        // A start that worked answers a failed one at launch.
+        if action == .start { setProblem(.launch, nil) }
         await refresh()
     }
 
@@ -353,6 +364,17 @@ final class FleetController {
         await refresh()
     }
 
+    // MARK: - App-side problems
+
+    /// The current problems, in a stable order (launch first).
+    var problemLines: [String] { problems.sorted { $0.key.rawValue < $1.key.rawValue }.map(\.value) }
+
+    /// Records (or, with nil, clears) the problem from `source`. Writes only on
+    /// a change, so an unchanged report doesn't re-render the menu.
+    func setProblem(_ source: FleetProblem, _ message: String?) {
+        if problems[source] != message { problems[source] = message }
+    }
+
     /// Clears the session-scoped disk-pressure banner from the Fleet tab. The
     /// dismissal holds while the same pressure episode persists — the engine
     /// keeps reporting it every poll and the app keeps suppressing it — so a
@@ -362,4 +384,12 @@ final class FleetController {
         diskPressureDismissed = true
         status?.diskPressureNotice = nil
     }
+}
+
+/// Where an app-side fleet problem came from (`FleetController.problems`).
+enum FleetProblem: Int, Sendable {
+    /// Launch: config.yaml unreadable, the engine couldn't be built, or auto-start failed.
+    case launch
+    /// A saved config edit couldn't be applied to the running fleet.
+    case configPush
 }

@@ -10,6 +10,7 @@ extension FleetEngine {
     /// anything orphaned.
     func recoverIfNeeded() async {
         Log.info("engine", "reconciling existing instances after (re)start")
+        await surfaceCorruptStateFiles()
         // Enumerate every configured runtime through the protocol — the map
         // (not per-runtime branches) is the source of truth.
         // Remember which runtime reported each instance: an adopted or
@@ -24,6 +25,8 @@ extension FleetEngine {
             let names: [String]
             do {
                 names = try await runtimeInstance.existingInstanceIDs()
+            } catch is CancellationError {
+                return  // stopping: the next start recovers
             } catch {
                 Log.warn(
                     "engine",
@@ -36,7 +39,9 @@ extension FleetEngine {
                 // "Ours" = instances this build spawns ("kinhin-") plus ones the
                 // pre-rename build spawned ("orchard-") so in-flight VMs are still
                 // recovered, attributed, and cleaned up across the rename.
-                guard name.hasPrefix("kinhin-") || name.hasPrefix("orchard-") else { continue }
+                guard InstanceNaming.isOurs(name) else { continue }
+                // A scratch VM an image bake left behind is not a runner: adopting it would register it on a forge.
+                guard !name.hasPrefix(ImagePreparer.scratchPrefix) else { continue }
                 // A benchmark's instances are not runners: adopting one would register it on a forge.
                 guard !name.hasPrefix(BenchmarkNaming.instancePrefix) else { continue }
                 if ownerByName[name] == nil {
@@ -258,6 +263,9 @@ extension FleetEngine {
                     let jobs = try await forge.queuedJobs()
                     let images = await self.resolveProjectImages(for: jobs, forge: forge, routerState: routerState)
                     return .answered(jobs: jobs, images: images)
+                } catch is CancellationError {
+                    // A cancelled pass is not a failed forge: no queue alert.
+                    throw CancellationError()
                 } catch {
                     return .failed(message: (error as? LocalizedError)?.errorDescription ?? "\(error)")
                 }
@@ -329,7 +337,16 @@ extension FleetEngine {
                 runnersPerVM: max(1, config.runnersPerVM), minRunners: config.minRunners,
                 maxRunners: config.maxRunners, capacityCap: capacity.maxConcurrent, poolCaps: routerState.caps,
                 heldRuntimes: held, existingPools: Set(routing.pools.keys), defaultRuntime: routing.defaultRuntime,
-                warmPool: config.warmPool, warmMaxAge: TimeInterval(config.warmMaxAgeMinutes) * 60))
+                warmPool: warmTargets(images: routerState.images),
+                warmMaxAge: TimeInterval(config.warmMaxAgeMinutes) * 60, imageDemand: demand.byImage))
+    }
+
+    /// Warm instances to keep per Tart image: the base `warm_pool` ("") and each `images:` entry's own.
+    func warmTargets(images: [KinhinConfig.ImageConfig]) -> [String: Int] {
+        var targets: [String: Int] = [:]
+        if config.warmPool > 0 { targets[""] = config.warmPool }
+        for image in images where image.warmPool > 0 { targets[image.name] = image.warmPool }
+        return targets
     }
 
     /// Publishes the desired count with the caps and records into the status snapshot.
@@ -355,10 +372,11 @@ extension FleetEngine {
         defer { publishSpawnBackoff() }
         var slots = plan.slots
         var diskPressureMessage: String?
-        if slots.contains(where: { $0.runtime != .host }) {
+        if slots.contains(where: { $0.runtime != .host && $0.claim == nil }) {
+            let listed = slots.contains { $0.image != nil } ? await listedTartVMs() : []
             let admission = ScalePlan.admitByDisk(
                 slots, freeDiskGB: hostProbe().freeDiskGB, reserveGB: config.reserve.diskGB,
-                diskPerInstanceGB: { ResourceProbe.effectiveDiskPerVMGB(diskGB: config.diskGB, runtime: $0) })
+                diskPerInstanceGB: { diskPerInstanceGB($0, listed: listed) })
             slots = admission.admitted
             if let blocked = admission.blocked {
                 diskPressureMessage =
@@ -369,26 +387,21 @@ extension FleetEngine {
             Log.info("engine", "scaling up: \(plan.active) active, want \(plan.target) (queue \(demand.queueDepth))")
         }
         for id in plan.evict { scheduleDelete(id: id, reason: "warm instance evicted") }
-        var claims = plan.claims[...]
         for slot in slots {
-            let image = slot.runtime == .tart ? chooseImage(demand: demand) : nil
-            // A warm instance is cloned from the base image, so only a base-image job can claim one.
-            if image == nil, slot.runtime == .tart, let warmID = claims.popFirst() {
+            // A claimed warm instance is bound to its slot; it is already on disk, so disk pressure never holds it.
+            if let warmID = slot.claim {
                 claimWarm(id: warmID, account: slot.account)
                 continue
             }
             var record = VMRecord(id: VMRecord.newName(), phase: .cloning)
             record.platform = slot.account
             record.runtime = slot.runtime.rawValue
-            record.image = image
+            record.image = slot.image
             store.upsert(record)
             // The lifecycle waits its turn at the engine's `SpawnPacer`, so disk I/O does not
             // stampede; the pass itself never sleeps.
             spawnLifecycle(for: record)
         }
-        // Unused claims (their slot needed a derived image, or the disk held it back) would
-        // overflow the cap: release them.
-        for id in claims { scheduleDelete(id: id, reason: "warm instance not needed") }
         await topUpWarmPool(plan.warmSpawn, diskBlocked: diskPressureMessage != nil)
         if let diskPressureMessage {
             Log.warn("engine", diskPressureMessage)
@@ -406,21 +419,96 @@ extension FleetEngine {
         }
     }
 
-    /// Starts `count` warm instances (cloned and booted, never registered) unless the disk is short.
-    func topUpWarmPool(_ count: Int, diskBlocked: Bool) async {
-        guard count > 0, !diskBlocked else { return }
+    /// What the engine last learned from `tart list` (see `FleetEngine.tartListing`).
+    struct TartListing: Sendable {
+        var vms: [TartVM] = []
+        var fetchedAt: Date?
+        /// Named images whose warm pool was skipped as unprepared, so each skip is logged once.
+        var skipped: Set<String> = []
+    }
+
+    /// How long one `tart list` answer serves the reconcile passes that ask for it.
+    static let tartListingMaxAge: TimeInterval = 60
+
+    /// The Tart VMs on this Mac, with their disk sizes, reused for `tartListingMaxAge`. A failed
+    /// `tart list` is not cached and returns none, so a named image is then treated as not prepared
+    /// (its warm pool is skipped) rather than guessed at.
+    func listedTartVMs() async -> [TartVM] {
+        let fresh = tartListing.withLock { state -> [TartVM]? in
+            guard let at = state.fetchedAt, Date().timeIntervalSince(at) < Self.tartListingMaxAge else { return nil }
+            return state.vms
+        }
+        if let fresh { return fresh }
+        let vms: [TartVM]
+        do {
+            vms = try await tart.list()
+        } catch {
+            // Not cached, and none means "not prepared" (the conservative answer); a
+            // cancelled pass discards it. Anything else is logged, not hidden.
+            if !(error is CancellationError) {
+                Log.warn("reconcile", "tart list failed: \(error.localizedDescription)")
+            }
+            return []
+        }
+        tartListing.withLock { state in
+            state.vms = vms
+            state.fetchedAt = Date()
+        }
+        return vms
+    }
+
+    /// Disk a new instance of `slot` takes. A Tart clone of a named image costs that image's own disk
+    /// size, as `tart list` reports it; the base image, other runtimes, and an unknown size use the
+    /// configured VM disk.
+    func diskPerInstanceGB(_ slot: ScalePlan.Slot, listed: [TartVM]) -> Int {
+        guard slot.runtime == .tart else {
+            return ResourceProbe.effectiveDiskPerVMGB(diskGB: config.diskGB, runtime: slot.runtime)
+        }
+        let size = slot.image.flatMap { name in listed.first { $0.name == name }?.diskGB }
+        return ResourceProbe.effectiveDiskPerVMGB(diskGB: size ?? config.diskGB, runtime: .tart)
+    }
+
+    /// Starts the warm instances planned per image (cloned and booted, never registered) unless the
+    /// disk is short. A named image that is not prepared yet has nothing to clone, so it is skipped.
+    func topUpWarmPool(_ spawns: [String: Int], diskBlocked: Bool) async {
+        guard !spawns.isEmpty, !diskBlocked else { return }
+        var wanted = spawns
+        var listed: [TartVM] = []
+        let named = spawns.keys.filter { !$0.isEmpty }
+        if !named.isEmpty {
+            listed = await listedTartVMs()
+            let prepared = Set(listed.map(\.name))
+            let missing = Set(named.filter { !prepared.contains($0) })
+            for image in missing { wanted[image] = nil }
+            // An image that is prepared again is forgotten, so a later skip is logged again.
+            let newlySkipped = tartListing.withLock { state -> [String] in
+                state.skipped.formIntersection(missing)
+                let fresh = missing.subtracting(state.skipped)
+                state.skipped.formUnion(missing)
+                return fresh.sorted()
+            }
+            for image in newlySkipped {
+                Log.warn("engine", "warm pool for image \(image) skipped: it is not prepared")
+            }
+        }
+        var planned: [ScalePlan.Slot] = []
+        for image in wanted.keys.sorted() {
+            let slot = ScalePlan.Slot(account: "", runtime: .tart, image: image.isEmpty ? nil : image)
+            planned += Array(repeating: slot, count: wanted[image] ?? 0)
+        }
+        guard !planned.isEmpty else { return }
         let free = hostProbe().freeDiskGB
-        let perVM = ResourceProbe.effectiveDiskPerVMGB(diskGB: config.diskGB, runtime: .tart)
         let slots = ScalePlan.admitByDisk(
-            Array(repeating: ScalePlan.Slot(account: "", runtime: .tart), count: count), freeDiskGB: free,
-            reserveGB: config.reserve.diskGB, diskPerInstanceGB: { _ in perVM }
+            planned, freeDiskGB: free, reserveGB: config.reserve.diskGB,
+            diskPerInstanceGB: { diskPerInstanceGB($0, listed: listed) }
         ).admitted
-        for _ in slots {
+        for slot in slots {
             var record = VMRecord(id: VMRecord.newName(), phase: .cloning)
             record.runtime = RuntimeID.tart.rawValue
+            record.image = slot.image
             record.pooled = true
             store.upsert(record)
-            Log.info(record.id, "starting warm instance")
+            Log.info(record.id, "starting warm instance\(slot.image.map { " for \($0)" } ?? "")")
             spawnLifecycle(for: record)
         }
     }

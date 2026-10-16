@@ -27,6 +27,8 @@ public final class Lane: @unchecked Sendable {
         public var startDaemon = true
         /// A Gitea/Forgejo image instead of the pinned (or `KINHIN_E2E_*_IMAGE`) one.
         public var forgeImage: String?
+        /// Extra variables for every kinhin the lane runs (see `Sandbox.setEnvironment`).
+        public var environment: [String: String] = [:]
         public init() {}
     }
 
@@ -35,13 +37,14 @@ public final class Lane: @unchecked Sendable {
         -> Lane
     {
         guard runtime.isAvailable else { throw E2EError.unavailable(runtime.unavailableReason) }
-        // kinhin adopts every `kinhin-*` instance its runtimes list, whoever made it. Starting next to a real fleet
-        // (or a previous run's leak) would let this sandbox adopt, and later delete, instances it does not own.
-        let foreign = await Instances.foreign()
+        // kinhin adopts every instance its runtime lists that carries its prefix. This suite's daemon uses `ke2ed-`, so a
+        // real fleet's `kinhin-*` instances are never adopted. Leftovers of an earlier run are, and Tart's VM cap is
+        // per Mac, so a Tart lane also refuses to run beside a real fleet's VMs.
+        let foreign = await Instances.foreign(for: runtime)
         guard foreign.isEmpty else {
             throw E2EError.failed(
-                "refusing to start a lane next to kinhin instances it does not own: \(foreign). Stop the other fleet "
-                    + "(or remove the leftovers) first.")
+                "refusing to start a \(runtime) lane next to instances it does not own: \(foreign). Remove the "
+                    + "leftovers (scripts/e2e-sweep.sh), or stop the fleet's Tart VMs before a Tart lane.")
         }
         let fixture: any ForgeFixture
         switch forge {
@@ -68,6 +71,7 @@ public final class Lane: @unchecked Sendable {
                 image = try await ImageBaker.shared.ensure(runtime, accounts: [account])
             }
             sandbox.setToken(await fixture.token, account: account.name)
+            for (key, value) in options.environment { sandbox.setEnvironment(key, value) }
             var config = FleetConfig(accounts: [account], runtime: runtime, image: image)
             config.minRunners = minRunners
             config.maxRunners = options.maxRunners

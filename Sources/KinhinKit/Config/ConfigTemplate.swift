@@ -41,7 +41,8 @@ extension ConfigLoader {
 
         # Pre-warmed VMs: booted and SSH-ready but not yet registered, so a job
         # skips clone and boot. They take slots under max_runners and are
-        # evicted when a job needs the slot. Tart base image only. 0 = off.
+        # evicted when a job needs the slot. This covers the base image; each
+        # images: entry has its own warm_pool. 0 = off.
         warm_pool: 0
         # Recycle a warm VM after this many minutes (>= 5).
         warm_max_age_minutes: 60
@@ -142,6 +143,15 @@ extension ConfigLoader {
         #   max_age_days: 30         # entries unused this long are deleted (0 = never)
         #   max_gb: 50               # LRU eviction beyond this size (0 = unlimited)
 
+        # Optional: the healing agent fixes known problems on its own (a vanished
+        # warm VM, a full cache, a detached account) and asks before anything
+        # destructive. See `kinhin heal` and docs/healing.md.
+        # healing:
+        #   enabled: true            # false = only the engine's own retries
+        #   auto: safe               # safe = reversible fixes run on their own; none = ask for every fix
+        #   ai: auto                 # auto = on-device Apple Intelligence advises (macOS 26+); off = rules only
+        #   max_attempts: 3          # tries of one fix for one problem before it escalates
+
         # Optional: serve more forges from the same fleet. Every accounts:
         # entry above is one forge; VMs are assigned to whichever forge has
         # the most pending work at spawn time. Manage accounts with
@@ -170,7 +180,7 @@ extension ConfigLoader {
         # full VMs (github.com/apple/container — lightweight, one VM per
         # container, Apple silicon only). Cheaper per job for Linux workloads
         # than a full VM; macOS jobs still need Tart. Requires the container CLI
-        # (brew install container) and a Linux image baked with the
+        # (kinhin setup repair container) and a Linux image baked with the
         # runner agents — prepare it with: kinhin image prepare --container-image <name>
         # container:
         #   image: "kinhin-ci-linux"

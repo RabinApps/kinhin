@@ -4,7 +4,7 @@ import Synchronization
 /// Owns one GitHub scale-set session and feeds demand back into the engine.
 /// This is the replacement for the REST workflow-runs poll for accounts that opt
 /// into scale-set mode.
-public actor GitHubScaleSetListener {
+public actor GitHubScaleSetListener: ForgeListener {
     var session: GitHubScaleSetSession?
     /// Id of a session we stopped polling after a failure but never deleted; GitHub still treats it
     /// as active (409 on create) until it is refreshed or expires.
@@ -12,6 +12,9 @@ public actor GitHubScaleSetListener {
     var lastMessageId: String?
     var cachedSnapshot: GitHubScaleSetSnapshot?
     var pendingActions: [String: GitHubScaleSetJobEvent] = [:]
+    /// Runners a `JobCompleted` named, newest last; bounded, since every runner name is used once.
+    var finishedRunners: [String] = []
+    static let finishedRunnersKept = 512
     var backOff: Duration = .seconds(1)
     var messagePollTask: Task<Void, Never>?
     var statisticsPollTask: Task<Void, Never>?
@@ -38,7 +41,7 @@ public actor GitHubScaleSetListener {
     var cachedScaleSetId: Int?
     var cachedStatistics: GitHubScaleSetStatistics?
     var statisticsExpiresAt: Date?
-    var _lastError: ScaleSetError?
+    var _lastError: GitHubError?
 
     public init(
         client: GitHubScaleSetServing,
@@ -97,6 +100,7 @@ public actor GitHubScaleSetListener {
         conflictStreak = 0
         cachedSnapshot = nil
         pendingActions = [:]
+        finishedRunners = []
         cachedScaleSetId = nil
         cachedStatistics = nil
         statisticsExpiresAt = nil
@@ -104,7 +108,7 @@ public actor GitHubScaleSetListener {
     }
 
     /// The last error observed during listener maintenance.
-    public func reportedError() -> ScaleSetError? { _lastError }
+    public func reportedError() -> GitHubError? { _lastError }
 
     // MARK: - Demand surface
 
@@ -121,6 +125,11 @@ public actor GitHubScaleSetListener {
             jobs.append(contentsOf: synthesizePlaceholderJobs(upTo: missing, into: snap))
         }
         return jobs
+    }
+
+    /// Which of `names` a `JobCompleted` event named as the runner that ran the job.
+    public func finishedRunners(among names: [String]) -> Set<String> {
+        Set(names).intersection(finishedRunners)
     }
 
     /// Latest snapshot the listener has published. Before the first poll pass

@@ -67,15 +67,42 @@ limit.
 arrives, the scaler claims a warm VM, binds it to the account that has the demand, and runs only the registration step,
 so the job skips `tart clone` and boot. With the default `0` the feature is off.
 
+Each Tart image has its own pool. The top-level `warm_pool` covers `image:`, and `warm_pool` on an
+[`images:` entry](runtimes.md#multiple-macos-images) covers that image, so an Xcode image can stay warm while the base
+stays cold, or the other way round.
+
 - Warm VMs take slots under `max_runners` and count against the capacity cap, including Apple's limit of two macOS VMs
   per Mac. They are evicted when a job needs the slot, so a warm VM never delays work that a cold start could serve.
 - The pool tops up only when nothing is queued and `min_runners` is met. In ephemeral mode the replacement for a
   finished VM is started on the next pass, so the poll interval applies.
-- Only base-image Tart jobs claim a warm VM. Jobs routed to a per-project image, and the other runtimes, start cold.
-- A warm VM older than `warm_max_age_minutes` (default 60) is recycled. After a restart, warm VMs are re-checked rather
+- A job claims a warm VM of the image it runs on. Jobs routed to a per-project image (`projects:`), and the other
+  runtimes, start cold.
+- A named image that was never prepared gets no warm VMs. Its `warm_pool` is skipped, with a log line, until it exists. Kinhin reads `tart list` at most once a minute, so an
+  image prepared while the fleet runs starts its warm pool within a minute.
+- The base `warm_pool` and every entry's `warm_pool` together must fit in `max_runners`.
+- A warm VM older than `warm_max_age_minutes` (default 60) is recycled, and so is one whose pool is turned off or whose
+  `images:` entry was removed. After a restart, warm VMs are re-checked rather
   than trusted.
 
 This differs from `min_runners`, which keeps *registered* idle runners on the forge.
+
+## Healing
+
+The scaling loop recovers from most failures by itself: the spawn backoff above, teardown retries, forge re-attach
+backoff, and an orphan sweep for instances kinhin started but no longer has a record of. The [healing agent](healing.md) runs in its
+own loop beside it and covers what those do not, without ever delaying a scaling pass:
+
+- **Warm VMs.** A warm VM waits with nothing driving it, so no liveness watch sees it die. The engine's orphan sweep
+  (every 2 minutes, healing on or off) lists each runtime once and removes the record of a warm VM deleted or stopped
+  outside kinhin, so it stops holding a slot and the pool tops up again; the healing journal notes each removal.
+- **Disk pressure.** When the disk guard holds spawns, the agent prunes the toolchain cache (with `auto_prune` on) and
+  then asks before pruning unused images.
+- **Spawn backoff.** The backoff keeps a failing runtime from respawning in a loop; the agent looks at why. A stopped
+  Apple container system is started on its own; a missing runtime or a broken tart waits for your approval.
+- **Detached accounts.** An account that dropped off for a minute is re-attached at once instead of waiting out its
+  backoff; a rejected token is shown to you.
+
+With `healing.enabled: false` all of the engine's own retries still run. `kinhin heal` shows what the agent did.
 
 ## Pausing and auto-resume
 

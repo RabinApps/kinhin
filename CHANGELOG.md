@@ -1,5 +1,91 @@
 # Changelog
 
+## Unreleased
+
+<!-- changelog: entries for the next release go here -->
+
+## v0.0.1-beta-2
+
+**Added**
+
+- `kinhin video record <app or title>` records one window of your app as a clip, with the mouse pointer left out, for a video's app scene. `--list-windows` shows what can be recorded and `--window ID` picks one. It needs Screen Recording permission for your terminal once. See [docs/video-adapters.md](docs/video-adapters.md#recording-clips).
+- The healing agent: kinhin fixes the fleet problems it safely can on its own (a warm VM deleted out of band, a toolchain
+  cache filling the disk, a detached account, a stopped Apple container system) and asks before anything destructive
+  (pruning images, reinstalling a runtime). `kinhin heal` shows the journal, and `kinhin heal approve|dismiss ID` acts
+  on it. The app's Diagnostics sheet has a Healing card, and a notification fires when a fix succeeds. Configure it under
+  `healing:`. On macOS 26 with Apple Intelligence, the on-device Apple Intelligence model can pick from the allowed fixes
+  for problems no rule covers. See [docs/healing.md](docs/healing.md).
+- `warm_pool` on an `images:` entry keeps booted, unregistered VMs of that image ready, so jobs routed to it (for example
+  `xcode`) skip the clone and boot. The top-level `warm_pool` still covers `image:`; the two share `max_runners`.
+- "VMs kept ready" controls: each image in the "More images" card has a stepper for its warm pool, and the Capacity view
+  has a row for the base image's. Changes are saved after the stepper settles.
+- `kinhin mobile init --ci` and `kinhin video init --workflow --ci` write the pipeline for GitLab CI, Gitea and Forgejo
+  Actions, Bitbucket Pipelines, Azure Pipelines or Buildkite, as well as GitHub Actions. The system is detected from the
+  repository when the flag is left out. Mobile releases outside GitHub run one script, `.kinhin/mobile-release.sh`. See
+  [docs/mobile-fastlane.md](docs/mobile-fastlane.md#other-ci-systems) and
+  [docs/videos-for-your-project.md](docs/videos-for-your-project.md#building-on-a-runner-or-in-ci).
+- `kinhin mobile init` adds a `screenshots` lane: `snapshot` for iOS UI tests and `screengrab` for Android instrumented tests, with optional device frames and optional upload. See [docs/mobile-screenshots.md](docs/mobile-screenshots.md).
+- `kinhin mobile init` scaffolds fastlane release setup for iOS, Android, Flutter, React Native and
+  native projects with lanes, a pinned Gemfile and a manual `mobile-release` workflow for `kinhin-xcode`. Expo gets EAS
+  config. Opt-in: nothing changes for projects that do not run it. See [docs/mobile-fastlane.md](docs/mobile-fastlane.md).
+- `kinhin mobile init` also scaffolds Capacitor and Ionic (`ios/` and `android/`, with `cap sync` in the CI jobs), Kotlin
+  Multiplatform (`iosApp/` and `androidApp/`, with the shared framework built by the Xcode build phase), and .NET MAUI
+  (`dotnet publish` for the IPA and AAB, signed in the lanes). The runner toolchain probes detect MAUI and KMP.
+- The video suite can show store screenshots as a cross-fading slideshow (`device` scene with `props.screens`, opt-in). A new
+  `examples/mobile-30s` cut shows them, and `video.yml` captures the iOS screenshots on the macOS pool for a look that sets
+  `screens`. Videos without `screens` are unchanged.
+- The homepage and README say "Commit it. Screenshot it. Ship it." and cover store screenshots.
+- The fastlane lanes accept `IPA_PATH` (a prebuilt IPA, refused when older than `IPA_MAX_AGE_HOURS`), `IOS_PROJECT` and
+  `IOS_WORKSPACE`, and `ANDROID_GRADLE_DIR` and `ANDROID_GRADLE_MODULE`. Projects that do not set them are unchanged.
+- `kinhin video init | list | build`: make a narrated video of your own product from `.kinhin/videos/*.yml`, with no copy of the
+  video suite. It runs a published container image (Apple `container` or Docker) against your repository; `--on-fleet` builds on a
+  runner through a generated GitHub workflow. Music, captions, themes and formats are config. See
+  [docs/videos-for-your-project.md](docs/videos-for-your-project.md).
+- Each video builds into its own folder, `.kinhin/videos/out/<name>/` (the video, WebM, poster, GIF and captions); the build's scratch files are not left in your repository.
+- **Make a Video…** on the app's Fleet tab: choose a repository, create and build a video with live output, and search and add music, with
+  the same code as `kinhin video`.
+- `kinhin video music` can use your own Openverse application (`KINHIN_OPENVERSE_CLIENT_ID` and `KINHIN_OPENVERSE_CLIENT_SECRET`) for a higher search limit.
+- `kinhin video theme list | new`, and your own theme files in `.kinhin/videos/themes/` (they can extend a built-in theme and change only
+  what they want).
+- `kinhin video music search | preview | add | list`: find CC0 and public-domain music (Openverse, plus the tracks built into the image),
+  download it into `.kinhin/videos/music/` with its source and license, and set `music:` in a video's config without touching
+  the rest of the file. `--license cc-by` also offers CC BY tracks and writes their credit line.
+
+**Changed**
+
+- The video image's base (`video/Dockerfile`, renamed from `Containerfile` so Dependabot can read it) is pinned by digest, and Dependabot
+  now keeps it and `video/package.json` current.
+- A repo's per-project config now lives at `.kinhin/config.yml`. The older `.kinhin.yml` is still read when the new file is
+  absent, and `kinhin toolchains detect --write` writes the new path.
+- Install docs for Linux jobs: apple/container (recommended, `kinhin setup repair container`) and Docker
+  (`kinhin setup repair docker`), in [docs/install.md](docs/install.md#installing-a-linux-runtime).
+- Core toolchains (`node`, `go`, `python`, `ruby`, `swift`) install a pinned default version when listed without one,
+  instead of a floating `@latest`, so a re-bake reproduces the same versions. Pin a different version in `specs`
+  as before. Linux bakes of `swift` also install the Swift runtime libraries it links.
+
+**Fixed**
+
+- An unreadable `fleet.json`, `project-images.json` or scale-set session file is no longer silently replaced. It is moved
+  aside to `<name>.corrupt-<timestamp>` before kinhin starts empty, and the app and `kinhin status` show an alert naming
+  the kept copy (fleet and project images).
+- "Reset everything" no longer reports success when it left something behind. A Tart that cannot be listed, an unreadable
+  Keychain or a support directory that cannot be listed is shown before you confirm and again afterwards; `kinhin reset`
+  then exits 1 (needs attention), and the app's status line lists what is left.
+- Disk checks before a Tart clone use the size of the image being cloned, so a large `images:` image no longer passes as
+  if it were the base VM.
+- A warm VM is recycled at once when its pool is turned off or its `images:` entry is removed, instead of holding a
+  `max_runners` slot for up to an hour.
+- A named image that has not been prepared no longer triggers a `tart list` and a warning on every poll. The listing is
+  reused for a minute, and the skip is logged once.
+- Video text no longer runs off the frame: titles, statements, outro lines, step rows and burned captions wrap on whole words
+  and shrink to fit. A slide over its character limit (`TEXT_LIMITS` in `video/shared/resolve.mjs`) fails the build with the
+  prop and the limit named.
+- Commands that run a child process could return its stderr without the last lines, under load. The result is now read
+  only after the pipes reach end-of-file.
+- Advanced → Capacity: the This Mac base-image rows no longer run past the card's right edge (the **Pin…** button was clipped), the labels no longer collapse, and the empty gap above **More images** is gone. A custom base image now sits on its own line under the popup.
+- The apple/container install hints now include `--enable-kernel-install`. Without it, `container run` fails with
+  "default kernel not configured".
+
 ## v0.0.1-beta-1
 
 First public beta. kinhin watches your CI queue and, for each queued job, starts a fresh VM or container on your Apple

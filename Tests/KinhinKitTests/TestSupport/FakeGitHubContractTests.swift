@@ -47,6 +47,7 @@ final class FakeGitHubContractTests: XCTestCase {
         case .http(let code, _): return "http(\(code))"
         case .decoding: return "decoding"
         case .invalidInstance: return "invalidInstance"
+        default: return "scaleSet(\(error))"
         }
     }
 
@@ -157,7 +158,7 @@ final class FakeGitHubContractTests: XCTestCase {
     }
 
     func testDeleteRunnerDropsOutOfTheNextListLikeTheRealCacheInvalidation() async throws {
-        let deleted = Mutex(false)
+        let deleted = Locked(false)
         StubProtocol.handler = { request in
             if request.httpMethod == "DELETE" {
                 deleted.withLock { $0 = true }

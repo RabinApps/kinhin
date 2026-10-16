@@ -70,7 +70,7 @@ public struct AppleContainerRuntime: Runtime {
         guard let resolved, exists(resolved) else {
             return .missing(
                 tool: "apple container",
-                fix: "brew install container && container system start"
+                fix: "brew install container && container system start --enable-kernel-install"
             )
         }
         // The CLI exists; require the host API service to be running
@@ -145,6 +145,7 @@ public struct AppleContainerRuntime: Runtime {
     /// `docker.io/library/alpine:3.20`). Pure so tests pin the parsing.
     static func parseImageSizes(_ text: String) -> [String: Int] {
         guard let data = text.data(using: .utf8),
+            // Sizes are cosmetic: unreadable output shows "—", never a wrong number.
             let images = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]
         else { return [:] }
         var sizes: [String: Int] = [:]

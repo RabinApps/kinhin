@@ -53,7 +53,9 @@ enum CommandResolver {
     static func resolve(_ args: [String]) throws -> Invocation {
         let argv = normalized(args)
         guard let head = argv.first else {
-            let help = CommandCatalog.topLevel("help")!
+            guard let help = CommandCatalog.topLevel("help") else {
+                preconditionFailure("CommandCatalog must declare the help command")
+            }
             return Invocation(
                 path: ["help"], command: .help, args: argv, rest: [], wantsHelp: false, helpSpec: help,
                 helpPath: ["help"])
@@ -198,7 +200,7 @@ enum CommandResolver {
             var distance = editDistance(Array(bare), Array(target))
             if bare.count >= 3, target.hasPrefix(bare) { distance = min(distance, 1) }
             guard distance <= 2, distance < max(2, bare.count) else { continue }
-            if best == nil || distance < best!.distance { best = (candidate, distance) }
+            if distance < best?.distance ?? Int.max { best = (candidate, distance) }
         }
         return best?.candidate
     }

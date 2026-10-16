@@ -219,6 +219,7 @@ final class ConnectModel: ConfigFormModel {
         // own reload path; this only decides which cards to show. Only a
         // card-owned account selects its card (others are "More accounts").
         let configuredForges = Set(
+            // An unreadable config only hides cards here; each card reloads and shows the error.
             ((try? AccountsConfigEditor.accounts(at: configURL)) ?? [])
                 .filter(ForgeConnectionModel.ownsAccount).map(\.forge))
         for forge in ForgeID.allCases where stored(forge) || configuredForges.contains(forge) {

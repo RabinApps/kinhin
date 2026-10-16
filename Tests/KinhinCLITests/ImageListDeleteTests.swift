@@ -277,4 +277,15 @@ final class ImageListDeleteTests: XCTestCase {
         XCTAssertEqual(ImageDeleteCommand.exitCode(for: [refusal(.notAnImage)]), .usage)
         XCTAssertEqual(ImageDeleteCommand.exitCode(for: [refusal(.unknown), refusal(.inUse)]), .runtime)
     }
+
+    /// Deleting a tart image with a broken `tart_path:` fails with the path,
+    /// never skips the deletion; non-tart targets do not need tart at all.
+    func testBrokenTartPathFailsATartDeletion() {
+        let tartImage = ImageDeletePlan.Target(name: "old", runtime: .tart, role: .local, present: true)
+        XCTAssertThrowsError(try ImageDeleteCommand.tartForDeletion([tartImage], tartPath: "/no/such/tart")) {
+            XCTAssertTrue($0.localizedDescription.contains("/no/such/tart"), $0.localizedDescription)
+        }
+        let dockerImage = ImageDeletePlan.Target(name: "old:1", runtime: .docker, role: .local, present: true)
+        XCTAssertNil(try ImageDeleteCommand.tartForDeletion([dockerImage], tartPath: "/no/such/tart"))
+    }
 }

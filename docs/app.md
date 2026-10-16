@@ -101,6 +101,16 @@ It reads from the running daemon, so it needs `kinhin daemon install` (or `kinhi
 
 The data comes from the forge APIs your token already uses, so no extra permission is needed beyond reading jobs. Lookups are cached for two seconds per VM to spare the API budget.
 
+## Make a Video
+
+The Fleet tab's **Make a Video…** button opens a sheet for making a narrated video of a repository, with the same code as
+`kinhin video` ([Add videos to your project](videos-for-your-project.md)). Choose a repository (it needs, or gets, a
+`.kinhin/videos/` folder), pick a video or create one from a starter, and press **Build**. The build runs in a container (Apple
+`container` if it is running, else Docker) and its output scrolls in the sheet; **Fast preview** skips the slow parts, and
+**Show in Finder** opens the result. The same sheet has a **Music** search: type a few words, and **Add to video** downloads a free
+(CC0 or public-domain) track into the repository and sets it on the selected video. The first build downloads the video image
+(about a gigabyte).
+
 ## Live CPU and RAM usage
 
 kinhin shows how busy the Mac and each running instance are, so you can tell whether the configured sizes fit
@@ -120,6 +130,15 @@ disk. An older daemon simply reports none, and the app shows no usage. How each 
 [Runtimes](runtimes.md#how-usage-is-measured).
 
 Not included: history or graphs, alerts, metrics from inside the guest, and per-job attribution.
+
+## Healing
+
+The **Diagnostics** sheet (from the Fleet tab) ends with a **Healing** card for the [healing agent](healing.md): the policy
+(safe fixes on their own, or every fix waits), the advisor, fixes waiting for your approval (**Approve**, **Dismiss**),
+problems only you can fix (**Dismiss**), what is being fixed now and the last 10 closed entries. The dot is amber while
+something waits on you. A fix waiting for approval also raises the "kinhin needs attention" notification, and each fix
+that succeeds posts "kinhin fixed a problem". The card works with the in-process engine and with the daemon, and shows
+the same journal as `kinhin heal`.
 
 ## Quitting
 

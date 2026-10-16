@@ -39,6 +39,7 @@ extension FleetEngine {
             if !projects.isEmpty { candidates.append(job) }
         }
         let source = projectSource
+        // Only cancellation can fail the lookups; the guard below stops like the pass.
         let resolutions = try? await boundedMap(candidates, limit: 4) { job in
             await source.resolve(job: job, forge: forge, projects: projects)
         }
@@ -46,7 +47,11 @@ extension FleetEngine {
         for (job, resolution) in zip(candidates, resolutions) {
             if let warning = resolution.warning { Log.warn("engine", warning) }
             guard let toolchains = resolution.toolchains else { continue }
-            let availability = await projectImages.request(toolchains: toolchains, shareCache: resolution.shareCache)
+            guard
+                // request throws only CancellationError: stop like a cancelled lookup above.
+                let availability = try? await projectImages.request(
+                    toolchains: toolchains, shareCache: resolution.shareCache)
+            else { return result }
             switch availability {
             case .ready(let name):
                 result.byImage[name, default: 0] += 1
@@ -60,32 +65,6 @@ extension FleetEngine {
             }
         }
         return result
-    }
-
-    /// Active tart instances per image name ("" = the base image).
-    func activeByImage() -> [String: Int] {
-        var counts: [String: Int] = [:]
-        for record in store.all where record.phase.isActive {
-            let runtime = record.runtimeID ?? routing.defaultRuntime
-            guard runtime == .tart else { continue }
-            counts[record.image ?? "", default: 0] += 1
-        }
-        return counts
-    }
-
-    /// The image a new tart instance should be cloned from: the one with the
-    /// most unmet demand (nil = the base image). Ties go to a derived image.
-    func chooseImage(demand: Demand) -> String? {
-        guard !demand.byImage.isEmpty else { return nil }
-        let active = activeByImage()
-        let derivedTotal = demand.byImage.values.reduce(0, +)
-        let baseUnmet = ((demand.byPool[.tart] ?? 0) - derivedTotal) - (active[""] ?? 0)
-        var best: (image: String?, unmet: Int) = (nil, baseUnmet)
-        for (image, count) in demand.byImage.sorted(by: { $0.key < $1.key }) {
-            let unmet = count - (active[image] ?? 0)
-            if unmet > 0, unmet >= best.unmet { best = (image, unmet) }
-        }
-        return best.unmet > 0 ? best.image : nil
     }
 
     /// The route a record provisions and registers with: the fleet's base

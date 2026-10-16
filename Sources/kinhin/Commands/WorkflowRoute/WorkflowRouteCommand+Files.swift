@@ -26,6 +26,7 @@ extension WorkflowRouteCommand {
             .contentsOfDirectory(at: workflowsDir, includingPropertiesForKeys: nil)
             .filter { $0.pathExtension == "yml" || $0.pathExtension == "yaml" }
         let matches = candidates.filter { candidate in
+            // an unparsable workflow simply is not a match; the chosen file is parsed (with errors) later
             (try? loadWorkflow(at: candidate))?.name.caseInsensitiveCompare(name) == .orderedSame
         }
         guard matches.count == 1 else {

@@ -28,6 +28,21 @@ final class ManifestProbeTests: XCTestCase {
         XCTAssertFalse(found.contains("stack:react-native"))
     }
 
+    func testMAUIProjectOneFolderDownIsDotnet() throws {
+        let found = try ids([
+            "App/App.csproj": "<Project><PropertyGroup><UseMaui>true</UseMaui></PropertyGroup></Project>"
+        ])
+        XCTAssertTrue(found.contains("dotnet"), "missing dotnet in \(found.sorted())")
+    }
+
+    func testKotlinPluginInASharedModuleIsDetected() throws {
+        let found = try ids([
+            "settings.gradle.kts": "include(\":shared\")",
+            "shared/build.gradle.kts": "plugins { kotlin(\"multiplatform\") }",
+        ])
+        XCTAssertTrue(found.contains("kotlin"), "missing kotlin in \(found.sorted())")
+    }
+
     func testEcosystemMarkers() throws {
         let found = try ids([
             "go.mod": "module x\n\ngo 1.22.5\n", "Cargo.toml": "", "Package.swift": "", "Gemfile": "gem 'fastlane'\n",

@@ -62,6 +62,9 @@ struct CapacityView: View {
                 "Fewest VMs kept ready", "min-runners", \.minRunners, 0...16, Field.minRunners,
                 help: "0 means VMs only start when a job is waiting.")
             row(
+                "Warm VMs kept ready (base image)", "warm-pool", \.warmPool, 0...16, Field.warmPool,
+                help: "Booted VMs that wait for a job, so it skips the clone and boot. 0 is off.")
+            row(
                 "Most VMs at once", "max-runners", \.maxRunners, 1...32, Field.maxRunners,
                 help: "The hard ceiling on VMs running together.")
             row(
@@ -86,8 +89,9 @@ struct CapacityView: View {
                     get: { model.draft?.vmEphemeral ?? false }, set: { model.setEphemeral($0) })
             )
             .accessibilityIdentifier("ephemeral-toggle")
-            HStack {
+            HStack(spacing: 3) {
                 Text("Base image")
+                Spacer()
                 TextField(
                     "Base image",
                     text: Binding(get: { model.draft?.image ?? "" }, set: { model.setImage($0) })

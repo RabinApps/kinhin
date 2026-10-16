@@ -6,7 +6,7 @@ import Synchronization
 extension FleetEngine {
     /// Which parts of a config edit the *running* engine can adopt without
     /// a rebuild: the routing model (pools/routes/budget), the capacity
-    /// partition, the GitHub forge's label set, the named `images:` entries
+    /// partition, the forges' label sets (`Forge.relabeled`), the named `images:` entries
     /// and the `projects:` rules — exactly what `applyReloaded` swaps under
     /// the locks. Everything else (bounds, poll cadence, per-VM shape,
     /// reserve, forge sections, toolchains) lives in the frozen `config` the
@@ -38,6 +38,7 @@ extension FleetEngine {
     /// config rebuild must never do.
     public func detachKeepingInstances() async {
         runState.withLock { $0.running = false }
+        healing.stopLoop()
         cachePruneTask?.cancel()
         cachePruneTask = nil
         // Wait out an in-flight reconcile pass first: one already in its
@@ -61,6 +62,7 @@ extension FleetEngine {
             defer { state.retry.inFlight = nil }
             return state.retry.inFlight
         }
+        // Cancel the in-flight forge attach, if any.
         retry?.cancel()
         await drain([retry].compactMap { $0 }, timeout: lifecycleDrainTimeout)
         await settleDeletes(timeout: lifecycleDrainTimeout)
@@ -115,10 +117,10 @@ extension FleetEngine {
         // A task group would wait for every child at scope exit (and awaiting
         // an unstructured task's value ignores cancellation), so race two
         // unstructured waiters and resume on whichever finishes first.
-        let finished = Mutex(0)
-        let waiters = Mutex<[Task<Void, Never>]>([])
+        let finished = Locked(0)
+        let waiters = Locked<[Task<Void, Never>]>([])
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            let pending = Mutex<CheckedContinuation<Void, Never>?>(continuation)
+            let pending = Locked<CheckedContinuation<Void, Never>?>(continuation)
             let resumeOnce: @Sendable () -> Void = {
                 pending.withLock { slot in
                     defer { slot = nil }; return slot
@@ -169,25 +171,12 @@ extension FleetEngine {
     public func applyReloaded(config newConfig: KinhinConfig, host: HostResources) {
         let snapshot = Router.Snapshot.make(config: newConfig, host: host)
         router.replace(with: snapshot)
-        // Fleet label edits must reach the forge's demand query too —
-        // queuedJobs(matching:) filters by the forge's label set.
+        // Fleet label edits must reach the forges' demand queries too: each
+        // forge swaps in whichever of the two label sets it filters by.
         forgeState.withLock { state in
             for (key, forge) in state.byPlatform {
-                if let githubForge = forge as? GitHubForge {
-                    state.byPlatform[key] = GitHubForge(
-                        credentials: githubForge.credentials,
-                        labels: newConfig.labels,
-                        client: githubForge.client,
-                        account: githubForge.account
-                    )
-                } else if let gitlabForge = forge as? GitLabForge {
-                    // GitLab's demand filter is the labels the pools advertise.
-                    state.byPlatform[key] = gitlabForge.replacingPoolLabels(snapshot.servedLabels)
-                } else if var giteaForge = forge as? GiteaForge {
-                    // Forgejo's queue endpoint matches jobs against the labels it is asked about.
-                    giteaForge.poolLabels = snapshot.servedLabels
-                    state.byPlatform[key] = giteaForge
-                }
+                state.byPlatform[key] = forge.relabeled(
+                    fleetLabels: snapshot.labels, servedLabels: snapshot.servedLabels)
             }
         }
         let poolNames = snapshot.model.pools.keys.map(\.rawValue).sorted().joined(separator: ", ")

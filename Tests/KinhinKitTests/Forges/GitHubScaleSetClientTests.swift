@@ -26,10 +26,23 @@ final class GitHubScaleSetClientTests: XCTestCase {
         XCTAssertEqual(messages[0].events.first?.runnerRequestId, "17")
         XCTAssertEqual(messages[0].events.first?.eventType, .jobAssigned)
         XCTAssertEqual(messages[0].events.first?.repositoryName, "widgets")
+        XCTAssertNil(messages[0].events.first?.runnerName, "JobAssigned names no runner yet")
+    }
+
+    func testJobCompletedDecodesTheRunnerThatRanIt() async throws {
+        StubProtocol.handler = { _ in
+            let json =
+                #"{"messageId":43,"messageType":"RunnerScaleSetJobMessages","body":"[{\"messageType\":\"JobCompleted\",\"runnerRequestId\":17,\"repositoryName\":\"widgets\",\"ownerName\":\"acme\",\"jobDisplayName\":\"build\",\"result\":\"succeeded\",\"runnerId\":5,\"runnerName\":\"kinhin-1-abc\"}]","statistics":{"totalAssignedJobs":0,"totalRunningJobs":0}}"#
+            return (200, Data(json.utf8), [:])
+        }
+        let messages = try await makeClient().pollMessages(
+            session: testSession(), lastMessageId: nil, maxCapacity: 7)
+        XCTAssertEqual(messages.first?.events.first?.eventType, .jobCompleted)
+        XCTAssertEqual(messages.first?.events.first?.runnerName, "kinhin-1-abc")
     }
 
     func testAdminRequestUsesExchangedActionsEndpointAndJWT() async throws {
-        let requests = Mutex<[URLRequest]>([])
+        let requests = Locked<[URLRequest]>([])
         StubProtocol.handler = { request in
             let call = requests.withLock { captured -> Int in
                 captured.append(request)
@@ -73,7 +86,7 @@ final class GitHubScaleSetClientTests: XCTestCase {
     }
 
     func testRunnerGroupLookupMatchesGitHubsBuiltInDefaultGroupCaseInsensitively() async throws {
-        let requests = Mutex<[URLRequest]>([])
+        let requests = Locked<[URLRequest]>([])
         StubProtocol.handler = { request in
             let call = requests.withLock { captured -> Int in
                 captured.append(request)
@@ -105,7 +118,7 @@ final class GitHubScaleSetClientTests: XCTestCase {
     }
 
     func testRunnerGroupLookupFallsBackToTheFullListCaseInsensitively() async throws {
-        let requests = Mutex<[URLRequest]>([])
+        let requests = Locked<[URLRequest]>([])
         StubProtocol.handler = { request in
             let call = requests.withLock { captured -> Int in
                 captured.append(request)
@@ -139,7 +152,7 @@ final class GitHubScaleSetClientTests: XCTestCase {
     }
 
     func testRunnerGroupLookupPrefersAnExactNameMatch() async throws {
-        let requests = Mutex<[URLRequest]>([])
+        let requests = Locked<[URLRequest]>([])
         StubProtocol.handler = { request in
             let call = requests.withLock { captured -> Int in
                 captured.append(request)
@@ -170,7 +183,7 @@ final class GitHubScaleSetClientTests: XCTestCase {
     }
 
     func testRunnerGroupLookupFailsWhenGitHubListsNoSuchGroup() async throws {
-        let requests = Mutex<[URLRequest]>([])
+        let requests = Locked<[URLRequest]>([])
         StubProtocol.handler = { request in
             let call = requests.withLock { captured -> Int in
                 captured.append(request)
@@ -187,8 +200,8 @@ final class GitHubScaleSetClientTests: XCTestCase {
             _ = try await makeClient().ensureScaleSet(
                 name: "kinhin", labels: ["self-hosted"], runnerGroup: "default")
             XCTFail("a group GitHub does not list must fail instead of attaching to the wrong one")
-        } catch let error as ScaleSetError {
-            guard case .messageServiceFailure(let reason) = error else {
+        } catch let error as GitHubError {
+            guard case .scaleSetMessageServiceFailure(let reason) = error else {
                 return XCTFail("unexpected error: \(error)")
             }
             XCTAssertTrue(reason.contains("runner group 'default' was not found"), reason)
@@ -210,7 +223,7 @@ final class GitHubScaleSetClientTests: XCTestCase {
     }
 
     func testScaleSetAdminRequestsUseTheInstanceApiBaseWhenEnterprise() async throws {
-        let requests = Mutex<[URLRequest]>([])
+        let requests = Locked<[URLRequest]>([])
         StubProtocol.handler = { request in
             requests.withLock { $0.append(request) }
             return (
@@ -229,7 +242,7 @@ final class GitHubScaleSetClientTests: XCTestCase {
     }
 
     func testScaleSetAdminRequestsUseGheComDataResidencyBase() async throws {
-        let captured = Mutex<[URLRequest]>([])
+        let captured = Locked<[URLRequest]>([])
         StubProtocol.handler = { request in
             captured.withLock { $0.append(request) }
             switch captured.withLock { $0.count } {
@@ -265,7 +278,7 @@ final class GitHubScaleSetClientTests: XCTestCase {
     }
 
     func testScaleSetAdminRequestsUseGheComDataResidencyBaseWhenActionsServiceURLIsSet() async throws {
-        let captured = Mutex<[URLRequest]>([])
+        let captured = Locked<[URLRequest]>([])
         let actionsURL = URL(string: "https://actions.acme.ghe.com/a/_apis/runtime")!
         StubProtocol.handler = { request in
             captured.withLock { $0.append(request) }
@@ -303,7 +316,7 @@ final class GitHubScaleSetClientTests: XCTestCase {
     }
 
     func testStatisticsLoadsScaleSetById() async throws {
-        let requests = Mutex<[URLRequest]>([])
+        let requests = Locked<[URLRequest]>([])
         StubProtocol.handler = { request in
             requests.withLock { $0.append(request) }
             let body =
@@ -321,7 +334,7 @@ final class GitHubScaleSetClientTests: XCTestCase {
     }
 
     func testMessageQueueUsesCapacityAndAcknowledgesWithMessageId() async throws {
-        let requests = Mutex<[URLRequest]>([])
+        let requests = Locked<[URLRequest]>([])
         StubProtocol.handler = { request in
             requests.withLock { $0.append(request) }
             if request.httpMethod == "GET" {
@@ -349,7 +362,7 @@ final class GitHubScaleSetClientTests: XCTestCase {
     /// Matches actions/scaleset: POST .../runnerscalesets/{id}/acquirejobs on the Actions
     /// service, body a JSON array of request ids, the message-queue token as Bearer.
     func testAcquireJobsPostsTheRequestIdsWithTheQueueToken() async throws {
-        let requests = Mutex<[URLRequest]>([])
+        let requests = Locked<[URLRequest]>([])
         StubProtocol.handler = { request in
             requests.withLock { $0.append(request) }
             return (200, Data(#"{"count":1,"value":[17]}"#.utf8), [:])
@@ -365,7 +378,7 @@ final class GitHubScaleSetClientTests: XCTestCase {
     }
 
     func testAcquireJobsMapsAnExpiredQueueTokenAndSkipsAnEmptyList() async throws {
-        let calls = Mutex(0)
+        let calls = Locked(0)
         StubProtocol.handler = { _ in
             calls.withLock { $0 += 1 }
             return (401, Data(), [:])
@@ -376,7 +389,18 @@ final class GitHubScaleSetClientTests: XCTestCase {
         do {
             _ = try await makeClient().acquireJobs(session: testSession(), scaleSetId: 4, requestIds: [17])
             XCTFail("a 401 is an expired queue token")
-        } catch GitHubScaleSetClientError.messageQueueTokenExpired {}
+        } catch GitHubError.scaleSetMessageQueueTokenExpired {}
+    }
+
+    /// An unreadable reply is a decoding error, not "nothing acquired".
+    func testAcquireJobsReportsAnUnreadableReply() async throws {
+        StubProtocol.handler = { _ in (200, Data("<html>gateway</html>".utf8), [:]) }
+        do {
+            _ = try await makeClient().acquireJobs(session: testSession(), scaleSetId: 4, requestIds: [17])
+            XCTFail("a garbled reply must not read as an empty acquisition")
+        } catch GitHubError.decoding(let why) {
+            XCTAssertTrue(why.contains("acquirejobs"), why)
+        }
     }
 
     private func testSession() -> GitHubScaleSetSession {

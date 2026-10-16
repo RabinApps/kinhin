@@ -19,10 +19,13 @@ import Synchronization
 /// | `lifecycleTasks`  | one lifecycle task per instance id                               |
 /// | `deletes`         | in-flight deletes and their background tasks                     |
 /// | `spawnBackoff`    | per-runtime failure counters and holds                           |
+/// | `tartListing`     | the last `tart list` and which named images were skipped         |
 /// | `orphanState`     | first-seen times of instances without a record                   |
 /// | `_reconcileTask`, `_cachePruneTask` | the two loop task handles                      |
 ///
-/// plus `FleetStore`'s own record lock and `statusBox`, an actor.
+/// plus `FleetStore`'s own record lock, `statusBox` (an actor), and the
+/// healing agent's own leaf lock (`HealingAgent.state`, which also holds its
+/// loop task), never taken while holding any engine lock.
 ///
 /// **Order.** Every one of these is a *leaf*: it is held only to read or write
 /// its fields, never across an `await`, a callback into other code, or the
@@ -65,6 +68,10 @@ public final class FleetEngine: Sendable {
     let orphanState = Mutex(OrphanState())
     /// Wakes a sleeping reconcile loop (`pollSoon()`).
     let pollWake = WakeSignal()
+    /// Watches the fleet's problems and fixes what it safely can (its own loop and lock).
+    let healing: HealingAgent
+    /// The healing fixes that reach outside the engine (Homebrew, pruning).
+    let healingHost: HealingHostActions
 
     // MARK: - Mutable state
 
@@ -111,6 +118,9 @@ public final class FleetEngine: Sendable {
     let router: Router
     /// Runtimes whose instances keep failing to register are held back (see `SpawnBackoff`).
     let spawnBackoff = Mutex(SpawnBackoff())
+    /// The last `tart list`, so a reconcile pass does not list again, and the named images whose warm
+    /// pool was skipped for being unprepared, so the skip is logged once rather than every pass.
+    let tartListing = Mutex(TartListing())
     var routing: RuntimeConfigModel { router.snapshot.model }
     var capsByRuntime: [RuntimeID: Int] { router.snapshot.caps }
     var images: [KinhinConfig.ImageConfig] { router.snapshot.images }
@@ -194,6 +204,11 @@ public final class FleetEngine: Sendable {
         // pre-spawn disk guard and `kinhin doctor`.
         self.capacity = Capacity.plan(for: config, host: host)
         self.router = Router(Router.Snapshot.make(config: config, host: host))
+        self.healingHost = dependencies.healingHost
+        self.healing = HealingAgent(
+            policy: config.healing, timings: dependencies.healingTimings,
+            advisor: dependencies.healingAdvisor ?? NoHealingAdvisor(),
+            journalURL: HealingJournal.fileURL(in: store.directory))
     }
 
     /// Convenience initializer matching the production wiring: GitHub
@@ -250,6 +265,12 @@ extension FleetEngine {
         var projectImageStore: ProjectImageStore?
         /// Replaces the real image bake (tests); nil → `ImagePreparer`.
         var projectBake: ProjectImageBuilder.Bake?
+        /// Healing fixes outside the engine; `.inert` unless production wiring says otherwise.
+        public var healingHost: HealingHostActions = .inert
+        /// Healing cadences (tests shorten them).
+        var healingTimings = HealingAgent.Timings()
+        /// The advisor for problems no rule covers; nil → none.
+        public var healingAdvisor: (any HealingAdvisor)?
 
         public init(
             githubFactory: GitHubClientFactory? = nil,
@@ -276,7 +297,11 @@ extension FleetEngine {
         /// Production: the Keychain and a live disk probe (the GitHub
         /// client factory comes from the convenience initializer).
         public static var live: Dependencies {
-            Dependencies(hostProbe: { ResourceProbe().snapshot() })
+            var live = Dependencies(hostProbe: { ResourceProbe().snapshot() })
+            live.healingHost = .live
+            live.healingAdvisor = HealingAdvisors.production()
+            live.healingTimings = HealingAdvisors.productionTimings()
+            return live
         }
     }
 }

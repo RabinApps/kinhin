@@ -53,6 +53,7 @@ final class InstanceTracker: Sendable {
 
     /// Tears one tracked instance down now (a finished boot iteration).
     func release(name: String) async {
+        // Take the instance out of the tracked list (nil when it was already released).
         let entry = entries.withLock { entries -> Entry? in
             guard let index = entries.firstIndex(where: { $0.name == name }) else { return nil }
             return entries.remove(at: index)

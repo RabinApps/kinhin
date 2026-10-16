@@ -154,7 +154,8 @@ public struct SetupStatusComputer: Sendable {
         let tartPath = parsed?.tartPath
         async let cltProbe: CLTState = {
             if let injectedCLT { return injectedCLT }
-            return await CLTProbe().check()
+            // check() throws only CancellationError; a cancelled report is discarded by its caller.
+            return (try? await CLTProbe().check()) ?? .missing
         }()
         async let healthProbe: TartHealth = {
             if let injectedTartHealth { return injectedTartHealth }

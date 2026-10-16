@@ -99,6 +99,8 @@ public struct KinhinConfig: Sendable, Equatable {
     /// Additional forge accounts beyond the legacy `repo:` / `gitea:` ones,
     /// each with its own Keychain token. See `allAccounts` for the full set.
     public var accounts: [AccountConfig] = []
+    /// The healing agent's policy (`healing:`).
+    public var healing: HealingConfig = .default
 
     /// True when any project mounts the host toolchain cache into its runners.
     public var sharesToolchainCache: Bool { projects.contains { $0.shareCache == true } }
@@ -203,18 +205,22 @@ public struct KinhinConfig: Sendable, Equatable {
         /// reference, or local VM name); nil = the default macOS base.
         public var baseImage: String?
         /// Runner labels this image advertises on top of the fleet `labels:`.
-        /// Parsed and kept now; routing jobs by them is a later stage.
+        /// A job that requests these labels runs on this image (see `ImageRouting`).
         public var labels: [String]?
+        /// Booted, unregistered clones of this image kept ready for its jobs; 0 = off.
+        public var warmPool: Int
 
-        public init(name: String, baseImage: String? = nil, labels: [String]? = nil) {
+        public init(name: String, baseImage: String? = nil, labels: [String]? = nil, warmPool: Int = 0) {
             self.name = name
             self.baseImage = baseImage
             self.labels = labels
+            self.warmPool = warmPool
         }
 
         enum CodingKeys: String, CodingKey {
             case name, labels
             case baseImage = "base_image"
+            case warmPool = "warm_pool"
         }
     }
 
@@ -283,6 +289,7 @@ public struct KinhinConfig: Sendable, Equatable {
         case maxProjectImages = "max_project_images"
         case projects
         case accounts
+        case healing
     }
 
     public static let `default` = KinhinConfig(

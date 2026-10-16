@@ -37,7 +37,7 @@ requests off kinhin matters more than any setting below.
 
 ## Per-project toolchains
 
-A repo's `.kinhin.yml` lets repo contents decide what is installed on your Mac, so it is
+A repo's `.kinhin/config.yml` (or the older `.kinhin.yml`) lets repo contents decide what is installed on your Mac, so it is
 treated as untrusted input and bounded ([how it works](toolchains.md#per-project-toolchains)).
 
 - **Opt-in per repo.** The file is ignored unless a `projects:` entry matching the repo sets
@@ -47,7 +47,7 @@ treated as untrusted input and bounded ([how it works](toolchains.md#per-project
   `brew`, no `provision_script`, no `base_image`, and no cache policy from a repo; free-form mise
   backends are rejected. Values pass the same character allowlist as `config.yaml`, and the file
   is capped at 16 KB.
-- **Fork PRs ignore the file.** A pull request from a fork never gets its own `.kinhin.yml`
+- **Fork PRs ignore the file.** A pull request from a fork never gets its own `.kinhin/config.yml` (or `.kinhin.yml`)
   honored; the file is read from the base repo's default branch instead. A job whose forge does not
   say whether it is a fork's (GitHub scale-set jobs, Gitea and Forgejo) is treated the same way.
 - **`share_cache` exists only per project and is off by default** and forced off for fork PRs and for
@@ -56,15 +56,36 @@ treated as untrusted input and bounded ([how it works](toolchains.md#per-project
 - **Bad files never block the fleet.** A failed fetch or parse is logged and the job runs on the
   global image.
 
+## The healing agent
+
+The [healing agent](healing.md) fixes fleet problems on its own, so its limits are part of the security model.
+
+- **No tokens.** It never stores, reads or replaces a token. A rejected or missing token is shown to you with the
+  `kinhin auth set` command, and tokens and setup problems are never offered to the on-device model.
+- **A closed list of fixes.** Every fix is one of a fixed set, each running a code path kinhin already has (the same
+  prune, install and teardown the CLI uses). Nothing runs a command a model or a log line wrote. Destructive or slow
+  fixes (pruning images, installing or rolling back a runtime) wait for your approval, and the MCP server cannot
+  approve one.
+- **Redacted and owner-only.** Every problem, outcome and advisor explanation passes the log redactor before it is
+  stored or shown. The journal (`state/healing.json`, the last 100 entries) is written owner-only.
+- **On-device model.** The optional advisor is Apple Intelligence on this Mac (Foundation Models): no account, no
+  network call. It sees the redacted problem, the allowed fixes and a few dozen redacted log lines, and kinhin checks its pick
+  again before acting.
+- **Test switches stay out of releases.** `KINHIN_HEALING_TIMINGS` and `KINHIN_HEALING_ADVISOR`, which the e2e suite
+  uses to speed the agent up and fix the advisor's answer, are read only by debug builds; release builds never read
+  them.
+
 ## Telemetry and network calls
 
 kinhin sends no telemetry and has no analytics. It talks only to the forges you configure (and their runner
-download hosts), and to GitHub Releases for the once-a-day update check.
+download hosts), and to GitHub Releases for the once-a-day update check. A runtime install you approve in
+`kinhin heal` downloads like `kinhin setup repair` does; the healing advisor makes no network calls.
 
 ## Known limits
 
 - **Tart guest SSH host-key verification has an unverified fallback.** Before registration, kinhin tries to rotate each guest's SSH host keys through Tart's guest-agent channel, then pins the resulting key and requires strict verification. If the guest agent cannot rotate/read the key before the timeout, or the runtime cannot use the guest-agent channel, kinhin records a warning and continues with host-key checking disabled for that instance. On Tart's default shared network a hostile job in another VM could answer on a booting VM's address and receive its registration material. `tart_softnet: true` isolates runner VMs from each other and the LAN, reducing this risk; enable it when serving untrusted code and investigate any host-key fallback warning. For the warning text kinhin emits and how to separate it from the scale-set registration failures that can follow it, see [Troubleshooting scale sets](forges/github.md#troubleshooting-scale-sets).
-- **Registration tokens can be seen by job code in some paths.** With `runners_per_vm > 1` every runner is registered before any starts, so the token is not in `ps` while a job runs. Gitea and host-mode registrations still pass the token as an argument, the Buildkite agent token stays in the agent's environment, and the GitLab runner token file stays on disk until the runner exits. Scope those tokens narrowly.
+- **Registration tokens can be seen by job code in some paths.** With `runners_per_vm > 1` every classic runner is registered before any starts, so the shared registration token is not in `ps` while a job runs. Gitea and host-mode registrations still pass the token as an argument, the Buildkite agent token stays in the agent's environment, and the GitLab runner token file stays on disk until the runner exits. The Azure DevOps PAT is in the guest only while `config.sh` registers the agent. Scope those tokens narrowly.
+- **Runners that share an instance can read each other's credentials.** With `runners_per_vm > 1` every runner in an instance runs as the same user, so a job can read a sibling runner's registration (for scale sets, its JIT config: in the runner's command line and the credential files it writes) and take over that runner's later jobs. Use `runners_per_vm: 1` for repositories whose code you do not trust.
 - **Docker runners keep Docker's default capabilities** (jobs commonly `apt-get` and `sudo`). kinhin adds a pids limit; for stronger isolation prefer Tart VMs.
 - **The toolchain cache is shared, writable and trusted by later jobs** when a project's `share_cache` is on. A job can plant content a later job uses, though each project gets its own cache subdirectory. It defaults to off and is always off for fork PRs and for jobs whose forge does not say whether they come from a fork. Keep it off for untrusted repositories.
 - **Any process running as you can control the daemon** over its private socket (stop, token swap). The socket is 0600 in a 0700 directory and checks the peer's uid, not its code signature.

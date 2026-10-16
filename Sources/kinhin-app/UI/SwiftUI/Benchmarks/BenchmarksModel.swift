@@ -13,8 +13,9 @@ protocol BenchmarkRunning: Sendable {
     func start(_ options: BenchmarkOptions) async throws -> String
     func status(runID: String) async throws -> BenchmarkRunStatus
     func cancel(runID: String) async throws
-    /// The most recent run, if one exists (a run another window or the CLI started may still be going).
-    func latest() async -> BenchmarkRunStatus?
+    /// The most recent run, or nil when none was started (a run another window or the CLI started may still be
+    /// going). Throws when the backend could not be asked, so a dead daemon never reads as "no run".
+    func latest() async throws -> BenchmarkRunStatus?
 }
 
 /// The fleet's own backend (the daemon over RPC, or the in-process engine).
@@ -31,9 +32,24 @@ struct ServiceBenchmarkRunner: BenchmarkRunning {
 
     func cancel(runID: String) async throws { _ = try await service.benchCancel(runID: runID) }
 
-    func latest() async -> BenchmarkRunStatus? {
-        // A daemon that predates benchmarks, or no run yet: nothing to attach to.
-        try? await service.benchStatus(runID: nil)
+    func latest() async throws -> BenchmarkRunStatus? {
+        do {
+            return try await service.benchStatus(runID: nil)
+        } catch let error as BenchmarkError {
+            switch error {
+            // No run yet (in-process), or a backend that cannot run benchmarks: nothing to attach to.
+            case .unknownRun, .unsupported: return nil
+            default: throw error
+            }
+        } catch RPCError.rejected(let why) where Self.meansNoRun(daemonReply: why) {
+            return nil
+        }
+    }
+
+    /// The daemon answers "no run yet" as a rejection carrying `BenchmarkError.unknownRun`'s description (built from
+    /// the same enum, so the two cannot drift); a daemon that predates benchmarks cannot decode the request at all.
+    static func meansNoRun(daemonReply why: String) -> Bool {
+        why == BenchmarkError.unknownRun("(none started)").localizedDescription || why == "undecodable request"
     }
 }
 
@@ -53,7 +69,7 @@ struct LocalBenchmarkRunner: BenchmarkRunning {
 
     func cancel(runID: String) async throws { BenchmarkRegistry.shared.cancel(runID: runID) }
 
-    func latest() async -> BenchmarkRunStatus? { BenchmarkRegistry.shared.status(runID: nil) }
+    func latest() async throws -> BenchmarkRunStatus? { BenchmarkRegistry.shared.status(runID: nil) }
 }
 
 // MARK: - Model
@@ -92,7 +108,12 @@ final class BenchmarksModel {
     /// Suites finished so far in the live run.
     private(set) var partials: [BenchmarkSuiteResult] = []
     private(set) var history: [BenchmarkReportStore.Entry] = []
-    private(set) var status = StatusLine(text: "")
+    private(set) var status = StatusLine(text: "") {
+        didSet { statusIsLiveRunCheckError = false }
+    }
+    /// `status` holds a failed check for a live run, which the next successful check clears; any other status
+    /// replaces it (and resets this).
+    @ObservationIgnored private var statusIsLiveRunCheckError = false
 
     // Collaborators
     @ObservationIgnored var runner: () -> any BenchmarkRunning = { LocalBenchmarkRunner() }
@@ -122,6 +143,7 @@ final class BenchmarksModel {
             Task { await attachToLiveRun() }
         }
         history = store.list()
+        // An unreadable file leaves the screen empty; the history list skipped it too.
         if report == nil, !isRunning, let newest = history.first, let loaded = try? store.load(newest.url) {
             // An unreadable file simply leaves the screen empty; the history list skipped it too.
             report = loaded
@@ -280,8 +302,27 @@ final class BenchmarksModel {
     }
 
     /// A run that is still going (started by the CLI, or before this window opened) shows its progress here.
+    /// A failed check (the daemon did not answer) is shown in the status line, not mistaken for "no run".
     func attachToLiveRun() async {
-        guard !isRunning, let latest = await runner().latest(), latest.state == .running else { return }
+        guard !isRunning else { return }
+        let latest: BenchmarkRunStatus?
+        do {
+            latest = try await runner().latest()
+        } catch is CancellationError {
+            return
+        } catch {
+            Log.warn("bench", "could not check for a running benchmark: \(error.localizedDescription)")
+            guard !isRunning else { return }
+            status = StatusLine(
+                text: String(
+                    localized: "Could not check for a running benchmark — \(error.localizedDescription)",
+                    bundle: .l10n, comment: "Benchmarks status line; %@ is the error's description"),
+                style: .error)
+            statusIsLiveRunCheckError = true
+            return
+        }
+        if statusIsLiveRunCheckError { status = StatusLine(text: "") }
+        guard !isRunning, let latest, latest.state == .running else { return }
         attach(runID: latest.runID)
     }
 

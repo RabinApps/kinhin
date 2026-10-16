@@ -30,6 +30,16 @@ export const contributors: Contributor[] = [
   // { sponsor: null, project: { name: "MyProject", url: "https://myproject.example", blurb: "Uses kinhin for CI" } },
 ];
 
+/** Companies that sponsor kinhin. Mirrors `SupportLinks.sponsors`. */
+export const sponsors: Sponsor[] = [
+  {
+    name: "SupDesk",
+    url: "https://supdesk.app",
+    blurb:
+      "Feedback and support console for solo founders, devs and small teams",
+  },
+];
+
 export const internalSponsors: Sponsor[] = [
   {
     name: "GitHub Sponsors",

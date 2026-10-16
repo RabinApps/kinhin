@@ -37,6 +37,7 @@ final class ScopeActivityCache: Sendable {
         var at: ContinuousClock.Instant
     }
 
+    // The cached answer, nil until the first fetch.
     private let entry = Mutex<Entry?>(nil)
     private let ttl: Duration
 
@@ -132,6 +133,14 @@ struct GiteaForge: Forge {
         var result = labels
         for label in poolLabels where !result.contains(label) { result.append(label) }
         return result
+    }
+
+    /// The queue is asked about the account's labels plus every pool's, so the served labels replace the pool
+    /// labels (the account's own `labels:` change only with an engine rebuild).
+    func relabeled(fleetLabels: [String], servedLabels: [String]) -> any Forge {
+        var copy = self
+        copy.poolLabels = servedLabels
+        return copy
     }
 
     func registrationURL() -> String {

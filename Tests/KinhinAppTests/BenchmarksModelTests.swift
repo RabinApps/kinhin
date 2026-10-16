@@ -219,6 +219,35 @@ final class BenchmarksModelTests: XCTestCase {
         XCTAssertTrue(fake.benchStarted.isEmpty)
     }
 
+    /// A daemon that cannot be asked is not "no run": the pane says so.
+    func testAFailedLiveRunCheckIsShownNotTakenForNoRun() async throws {
+        fake.commandError = RPCError.connectionFailed("daemon.sock")
+        model.reload()
+        await waitUntil("the check fails visibly") { self.model.status.style == .error }
+        XCTAssertTrue(model.status.text.contains("daemon.sock"), model.status.text)
+        XCTAssertEqual(model.phase, .idle)
+        XCTAssertTrue(presented.isEmpty, "opening the pane shows no modal")
+
+        fake.commandError = nil
+        model.reload()
+        await waitUntil("a later successful check clears it") { self.model.status.text.isEmpty }
+    }
+
+    /// No run yet, in-process or over the daemon's reply, leaves the pane idle with no error.
+    func testNoRunYetIsNotAnError() async throws {
+        let runner = ServiceBenchmarkRunner(service: fake)
+        let none = try await runner.latest()
+        XCTAssertNil(none)
+        XCTAssertTrue(
+            ServiceBenchmarkRunner.meansNoRun(
+                daemonReply: BenchmarkError.unknownRun("(none started)").localizedDescription))
+        XCTAssertFalse(ServiceBenchmarkRunner.meansNoRun(daemonReply: "engine is busy"))
+
+        await model.attachToLiveRun()
+        XCTAssertEqual(model.status, StatusLine(text: ""))
+        XCTAssertEqual(model.phase, .idle)
+    }
+
     // MARK: - History
 
     func testHistoryListsStoredReportsAndShowsTheNewest() throws {

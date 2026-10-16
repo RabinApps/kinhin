@@ -46,13 +46,13 @@ jobs:
         # A clean run takes about ten minutes; a hung test fails here instead
         # of holding the fleet's VM until GitHub's six-hour limit.
         timeout-minutes: 30
-        run: swift test --parallel
+        run: swift test --build-system swiftbuild --parallel
 
       - name: Build release products
         # Release-only code paths (KinhinTestSupport is testable-only) and the
         # signed-app pipeline both compile from these; catch breakage here
         # instead of at release time.
-        run: swift build -c release --product kinhin-app --product kinhin
+        run: swift build --build-system swiftbuild -c release --product kinhin-app --product kinhin
 
   tsan:
     # ThreadSanitizer pass over shared state: serial (~5–10 min), so it runs
@@ -106,10 +106,10 @@ jobs:
 
       - name: Run tests
         timeout-minutes: 30
-        run: swift test --parallel
+        run: swift test --build-system swiftbuild --parallel
 
       - name: Build release products
-        run: swift build -c release --product kinhin-app --product kinhin
+        run: swift build --build-system swiftbuild -c release --product kinhin-app --product kinhin
 
   docs:
     # Docs lint, docs-sync --check and skills lint are grep/sed/awk scripts with
@@ -122,6 +122,9 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Changelog structure
+        run: bash scripts/changelog.sh check
+
       - name: Docs lint (stale strings)
         run: bash scripts/docs-lint.sh
 
@@ -130,3 +133,13 @@ jobs:
 
       - name: Skills lint (frontmatter + command drift)
         run: bash scripts/skills-lint.sh
+
+      - name: Rules lint (try!, as!, force unwraps, locks, try?, file length)
+        run: bash scripts/rules-lint.sh
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+
+      - name: Video suite (claims, ci.json, unit tests)
+        run: bash scripts/video-check.sh

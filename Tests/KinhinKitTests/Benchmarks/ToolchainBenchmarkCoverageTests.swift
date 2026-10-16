@@ -87,8 +87,9 @@ final class ToolchainBenchmarkCoverageTests: XCTestCase {
 
     func testAMiseToolInstallsExactlyItsOwnSpec() throws {
         let node = try XCTUnwrap(ToolchainBenchPlan.plans(platform: .macOS, ids: ["node"]).first)
-        XCTAssertEqual(node.installer, "mise node@22")
-        XCTAssertTrue(node.installScript(runsAsRoot: true).contains("mise use --global 'node@22'"))
+        let pin = try XCTUnwrap(ToolchainCatalog.tool(id: "node")).defaultSpec
+        XCTAssertEqual(node.installer, "mise \(pin)")
+        XCTAssertTrue(node.installScript(runsAsRoot: true).contains("mise use --global '\(pin)'"))
         XCTAssertFalse(node.installScript(runsAsRoot: true).contains("go@"))
     }
 
@@ -115,7 +116,7 @@ final class ToolchainBenchmarkCoverageTests: XCTestCase {
         XCTAssertNotNil(ToolchainBenchPlan.plans(platform: .macOS, ids: ["react-native"]).first)
         XCTAssertTrue(ToolchainBenchPlan.plans(platform: .linux, ids: ["react-native"]).isEmpty)
         XCTAssertEqual(
-            ToolchainBenchPlan.plans(platform: .linux, ids: ["dotnet"]).first?.installer, "apt dotnet-sdk-8.0")
+            ToolchainBenchPlan.plans(platform: .linux, ids: ["dotnet"]).first?.installer, "apt dotnet-sdk-10.0")
         XCTAssertEqual(
             ToolchainBenchPlan.plans(platform: .macOS, ids: ["dotnet"]).first?.installer, "brew cask dotnet-sdk")
     }

@@ -18,6 +18,8 @@ import Foundation
 /// `kinhin-runtime=docker` tag/rule, mapped back to the marker for routing.
 /// Demand and running attribution come from the
 /// organization's active builds, narrowed to the cluster where the API says.
+/// The tags are the account's own `labels:` (never the fleet's), so a hot
+/// reload leaves the forge as it is (`relabeled` keeps the default).
 struct BuildkiteForge: Forge {
     let id: ForgeID = .buildkite
     let name = "buildkite"

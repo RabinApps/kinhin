@@ -125,6 +125,53 @@ enum AppPreferences {
     private static let updateCheckKey = "kinhin.lastUpdateCheck"
 }
 
+// MARK: - Launch at login
+
+/// The system's login-item registration for this app (`SMAppService.mainApp` in production). A seam so tests
+/// never touch the real service registration.
+protocol LoginItemRegistering {
+    var status: SMAppService.Status { get }
+    func register() throws
+    func unregister() throws
+}
+
+extension SMAppService: LoginItemRegistering {}
+
+/// Why the login item could not be set as asked.
+enum LaunchAtLoginError: LocalizedError, Equatable {
+    /// Registered, but macOS will not open kinhin at login until the user approves it in System Settings.
+    case requiresApproval
+    case registerFailed(String)
+    case unregisterFailed(String)
+
+    /// Whether the login item is still registered after the failure: the toggle's real state.
+    var leavesRegistered: Bool {
+        switch self {
+        case .requiresApproval, .unregisterFailed: return true
+        case .registerFailed: return false
+        }
+    }
+
+    var errorDescription: String? {
+        switch self {
+        case .requiresApproval:
+            return String(
+                localized:
+                    "kinhin needs your approval to open at login. Approve it in System Settings → General → Login Items.",
+                bundle: .l10n,
+                comment: "Launch-at-login alert message; keep kinhin and the System Settings path verbatim")
+        case .registerFailed(let reason):
+            return String(
+                localized: "kinhin could not be added to your login items: \(reason)", bundle: .l10n,
+                comment: "Launch-at-login alert message; %@ is the system's error")
+        case .unregisterFailed(let reason):
+            return String(
+                localized: "kinhin could not be removed from your login items: \(reason)", bundle: .l10n,
+                comment: "Launch-at-login alert message; %@ is the system's error")
+        }
+    }
+}
+
 /// Applies/removes the login item through SMAppService. Kept out of the
 /// preference store so tests can exercise the decision logic without
 /// touching the system's real service registration.
@@ -136,35 +183,47 @@ enum LaunchAtLoginService {
         Bundle.main.bundlePath.hasSuffix(".app")
     }
 
-    /// Applies the stored preference. Errors are logged, not surfaced — the
-    /// checkbox state stays as the user set it and the next launch retries.
-    @discardableResult
-    static func apply(enabled: Bool) -> Bool {
-        guard isBundled else {
-            Log.info("app", "launch-at-login: not a bundled app; preference stored only")
-            return false
-        }
-        do {
-            if enabled {
-                if SMAppService.mainApp.status != .enabled {
-                    try SMAppService.mainApp.register()
-                }
-                Log.info("app", "launch-at-login: registered main-app login item")
-            } else {
-                if SMAppService.mainApp.status == .enabled {
-                    try SMAppService.mainApp.unregister()
-                }
-                Log.info("app", "launch-at-login: removed main-app login item")
-            }
-            return true
-        } catch {
-            Log.error("app", "launch-at-login apply failed: \(error.localizedDescription)")
-            return false
-        }
+    /// The alert title for a failed apply.
+    static var alertTitle: String {
+        String(localized: "Launch at login", bundle: .l10n, comment: "Alert title for a launch-at-login failure")
     }
 
-    static var currentStatus: Bool {
-        guard isBundled else { return false }
-        return SMAppService.mainApp.status == .enabled
+    /// Applies the stored preference. Throws `LaunchAtLoginError` when the
+    /// system refuses or still needs the user's approval; unbundled, the
+    /// preference is only stored (the Settings hint says so).
+    static func apply(
+        enabled: Bool, service: any LoginItemRegistering = SMAppService.mainApp, isBundled: Bool = isBundled
+    ) throws {
+        guard isBundled else {
+            Log.info("app", "launch-at-login: not a bundled app; preference stored only")
+            return
+        }
+        if enabled {
+            do {
+                if service.status != .enabled {
+                    try service.register()
+                }
+            } catch {
+                Log.error("app", "launch-at-login register failed: \(error.localizedDescription)")
+                // A login item the user switched off in System Settings fails to register until they approve it.
+                if service.status == .requiresApproval { throw LaunchAtLoginError.requiresApproval }
+                throw LaunchAtLoginError.registerFailed(error.localizedDescription)
+            }
+            if service.status == .requiresApproval {
+                Log.warn("app", "launch-at-login: registered; waiting for approval in System Settings")
+                throw LaunchAtLoginError.requiresApproval
+            }
+            Log.info("app", "launch-at-login: registered main-app login item")
+        } else {
+            do {
+                if service.status == .enabled || service.status == .requiresApproval {
+                    try service.unregister()
+                }
+            } catch {
+                Log.error("app", "launch-at-login unregister failed: \(error.localizedDescription)")
+                throw LaunchAtLoginError.unregisterFailed(error.localizedDescription)
+            }
+            Log.info("app", "launch-at-login: removed main-app login item")
+        }
     }
 }

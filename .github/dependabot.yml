@@ -10,6 +10,34 @@ updates:
       swift-dependencies:
         patterns: ["*"]
 
+  # The video suite's image (video/Dockerfile) and its npm dependencies. The Playwright base image (pinned by digest) and
+  # playwright-core in video/package.json must be the same version, and Dependabot cannot change a Docker image and an npm
+  # package in one pull request: a bump of either alone fails the image smoke test (Playwright refuses to start with browsers of
+  # another version). So both are ignored here and updated by hand, together; see "Updating Playwright" in docs/making-a-video.md.
+  - package-ecosystem: docker
+    directory: /video
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: deps
+    ignore:
+      - dependency-name: "mcr.microsoft.com/playwright"
+    groups:
+      video-image:
+        patterns: ["*"]
+
+  - package-ecosystem: npm
+    directory: /video
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: deps
+    ignore:
+      - dependency-name: "playwright-core"
+    groups:
+      video-npm:
+        patterns: ["*"]
+
   # Workflow actions are pinned by SHA with a version comment; Dependabot bumps both.
   - package-ecosystem: github-actions
     directory: /

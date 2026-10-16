@@ -17,9 +17,9 @@ public enum BenchmarkLimits {
 /// What a benchmark run measures and how hard. Codable: it is the `bench_start` RPC payload.
 public struct BenchmarkOptions: Codable, Sendable, Equatable {
     public enum Suite: String, Codable, Sendable, CaseIterable {
-        case boot, casual, xcode, large, toolchains
+        case boot, casual, xcode, large, toolchains, video
 
-        /// The suites a bare `kinhin bench` runs: everything except the slow toolchains pass.
+        /// The suites a bare `kinhin bench` runs: everything except the slow toolchains and video passes.
         public static var defaults: [Suite] { [.boot, .casual, .xcode, .large] }
     }
 

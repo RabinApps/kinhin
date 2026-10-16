@@ -3,7 +3,11 @@ import DefaultTheme from "vitepress/theme";
 import { onContentUpdated, type Theme } from "vitepress";
 import GitHubActions from "./GitHubActions.vue";
 import AudienceTabs from "./AudienceTabs.vue";
+import LaunchVideo from "./LaunchVideo.vue";
+import DocsGrid from "./DocsGrid.vue";
+import HomeBanners from "./HomeBanners.vue";
 import "./version-banner.css";
+import "./home.css";
 
 function addDiagramExpandButtons(): void {
   const diagrams = document.querySelectorAll<HTMLElement>(
@@ -504,6 +508,8 @@ export default {
   enhanceApp({ app }) {
     // Human / AI-agent split on the quick start (and any page that wants it).
     app.component("AudienceTabs", AudienceTabs);
+    app.component("LaunchVideo", LaunchVideo);
+    app.component("DocsGrid", DocsGrid);
   },
   Layout: {
     setup() {
@@ -556,6 +562,8 @@ export default {
                   "beta",
                 )
               : null,
+          // The launch video and the beta and sponsor banners sit right under the hero buttons, above the feature cards (home layout only).
+          "home-hero-after": () => [h(LaunchVideo), h(HomeBanners)],
           "nav-bar-content-after": () => h(GitHubActions),
           "nav-screen-content-after": () => h(GitHubActions),
           "layout-top": () =>

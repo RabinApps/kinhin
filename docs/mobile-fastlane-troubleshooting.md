@@ -1,0 +1,203 @@
+# Mobile releases: troubleshooting
+
+The failures we have hit while building and testing the integration, with the cause and the fix. Each heading is the
+text of the error, so search for it.
+
+[← Back to mobile releases](mobile-fastlane.md) · [Tutorial](mobile-fastlane-tutorial.md) · [Credentials](mobile-credentials.md)
+
+## Setup and scaffolding
+
+### `no iOS or Android project in ...; pass --framework`
+
+`kinhin mobile init` found neither an `ios/` nor an `android/` folder, nor an Xcode project or Gradle settings file, and no
+`pubspec.yaml` or `expo`/`react-native` entry in `package.json`. Run it in the project folder, or pass `--framework`.
+
+### `no ios/ or android/ folder in ... for a flutter project`
+
+A Flutter or React Native project needs its native folders. Create them with `flutter create .` or
+`npx react-native init`, or generate them for Expo with `npx expo prebuild`, then run `kinhin mobile init` again.
+
+### `Gemfile exists but cannot be read`
+
+The project's `Gemfile` exists but is not readable by your user. Fix its permissions and run the command again.
+
+### `bundler could not find compatible versions for gem "ruby"`
+
+fastlane 2.241, which the `~> 2.240` pin resolves to, needs Ruby 3.2 or newer. The macOS system Ruby is 2.6, so `bundle install` fails with that message. Use
+Ruby 3.3, for example from Homebrew (`brew install ruby@3.3`), and run `bundle install` from a shell where that Ruby is first
+on your PATH. CI installs Homebrew's Ruby on the runner (`brew install ruby`), so no Actions marketplace action is needed.
+
+### Expo: the EAS config is there, but there is no `fastlane` folder
+
+That is expected. Expo uses EAS Build and EAS Submit by default, and `kinhin mobile init` writes `eas.json` only. For
+fastlane, run `npx expo prebuild`, then `kinhin mobile init --framework react-native`. The reference page has the details.
+
+## Local builds
+
+### `deployment target ... is set to 13.0`
+
+Xcode 26 needs an iOS deployment target of 15.0 or higher. `flutter create` still writes 13.0, and `kinhin mobile init` prints a note naming the file when it finds a lower value. Change
+`IPHONEOS_DEPLOYMENT_TARGET` in `ios/Runner.xcodeproj/project.pbxproj` to 15.0 (and the `platform :ios` line in the
+Podfile, if there is one).
+
+### `Binary ... does not contain architectures "arm64 x86_64"` (Flutter, simulator)
+
+The Flutter Debug simulator build does not work with the Flutter version we tested (3.41): `Flutter.framework` has no
+simulator architectures, with or without `--config-only`, or `flutter build ios --simulator --debug`. The release lane
+does not use the simulator. Check the iOS side with the Release device build, which is what the lane's archive step runs:
+`xcodebuild -workspace Runner.xcworkspace -scheme Runner -sdk iphoneos -configuration Release build CODE_SIGNING_ALLOWED=NO`
+after `flutter build ios --config-only --release`. The CI workflow does exactly that.
+
+### `No release AAB at app/build/outputs/bundle/...`
+
+Gradle did not produce the bundle where the lane looks. Check the Gradle output in the log. For Flutter the bundle is under
+`build/app/outputs/bundle/release/`, which the lane finds automatically. If another step built the bundle, set `AAB_PATH` to
+its location.
+
+### `Keystore not found at ...`
+
+`ANDROID_KEYSTORE_PATH` points to a file that does not exist. In CI the workflow writes the keystore from
+`ANDROID_KEYSTORE_BASE64` during the job. If that step did not run, check that the secret is set and that its base64 decodes
+(`base64 --decode` on the value).
+
+### `Could not find a Podfile` or `No Podfile found`
+
+The project has no Podfile. Flutter projects without plugins that need CocoaPods, and native projects without CocoaPods, do
+not have one. The CI job runs `pod install` only when a Podfile exists, so this is not an error in the workflow.
+
+## Repository and Xcode
+
+### The Flutter or React Native Xcode project is missing in a clean clone
+
+The `.gitignore` of a repository that contains `*.xcodeproj` excludes Xcode projects. Generated projects must be tracked
+explicitly. Remove the rule for your project's `ios/` folder, or force-add `project.pbxproj` and the shared schemes. Do not
+commit `xcuserdata/`.
+
+### `Could not automatically select an Xcode project` (CocoaPods)
+
+`pod install` could not find an `.xcodeproj` in `ios/`. Check the project is there and tracked by git.
+
+## Secrets and CI
+
+### `Missing environment variables: ...`
+
+The lane stops before any store call and names the variables it needs. Set the secrets listed in
+`.github/workflows/mobile-release.yml`. The [credentials](mobile-credentials.md) page explains each one.
+
+### `ASC_KEY_FILEPATH does not exist: ...`
+
+The `.p8` file was not written. Check the **Write App Store Connect API key** step of the job, and that `ASC_KEY_P8` is
+the full contents of the file, including the BEGIN and END lines.
+
+### `Could not find any matching profile` or match fails on CI
+
+`match` runs readonly on CI, so it cannot create missing certificates. Run `MATCH_READONLY=false bundle exec fastlane match appstore`
+once from a trusted machine to create them. Check that `MATCH_GIT_URL` is readable from the runner, and that
+`MATCH_PASSWORD` is the passphrase the repository was encrypted with.
+
+### `Keychain` or signing errors on the runner
+
+The iOS lanes call `setup_ci` on CI, which makes a temporary keychain. If the runner's keychain is locked or has no access to the
+signing identity, the build fails with a codesign error. Check the job log for the keychain step, and that the runner is a
+macOS machine with Xcode.
+
+### `Upload fails with 403` (Google Play)
+
+The service account lacks the permission for this app. Grant it **Release apps to testing tracks** in Play Console under
+**Users and permissions**. A brand-new app may also need its first release uploaded by hand.
+
+### `The bundle is unsigned` or `jar is unsigned`
+
+The release bundle was built without the upload keystore. The lane passes the keystore to Gradle as
+`android.injected.signing.*`. Check the four `ANDROID_KEY*` and `ANDROID_KEYSTORE_*` secrets, and the log of the Gradle step.
+
+## Screenshots
+
+### `snapshot wrote no screenshots`, or `screengrab wrote no screenshots`
+
+snapshot and screengrab can exit 0 when the UI or instrumented tests do not build or run, so the lane checks that a PNG exists.
+Check the UI test target (iOS) or the instrumented tests (Android), the scheme in `Snapfile` (`SNAPSHOT_SCHEME`, falling back to
+`IOS_SCHEME`), and the test log printed above the message. The [screenshots guide](mobile-screenshots.md#ios-set-up-the-ui-test-target)
+covers the setup.
+
+### `frameit changed no screenshots`
+
+frameit exited without framing anything. On Homebrew's ImageMagick 7.1.2-33, frameit's rotate step fails with
+`mogrify: no encode delegate for this image format '`. Upstream bug:
+[ImageMagick #9011](https://github.com/ImageMagick/ImageMagick/issues/9011). Frames work again once a Homebrew release contains
+the fix; until then, leave `FRAME_SCREENSHOTS` unset.
+
+### `frameit needs ImageMagick, and Homebrew is not installed`
+
+With `FRAME_SCREENSHOTS=1` the lane installs ImageMagick with `brew install imagemagick` when no `magick` or `convert` command is
+found. Homebrew itself needs an admin password, so the lane stops instead. Install Homebrew from [brew.sh](https://brew.sh), or
+install ImageMagick yourself.
+
+### `Framed screenshots can be rejected by App Store Connect without titles`
+
+`UPLOAD_SCREENSHOTS=1` with frames on would upload framed images at full device resolution, which the frameit docs say App Store
+Connect cannot take. Add titles in `Framefile.json`, then set `ALLOW_FRAMED_UPLOAD=1`, or turn frames off.
+
+### `flutter build ios --simulator --debug` fails with a `lipo` error
+
+Flutter 3.41 runs `lipo -verify_arch arm64 x86_64` in one call, which Xcode 26's `lipo` rejects ("requires exactly one input
+file"). Build the simulator app with `xcodebuild -workspace Runner.xcworkspace -scheme Runner -sdk iphonesimulator ARCHS=arm64
+ONLY_ACTIVE_ARCH=YES build`, then run the lane. `flutter build ios --simulator --profile` is not supported.
+
+### The UI test crashes with SIGTRAP on iOS 27
+
+UIKit requires the app to adopt the scene lifecycle. Add `UIApplicationSceneManifest` to `Info.plist` and create the window in
+a `SceneDelegate`; the React Native example does this.
+
+### Android screenshots are blank, or a permission prompt covers the app
+
+The app may not have drawn yet when screengrab captures, or the app asks for a permission (React Native asks for Bluetooth).
+Grant the permission before the lane, or wait for the first frame in the instrumented test.
+
+### `app_package_name` is missing
+
+Set `ANDROID_PACKAGE_NAME` in the environment. A shell variable that is not exported does not reach fastlane.
+
+## Capacitor, Kotlin Multiplatform and .NET MAUI
+
+### `invalid source release: 21` when building a Capacitor Android app
+
+Capacitor 8's Android library compiles with Java 21. Run Gradle with a JDK 21 (`JAVA_HOME`). The CI job uses Java 21 for
+Capacitor projects. The other frameworks use Java 17.
+
+### Capacitor iOS build: `App.xcodeproj does not exist`
+
+The Xcode project is in `ios/App/`, one folder below the fastlane folder. Set `IOS_PROJECT=App/App.xcodeproj` for a local
+run. The CI job sets it. If the project is missing from a clone, check the `.gitignore` exception: the repository ignores
+`*.xcodeproj` unless a rule re-includes it (the `examples/capacitor_app` rule shows the form).
+
+### Kotlin Multiplatform: `Unsupported class file major version 70` or `IllegalArgumentException: 26`
+
+Gradle or Kotlin is running on JDK 26. Use JDK 17 (or 21 for newer Gradle). Export `JAVA_HOME` before a plain `./gradlew` run.
+
+### Kotlin Multiplatform: `embedAndSignAppleFrameworkForXcode` fails when run by hand
+
+The task reads the variables Xcode sets (`SRCROOT`, `CONFIGURATION`, `SDK_NAME`, `ARCHS`). Build through `xcodebuild`, which
+runs the Xcode build phase, not Gradle directly.
+
+### Kotlin Multiplatform: `No release AAB at .../androidApp/build/outputs/bundle/release/androidApp-release.aab`
+
+The module's bundle is named after the module, not `app`. The lane builds `:androidApp:bundle` when
+`ANDROID_GRADLE_MODULE=androidApp` is set. Check that the variable is set and that `ANDROID_GRADLE_DIR=..` points at the
+Gradle root.
+
+### .NET MAUI: `CS0118 ... MauiApp` (ambiguous with `Microsoft.Maui.Hosting.MauiApp`)
+
+A project named `MauiApp` collides with the MAUI hosting type. Rename the project, or qualify the type as
+`Microsoft.Maui.Hosting.MauiApp` in the files that use it.
+
+### .NET MAUI: `dotnet publish wrote no IPA` or signing errors on the iOS lane
+
+The publish needs the signing identity and profile that `match` installed. Set `MAUI_CODESIGN_KEY` and
+`MAUI_PROVISIONING_PROFILE` (see [.NET MAUI signing](mobile-credentials.md#net-maui-signing)). The iOS build runs on macOS
+only, and needs the .NET 10 SDK with the MAUI workload.
+
+## Verification
+
+If something fails that is not listed here, run the same steps locally with `kinhin mobile init --dry-run` and the lanes, and
+compare with the examples in the repository. The `examples/` folder holds a working project for each framework.

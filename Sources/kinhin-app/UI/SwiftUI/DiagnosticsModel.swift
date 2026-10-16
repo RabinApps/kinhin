@@ -25,6 +25,12 @@ final class DiagnosticsModel {
     var status = String(
         localized: "Probing this Mac…", bundle: .l10n, comment: "Diagnostics sheet status while probing")
 
+    /// The app's fleet: the healing section reads its polled status and acts
+    /// through it. Nil (no section) until the window wires it.
+    @ObservationIgnored weak var fleet: FleetController?
+    /// Healing events with an approve or dismiss in flight: their buttons disable.
+    private(set) var busyHealingIDs: Set<String> = []
+
     /// Runs the doctor probe set (the same builder `kinhin doctor --json`
     /// uses) and renders the result. Injectable so tests can render a
     /// fixture report instead of subprocess-probing the host.
@@ -248,5 +254,35 @@ final class DiagnosticsModel {
         }
 
         self.rows = rows
+    }
+
+    // MARK: - Healing
+
+    /// The healing section, from the latest poll (so it follows the fleet
+    /// while the sheet is open). Nil when nothing reports healing: no fleet,
+    /// or a daemon that predates it.
+    var healing: HealingPresentation? {
+        fleet?.status?.healing.map(HealingPresentation.init)
+    }
+
+    func approveHealing(id: String) {
+        guard let fleet else { return }
+        track(id) { fleet.userApproveHealing(id: id) }
+    }
+
+    func dismissHealing(id: String) {
+        guard let fleet else { return }
+        track(id) { fleet.userDismissHealing(id: id) }
+    }
+
+    /// Marks `id` busy until the action's task (answer, alert, refresh) ends.
+    /// A second click while it is busy does nothing.
+    private func track(_ id: String, _ start: () -> Task<Void, Never>) {
+        guard busyHealingIDs.insert(id).inserted else { return }
+        let task = start()
+        Task {
+            await task.value
+            busyHealingIDs.remove(id)
+        }
     }
 }
