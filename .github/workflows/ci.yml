@@ -42,6 +42,12 @@ jobs:
       - name: Lint (swift-format)
         run: swift format lint --strict -r Sources Tests
 
+      # The debug app links Sparkle.framework. `swift build` copies that framework next to the products,
+      # which the KinhinAppTests bundle loads from; `swift test` alone does not, and dlopen fails. scripts/check.sh
+      # builds first for the same reason.
+      - name: Build debug app products
+        run: swift build --build-system swiftbuild --product kinhin-app --product kinhin
+
       - name: Run tests
         # A clean run takes about ten minutes; a hung test fails here instead
         # of holding the fleet's VM until GitHub's six-hour limit.
