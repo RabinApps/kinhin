@@ -17,7 +17,7 @@
     "@motion-canvas/ui": "3.17.2",
     "@motion-canvas/vite-plugin": "3.17.2",
     "kokoro-js": "1.2.1",
-    "playwright-core": "1.64.0",
+    "playwright-core": "1.64.1",
     "typescript": "5.9.3",
     "vite": "5.4.21"
   },
