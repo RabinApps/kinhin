@@ -1,7 +1,7 @@
 import {Circle, Line, Txt, makeScene2D} from '@motion-canvas/2d';
 import {all, createRef, createRefArray} from '@motion-canvas/core';
 import {narrow, props} from '../config';
-import {C, FONT, WEIGHT, holdFor, stage} from '../stage';
+import {C, FONT, TYPE, WEIGHT, holdFor, stage} from '../stage';
 
 // Several things on one side, several on the other, one hub between them. Wide frames: left, hub, right.
 // Portrait and square frames: a row on top, the hub, a row below.
@@ -27,16 +27,16 @@ export default makeScene2D(function* (view) {
     <>
       <Circle ref={hub} size={120} lineWidth={10} stroke={C.ink} opacity={0} />
       {left.map((name, i) => (
-        <Txt ref={lefts} text={name} fontFamily={FONT} fontSize={narrow ? 56 : 52} fill={C.ink} x={leftPos(i)[0]} y={leftPos(i)[1]} offsetX={narrow ? 0 : 1} opacity={0} />
+        <Txt ref={lefts} text={name} fontFamily={FONT} fontSize={narrow ? 56 : TYPE.label} fill={C.ink} x={leftPos(i)[0]} y={leftPos(i)[1]} offsetX={narrow ? 0 : 1} opacity={0} />
       ))}
       {right.map((name, i) => (
-        <Txt ref={rights} text={name} fontFamily={FONT} fontSize={narrow ? 40 : 40} fill={C.ink} x={rightPos(i)[0]} y={rightPos(i)[1]} offsetX={narrow ? 0 : -1} opacity={0} />
+        <Txt ref={rights} text={name} fontFamily={FONT} fontSize={narrow ? 56 : TYPE.label} fill={C.ink} x={rightPos(i)[0]} y={rightPos(i)[1]} offsetX={narrow ? 0 : -1} opacity={0} />
       ))}
       {left.flatMap((_, l) =>
         right.map((__, r) => <Line ref={lines} points={path(leftPos(l), rightPos(r))} radius={80} lineWidth={2} stroke={C.line} end={0} opacity={0.5} />),
       )}
-      <Txt ref={caption} text={props.caption ?? ''} fontFamily={FONT} fontSize={60} fontWeight={WEIGHT} fill={C.ink} y={narrow ? 600 : 420} textWrap width={1500} textAlign="center" opacity={0} />
-      <Txt ref={note} text={props.note ?? ''} fontFamily={FONT} fontSize={34} fill={C.muted} y={narrow ? 720 : 490} textWrap width={1500} textAlign="center" opacity={0} />
+      <Txt ref={caption} text={props.caption ?? ''} fontFamily={FONT} fontSize={TYPE.caption} fontWeight={WEIGHT} fill={C.ink} y={narrow ? 600 : 420} textWrap width={1500} textAlign="center" opacity={0} />
+      <Txt ref={note} text={props.note ?? ''} fontFamily={FONT} fontSize={TYPE.note} fill={C.muted} y={narrow ? 720 : 490} textWrap width={1500} textAlign="center" opacity={0} />
     </>,
   );
 
