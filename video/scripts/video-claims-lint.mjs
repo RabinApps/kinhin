@@ -17,10 +17,11 @@ import {listSourceProjects, loadProject, root} from './project.mjs';
 /** Every sentence a scene shows or says, with where it came from. */
 export function textsOf(project) {
   const out = [];
+  // `logos` keys hold forge file slugs (buildkite.svg), not shown text, so they are not checked at any depth.
   const walk = (value, where) => {
     if (typeof value === 'string') out.push({where, text: value});
     else if (Array.isArray(value)) value.forEach((v, i) => walk(v, `${where}[${i}]`));
-    else if (value && typeof value === 'object') for (const [k, v] of Object.entries(value)) walk(v, `${where}.${k}`);
+    else if (value && typeof value === 'object') for (const [k, v] of Object.entries(value)) if (k !== 'logos') walk(v, `${where}.${k}`);
   };
   for (const scene of project.scenes) {
     if (scene.narration) walk(scene.narration, `${scene.id}.narration`);

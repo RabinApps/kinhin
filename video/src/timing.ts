@@ -2,14 +2,16 @@
 // Edit script/launch.json and re-run the script instead of changing these by hand.
 export const timing: Record<string, number> = {
   "intro": 5.73,
-  "problem": 11.7,
-  "solution": 6.63,
+  "problem": 12.83,
+  "solution": 7.4,
   "fresh": 8.8,
   "app": 19,
-  "forges": 7.88,
-  "limit": 12.93,
-  "config": 9,
+  "forges": 13.2,
+  "limit": 8.38,
+  "config": 9.95,
+  "trust": 8.08,
+  "bonus": 4.4,
   "build": 11,
   "reveal": 4.4,
-  "outro": 7.28,
+  "outro": 7.83,
 };

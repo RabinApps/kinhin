@@ -12,6 +12,7 @@ metadata, the distribution's package files and the model card on 2026-10-12; rec
 | Playwright / `playwright-core` 1.64.0 and its Chromium | the base image | Apache-2.0 (Chromium: BSD-style and others) |
 | Vite 5, TypeScript 5 | npm | MIT, Apache-2.0 |
 | ffmpeg (Ubuntu package, with libx264 and libass) | the image; the bundled `@ffmpeg-installer/ffmpeg` binary (LGPL-2.1) is used by Motion Canvas's exporter | LGPL/GPL; the build tools are not redistributed, only the videos they make |
+| Forge logos (`src/assets/forges/`, copied from `Sources/kinhin-app/Resources/ForgeIcons/`) | the video's forge scene | Simple Icons v16.33.0, CC0 1.0. The marks are trademarks of their owners and identify each service only |
 | Inter, Comic Neue, Liberation Sans, DejaVu fonts | the image | SIL OFL 1.1 (Inter also Apache-2.0); DejaVu's free licence |
 | First Light Particles by Yoiyami (the music bed) | the image (`/opt/music`, every `bundled` entry of `music/catalog.json`), verified by SHA-256; selected by the kinhin adapter | CC0 1.0 (no credit required; anyone may reuse it) |
 | Supertonic (optional voice engine, not in the image) | `scripts/voice.mjs --setup supertonic` | Code MIT, model OpenRAIL-M; archived upstream |

@@ -30,21 +30,18 @@
         "runner": "1 runner",
         "count": 7,
         "caption": "Your jobs wait in line.",
-        "caption2": "One runner does one job at a time."
+        "caption2": "By default, one job at a time."
       },
       "minLength": 6,
       "cues": [
         {
-          "text": "Your jobs wait in line."
+          "text": "A runner is the machine that runs your CI jobs."
         },
         {
-          "text": "One runner does one job at a time."
+          "text": "By default, a self-hosted runner only runs one job at a time."
         },
         {
           "text": "Each job leaves things behind."
-        },
-        {
-          "text": "The next job inherits them."
         }
       ]
     },
@@ -56,7 +53,14 @@
         "sub": "One engine for every forge."
       },
       "minLength": 4.6,
-      "narration": "kinhin scales a fleet of runners to your queue, for every forge, from one engine."
+      "cues": [
+        {
+          "text": "kinhin fixes that."
+        },
+        {
+          "text": "It scales a fleet of runners to your queue, for every forge."
+        }
+      ]
     },
     {
       "id": "fresh",
@@ -86,15 +90,15 @@
       "cues": [
         {
           "at": 0.5,
-          "text": "Jobs arrive, and the fleet scales to the queue."
+          "text": "This is the Fleet tab: jobs, VMs and the cap."
         },
         {
-          "at": 4.6,
-          "text": "Each job gets its own clean instance."
+          "at": 6.0,
+          "text": "Each job runs in its own instance."
         },
         {
           "at": 12.4,
-          "text": "When one fails, the next still starts clean."
+          "text": "When one fails, the next job still gets a new one."
         }
       ]
     },
@@ -108,26 +112,50 @@
           "Gitea",
           "Forgejo"
         ],
+        "logos": [
+          "github",
+          "gitlab",
+          "gitea",
+          "forgejo"
+        ],
         "right": [
           "Tart macOS & Linux VMs",
           "apple/container",
           "Docker"
         ],
         "caption": "Four forges. Three runtimes. One fleet.",
-        "note": "Routed per repo, workflow or runs-on label."
+        "note": "Routed per repo, workflow or runs-on label.",
+        "soon": {
+          "logos": [
+            "buildkite",
+            "azuredevops",
+            "bitbucket"
+          ],
+          "caption": "Coming soon: Buildkite, Azure DevOps and Bitbucket."
+        }
       },
       "minLength": 6,
-      "narration": "It works with GitHub, GitLab, Gitea and Forgejo, on Tart, apple container or Docker."
+      "cues": [
+        {
+          "text": "A forge is where your code and CI live."
+        },
+        {
+          "text": "kinhin works with GitHub, GitLab, Gitea and Forgejo."
+        },
+        {
+          "text": "Buildkite, Azure DevOps and Bitbucket are coming soon."
+        }
+      ]
     },
     {
       "id": "limit",
       "type": "statement",
       "props": {
-        "text": "Two macOS jobs at a time, by default.",
-        "sub": "Apple caps macOS VMs at two per Mac. Linux jobs and runners_per_vm go further."
+        "text": "Two macOS jobs per Mac, Apple's limit.",
+        "sub": "Linux jobs can run more."
       },
       "minLength": 6,
-      "narration": "On a Mac, Apple allows two macOS virtual machines at a time, so the default is two macOS jobs at once. Linux jobs and more runners per VM go further."
+      "narration": "Apple allows two macOS virtual machines per Mac at a time, so two macOS jobs run at once."
     },
     {
       "id": "config",
@@ -142,10 +170,30 @@
           "max_runners: 2",
           "runners_per_vm: 1"
         ],
-        "caption": "One file: your forges, and the cap you set."
+        "caption": "max_runners: VMs at once. runners_per_vm: jobs per VM."
       },
       "minLength": 9,
-      "narration": "One config file lists your forges and sets the cap."
+      "narration": "In one config file, max_runners is how many VMs run at once, and runners_per_vm is how many jobs share one VM."
+    },
+    {
+      "id": "trust",
+      "type": "statement",
+      "props": {
+        "text": "Runs on Apple silicon, macOS 15 or later.",
+        "sub": "Free and open source, Apache-2.0. No telemetry."
+      },
+      "minLength": 4.6,
+      "narration": "Apple silicon, macOS 15 or later. Free, open source, and no telemetry."
+    },
+    {
+      "id": "bonus",
+      "type": "statement",
+      "props": {
+        "text": "Your repo can make its launch video too.",
+        "sub": "kinhin video build"
+      },
+      "minLength": 4.4,
+      "narration": "Your repo can make its launch video too."
     },
     {
       "id": "build",
@@ -195,8 +243,8 @@
           "text": "Your jobs stop waiting in line."
         },
         {
-          "text": "kinhin.dev. Free and open source.",
-          "say": "kinhin dot dev. Free and open source."
+          "text": "kinhin.dev. Free, open source, in beta.",
+          "say": "kinhin dot dev. Free, open source, in beta."
         }
       ]
     }
