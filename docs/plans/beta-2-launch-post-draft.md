@@ -5,12 +5,6 @@ sidebar: false
 aside: false
 ---
 
-<!--
-DRAFT for Friday, October 16, 2026. Not for publishing until v0.0.1-beta-2 is published and the install line below is
-filled in. Checklist: docs/plans/beta-2-launch-checklist.md. website/blog/beta-2.md is a copy of this file: keep the two
-identical until publish.
--->
-
 # Beta 2: a fleet that heals itself, warm pools per image, and videos from your repo
 
 _Friday, October 16, 2026 · Alex Rabin_
@@ -117,13 +111,13 @@ this release. **Not yet** means it has not been, and I am not claiming it.
 - **Not yet:** the end-to-end suite on this release, and its GitHub lane against a throwaway repository. The suite runs
   only in CI, and the CI runner for it is not registered yet.
 - **Not yet:** upgrading from beta 1 on a Mac with real state.
-- **Not yet:** the in-app updater, which can only run once this release is published.
+- **Not yet:** the in-app updater has not been run against this release.
 
 The beta-1 end-to-end results still stand for the forges as they were, but they have not been repeated on this release.
 
 ## Try it
 
-The release is not published yet. When it is, the install command goes here:
+The release is published on [GitHub](https://github.com/RabinApps/kinhin/releases/tag/v0.0.1-beta-2). Install it with:
 
 ```bash
 curl -fsSL https://github.com/RabinApps/kinhin/releases/latest/download/install.sh | bash
