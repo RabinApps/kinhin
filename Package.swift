@@ -83,7 +83,16 @@ let package = Package(
         .testTarget(
             name: "KinhinAppTests",
             dependencies: ["kinhin-app", "KinhinTestSupport"],
-            path: "Tests/KinhinAppTests"
+            path: "Tests/KinhinAppTests",
+            // The test bundle loads Sparkle through kinhin-app. Its @rpath entries do not reach the
+            // artifact (SwiftPM copies the framework only for some products; Swift 6.3 on CI does not
+            // copy it next to the test products), so the test binary gets the xcframework slice directly.
+            linkerSettings: [
+                .unsafeFlags([
+                    "-Xlinker", "-rpath", "-Xlinker",
+                    "\(Context.packageDirectory)/.build/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64",
+                ])
+            ]
         ),
     ],
     // Strict concurrency on: every mutable field is Mutex-guarded or an
