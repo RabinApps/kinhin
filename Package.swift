@@ -16,6 +16,8 @@ let package = Package(
     dependencies: [
         // YAML parsing for the config file.
         .package(url: "https://github.com/jpsim/Yams.git", from: "6.2.2"),
+        // Self-updater for the menu bar app (download, EdDSA check, in-place install, relaunch).
+        .package(url: "https://github.com/sparkle-project/Sparkle.git", from: "2.10.0"),
     ],
     targets: [
         // `swift package --disable-sandbox dev`: runs scripts/dev-run.sh.
@@ -38,7 +40,10 @@ let package = Package(
         // Menu bar application.
         .executableTarget(
             name: "kinhin-app",
-            dependencies: ["KinhinKit"],
+            dependencies: [
+                "KinhinKit",
+                .product(name: "Sparkle", package: "Sparkle"),
+            ],
             path: "Sources/kinhin-app",
             // Forge brand marks and the String Catalog; scripts/build-app.sh
             // copies the resulting bundle into the .app (see ForgeIcon) and

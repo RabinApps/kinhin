@@ -4,7 +4,7 @@ import ServiceManagement
 
 /// Which surfaces the app shows: a normal main window, the menu bar item,
 /// or both. Persisted in UserDefaults so the choice survives relaunches —
-/// the same policy as the update-check stamp (UpdatePreferences).
+/// the same kind of UserDefaults-backed preference as the rest of the app.
 enum LaunchMode: String, CaseIterable, Equatable {
     /// Normal app: main window opens at launch, menu bar item stays.
     case mainWindowAndMenuBar
@@ -55,7 +55,7 @@ extension LaunchMode {
 /// App-surface preferences (launch mode, launch at login) backed by
 /// UserDefaults, with injectable suite accessors so tests exercise the
 /// round-trip against a scratch defaults suite instead of the app's real
-/// defaults (mirrors UpdatePreferences).
+/// defaults (same accessor pattern as the other preference stores).
 enum AppPreferences {
     static let launchModeKey = "kinhin.launchMode"
     static let launchAtLoginKey = "kinhin.launchAtLogin"

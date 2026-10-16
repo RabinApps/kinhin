@@ -12,7 +12,10 @@ if [ -z "$SOURCE_VERSION" ]; then
 fi
 VERSION="${KINHIN_VERSION:-$SOURCE_VERSION}"
 # Info.plist versions must be numeric; a "-beta-N" suffix lives only in Version.swift and the tag.
-BUNDLE_VERSION="${VERSION%%-*}"
+SHORT_VERSION="${VERSION%%-*}"
+# Sparkle compares CFBundleVersion; the mapping lives in one place, shared with the appcast.
+source "$(dirname "$0")/bundle-version.sh"
+BUNDLE_VERSION="$(bundle_version "$VERSION")"
 OUT_DIR="${1:-dist}"
 APP="$OUT_DIR/kinhin.app"
 CONFIGURATION="${CONFIGURATION:-release}" # lowercase: debug|release
@@ -22,6 +25,16 @@ BUNDLE_ID="${KINHIN_BUNDLE_ID:-com.RabinApps.kinhin}"
 # Application: Your Name (TEAMID)" for a signed build. Siri/Shortcuts index
 # App Intents most reliably for apps signed with a real identity.
 CODESIGN_IDENTITY="${CODESIGN_IDENTITY:--}"
+# Sparkle (self-updater): where the appcast lives and the EdDSA public key that
+# signs each update (`generate_keys` in Sparkle's tools prints it; the private
+# half stays in the release secret). A Developer ID build without a key would
+# ship an updater that can never install anything, so it fails here instead.
+SPARKLE_FEED_URL="${KINHIN_APPCAST_URL:-https://kinhin.dev/appcast.xml}"
+SPARKLE_PUBLIC_KEY="${KINHIN_SPARKLE_PUBLIC_KEY:-}"
+if [ "$CODESIGN_IDENTITY" != "-" ] && [ -z "$SPARKLE_PUBLIC_KEY" ]; then
+    echo "FATAL: KINHIN_SPARKLE_PUBLIC_KEY is required for a signed build (the updater verifies updates against it)" >&2
+    exit 1
+fi
 
 # Build the shipped products explicitly: the test-support target is testable-only
 # and does not compile in release.
@@ -56,6 +69,20 @@ if [ "$app_src_hash" != "$app_dst_hash" ] || [ "$cli_src_hash" != "$cli_dst_hash
     exit 1
 fi
 echo "==> hashes verified: kinhin-app $app_src_hash / kinhin $cli_src_hash"
+
+# Sparkle (the self-updater) is a framework the app loads from Contents/Frameworks. SwiftPM builds it
+# next to the products; the binary's rpath must reach it from there.
+SPARKLE_SRC="$BIN_DIR/Sparkle.framework"
+if [ ! -d "$SPARKLE_SRC" ]; then
+    echo "FATAL: $SPARKLE_SRC missing — did the kinhin-app build link Sparkle?" >&2
+    exit 1
+fi
+mkdir -p "$APP/Contents/Frameworks"
+cp -R "$SPARKLE_SRC" "$APP/Contents/Frameworks/"
+if ! otool -l "$APP/Contents/MacOS/kinhin" | grep -q '@executable_path/../Frameworks'; then
+    # Added after the hash check above on purpose: it edits the copied binary, not the build product.
+    install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP/Contents/MacOS/kinhin"
+fi
 
 # SwiftPM resource bundle (forge icons). ForgeIcon looks for it in
 # Contents/Resources; without it the app falls back to a generic symbol.
@@ -113,7 +140,15 @@ $LOCALIZATIONS_PLIST    </array>
     <key>CFBundleVersion</key>
     <string>$BUNDLE_VERSION</string>
     <key>CFBundleShortVersionString</key>
-    <string>$BUNDLE_VERSION</string>
+    <string>$SHORT_VERSION</string>
+    <key>SUFeedURL</key>
+    <string>$SPARKLE_FEED_URL</string>
+    <key>SUPublicEDKey</key>
+    <string>$SPARKLE_PUBLIC_KEY</string>
+    <key>SUEnableAutomaticChecks</key>
+    <true/>
+    <key>SUScheduledCheckInterval</key>
+    <integer>86400</integer>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>CFBundleExecutable</key>
@@ -165,6 +200,12 @@ if [ "$CODESIGN_IDENTITY" != "-" ]; then
 fi
 echo "==> codesign ($CODESIGN_IDENTITY)"
 codesign "${SIGN_ARGS[@]}" "$APP/Contents/Resources/bin/kinhin"
+# Sparkle's helpers (XPC services, Updater.app, the Autoupdate tool) and then the framework itself.
+SPARKLE_VERSIONED="$APP/Contents/Frameworks/Sparkle.framework/Versions/B"
+for helper in "$SPARKLE_VERSIONED"/XPCServices/*.xpc "$SPARKLE_VERSIONED/Updater.app" "$SPARKLE_VERSIONED/Autoupdate"; do
+    [ -e "$helper" ] && codesign "${SIGN_ARGS[@]}" "$helper"
+done
+codesign "${SIGN_ARGS[@]}" "$APP/Contents/Frameworks/Sparkle.framework"
 codesign "${SIGN_ARGS[@]}" --identifier "$BUNDLE_ID" "$APP"
 codesign --verify --deep --strict "$APP"
 

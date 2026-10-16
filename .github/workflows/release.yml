@@ -79,9 +79,11 @@ jobs:
           NOTARY_API_KEY_P8: ${{ secrets.NOTARY_API_KEY_P8 }}
           NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
           NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
+          SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
+          KINHIN_SPARKLE_PUBLIC_KEY: ${{ vars.KINHIN_SPARKLE_PUBLIC_KEY }}
         run: |
           missing=0
-          for name in MACOS_CERT_P12 MACOS_CERT_PASSWORD MACOS_SIGN_IDENTITY NOTARY_API_KEY_P8 NOTARY_KEY_ID NOTARY_ISSUER_ID; do
+          for name in MACOS_CERT_P12 MACOS_CERT_PASSWORD MACOS_SIGN_IDENTITY NOTARY_API_KEY_P8 NOTARY_KEY_ID NOTARY_ISSUER_ID SPARKLE_ED_PRIVATE_KEY KINHIN_SPARKLE_PUBLIC_KEY; do
             if [ -z "${!name}" ]; then
               echo "::error::missing repository secret $name"
               missing=1
@@ -137,7 +139,22 @@ jobs:
         timeout-minutes: 40
         env:
           KINHIN_VERSION: ${{ steps.ver.outputs.version }}
+          KINHIN_SPARKLE_PUBLIC_KEY: ${{ vars.KINHIN_SPARKLE_PUBLIC_KEY }}
         run: ./scripts/make-dmg.sh
+
+      # generate_appcast (Sparkle's tool) signs the update for scripts/appcast.sh. Pinned to one release and
+      # its SHA-256, so the signing step never runs an unverified binary.
+      - name: Install Sparkle tools
+        env:
+          SPARKLE_VERSION: "2.10.0"
+          SPARKLE_SHA256: "c2bf58aa8387266ac179357b1415d6f2635f044da8be41042af32425dae6da0c"
+        run: |
+          archive="$RUNNER_TEMP/sparkle.tar.xz"
+          curl -fsSL -o "$archive" "https://github.com/sparkle-project/Sparkle/releases/download/$SPARKLE_VERSION/Sparkle-$SPARKLE_VERSION.tar.xz"
+          echo "$SPARKLE_SHA256  $archive" | shasum -a 256 -c -
+          mkdir -p "$RUNNER_TEMP/sparkle"
+          tar -xJf "$archive" -C "$RUNNER_TEMP/sparkle"
+          echo "SPARKLE_TOOLS=$RUNNER_TEMP/sparkle" >> "$GITHUB_ENV"
 
       # CLI zip, Gatekeeper verification, the Team-ID-stamped installer and
       # checksums live in scripts/release-artifacts.sh: a local
@@ -147,6 +164,7 @@ jobs:
         timeout-minutes: 40
         env:
           VERSION: ${{ steps.ver.outputs.version }}
+          SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
         run: ./scripts/release-artifacts.sh "$VERSION"
 
       # The notes are the version's CHANGELOG section, as in a local publish.
@@ -168,6 +186,7 @@ jobs:
             dist/kinhin-cli-*.zip
             dist/install.sh
             dist/checksums.txt
+            dist/appcast.xml
           body_path: dist/release-notes.md
           prerelease: false
           make_latest: true

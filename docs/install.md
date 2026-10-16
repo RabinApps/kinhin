@@ -102,7 +102,7 @@ a video image of about a gigabyte.
 ## How updates and installs are verified
 
 - **Install script:** it refuses a download without `checksums.txt`, fetches over https only, and never strips the quarantine attribute. The copy attached to a release is stamped with the Developer ID Team ID of the shipped app, so it refuses an app that is not signed by that team or not accepted by Gatekeeper. A copy run from a checkout or a fork has no Team ID and can only verify that the signature is valid. A local DMG is checked against `DMG.sha256` when one sits next to it.
-- **Update check:** besides the checksum, a Developer ID build requires the DMG to be signed by the **same Team ID as the running app** and accepted by Gatekeeper (notarized, not revoked). A DMG that fails either check is deleted. Downloads must come from the project's GitHub releases. Builds without a Developer ID (forks, local builds) fall back to the checksum alone, with a warning in the log.
+- **In-app update:** the menu bar app uses [Sparkle](https://sparkle-project.org). Each update archive must carry an EdDSA signature made with the release key whose public half is `SUPublicEDKey` in the installed app. Sparkle refuses an archive that fails that check, and it installs only over the running app with the same code signature. A Developer ID build also needs its own Gatekeeper-accepted, notarized signature.
 
 ## Full uninstall
 
@@ -117,7 +117,8 @@ and the kinhin entries in Keychain Access.
 
 ## Update checks
 
-After installing, the menu bar app checks GitHub Releases at most once a day and shows an
-**Update available — kinhin x.y.z…** item when a newer `v*` release exists (beta builds also see `-beta-N` releases); clicking it downloads
-the DMG (via URLSession, so it is never quarantined; it is verified as described above) and opens it for a one-click install. Forks and local (ad-hoc) builds can point it at their own repo with
-`KINHIN_UPDATE_REPO=owner/name`; signed release builds ignore that variable.
+After installing, the menu bar app checks for a new release at most once a day (Sparkle's scheduled check, `SUScheduledCheckInterval` in Info.plist). When one is found, the status-bar menu shows **Update available — kinhin x.y.z…**, and Settings → App offers **Install Update…**. Sparkle then downloads, verifies and installs the update over the running app and relaunches it, so there is no DMG to drag around. Any build, including a release build, honors `KINHIN_UPDATE_FEED=https://…/appcast.xml` to point the updater at another appcast. The feed only supplies candidates: each archive must still be signed with the build's `SUPublicEDKey`, so a redirected feed cannot install unsigned code.
+
+The daemon survives an upgrade too. The app's LaunchAgent points at the app's own binary, so after an update the
+launch-time check finds a daemon still running the previous build and restarts it (`launchctl kickstart`). Running jobs
+are interrupted by that restart.

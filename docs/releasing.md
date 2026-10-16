@@ -155,12 +155,79 @@ The four subcommands are also how the default form stays honest:
 A fresh `release.sh` run clears stale sidecars with the rest of `dist/`, so a new release never
 resumes an old submission.
 
+## Update signing key (one time, then keep it)
+
+The updater only installs archives signed with one EdDSA key. The public half is baked into every build; the private
+half signs each release. Losing the private key strands every installed copy, so keep a backup in a password manager.
+
+1. Fetch the pinned Sparkle 2.10.0 tools and check the archive. Use the same version the release workflow pins (its
+   `SPARKLE_VERSION` and `SPARKLE_SHA256` in `.github/workflows/release.yml`):
+
+   ```bash
+   curl -fsSL -o Sparkle-2.10.0.tar.xz https://github.com/sparkle-project/Sparkle/releases/download/2.10.0/Sparkle-2.10.0.tar.xz
+   ```
+
+   ```bash
+   echo "c2bf58aa8387266ac179357b1415d6f2635f044da8be41042af32425dae6da0c  Sparkle-2.10.0.tar.xz" | shasum -a 256 -c -
+   ```
+
+   ```bash
+   mkdir -p ~/sparkle && tar -xJf Sparkle-2.10.0.tar.xz -C ~/sparkle
+   ```
+
+2. Generate the key pair. This stores the private key in your login Keychain and prints the **public key**. The public
+   key is not secret; copy it for step 5.
+
+   ```bash
+   ~/sparkle/bin/generate_keys
+   ```
+
+3. Export the private key to a file, which is the value for the CI secret. Keep a backup of it in your password
+   manager: a lost private key strands every installed copy.
+
+   ```bash
+   ~/sparkle/bin/generate_keys -x ~/sparkle/sparkle_private_key.txt
+   ```
+
+4. Store the private key as the secret `SPARKLE_ED_PRIVATE_KEY` in the **`release` environment**, not at repository
+   level. The release job runs in that environment, which holds the signing secrets and its required reviewers, and
+   environment-scoped secrets are only visible to it.
+
+   ```bash
+   cat ~/sparkle/sparkle_private_key.txt | gh secret set SPARKLE_ED_PRIVATE_KEY --env release --repo RabinApps/kinhin
+   ```
+
+5. Store the public key as the variable `KINHIN_SPARKLE_PUBLIC_KEY` in the same environment. Replace PUBLIC_KEY
+   with the value from step 2:
+
+   ```bash
+   gh variable set KINHIN_SPARKLE_PUBLIC_KEY --env release --repo RabinApps/kinhin --body "PUBLIC_KEY"
+   ```
+
+   The web UI does the same: Settings → Environments → `release`, with the secret under Secrets and the variable under
+   Variables.
+
+6. Delete the exported file once it is stored and backed up:
+
+   ```bash
+   rm ~/sparkle/sparkle_private_key.txt
+   ```
+
+A signed build fails without the variable, and a release fails without the secret; that is deliberate, since a build
+without the public key would ship an updater that can't install anything.
+
+A local rehearsal signs the same way, with the key in the environment and `SPARKLE_TOOLS` pointing at the unpacked
+tools: `KINHIN_SPARKLE_PUBLIC_KEY=… SPARKLE_ED_PRIVATE_KEY="$(cat key.txt)" SPARKLE_TOOLS=~/sparkle scripts/release.sh
+VERSION`. Without the secret the run writes no appcast.
+
 ## After the release
 
 - Add the tag to `website/versions.json` so the docs site snapshots it (see
   [CONTRIBUTING.md](../CONTRIBUTING.md#docs-versions)).
-- The in-app updater checks GitHub Releases at most once a day; a Developer ID build only accepts a
-  DMG signed by **its own Team ID** and accepted by Gatekeeper ([Install](install.md)).
+- The in-app updater (Sparkle) checks its appcast at most once a day. It installs only archives signed with the EdDSA
+  key in `SUPublicEDKey`, and a Developer ID build also needs a Gatekeeper-accepted signature ([Install](install.md)).
+  The release uploads `appcast.xml` next to the DMG; the docs deploy (which runs after a successful Release) copies
+  it to <https://kinhin.dev/appcast.xml>, where the app reads it.
 - A beta (`-beta-N`) is published as the latest release, not a prerelease: GitHub's
   `releases/latest`, which the install URL and `install.sh` resolve, never returns a prerelease.
 
