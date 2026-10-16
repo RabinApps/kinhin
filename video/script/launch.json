@@ -33,7 +33,20 @@
         "caption2": "One runner does one job at a time."
       },
       "minLength": 6,
-      "narration": "Your jobs wait in line. One runner does one job at a time, and whatever a job leaves behind lands in the next one."
+      "cues": [
+        {
+          "text": "Your jobs wait in line."
+        },
+        {
+          "text": "One runner does one job at a time."
+        },
+        {
+          "text": "Each job leaves things behind."
+        },
+        {
+          "text": "The next job inherits them."
+        }
+      ]
     },
     {
       "id": "solution",

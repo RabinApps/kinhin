@@ -2,7 +2,7 @@
 // Edit script/launch.json and re-run the script instead of changing these by hand.
 export const timing: Record<string, number> = {
   "intro": 5.73,
-  "problem": 9.85,
+  "problem": 11.7,
   "solution": 6.63,
   "fresh": 8.8,
   "app": 19,
