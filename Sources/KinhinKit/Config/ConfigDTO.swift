@@ -169,10 +169,22 @@ public struct PartialConfig: Decodable {
         var auto: String?
         var ai: String?
         var maxAttempts: Int?
+        var ollama: PartialOllama?
 
         enum CodingKeys: String, CodingKey, CaseIterable {
-            case enabled, auto, ai
+            case enabled, auto, ai, ollama
             case maxAttempts = "max_attempts"
+        }
+
+        struct PartialOllama: Decodable {
+            var host: String?
+            var model: String?
+            var fastModel: String?
+
+            enum CodingKeys: String, CodingKey, CaseIterable {
+                case host, model
+                case fastModel = "fast_model"
+            }
         }
     }
 

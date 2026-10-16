@@ -150,7 +150,12 @@ extension ConfigLoader {
         #   enabled: true            # false = only the engine's own retries
         #   auto: safe               # safe = reversible fixes run on their own; none = ask for every fix
         #   ai: auto                 # auto = on-device Apple Intelligence advises (macOS 26+); off = rules only
+        #                            # ollama = a local Ollama decision model, then your LLM (see docs/healing.md)
         #   max_attempts: 3          # tries of one fix for one problem before it escalates
+        #   ollama:                  # only with ai: ollama
+        #     host: http://127.0.0.1:11434   # https required for any host other than this Mac
+        #     model: my-llm          # the LLM, asked when the fast model is unsure or picks nothing
+        #     fast_model: clef-flash # optional System 1 decision model, asked first
 
         # Optional: serve more forges from the same fleet. Every accounts:
         # entry above is one forge; VMs are assigned to whichever forge has

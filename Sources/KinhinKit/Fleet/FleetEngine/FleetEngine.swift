@@ -295,11 +295,12 @@ extension FleetEngine {
         }
 
         /// Production: the Keychain and a live disk probe (the GitHub
-        /// client factory comes from the convenience initializer).
-        public static var live: Dependencies {
+        /// client factory comes from the convenience initializer). The healing
+        /// advisor is the one `healing` names.
+        public static func live(healing: KinhinConfig.HealingConfig = .default) -> Dependencies {
             var live = Dependencies(hostProbe: { ResourceProbe().snapshot() })
             live.healingHost = .live
-            live.healingAdvisor = HealingAdvisors.production()
+            live.healingAdvisor = HealingAdvisors.production(config: healing)
             live.healingTimings = HealingAdvisors.productionTimings()
             return live
         }
