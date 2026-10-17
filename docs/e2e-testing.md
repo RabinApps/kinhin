@@ -67,9 +67,10 @@ nothing while another run is active.
   touched. The fleet and the suite still share the Mac's CPU, memory and disk. kinhin sizes each daemon from host totals
   and does not see the other one, so before an e2e run raise the fleet's `reserve` (cpu, memory) by the suite's share,
   and lower it afterward.
-- **Tart lanes need the fleet's macOS and Linux VMs stopped.** Apple caps macOS VMs at two per Mac, and `Lane.start`
-  refuses a Tart lane while any `kinhin-*` VM exists. Leftovers of an earlier run (`ke2ed-*`) also block a lane, and
-  `scripts/e2e-sweep.sh` removes them.
+- **Tart lanes run beside a fleet too, up to Apple's cap.** Apple caps running macOS VMs at two per Mac. A Tart macOS
+  lane therefore refuses to start only while the fleet already runs two macOS VMs, since its own VM would be a third.
+  A fleet's stopped VMs and its Linux VMs never block a lane. Leftovers of an earlier run (`ke2ed-*`) always block, and
+  `scripts/e2e-sweep.sh` removes them. The rule is `Instances.tartBlockers` (`Tests/E2E/Sources/E2ESupport/Runtimes.swift`).
 - Plenty of free disk (the Docker VM filled up once during this work and silently broke pulls and container starts). Forge images, runner images and the Docker VM's own disk add up; a full Docker VM makes pulls
   fail with `no space left on device`.
 - A LAN address. Containers cannot reach the host's `localhost`, so the suite addresses its forges by the Mac's
@@ -198,6 +199,7 @@ What has actually been run, so the table does not claim more than it checked (20
 | Lane                                                      | Status                                                                     |
 | --------------------------------------------------------- | -------------------------------------------------------------------------- |
 | Quick tier (CLI, security, coverage)                      | Run, passing                                                               |
+| Tart guard beside a fleet (`TartGuardTests`, pure rule)   | Unit-tested, passing locally; a `full` run beside a live fleet **not run yet** |
 | Gitea, Forgejo, GitLab CE × Docker, Apple container       | Run, passing (lifecycle, failing job)                                      |
 | Gitea, Forgejo, GitLab CE × Tart Linux (`ubuntu`)         | Run, passing (lifecycle, failing job; long job on Gitea/Forgejo)           |
 | Gitea, Forgejo, GitLab CE × Tart macOS (`macos-tahoe-base`) | Run, passing (lifecycle, failing job; long job on Gitea/Forgejo)         |
