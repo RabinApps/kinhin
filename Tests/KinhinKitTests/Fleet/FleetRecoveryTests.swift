@@ -155,4 +155,87 @@ final class FleetRecoveryTests: XCTestCase {
         XCTAssertFalse(alerts.contains { $0.source.hasPrefix("store:") })
         await engine.detachKeepingInstances()
     }
+
+    // MARK: - Adoption: the forge decides whether a live VM is registered again
+
+    /// A tart-only engine over `store` (a corrupt fleet.json leaves it empty) with `github` as its forge.
+    private func makeAdoptingEngine(store: FleetStore, github: FakeGitHub, tart: FakeTart, ssh: FakeSSH) -> FleetEngine {
+        var config = makeTestConfig()
+        config.vm.ephemeral = true
+        return FleetEngine(
+            config: config, github: github, tart: tart, store: store, ssh: ssh, host: host,
+            dependencies: .init(lifecycleDrainTimeout: .milliseconds(200)))
+    }
+
+    private func runningTartVM(_ tart: FakeTart) {
+        tart.vms["kinhin-t1"] = TartVM(name: "kinhin-t1", source: "tahoe-base", status: "running")
+    }
+
+    /// The store is empty but the VM is live, and its runner is busy on the forge (a job is running).
+    /// Recovery must watch that runner, not register it again: registration would fail the job.
+    func testRecoveredInstanceWithABusyRunnerIsWatchedNotReRegistered() async throws {
+        let store = makeTestStore()
+        let tart = FakeTart()
+        runningTartVM(tart)
+        let github = FakeGitHub()
+        github.register(name: "kinhin-t1", busy: true)
+        let ssh = FakeSSH()
+        let engine = makeAdoptingEngine(store: store, github: github, tart: tart, ssh: ssh)
+
+        await engine.recoverIfNeeded()
+        try await Task.sleep(for: .milliseconds(300))
+
+        XCTAssertTrue(ssh.scripts.isEmpty, "no registration script may run on a recovered VM whose runner is busy")
+        XCTAssertEqual(store.all.first { $0.id == "kinhin-t1" }?.phase, .busy)
+        await engine.detachKeepingInstances()
+    }
+
+    /// The same, with the registered runner idle: it is watched as ready, and still not registered again.
+    func testRecoveredInstanceWithAnIdleRunnerIsWatchedAsReady() async throws {
+        let store = makeTestStore()
+        let tart = FakeTart()
+        runningTartVM(tart)
+        let github = FakeGitHub()
+        github.register(name: "kinhin-t1", busy: false)
+        let ssh = FakeSSH()
+        let engine = makeAdoptingEngine(store: store, github: github, tart: tart, ssh: ssh)
+
+        await engine.recoverIfNeeded()
+        try await Task.sleep(for: .milliseconds(300))
+
+        XCTAssertTrue(ssh.scripts.isEmpty, "no registration script may run on a recovered VM with a registered runner")
+        XCTAssertEqual(store.all.first { $0.id == "kinhin-t1" }?.phase, .ready)
+        await engine.detachKeepingInstances()
+    }
+
+    /// A forge that cannot be asked holds the VM: nothing is registered over it, the status says so, and it is
+    /// released once the forge answers (here: the busy runner is found and watched).
+    func testHeldInstanceIsNotRegisteredUntilTheForgeAnswers() async throws {
+        let store = makeTestStore()
+        let tart = FakeTart()
+        runningTartVM(tart)
+        let github = FakeGitHub()
+        github.register(name: "kinhin-t1", busy: true)
+        github.failRunnerList = true
+        let ssh = FakeSSH()
+        let engine = makeAdoptingEngine(store: store, github: github, tart: tart, ssh: ssh)
+
+        await engine.recoverIfNeeded()
+        try await Task.sleep(for: .milliseconds(300))
+
+        XCTAssertTrue(ssh.scripts.isEmpty, "a held VM is not registered while the forge cannot be asked")
+        XCTAssertEqual(store.all.first { $0.id == "kinhin-t1" }?.phase, .booting)
+        let held = await engine.status().alerts ?? []
+        XCTAssertTrue(held.contains { $0.source == "adoption" }, "the held VM is shown as an alert")
+
+        github.failRunnerList = false
+        await engine.settleAdoptions()
+        try await Task.sleep(for: .milliseconds(300))
+
+        XCTAssertTrue(ssh.scripts.isEmpty, "a released VM with a busy runner is watched, not registered")
+        XCTAssertEqual(store.all.first { $0.id == "kinhin-t1" }?.phase, .busy)
+        let released = await engine.status().alerts ?? []
+        XCTAssertFalse(released.contains { $0.source == "adoption" }, "the alert clears once nothing is held")
+        await engine.detachKeepingInstances()
+    }
 }

@@ -86,12 +86,13 @@ extension FleetEngine {
 
         store.replaceAll(kept)
 
-        // Adopted/booted instances re-enter lifecycle; those mid-delete get cleaned.
+        // Adopted/booted instances re-enter lifecycle through the forge's word on their runner (see
+        // `resumeAdopted`); those mid-delete get cleaned.
         for record in kept {
             if record.phase == .deleting {
                 await deleteVMRecord(id: record.id, reason: "cleanup after restart")
             } else {
-                resumeLifecycle(for: record)
+                await resumeAdopted(record)
             }
         }
     }
@@ -177,6 +178,8 @@ extension FleetEngine {
         // Forges that failed at startup get another chance (backed off), in the background: an
         // attach talks to the forge and must not hold the pass up.
         startForgeRetryIfDue()
+        // Held recovered instances get another look before the plan counts them.
+        await settleAdoptions()
 
         // 1. Clean up finished/failed VMs. Each teardown runs as its own task (one per instance), so
         // the pass moves on to the queue at once; the failure is counted only by the pass that starts
