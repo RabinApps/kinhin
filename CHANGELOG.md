@@ -4,6 +4,13 @@
 
 <!-- changelog: entries for the next release go here -->
 
+**Added**
+
+- The healing agent can use [Ollama](https://ollama.com) with your own models: `healing: {ai: ollama, ollama: {model: …}}`.
+  An optional `fast_model` (for example `clef-flash` or `nimble`, Ollama's decision models) is asked first, and the LLM
+  answers when it is not confident. Traffic goes to `healing.ollama.host`, which is this Mac by default; any other host
+  must be `https`, and it then receives the redacted problem and log lines. See [docs/healing.md](docs/healing.md#the-ollama-advisor).
+
 ## v0.0.1-beta-2
 
 **Added**

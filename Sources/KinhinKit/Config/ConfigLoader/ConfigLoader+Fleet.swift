@@ -159,7 +159,7 @@ extension ConfigLoader {
         }
         if let ai = partial.ai {
             guard let mode = KinhinConfig.HealingConfig.AIMode(rawValue: ai) else {
-                throw ConfigError.invalid("healing.ai must be auto or off, got '\(ai)'")
+                throw ConfigError.invalid("healing.ai must be auto, off or ollama, got '\(ai)'")
             }
             healing.ai = mode
         }
@@ -171,7 +171,56 @@ extension ConfigLoader {
             }
             healing.maxAttempts = attempts
         }
+        switch (healing.ai, partial.ollama) {
+        case (.ollama, let block?):
+            healing.ollama = try parseOllama(block)
+        case (.ollama, nil):
+            throw ConfigError.invalid("healing.ai: ollama needs a healing.ollama block with a model")
+        case (_, .some):
+            throw ConfigError.invalid("healing.ollama is only used with healing.ai: ollama")
+        case (_, nil):
+            break
+        }
         return healing
+    }
+
+    /// `healing.ollama:`: the model is required; the host must be a URL, and
+    /// one that is not this Mac must be https, so logs never cross the network
+    /// in cleartext. The fast model, if any, must be a different model.
+    static func parseOllama(
+        _ partial: PartialConfig.PartialHealing.PartialOllama
+    ) throws -> KinhinConfig.HealingConfig.OllamaConfig {
+        guard let model = partial.model?.trimmingCharacters(in: .whitespaces), !model.isEmpty else {
+            throw ConfigError.invalid("healing.ollama.model is required with healing.ai: ollama")
+        }
+        var host = KinhinConfig.HealingConfig.OllamaConfig.defaultHost
+        if let raw = partial.host {
+            guard let url = URL(string: raw), let scheme = url.scheme?.lowercased(), url.host != nil,
+                scheme == "http" || scheme == "https"
+            else {
+                throw ConfigError.invalid("healing.ollama.host must be an http or https URL, got '\(raw)'")
+            }
+            if scheme != "https" && !KinhinConfig.HealingConfig.OllamaConfig.isLoopback(url) {
+                throw ConfigError.invalid(
+                    "healing.ollama.host must use https unless it is this Mac (localhost, 127.0.0.1 or ::1)")
+            }
+            host = url
+        }
+        let fast = partial.fastModel?.trimmingCharacters(in: .whitespaces)
+        if fast?.isEmpty == true {
+            throw ConfigError.invalid("healing.ollama.fast_model is empty; remove it to use the LLM alone")
+        }
+        if fast == model {
+            throw ConfigError.invalid("healing.ollama.fast_model must be a different model from healing.ollama.model")
+        }
+        let keepAlive =
+            partial.keepAlive?.trimmingCharacters(in: .whitespaces)
+            ?? KinhinConfig.HealingConfig.OllamaConfig.defaultKeepAlive
+        if keepAlive.isEmpty {
+            throw ConfigError.invalid("healing.ollama.keep_alive is empty; use a duration such as 30m, or 0")
+        }
+        return KinhinConfig.HealingConfig.OllamaConfig(
+            host: host, model: model, fastModel: fast, keepAlive: keepAlive)
     }
 
     /// Removed keys: decoded only so they can be rejected with a pointer to

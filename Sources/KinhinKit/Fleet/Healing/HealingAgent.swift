@@ -237,9 +237,10 @@ final class HealingAgent: Sendable {
     /// Runs, queues or surfaces `fix` by its tier.
     func apply(
         _ fix: Remediation, for signal: HealingSignal, source: HealingEvent.Source, explanation: String?,
-        actions: some HealingActions, now: Date
+        actions: some HealingActions, now: Date, forceApproval: Bool = false
     ) async throws {
-        let tier: Remediation.Tier = fix.tier == .automatic && policy.auto == .none ? .approval : fix.tier
+        let queued = policy.auto == .none || forceApproval
+        let tier: Remediation.Tier = fix.tier == .automatic && queued ? .approval : fix.tier
         switch tier {
         case .automatic:
             let event = HealingEvent(
