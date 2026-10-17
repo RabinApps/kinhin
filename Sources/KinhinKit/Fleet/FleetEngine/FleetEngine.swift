@@ -21,6 +21,7 @@ import Synchronization
 /// | `spawnBackoff`    | per-runtime failure counters and holds                           |
 /// | `tartListing`     | the last `tart list` and which named images were skipped         |
 /// | `orphanState`     | first-seen times of instances without a record                   |
+/// | `pendingAdoptions` | recovered instances held until their forge answers, and since when |
 /// | `_reconcileTask`, `_cachePruneTask` | the two loop task handles                      |
 ///
 /// plus `FleetStore`'s own record lock, `statusBox` (an actor), and the
@@ -66,6 +67,8 @@ public final class FleetEngine: Sendable {
     let watchdog: Watchdog
     /// First-seen times of instances with no record (see `sweepOrphans`).
     let orphanState = Mutex(OrphanState())
+    /// Recovered instances held until their forge answers, and when each was first held (`FleetAdoption.swift`).
+    let pendingAdoptions = Mutex<[String: Date]>([:])
     /// Wakes a sleeping reconcile loop (`pollSoon()`).
     let pollWake = WakeSignal()
     /// Watches the fleet's problems and fixes what it safely can (its own loop and lock).

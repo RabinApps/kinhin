@@ -201,7 +201,8 @@ final class ConnectModelTests: XCTestCase {
         try AccountsConfigEditor.add(
             AccountConfig(name: "gitlab", forge: .gitlab, scope: "acme/api"), to: url)
         let model = makeModel()
-        await settle(model) { model.isSelected(.gitlab) }
+        // Wait for the card's async load (it sets the saved scope); marking the token before that is overwritten.
+        await settle(model) { model.card(for: .gitlab)?.lastWrittenScope == "acme/api" }
         let card = try XCTUnwrap(model.card(for: .gitlab))
         card.markTokenStoredForTesting(true)
         XCTAssertTrue(model.isConnected, "a GitLab-only setup can finish onboarding")
