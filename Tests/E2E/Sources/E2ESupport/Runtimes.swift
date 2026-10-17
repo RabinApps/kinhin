@@ -204,7 +204,8 @@ public enum Instances {
     /// `ke2e-`: the suite names its own forge containers and baked images `ke2e-*`, and a daemon that adopted them would
     /// try to register a runner inside a forge.
     public static let ownPrefix = "ke2ed-"
-    /// A real kinhin install's prefix. Tart lanes still refuse to run beside these: Apple caps macOS VMs at two per Mac.
+    /// A real kinhin install's prefix. A Tart macOS lane refuses to run only while these hold Apple's macOS VM cap (see
+    /// `tartBlockers`).
     public static let fleetPrefix = "kinhin-"
 
     /// Tart VMs with `prefix` (Tart does not record a clone's source, so the prefix is the only owner marker).
@@ -214,6 +215,58 @@ public enum Instances {
             let list = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]
         else { return [] }
         return list.compactMap { $0["Name"] as? String }.filter { $0.hasPrefix(prefix) }
+    }
+
+    /// A Tart VM as `tart list` and `tart get` describe it.
+    public struct TartVM: Equatable, Sendable {
+        public let name: String
+        public let running: Bool
+        /// Only a VM that `tart get` reports as Linux is one. Anything else counts against the macOS cap.
+        public let isLinux: Bool
+
+        public init(name: String, running: Bool, isLinux: Bool) {
+            self.name = name
+            self.running = running
+            self.isLinux = isLinux
+        }
+    }
+
+    /// Apple caps running macOS VMs at two per Mac. Linux VMs have no such cap.
+    public static let appleMacOSVMCap = 2
+
+    /// VMs with `prefix`, with their state and guest OS. `tart get` runs only for a running VM, since a stopped one holds
+    /// no slot under the cap.
+    public static func tartVMs(prefix: String) async -> [TartVM] {
+        let result = try? await Shell.run("tart", ["list", "--source", "local", "--format", "json"], timeout: 30)
+        guard let data = result?.stdout.data(using: .utf8),
+            let list = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]
+        else { return [] }
+        var vms: [TartVM] = []
+        for entry in list {
+            guard let name = entry["Name"] as? String, name.hasPrefix(prefix) else { continue }
+            let running = (entry["State"] as? String)?.lowercased() == "running"
+            vms.append(TartVM(name: name, running: running, isLinux: running ? await isLinuxGuest(name) : false))
+        }
+        return vms
+    }
+
+    /// Whether `tart get` reports a Linux guest. An unreadable answer is "not Linux", the conservative reading.
+    static func isLinuxGuest(_ name: String) async -> Bool {
+        let result = try? await Shell.run("tart", ["get", name, "--format", "json"], timeout: 30)
+        guard let data = result?.stdout.data(using: .utf8),
+            let info = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let os = info["OS"] as? String
+        else { return false }
+        return os.lowercased() == "linux"
+    }
+
+    /// What stops a Tart lane from starting, given the leftovers of an earlier run (`ke2ed-*`) and a real fleet's VMs
+    /// (`kinhin-*`). Leftovers always block. A fleet's Linux VMs never do. A macOS lane is blocked by a fleet's running
+    /// macOS VMs only when they already hold the cap, since the lane's own VM would be one too many.
+    public static func tartBlockers(for runtime: RuntimeKind, leftovers: [String], fleet: [TartVM]) -> [String] {
+        guard runtime == .tartMacOS else { return leftovers }
+        let macOSRunning = fleet.filter { $0.running && !$0.isLinux }.map(\.name)
+        return leftovers + (macOSRunning.count >= appleMacOSVMCap ? macOSRunning : [])
     }
 
     /// Host-mode instances: the work directories under a sandbox's `host-instances` (`image` is the sandbox's
@@ -234,8 +287,9 @@ public enum Instances {
     }
 
     /// Instances that would stop `runtime` from being a clean lane: leftovers of an earlier e2e run (`ke2ed-*`) on
-    /// that runtime, and for Tart also a real fleet's macOS/Linux VMs (`kinhin-*`), since Tart's VM cap is per Mac.
-    /// A Docker or Apple container lane ignores a real fleet entirely: kinhin tells its instances apart by prefix.
+    /// that runtime, and for a Tart macOS lane a real fleet's running macOS VMs once they hold Apple's cap (see
+    /// `tartBlockers`). A Docker or Apple container lane ignores a real fleet entirely: kinhin tells its instances apart
+    /// by prefix.
     public static func foreign(for runtime: RuntimeKind) async -> [String] {
         var found: [String] = []
         switch runtime {
@@ -249,8 +303,10 @@ public enum Instances {
                 .filter { $0.hasPrefix(ownPrefix) }.map { "container:\($0)" }
         case .tartMacOS, .tartLinux:
             guard E2E.tartAvailable else { break }
-            found += await tartClones(prefix: ownPrefix).map { "tart:\($0)" }
-            found += await tartClones(prefix: fleetPrefix).map { "tart:\($0)" }
+            let leftovers = await tartClones(prefix: ownPrefix)
+            // Only a macOS lane counts the fleet, so a Linux lane never asks `tart get` about its VMs.
+            let fleet = runtime == .tartMacOS ? await tartVMs(prefix: fleetPrefix) : []
+            found += tartBlockers(for: runtime, leftovers: leftovers, fleet: fleet).map { "tart:\($0)" }
         default:
             break
         }
