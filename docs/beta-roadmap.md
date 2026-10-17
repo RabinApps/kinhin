@@ -4,8 +4,12 @@ What is supported today, and the milestones between the current beta and the **v
 
 [← Back to README](../README.md) · [Forge support](forges.md#what-has-been-tested)
 
-kinhin is in beta (`v0.0.1-beta-1`). The beta supports **GitHub, Gitea, Forgejo and GitLab CE**; Buildkite, Azure
-Pipelines and Bitbucket Pipelines follow in later betas. Milestones are ordered by what has to be true, not by date.
+<!-- docs-sync:begin release-line -->
+kinhin is in beta (`v0.0.1-beta-2`).
+<!-- docs-sync:end release-line -->
+
+The beta supports **GitHub, Gitea, Forgejo and GitLab CE**; Buildkite, Azure Pipelines and Bitbucket Pipelines follow in
+later betas. Milestones are ordered by what has to be true, not by date.
 
 ## Where we are
 
@@ -22,14 +26,14 @@ Pipelines and Bitbucket Pipelines follow in later betas. Milestones are ordered 
 
 ## Milestones
 
-### beta-1: first public beta (current)
+### beta-1: first public beta
 
 - GitHub, Gitea, Forgejo and GitLab CE supported. Gitea, Forgejo and GitLab CE live-tested on every runtime; GitHub on
   Tart macOS VMs and apple/container.
 - Menu bar app, CLI and LaunchAgent daemon released, signed and notarized.
 - Docs, forge reference and the forge-report issue template published.
 
-### beta-2: hardening the supported forges
+### beta-2: hardening the supported forges (current)
 
 - Fixes from beta testers' real projects.
 - The GitHub lane of the end-to-end suite running against a throwaway repository.

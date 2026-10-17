@@ -61,7 +61,9 @@ notes are that version's section, so they come from the bullets written during d
 # 1. Promote the changelog and bump the version, in one commit
 scripts/changelog.sh promote <version>   # renames "## Unreleased" to "## v<version>", starts a fresh Unreleased
 #    Sources/KinhinKit/Core/Version.swift   current = "<version>"
-#    git add CHANGELOG.md Sources/KinhinKit/Core/Version.swift && git commit -m "Release v<version>"
+scripts/docs-sync.sh                     # rewrites the README, roadmap and home banners from Version.swift
+#    git add CHANGELOG.md Sources/KinhinKit/Core/Version.swift README.md docs/beta-roadmap.md website/.vitepress/theme/HomeBanners.vue
+#    git commit -m "Release v<version>"
 
 # 2. Everything CI runs must be green
 scripts/check.sh
@@ -157,8 +159,11 @@ resumes an old submission.
 
 ## After the release
 
-- Add the tag to `website/versions.json` so the docs site snapshots it (see
-  [CONTRIBUTING.md](../CONTRIBUTING.md#docs-versions)).
+- **Required:** add the tag to `website/versions.json` so the docs site snapshots it (see
+  [CONTRIBUTING.md](../CONTRIBUTING.md#docs-versions)). Do it once the tag exists on GitHub.
+- The README banner, the roadmap's first sentence and the home banner title follow `Version.swift`: `scripts/docs-sync.sh --check`
+  (in `scripts/check.sh`, and in `scripts/release.sh`'s preflight) fails if they name another version. The beta-N links and the
+  "(current)" roadmap heading are still edited by hand in the release commit.
 - The in-app updater checks GitHub Releases at most once a day; a Developer ID build only accepts a
   DMG signed by **its own Team ID** and accepted by Gatekeeper ([Install](install.md)).
 - A beta (`-beta-N`) is published as the latest release, not a prerelease: GitHub's

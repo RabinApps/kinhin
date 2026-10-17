@@ -43,6 +43,9 @@ blocks=(
     "exit-codes|website/cli/commands.md"
     "cli-help|website/cli/commands.md"
     "maturity|docs/app.md"
+    "release-title|website/.vitepress/theme/HomeBanners.vue"
+    "release-banner|README.md"
+    "release-line|docs/beta-roadmap.md"
 )
 
 # MARK: - Generators
@@ -116,6 +119,38 @@ gen_maturity() {
     else
         echo "Every other forge and runtime, and Tart serving Linux VMs, is shown with an **untested** badge."
     fi
+}
+
+# The current release, from `Version.swift`: the same line release.sh checks against the tag. The
+# `release-*` blocks below all read it, so a banner cannot name a version the code does not have.
+current_version() {
+    local v
+    v=$(sed -n 's/.*current = "\(.*\)".*/\1/p' Sources/KinhinKit/Core/Version.swift)
+    [ -n "$v" ] || { echo "docs-sync: no version in Sources/KinhinKit/Core/Version.swift" >&2; return 1; }
+    echo "$v"
+}
+
+# The home page banner title, indented as it sits in HomeBanners.vue's template.
+gen_release-title() {
+    local v
+    v=$(current_version)
+    echo "      <p class=\"custom-block-title\">Beta (v$v)</p>"
+}
+
+# The README banner. Its forge list is hand-kept, as the home banner's is.
+gen_release-banner() {
+    local v
+    v=$(current_version)
+    echo "> **Beta (\`v$v\`).** Supported: GitHub, Gitea, Forgejo and GitLab CE. See"
+    echo "> [what has been tested](docs/forges.md#what-has-been-tested) and the [roadmap](docs/beta-roadmap.md), and"
+    echo "> [report what you find](https://github.com/RabinApps/kinhin/issues/new/choose). No telemetry."
+}
+
+# The roadmap's opening sentence, on its own line so the rest of the paragraph stays hand-written.
+gen_release-line() {
+    local v
+    v=$(current_version)
+    echo "kinhin is in beta (\`v$v\`)."
 }
 
 # MARK: - Block replacement
