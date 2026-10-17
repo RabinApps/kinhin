@@ -13,7 +13,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Fleet state, polling, pending actions and config push (see AppState/).
     let fleet = FleetController()
-    /// Update-check and download state.
+    /// Self-update state (Sparkle checks, prompts and installs).
     let updates = UpdateController()
 
     /// Tracks the main window's visibility so the activation policy can be
@@ -57,8 +57,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Check whether a LaunchAgent plist exists but points at a binary
         // that no longer exists (app removed without `kinhin daemon uninstall`).
         Task { @MainActor in fleet.detectStaleDaemonPlist() }
-        // Once per day (or on first launch), at most; then hourly.
+        // Sparkle's background checks (once a day, per SUScheduledCheckInterval).
         updates.startScheduledChecks()
+        // An upgrade leaves the previous build's daemon running in memory; restart it onto this build.
+        Task { @MainActor in
+            do {
+                try await Daemon.restartIfStale()
+            } catch {
+                Log.warn("app", "could not restart the daemon for this build: \(error.localizedDescription)")
+            }
+        }
         observeControllers()
         // Launch-mode surface selection: the main window opens unless the user
         // chose menu-bar-only or onboarding already took the stage (the
@@ -73,7 +81,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// VMs down) before the process exits; a daemon owns its own fleet, so
     /// there is nothing to wait for.
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        updates.cancelAll()
         guard fleet.engine != nil else {
             fleet.stopPolling()
             return .terminateNow
@@ -266,7 +273,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         _ = fleet.pendingFleetAction
         _ = fleet.unreachableReason
         _ = fleet.problems
-        _ = updates.pendingUpdate
+        _ = updates.pendingVersion
         _ = updates.updateCardState
         renderFleetState()
         refreshUpdateItems()

@@ -4,6 +4,16 @@
 
 <!-- changelog: entries for the next release go here -->
 
+**Changed**
+
+- The in-app updater now installs updates itself. It uses [Sparkle](https://sparkle-project.org): kinhin downloads the new release, checks its EdDSA signature, replaces the running app and relaunches. Before, it only opened the DMG for a manual drag into Applications. See [Updates and installs](docs/install.md#how-updates-and-installs-are-verified).
+- Update checks run once a day through Sparkle, and the hourly check is gone. Settings → App shows **Install Update…** when a release is waiting.
+- After an upgrade, the app restarts a daemon that is still running the previous build, so the daemon runs the new binary. This interrupts any jobs that daemon is running.
+
+**Upgrading**
+
+- Builds before this release still open the DMG, so update once by hand. Updates after that install automatically.
+
 ## v0.0.1-beta-2
 
 **Added**

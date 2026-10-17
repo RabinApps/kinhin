@@ -966,15 +966,6 @@
     "Download %@" : {
       "comment" : "Button in MissingBrewSheet"
     },
-    "Download…" : {
-      "comment" : "Settings → App button"
-    },
-    "Downloaded the update but couldn't open it — find it at %@" : {
-      "comment" : "Update card error; %@ is a file path"
-    },
-    "Downloading %@…" : {
-      "comment" : "Settings → App update status; %@ is the DMG file name"
-    },
     "e.g. debian:12 or ghcr.io/org/image:tag" : {
       "comment" : "TextField in BaseImagePicker"
     },
@@ -1221,6 +1212,9 @@
     "Image disk usage" : {
       "comment" : "Diagnostics row title"
     },
+    "Image pull and clean and cached video builds in a container" : {
+      "comment" : "Benchmark suite description"
+    },
     "Image:  still being prepared (about %lld GB). It keeps going in the background; macOS jobs start once it finishes." : {
       "comment" : "Setup wizard summary line; the number is the image size in GB"
     },
@@ -1263,8 +1257,8 @@
     "Install method" : {
       "comment" : ".accessibilityLabel in InstallConfirmationSheet"
     },
-    "Image pull and clean and cached video builds in a container" : {
-      "comment" : "Benchmark suite description"
+    "Install Update…" : {
+      "comment" : "Settings → App button"
     },
     "Install, verify and build with every catalog toolchain" : {
       "comment" : "Benchmark suite description"

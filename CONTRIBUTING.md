@@ -76,7 +76,7 @@ Run `scripts/tsan.sh` when touching shared state, actors/locks, or anything `non
 The script is `swift test --sanitize thread` (debug, ~5–10 min) and never `--parallel`:
 
 - **Serial only.** Under TSan, `--parallel` makes the worker bundles collide on the tests' fixed
-  temp paths (e.g. `UpdateCheckTests`' version-named DMG in a shared temp dir): suites fail at
+  temp paths (e.g. two suites writing the same file in a shared temp dir): suites fail at
   random, and the default target can exit 0 while other bundles are still mid-run. Serial is the
   only stable mode.
 - **Exit code ≠ test result.** TSan aborts the run at exit the moment it holds a report, so a
@@ -204,7 +204,7 @@ generates `kinhin help`, each `kinhin <command> --help` page and the skills-lint
     `BitbucketError` for each forge's non-HTTP problems (bad instance URL or scope, missing token scopes, unknown pool).
   - Fleet: `EngineError` (also the app's fleet-access errors), `RPCError`, `Daemon.DaemonError` (nested in `Daemon`,
     declared in `Daemon+Error.swift`), `BenchmarkError`.
-  - Core: `ShellError`, `KeychainTokenStore.TokenError` (`Core/TokenStore.swift`), `UpdateCheckError`.
+  - Core: `ShellError`, `KeychainTokenStore.TokenError` (`Core/TokenStore.swift`).
   - Workflows: `WorkflowError`, `WorkflowRouteEditor.EditError`.
   - Video and mobile: `VideoError`, `MusicError`, `MobileScaffoldError`.
   - CLI (`Sources/kinhin`): `CLIError` (a failure with its exit code); the usage and route errors

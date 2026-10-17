@@ -353,10 +353,6 @@ final class AppSectionModel {
             return String(
                 localized: "Update available — kinhin \(newVersion) (you have \(current)).", bundle: .l10n,
                 comment: "Settings → App update status; the new version, then the installed one")
-        case .downloading(let name):
-            return String(
-                localized: "Downloading \(name)…", bundle: .l10n,
-                comment: "Settings → App update status; %@ is the DMG file name")
         case .failed(let message):
             return String(
                 localized: "Update check failed: \(message)", bundle: .l10n,
@@ -364,21 +360,19 @@ final class AppSectionModel {
         }
     }
 
-    /// The card's button: download when a release is waiting, else check.
-    func updateButtonClicked() { updates.checkOrDownload() }
+    /// The card's button: opens Sparkle's check, which offers the install when a release is waiting.
+    func updateButtonClicked() { updates.checkForUpdates() }
 
     var updateButtonTitle: String {
         if case .available = updateState {
-            return String(localized: "Download…", bundle: .l10n, comment: "Settings → App button")
+            return String(localized: "Install Update…", bundle: .l10n, comment: "Settings → App button")
         }
         return String(localized: "Check for Updates…", bundle: .l10n, comment: "Settings → App button")
     }
 
     var updateButtonEnabled: Bool {
-        switch updateState {
-        case .checking, .downloading: return false
-        default: return true
-        }
+        if case .checking = updateState { return false }
+        return true
     }
 
     /// The localized date of the last check, or nil when there was none yet.

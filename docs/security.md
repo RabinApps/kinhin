@@ -32,7 +32,7 @@ requests off kinhin matters more than any setting below.
 - **Config values can't inject shell.** Toolchain entries are limited to a strict character set and quoted again where they enter a script.
 - **The daemon socket and local files are private.** The socket is `0600` in a `0700` directory and only your user can connect. The support directory, logs and state are owner-only.
 - **Host mode is repo-scoped.** A config with a `runtime: host` route is refused unless every account is scoped to a single repository (`owner/name`).
-- **Updates are verified.** The updater requires the same Developer ID signer as the running app and a Gatekeeper check; see [Updates and installs](install.md#how-updates-and-installs-are-verified).
+- **Updates are verified.** The updater (Sparkle) installs only archives signed with the release's EdDSA key, and a Developer ID build also needs a Gatekeeper-accepted signature; see [Updates and installs](install.md#how-updates-and-installs-are-verified).
 - **The shared cache is pruned safely.** A symlink planted by a job can't redirect a delete outside the cache.
 
 ## Per-project toolchains
