@@ -4,6 +4,10 @@
 
 <!-- changelog: entries for the next release go here -->
 
+**Fixed**
+
+- A restart with an unreadable `fleet.json` no longer registers a VM again while its runner is still on the forge, which could fail a job running on it. A runner the forge still has is watched; a VM the forge cannot be asked about is held, shown by an `adoption` alert, until the forge answers. See [docs/scaling.md](docs/scaling.md#restarts).
+
 ## v0.0.1-beta-2
 
 **Added**
