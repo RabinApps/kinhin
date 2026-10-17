@@ -87,11 +87,19 @@ final class CascadingHealingAdvisorTests: XCTestCase {
     }
 
     func testASystemOneFailureGoesToTheLLM() async throws {
-        let fast = ScriptedAdvisor(name: "fast", available: false, outcome: .failure)
+        let fast = ScriptedAdvisor(name: "fast", available: true, outcome: .failure)
         let llm = ScriptedAdvisor(name: "llm", available: true, outcome: .answer(llmAnswer))
         let advice = try await CascadingHealingAdvisor(fast: fast, llm: llm).advise(OllamaTestSupport.request)
         XCTAssertEqual(advice?.model, "my-llm")
         XCTAssertEqual(fast.askedCount, 1)
+    }
+
+    func testAnUnavailableSystemOneIsNotAsked() async throws {
+        let fast = ScriptedAdvisor(name: "fast", available: false, outcome: .answer(confident("prune_images")))
+        let llm = ScriptedAdvisor(name: "llm", available: true, outcome: .answer(llmAnswer))
+        let advice = try await CascadingHealingAdvisor(fast: fast, llm: llm).advise(OllamaTestSupport.request)
+        XCTAssertEqual(advice?.model, "my-llm")
+        XCTAssertEqual(fast.askedCount, 0)
     }
 
     func testAnUnavailableLLMIsNotAsked() async throws {

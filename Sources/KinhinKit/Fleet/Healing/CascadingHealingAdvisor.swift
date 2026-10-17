@@ -7,7 +7,8 @@ import Synchronization
 struct CascadingHealingAdvisor: HealingAdvisor {
     let fast: any HealingAdvisor
     let llm: any HealingAdvisor
-    let llmReady = LLMReadiness()
+    let fastReady = TierReadiness()
+    let llmReady = TierReadiness()
 
     /// The LLM's name: the snapshot shows the model the user chose as the advisor.
     var name: String { llm.name }
@@ -17,12 +18,13 @@ struct CascadingHealingAdvisor: HealingAdvisor {
         return await llm.isAvailable()
     }
 
-    /// System 1 is asked directly: a tier that is down fails its request, which
-    /// is logged and treated as no answer. The LLM is asked only when its
-    /// readiness (cached for `LLMReadiness.recheck`) says it can answer, so an
-    /// unpulled model is not asked on every escalation.
+    /// Each tier is asked only when its readiness (cached in `TierReadiness`) says
+    /// it can answer, so an unpulled model is not asked on every escalation.
     func advise(_ request: HealingAdviceRequest) async throws -> HealingAdvice? {
-        let first = try await answer(from: fast, request)
+        var first: HealingAdvice?
+        if await fastReady.isReady(now: Date(), probe: { await fast.isAvailable() }) {
+            first = try await answer(from: fast, request)
+        }
         if let first, first.confident, first.remediation != nil { return first }
         // The LLM gives the final answer; if it has none, System 1's stands
         // (a doubtful pick is still only surfaced by the agent).
@@ -46,15 +48,19 @@ struct CascadingHealingAdvisor: HealingAdvisor {
     }
 }
 
-/// The LLM tier's last readiness answer, reused for `recheck` seconds. A cancelled
-/// probe is not cached (it says nothing about the model).
-final class LLMReadiness: Sendable {
+/// One tier's last readiness answer. A ready answer is reused for `recheck`
+/// seconds; a not-ready answer only for `notReadyRecheck`, so a model pulled
+/// after a failed check is picked up soon. A cancelled probe is not cached
+/// (it says nothing about the model).
+final class TierReadiness: Sendable {
     static let recheck: TimeInterval = 600
+    static let notReadyRecheck: TimeInterval = 60
     private let last = Mutex<(answer: Bool, at: Date)?>(nil)
 
     func isReady(now: Date, probe: () async -> Bool) async -> Bool {
-        if let cached = last.withLock({ $0 }), abs(now.timeIntervalSince(cached.at)) < Self.recheck {
-            return cached.answer
+        if let cached = last.withLock({ $0 }) {
+            let ttl = cached.answer ? Self.recheck : Self.notReadyRecheck
+            if abs(now.timeIntervalSince(cached.at)) < ttl { return cached.answer }
         }
         let answer = await probe()
         guard !Task.isCancelled else { return answer }

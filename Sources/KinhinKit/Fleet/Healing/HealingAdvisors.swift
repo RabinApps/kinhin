@@ -41,9 +41,9 @@ enum HealingAdvisors {
 
     /// The LLM alone, or the cascade when a System 1 model is configured.
     static func ollamaAdvisor(_ config: KinhinConfig.HealingConfig.OllamaConfig) -> any HealingAdvisor {
-        let llm = OllamaHealingAdvisor(host: config.host, model: config.model)
+        let llm = OllamaHealingAdvisor(host: config.host, model: config.model, keepAlive: config.keepAlive)
         guard let fastModel = config.fastModel else { return llm }
-        let fast = OllamaDecisionAdvisor(host: config.host, model: fastModel)
+        let fast = OllamaDecisionAdvisor(host: config.host, model: fastModel, keepAlive: config.keepAlive)
         return CascadingHealingAdvisor(fast: fast, llm: llm)
     }
 

@@ -7,11 +7,14 @@ struct OllamaTier: Sendable {
     let model: String
     /// The oldest Ollama version the model's endpoint works on.
     let minimumVersion: String
+    /// Sent with each request: how long the model stays loaded afterwards.
+    let keepAlive: String
 
-    init(host: URL, model: String, minimumVersion: String, session: URLSession) {
+    init(host: URL, model: String, minimumVersion: String, keepAlive: String, session: URLSession) {
         self.client = OllamaClient(host: host, session: session)
         self.model = model
         self.minimumVersion = minimumVersion
+        self.keepAlive = keepAlive
     }
 
     var name: String { "ollama:\(model)" }

@@ -14,10 +14,8 @@ struct OllamaClient: Sendable {
     /// Seconds for the availability probes, which must answer quickly.
     static let probeTimeout: TimeInterval = 10
 
-    /// How long Ollama keeps a model loaded after a request. A 9B decision model
-    /// cold-loads in about 12.7 s on the reference Mac, so a longer keep-alive
-    /// trades memory (about 12 GB while loaded) for fewer reloads.
-    static let keepAlive = "30m"
+    /// The default `keep_alive` (see `healing.ollama.keep_alive`).
+    static let keepAlive = KinhinConfig.HealingConfig.OllamaConfig.defaultKeepAlive
 
     init(host: URL, session: URLSession = OllamaClient.defaultSession) {
         self.host = host

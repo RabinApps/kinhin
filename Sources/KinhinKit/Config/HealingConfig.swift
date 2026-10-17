@@ -29,12 +29,22 @@ extension KinhinConfig {
             public var model: String
             /// The System 1 decision model, asked first. Nil: the LLM alone.
             public var fastModel: String?
+            /// How long Ollama keeps the models loaded after a request: a duration
+            /// such as `30m`, or `0` to unload at once. Longer means fewer cold loads
+            /// and more memory held (about 12 GB for a 9B model while loaded).
+            public var keepAlive: String
 
-            public init(host: URL = OllamaConfig.defaultHost, model: String, fastModel: String? = nil) {
+            public init(
+                host: URL = OllamaConfig.defaultHost, model: String, fastModel: String? = nil,
+                keepAlive: String = OllamaConfig.defaultKeepAlive
+            ) {
                 self.host = host
                 self.model = model
                 self.fastModel = fastModel
+                self.keepAlive = keepAlive
             }
+
+            public static let defaultKeepAlive = "30m"
 
             /// Ollama's default address on this Mac.
             public static let defaultHost: URL = {

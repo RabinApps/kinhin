@@ -128,7 +128,7 @@ only its schema and session code. Its tests move to the new location.
 **3. Ollama advisors.** New `Sources/KinhinKit/Fleet/Healing/OllamaHealingAdvisor.swift`. Two wire formats, one per tier:
 - LLM tier: `OllamaHealingAdvisor` posts to `/api/chat` with a JSON-schema `format`.
 - System 1 tier: `OllamaDecisionAdvisor` posts to `/v1/systemone` with one `choice` question (section above). Both have
-  `host`, `model`, an injectable `URLSession`, and a `timeout` (System 1: 20 s; LLM: 60 s, because a local model may
+  `host`, `model`, an injectable `URLSession`, and a `timeout` (both tiers: 60 s, because a local model may
   cold-start). `name` is `"ollama:<model>"`.
 - A version check: `GET {host}/api/version` must report 0.40.4 or later for `nimble-v3`, and 0.35.1 or later for
   `clef-flash`. An older server is "not available" with a reason, not a crash.
@@ -224,7 +224,7 @@ the allowlist.
 - The https-for-remote-hosts guard is mine, not in your answers. Say if you want plain http for remote hosts too.
 - Apple Intelligence is not in the cascade. It could be the System 1 tier instead of a decision model, if you want
   that option later.
-- The 20 s and 60 s timeouts are constants, not config keys.
+- The 60 s timeouts are constants, not config keys.
 - Is kinhin used commercially? That decides whether `nimble-v3` (CC BY-NC) can be the default System 1 model. The
   examples use `clef-flash` and `nimble`; check the `nimble` license on its library page before choosing it.
 - System 1 is a 9B decision model here, not a small chat model. Both System 1 candidates need about 6–12 GB of memory

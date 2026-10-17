@@ -13,8 +13,12 @@ struct OllamaHealingAdvisor: HealingAdvisor {
     /// Structured `format` needs Ollama 0.5 or later.
     static let minimumVersion = "0.5.0"
 
-    init(host: URL, model: String, session: URLSession = OllamaClient.defaultSession) {
-        self.tier = OllamaTier(host: host, model: model, minimumVersion: Self.minimumVersion, session: session)
+    init(
+        host: URL, model: String, keepAlive: String = OllamaClient.keepAlive,
+        session: URLSession = OllamaClient.defaultSession
+    ) {
+        self.tier = OllamaTier(
+            host: host, model: model, minimumVersion: Self.minimumVersion, keepAlive: keepAlive, session: session)
     }
 
     var name: String { tier.name }
@@ -39,7 +43,7 @@ struct OllamaHealingAdvisor: HealingAdvisor {
         let body: [String: Any] = [
             "model": tier.model,
             "stream": false,
-            "keep_alive": OllamaClient.keepAlive,
+            "keep_alive": tier.keepAlive,
             "messages": messages,
             "format": Self.schema(kinds: request.candidates.map(\.kind.rawValue)),
             "options": options,

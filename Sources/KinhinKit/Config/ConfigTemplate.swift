@@ -156,6 +156,7 @@ extension ConfigLoader {
         #     host: http://127.0.0.1:11434   # https required for any host other than this Mac
         #     model: my-llm          # the LLM, asked when the fast model is unsure or picks nothing
         #     fast_model: clef-flash # optional System 1 decision model, asked first
+        #     keep_alive: 30m        # how long Ollama keeps the models loaded (0 = unload at once)
 
         # Optional: serve more forges from the same fleet. Every accounts:
         # entry above is one forge; VMs are assigned to whichever forge has

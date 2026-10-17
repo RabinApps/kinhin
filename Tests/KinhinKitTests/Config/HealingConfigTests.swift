@@ -77,6 +77,18 @@ final class HealingConfigTests: XCTestCase {
         XCTAssertEqual(config.healing.ollama?.model, "my-llm")
     }
 
+    func testKeepAliveDefaultsToThirtyMinutesAndParses() throws {
+        XCTAssertEqual(try ConfigLoader.parse(ollama("    model: my-llm\n")).healing.ollama?.keepAlive, "30m")
+        let config = try ConfigLoader.parse(ollama("    model: my-llm\n    keep_alive: 0\n"))
+        XCTAssertEqual(config.healing.ollama?.keepAlive, "0")
+    }
+
+    func testAnEmptyKeepAliveIsRejectedByName() {
+        XCTAssertThrowsError(try ConfigLoader.parse(ollama("    model: my-llm\n    keep_alive: ''\n"))) { error in
+            XCTAssertTrue("\(error.localizedDescription)".contains("healing.ollama.keep_alive"))
+        }
+    }
+
     func testAHostOnThisMacMayBePlainHTTPAndAnotherHostMustBeHTTPS() throws {
         let local = try ConfigLoader.parse(ollama("    model: m\n    host: http://localhost:11434\n"))
         XCTAssertEqual(local.healing.ollama?.host.absoluteString, "http://localhost:11434")

@@ -213,7 +213,14 @@ extension ConfigLoader {
         if fast == model {
             throw ConfigError.invalid("healing.ollama.fast_model must be a different model from healing.ollama.model")
         }
-        return KinhinConfig.HealingConfig.OllamaConfig(host: host, model: model, fastModel: fast)
+        let keepAlive =
+            partial.keepAlive?.trimmingCharacters(in: .whitespaces)
+            ?? KinhinConfig.HealingConfig.OllamaConfig.defaultKeepAlive
+        if keepAlive.isEmpty {
+            throw ConfigError.invalid("healing.ollama.keep_alive is empty; use a duration such as 30m, or 0")
+        }
+        return KinhinConfig.HealingConfig.OllamaConfig(
+            host: host, model: model, fastModel: fast, keepAlive: keepAlive)
     }
 
     /// Removed keys: decoded only so they can be rejected with a pointer to

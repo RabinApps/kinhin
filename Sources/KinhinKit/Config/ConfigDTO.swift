@@ -180,10 +180,12 @@ public struct PartialConfig: Decodable {
             var host: String?
             var model: String?
             var fastModel: String?
+            var keepAlive: String?
 
             enum CodingKeys: String, CodingKey, CaseIterable {
                 case host, model
                 case fastModel = "fast_model"
+                case keepAlive = "keep_alive"
             }
         }
     }

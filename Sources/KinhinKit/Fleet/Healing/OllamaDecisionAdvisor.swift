@@ -18,9 +18,13 @@ struct OllamaDecisionAdvisor: HealingAdvisor {
     /// The endpoint takes 2 to 26 options per question.
     static let maxOptions = 26
 
-    init(host: URL, model: String, session: URLSession = OllamaClient.defaultSession) {
+    init(
+        host: URL, model: String, keepAlive: String = OllamaClient.keepAlive,
+        session: URLSession = OllamaClient.defaultSession
+    ) {
         self.tier = OllamaTier(
-            host: host, model: model, minimumVersion: Self.minimumVersion(for: model), session: session)
+            host: host, model: model, minimumVersion: Self.minimumVersion(for: model), keepAlive: keepAlive,
+            session: session)
     }
 
     var name: String { tier.name }
@@ -50,7 +54,7 @@ struct OllamaDecisionAdvisor: HealingAdvisor {
             "model": tier.model,
             "state": DecisionPrompt.state(for: request, budget: budget),
             "questions": ["fix": question],
-            "keep_alive": OllamaClient.keepAlive,
+            "keep_alive": tier.keepAlive,
         ]
         let data = try OllamaClient.encode(body)
         let client = tier.client

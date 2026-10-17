@@ -87,10 +87,11 @@ extension HealingAgent {
 
     func advisorIsAvailable(now: Date) async -> Bool {
         guard policy.ai != .off else { return false }
-        if let cached = state.withLock({ $0.advisorAvailable }),
-            abs(now.timeIntervalSince(cached.at)) < timings.advisorRecheck
-        {
-            return cached.answer
+        // A "not ready" answer is rechecked sooner, so a model pulled meanwhile is picked up.
+        if let cached = state.withLock({ $0.advisorAvailable }) {
+            let ttl =
+                cached.answer ? timings.advisorRecheck : min(timings.advisorRecheck, TierReadiness.notReadyRecheck)
+            if abs(now.timeIntervalSince(cached.at)) < ttl { return cached.answer }
         }
         let answer = await advisor.isAvailable()
         // A cancelled probe says nothing about the model, so it is not cached.
