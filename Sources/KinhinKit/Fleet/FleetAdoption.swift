@@ -46,7 +46,8 @@ extension FleetEngine {
         watched.phase = busy ? .busy : .ready
         let phase = watched.phase
         updateRecord(id) { $0.phase = phase }
-        Log.info(id, "runner already registered on \(forge.name) (\(busy ? "busy" : "idle")): watching it, not registering")
+        let state = busy ? "busy" : "idle"
+        Log.info(id, "runner already registered on \(forge.name) (\(state)): watching it, not registering")
         resumeLifecycle(for: watched)
     }
 

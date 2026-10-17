@@ -159,7 +159,9 @@ final class FleetRecoveryTests: XCTestCase {
     // MARK: - Adoption: the forge decides whether a live VM is registered again
 
     /// A tart-only engine over `store` (a corrupt fleet.json leaves it empty) with `github` as its forge.
-    private func makeAdoptingEngine(store: FleetStore, github: FakeGitHub, tart: FakeTart, ssh: FakeSSH) -> FleetEngine {
+    private func makeAdoptingEngine(
+        store: FleetStore, github: FakeGitHub, tart: FakeTart, ssh: FakeSSH
+    ) -> FleetEngine {
         var config = makeTestConfig()
         config.vm.ephemeral = true
         return FleetEngine(
