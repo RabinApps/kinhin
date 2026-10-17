@@ -87,12 +87,13 @@ extension FleetEngine {
         store.replaceAll(kept)
 
         // Adopted/booted instances re-enter lifecycle through the forge's word on their runner (see
-        // `resumeAdopted`); those mid-delete get cleaned.
+        // `resumeAdopted`); those mid-delete get cleaned. Each forge is asked once for the whole set.
+        let listings = await adoptionListings(for: kept)
         for record in kept {
             if record.phase == .deleting {
                 await deleteVMRecord(id: record.id, reason: "cleanup after restart")
             } else {
-                await resumeAdopted(record)
+                await resumeAdopted(record, listings: listings)
             }
         }
     }

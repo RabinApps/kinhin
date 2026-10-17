@@ -98,6 +98,56 @@ final class UnlistedRunnerWatchTests: XCTestCase {
         !engine.store.all.contains { $0.id == id }
     }
 
+    // MARK: - Restart recovery on a server with no runner list
+
+    /// An engine whose `github` account is the listless server, with the recovered VMs on `tart`.
+    private func makeRecoveryEngine(tart: FakeTart) -> FleetEngine {
+        var config = makeTestConfig()
+        config.vm.ephemeral = true
+        let engine = FleetEngine(
+            config: config, github: FakeGitHub(), tart: tart, store: makeTestStore(), ssh: FakeSSH(),
+            host: testHost,
+            dependencies: .init(
+                tokenLoader: { _, _ in "t" }, exitWatchInterval: .milliseconds(20),
+                watchdog: Watchdog(livenessInterval: .seconds(3600))))
+        engine.forgeState.withLock { $0.byPlatform["github"] = makeForge() }
+        return engine
+    }
+
+    /// Nothing is running in the scope, so a VM whose registration never completed cannot be disrupted by registering
+    /// it. It must not be adopted as ready (it would wait forever for a runner that never registers).
+    func testRecoveredVMIsRegisteredWhenNothingRunsOnAListlessServer() async throws {
+        server.state.withLock { $0.tasks = ["success"] }
+        let tart = FakeTart()
+        tart.vms["kinhin-rc1"] = TartVM(name: "kinhin-rc1", source: "base", status: "running")
+        let engine = makeRecoveryEngine(tart: tart)
+
+        await engine.recoverIfNeeded()
+        try await Task.sleep(for: .milliseconds(300))
+
+        XCTAssertGreaterThan(server.state.withLock { $0.taskRequests }, 0, "the scope's activity was asked")
+        let phase = engine.store.all.first { $0.id == "kinhin-rc1" }?.phase
+        XCTAssertNotEqual(phase, .ready, "an unregistered VM is registered, not adopted as ready")
+        XCTAssertNotEqual(phase, .busy, "an unregistered VM is registered, not adopted as busy")
+        await engine.detachKeepingInstances()
+    }
+
+    /// A job is running in the scope, so this VM's runner cannot be told from the others: it is watched as busy, and
+    /// nothing is registered over the running job.
+    func testRecoveredVMIsWatchedBusyWhileAJobRunsOnAListlessServer() async throws {
+        server.state.withLock { $0.tasks = ["running"] }
+        let tart = FakeTart()
+        tart.vms["kinhin-rc2"] = TartVM(name: "kinhin-rc2", source: "base", status: "running")
+        let engine = makeRecoveryEngine(tart: tart)
+
+        await engine.recoverIfNeeded()
+        try await Task.sleep(for: .milliseconds(300))
+
+        XCTAssertEqual(engine.store.all.first { $0.id == "kinhin-rc2" }?.phase, .busy)
+        XCTAssertEqual(tart.deleteCalls, [], "a VM with a job running in its scope is not removed")
+        await engine.detachKeepingInstances()
+    }
+
     // MARK: - No runner list
 
     /// A job running in the scope keeps the instance, however long it takes; once it has finished and the grace
