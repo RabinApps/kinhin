@@ -39,6 +39,7 @@ struct OllamaHealingAdvisor: HealingAdvisor {
         let body: [String: Any] = [
             "model": tier.model,
             "stream": false,
+            "keep_alive": OllamaClient.keepAlive,
             "messages": messages,
             "format": Self.schema(kinds: request.candidates.map(\.kind.rawValue)),
             "options": options,

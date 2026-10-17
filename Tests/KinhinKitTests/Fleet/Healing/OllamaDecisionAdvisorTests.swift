@@ -38,6 +38,7 @@ final class OllamaDecisionAdvisorTests: XCTestCase {
         _ = try await advisor().advise(OllamaTestSupport.request)
         let body = try XCTUnwrap(log.last)
         XCTAssertEqual(body["model"] as? String, "clef-flash")
+        XCTAssertEqual(body["keep_alive"] as? String, "30m")
         let questions = try XCTUnwrap(body["questions"] as? [String: Any])
         let fix = try XCTUnwrap(questions["fix"] as? [String: Any])
         XCTAssertEqual(fix["type"] as? String, "choice")

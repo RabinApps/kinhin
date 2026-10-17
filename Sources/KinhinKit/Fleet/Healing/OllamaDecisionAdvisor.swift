@@ -50,6 +50,7 @@ struct OllamaDecisionAdvisor: HealingAdvisor {
             "model": tier.model,
             "state": DecisionPrompt.state(for: request, budget: budget),
             "questions": ["fix": question],
+            "keep_alive": OllamaClient.keepAlive,
         ]
         let data = try OllamaClient.encode(body)
         let client = tier.client

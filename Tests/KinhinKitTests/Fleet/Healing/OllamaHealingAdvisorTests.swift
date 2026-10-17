@@ -34,6 +34,7 @@ final class OllamaHealingAdvisorTests: XCTestCase {
         let body = try XCTUnwrap(log.last)
         XCTAssertEqual(body["model"] as? String, "my-llm")
         XCTAssertEqual(body["stream"] as? Bool, false)
+        XCTAssertEqual(body["keep_alive"] as? String, "30m")
         let format = try XCTUnwrap(body["format"] as? [String: Any])
         let properties = try XCTUnwrap(format["properties"] as? [String: Any])
         let remediation = try XCTUnwrap(properties["remediation"] as? [String: Any])
