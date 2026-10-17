@@ -101,11 +101,11 @@ final class UnlistedRunnerWatchTests: XCTestCase {
     // MARK: - Restart recovery on a server with no runner list
 
     /// An engine whose `github` account is the listless server, with the recovered VMs on `tart`.
-    private func makeRecoveryEngine(tart: FakeTart) -> FleetEngine {
+    private func makeRecoveryEngine(tart: FakeTart, ssh: FakeSSH) -> FleetEngine {
         var config = makeTestConfig()
         config.vm.ephemeral = true
         let engine = FleetEngine(
-            config: config, github: FakeGitHub(), tart: tart, store: makeTestStore(), ssh: FakeSSH(),
+            config: config, github: FakeGitHub(), tart: tart, store: makeTestStore(), ssh: ssh,
             host: testHost,
             dependencies: .init(
                 tokenLoader: { _, _ in "t" }, exitWatchInterval: .milliseconds(20),
@@ -120,15 +120,16 @@ final class UnlistedRunnerWatchTests: XCTestCase {
         server.state.withLock { $0.tasks = ["success"] }
         let tart = FakeTart()
         tart.vms["kinhin-rc1"] = TartVM(name: "kinhin-rc1", source: "base", status: "running")
-        let engine = makeRecoveryEngine(tart: tart)
+        let ssh = FakeSSH()
+        let engine = makeRecoveryEngine(tart: tart, ssh: ssh)
 
         await engine.recoverIfNeeded()
-        try await Task.sleep(for: .milliseconds(300))
 
         XCTAssertGreaterThan(server.state.withLock { $0.taskRequests }, 0, "the scope's activity was asked")
-        let phase = engine.store.all.first { $0.id == "kinhin-rc1" }?.phase
-        XCTAssertNotEqual(phase, .ready, "an unregistered VM is registered, not adopted as ready")
-        XCTAssertNotEqual(phase, .busy, "an unregistered VM is registered, not adopted as busy")
+        try await waitUntil(timeout: 5) { !ssh.scripts.isEmpty }
+        XCTAssertNotEqual(
+            engine.store.all.first { $0.id == "kinhin-rc1" }?.phase, .busy,
+            "an unregistered VM is registered, not adopted as busy")
         await engine.detachKeepingInstances()
     }
 
@@ -138,7 +139,7 @@ final class UnlistedRunnerWatchTests: XCTestCase {
         server.state.withLock { $0.tasks = ["running"] }
         let tart = FakeTart()
         tart.vms["kinhin-rc2"] = TartVM(name: "kinhin-rc2", source: "base", status: "running")
-        let engine = makeRecoveryEngine(tart: tart)
+        let engine = makeRecoveryEngine(tart: tart, ssh: FakeSSH())
 
         await engine.recoverIfNeeded()
         try await Task.sleep(for: .milliseconds(300))

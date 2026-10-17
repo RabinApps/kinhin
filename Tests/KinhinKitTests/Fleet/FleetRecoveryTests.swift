@@ -275,16 +275,17 @@ final class FleetRecoveryTests: XCTestCase {
         var config = makeTestConfig()
         config.vm.ephemeral = true
         config.runnersPerVM = 2
+        let ssh = FakeSSH()
         let engine = FleetEngine(
-            config: config, github: github, tart: tart, store: store, ssh: FakeSSH(), host: host,
+            config: config, github: github, tart: tart, store: store, ssh: ssh, host: host,
             dependencies: .init(lifecycleDrainTimeout: .milliseconds(200)))
 
         await engine.recoverIfNeeded()
-        try await Task.sleep(for: .milliseconds(300))
 
-        let phase = store.all.first { $0.id == "kinhin-t1" }?.phase
-        XCTAssertNotEqual(phase, .ready, "a partly registered set is registered again, not watched as complete")
-        XCTAssertNotEqual(phase, .busy)
+        try await waitUntil(timeout: 5) { !ssh.scripts.isEmpty }
+        XCTAssertNotEqual(
+            store.all.first { $0.id == "kinhin-t1" }?.phase, .busy,
+            "a partly registered idle set is not watched as busy")
         await engine.detachKeepingInstances()
     }
 
