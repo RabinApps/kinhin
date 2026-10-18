@@ -53,7 +53,7 @@ export KINHIN_E2E=1
 export KINHIN_E2E_BIN="$PWD/.build/debug/kinhin"
 
 case "$tier" in
-  quick) filter=(--filter 'CLITests|SecurityTests|CoverageTests') ;;
+  quick) filter=(--filter 'CLITests|SecurityTests|CoverageTests|TartGuardTests') ;;
   local) filter=() ;;
   full)
     filter=()

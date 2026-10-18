@@ -24,11 +24,22 @@ public struct HealingAdvice: Sendable, Equatable {
     /// The advisor's own confidence. A doubtful pick is surfaced, never run.
     public let confident: Bool
     public let explanation: String
+    /// The model that answered, when the advisor runs more than one (the
+    /// Ollama cascade); nil means the advisor's own name.
+    public let model: String?
 
-    public init(remediation: String?, confident: Bool, explanation: String) {
+    /// True when `confident` is the model's own say-so rather than a measured
+    /// probability. Such a pick is never run without approval.
+    public let selfReported: Bool
+
+    public init(
+        remediation: String?, confident: Bool, explanation: String, model: String? = nil, selfReported: Bool = false
+    ) {
         self.remediation = remediation
         self.confident = confident
         self.explanation = explanation
+        self.model = model
+        self.selfReported = selfReported
     }
 }
 

@@ -43,14 +43,16 @@ extension HealingAgent {
             // The guardrail: only a candidate, by kind; its tier is the kind's.
             if let fix = candidates.first(where: { $0.kind.rawValue == pick }) {
                 if advice.confident {
+                    // A model's own confidence queues the fix for approval; it never runs it alone.
                     try await apply(
                         fix, for: signal, source: .advisor, explanation: advice.explanation, actions: actions,
-                        now: now)
+                        now: now, forceApproval: advice.selfReported)
                 } else {
                     record(
                         HealingEvent(
                             signal: signal, remediation: nil, source: .advisor, outcome: .surfaced,
-                            detail: "\(base) (\(advisor.name) suggests: \(fix.summary), but is not sure)",
+                            detail:
+                                "\(base) (\(advice.model ?? advisor.name) suggests: \(fix.summary), but is not sure)",
                             explanation: advice.explanation, at: now))
                 }
                 return
@@ -84,13 +86,16 @@ extension HealingAgent {
     }
 
     func advisorIsAvailable(now: Date) async -> Bool {
-        guard policy.ai == .auto else { return false }
-        if let cached = state.withLock({ $0.advisorAvailable }),
-            abs(now.timeIntervalSince(cached.at)) < timings.advisorRecheck
-        {
-            return cached.answer
+        guard policy.ai != .off else { return false }
+        // A "not ready" answer is rechecked sooner, so a model pulled meanwhile is picked up.
+        if let cached = state.withLock({ $0.advisorAvailable }) {
+            let ttl =
+                cached.answer ? timings.advisorRecheck : min(timings.advisorRecheck, TierReadiness.notReadyRecheck)
+            if abs(now.timeIntervalSince(cached.at)) < ttl { return cached.answer }
         }
         let answer = await advisor.isAvailable()
+        // A cancelled probe says nothing about the model, so it is not cached.
+        guard !Task.isCancelled else { return answer }
         state.withLock { $0.advisorAvailable = (answer, now) }
         return answer
     }

@@ -58,7 +58,8 @@ reasoning behind the pick rather than a second, separate answer.
 - RPC: `healing_status`, `healing_approve`, `healing_dismiss` (the last two are serialized with other fleet mutations).
 - MCP: `heal_status`, read-only.
 - App: the Healing card in Diagnostics (approve, dismiss, history), a notification when a fix succeeds.
-- Config: `healing: {enabled, auto: safe|none, ai: auto|off, max_attempts}`.
+- Config: `healing: {enabled, auto: safe|none, ai: auto|off|ollama, max_attempts, ollama: {model, fast_model, host}}`.
+  The Ollama advisor is a cascade (System 1 decision model, then the LLM); see [ollama-healing-advisor.md](ollama-healing-advisor.md).
 - Debug-only switches for the e2e suite: `KINHIN_HEALING_TIMINGS=fast`,
   `KINHIN_HEALING_ADVISOR=stub:<kind>|stub:invalid|stub:doubtful:<kind>`. Both are read under `#if DEBUG`; release
   builds never read them.

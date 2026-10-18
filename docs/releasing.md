@@ -61,7 +61,9 @@ notes are that version's section, so they come from the bullets written during d
 # 1. Promote the changelog and bump the version, in one commit
 scripts/changelog.sh promote <version>   # renames "## Unreleased" to "## v<version>", starts a fresh Unreleased
 #    Sources/KinhinKit/Core/Version.swift   current = "<version>"
-#    git add CHANGELOG.md Sources/KinhinKit/Core/Version.swift && git commit -m "Release v<version>"
+scripts/docs-sync.sh                     # rewrites the README, roadmap and home banners from Version.swift
+#    git add CHANGELOG.md Sources/KinhinKit/Core/Version.swift README.md docs/beta-roadmap.md website/.vitepress/theme/HomeBanners.vue
+#    git commit -m "Release v<version>"
 
 # 2. Everything CI runs must be green
 scripts/check.sh

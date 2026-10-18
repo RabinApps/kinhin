@@ -56,7 +56,12 @@ extension FleetEngine {
         let watchesExit =
             config.vm.ephemeral
             || { if case .jitConfig = forge.registration { return true } else { return false } }()
-        guard watchesExit else { return }
+        guard watchesExit else {
+            // A classic persistent runner is not tracked after registration, so nothing would ever move a busy
+            // phase back. Scale-down confirms idleness against the forge before it removes one, so `ready` is safe.
+            updateRecord(record.id) { $0.phase = .ready }
+            return
+        }
         let id = record.id
         Log.info(id, "resuming exit watch for \(record.phase.rawValue) instance")
         spawnLifecycleTask(id: id) { [weak self] in

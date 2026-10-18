@@ -256,6 +256,21 @@ final class HealingAgentTests: XCTestCase {
         XCTAssertEqual(advisor.requests.withLock { $0.first?.context }, "context for queue_unreadable:gitea")
     }
 
+    func testASelfReportedConfidentPickWaitsForApproval() async {
+        // An LLM's "confident" is its own say-so: an automatic fix is queued, never run.
+        let advisor = SpyAdvisor(
+            answer: HealingAdvice(
+                remediation: "retry_forge_attach", confident: true, explanation: "forge flapped",
+                model: "llama3.2", selfReported: true))
+        let actions = ScriptedActions([queue])
+        let agent = agent(advisor: advisor)
+        await agent.pass(actions: actions, now: start)
+
+        XCTAssertEqual(actions.performed, [])
+        XCTAssertEqual(events(agent).first?.outcome, .pending)
+        XCTAssertEqual(events(agent).first?.source, .advisor)
+    }
+
     func testAPickOutsideTheAllowlistIsIgnored() async {
         let advisor = SpyAdvisor(
             answer: HealingAdvice(remediation: "run_shell_command", confident: true, explanation: "x"))

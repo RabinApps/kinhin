@@ -94,11 +94,16 @@ stage "preflight"
 SOURCE_VERSION="$(sed -n 's/.*current = "\(.*\)".*/\1/p' Sources/KinhinKit/Core/Version.swift)"
 if [ "$SOURCE_VERSION" != "$VERSION" ]; then
     echo "FATAL: Version.swift says '$SOURCE_VERSION', you asked for '$VERSION'." >&2
-    echo "  Version.swift is the single source of the version; bump it (and the" >&2
-    echo "  CHANGELOG heading) in a commit first, then re-run this script." >&2
+    echo "  Version.swift is the single source of the version; bump it, run" >&2
+    echo "  scripts/docs-sync.sh (the site and README banners follow it), and add the" >&2
+    echo "  CHANGELOG heading, all in a commit first, then re-run this script." >&2
     exit 1
 fi
 echo "    version: $VERSION (Version.swift matches)"
+
+# The banners are generated from Version.swift (docs-sync). This runs even with --skip-checks, so a
+# release cannot ship a banner that names another version. It needs no Swift toolchain.
+bash scripts/docs-sync.sh --check
 
 if ! grep -qxF "## v$VERSION" CHANGELOG.md; then
     echo "FATAL: CHANGELOG.md has no '## v$VERSION' heading — add the release notes first." >&2
