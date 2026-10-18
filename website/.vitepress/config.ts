@@ -58,6 +58,8 @@ export default defineConfig({
     "website/guide/:page.md": "guide/:page.md",
     "website/cli/:page.md": "cli/:page.md",
     "website/blog/:page.md": "blog/:page.md",
+    // Search-intent pages publish at the site root, so each URL is the query it answers.
+    "website/search/:page.md": ":page.md",
     "docs/why.md": "guide/why-kinhin.md",
     "docs/forges/README.md": "guide/forges/index.md",
     "docs/forges/:page.md": "guide/forges/:page.md",
