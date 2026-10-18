@@ -7,6 +7,8 @@ verified.
 
 [← Back to mobile releases](mobile-fastlane.md) · [Tutorial](mobile-fastlane-tutorial.md) · [Troubleshooting](mobile-fastlane-troubleshooting.md)
 
+Short answers: [How to take App Store screenshots automatically](https://kinhin.dev/how-to-take-app-store-screenshots-automatically) · [Run them in CI](https://kinhin.dev/how-to-run-fastlane-screenshots-in-ci-on-a-mac) · [Localized screenshots](https://kinhin.dev/how-to-generate-localized-app-store-screenshots)
+
 ## What you get
 
 | Platform | Capture | Settings file | Where the test lives |

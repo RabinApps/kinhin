@@ -15,7 +15,7 @@ extension FleetEngine {
             store: FleetStore(),
             ssh: SSHExecutor(),
             host: ResourceProbe().snapshot(),
-            dependencies: .live
+            dependencies: .live(healing: config.healing)
         )
     }
 }

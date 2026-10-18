@@ -11,7 +11,7 @@ enum HealingDeadline {
         seconds: Double, _ operation: @escaping @Sendable () async throws -> T
     ) async throws -> T {
         let timeoutError = EngineError.healingFailed(
-            "the on-device model did not answer within \(Int(seconds))s")
+            "the model did not answer within \(Int(seconds))s")
         let tasks = Locked<[Task<Void, Never>]>([])
         defer { tasks.withLock { $0.forEach { $0.cancel() } } }
         return try await withTaskCancellationHandler {

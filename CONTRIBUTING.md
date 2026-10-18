@@ -314,7 +314,7 @@ User-visible changes go under `## Unreleased` in `CHANGELOG.md` in the same PR (
 
 ## Generated doc blocks
 
-Some docs are derived from code, so they are generated instead of hand-copied: the forge IDs (`docs/forges/README.md`), the daemon RPC methods (`docs/architecture.md`), and the CLI exit codes and `kinhin help` screen (`website/cli/commands.md`). Each sits between `<!-- docs-sync:begin NAME -->` and `<!-- docs-sync:end NAME -->` markers. Never edit between the markers; change the Swift source (`ForgeID`, `RPCMethod`, `CLIExit`, `CommandCatalog`; for the help screen also refresh `scripts/golden/cli-help.txt`, see "CLI commands"), then run:
+Some docs are derived from code, so they are generated instead of hand-copied: the forge IDs (`docs/forges/README.md`), the daemon RPC methods (`docs/architecture.md`), and the CLI exit codes and `kinhin help` screen (`website/cli/commands.md`), and the current release named in the README banner, the roadmap and the home banner (`website/.vitepress/theme/HomeBanners.vue`), which all follow `Version.swift`. Each sits between `<!-- docs-sync:begin NAME -->` and `<!-- docs-sync:end NAME -->` markers. Never edit between the markers; change the Swift source (`ForgeID`, `RPCMethod`, `CLIExit`, `CommandCatalog`, `Version.swift`; for the help screen also refresh `scripts/golden/cli-help.txt`, see "CLI commands"), then run:
 
 ```sh
 scripts/docs-sync.sh           # rewrite stale blocks in place
@@ -331,6 +331,7 @@ Running kinhin in your project or company? See [docs/used-by.md](docs/used-by.md
 ## Docs versions
 
 The site at `/` is built from `main`. A release is snapshotted under `/<tag>/` (with a version picker in the nav):
-after tagging a release, add its tag (for example `"v0.1.0"`) to the top of `website/versions.json` and push. The docs
+after tagging a release, add its tag (for example `"v0.1.0"`) to the top of `website/versions.json` and push. Only list a tag
+that exists: the docs workflow runs `git worktree add` on each listed tag and fails on a missing one. The docs
 workflow builds each listed tag from its own `docs/` and `website/` with `DOCS_VERSION=<tag>`, so a snapshot never
 changes when `main` does.

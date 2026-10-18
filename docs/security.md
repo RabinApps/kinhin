@@ -71,6 +71,9 @@ The [healing agent](healing.md) fixes fleet problems on its own, so its limits a
 - **On-device model.** The optional advisor is Apple Intelligence on this Mac (Foundation Models): no account, no
   network call. It sees the redacted problem, the allowed fixes and a few dozen redacted log lines, and kinhin checks its pick
   again before acting.
+- **Ollama advisor.** With `healing.ai: ollama`, the same redacted problem and log lines go to the Ollama server named by
+  `healing.ollama.host`. On this Mac (`localhost`, `127.0.0.1`, `::1`) nothing leaves the machine. Any other host must be
+  `https`, and it then receives those lines. Only point `host` at a server you trust with your fleet's logs.
 - **Test switches stay out of releases.** `KINHIN_HEALING_TIMINGS` and `KINHIN_HEALING_ADVISOR`, which the e2e suite
   uses to speed the agent up and fix the advisor's answer, are read only by debug builds; release builds never read
   them.

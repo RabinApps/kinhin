@@ -6,6 +6,8 @@ and a caption file. Everything runs in a container, on open-source tools, with n
 
 [← Back to README](../README.md) · [Video gallery](video-gallery.md) · [Marketing video in CI](ci-video.md)
 
+Short answer: [How to make a product launch video from code](https://kinhin.dev/how-to-make-a-product-launch-video-from-code).
+
 ## Your first video in 5 minutes
 
 **You need:**

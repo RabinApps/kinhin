@@ -37,14 +37,15 @@ public final class Lane: @unchecked Sendable {
         -> Lane
     {
         guard runtime.isAvailable else { throw E2EError.unavailable(runtime.unavailableReason) }
-        // kinhin adopts every instance its runtime lists that carries its prefix. This suite's daemon uses `ke2ed-`, so a
-        // real fleet's `kinhin-*` instances are never adopted. Leftovers of an earlier run are, and Tart's VM cap is
-        // per Mac, so a Tart lane also refuses to run beside a real fleet's VMs.
+        // kinhin adopts every instance its runtime lists that carries its prefix. This suite's daemon uses `ke2ed-`, so
+        // a real fleet's `kinhin-*` instances are never adopted, and a lane runs beside them. Leftovers of an earlier
+        // run are adopted, so they block. A Tart macOS lane also refuses while the fleet holds Apple's running-VM cap.
         let foreign = await Instances.foreign(for: runtime)
         guard foreign.isEmpty else {
             throw E2EError.failed(
                 "refusing to start a \(runtime) lane next to instances it does not own: \(foreign). Remove the "
-                    + "leftovers (scripts/e2e-sweep.sh), or stop the fleet's Tart VMs before a Tart lane.")
+                    + "leftovers (scripts/e2e-sweep.sh), or stop the fleet's running macOS Tart VMs before "
+                    + "a Tart macOS lane.")
         }
         let fixture: any ForgeFixture
         switch forge {

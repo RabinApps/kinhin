@@ -155,4 +155,179 @@ final class FleetRecoveryTests: XCTestCase {
         XCTAssertFalse(alerts.contains { $0.source.hasPrefix("store:") })
         await engine.detachKeepingInstances()
     }
+
+    // MARK: - Adoption: the forge decides whether a live VM is registered again
+
+    /// A tart-only engine over `store` (a corrupt fleet.json leaves it empty) with `github` as its forge.
+    private func makeAdoptingEngine(
+        store: FleetStore, github: FakeGitHub, tart: FakeTart, ssh: FakeSSH
+    ) -> FleetEngine {
+        var config = makeTestConfig()
+        config.vm.ephemeral = true
+        return FleetEngine(
+            config: config, github: github, tart: tart, store: store, ssh: ssh, host: host,
+            dependencies: .init(lifecycleDrainTimeout: .milliseconds(200)))
+    }
+
+    private func runningTartVM(_ tart: FakeTart) {
+        tart.vms["kinhin-t1"] = TartVM(name: "kinhin-t1", source: "tahoe-base", status: "running")
+    }
+
+    /// The store is empty but the VM is live, and its runner is busy on the forge (a job is running).
+    /// Recovery must watch that runner, not register it again: registration would fail the job.
+    func testRecoveredInstanceWithABusyRunnerIsWatchedNotReRegistered() async throws {
+        let store = makeTestStore()
+        let tart = FakeTart()
+        runningTartVM(tart)
+        let github = FakeGitHub()
+        github.register(name: "kinhin-t1", busy: true)
+        let ssh = FakeSSH()
+        let engine = makeAdoptingEngine(store: store, github: github, tart: tart, ssh: ssh)
+
+        await engine.recoverIfNeeded()
+        try await Task.sleep(for: .milliseconds(300))
+
+        XCTAssertTrue(ssh.scripts.isEmpty, "no registration script may run on a recovered VM whose runner is busy")
+        XCTAssertEqual(store.all.first { $0.id == "kinhin-t1" }?.phase, .busy)
+        await engine.detachKeepingInstances()
+    }
+
+    /// The same, with the registered runner idle: it is watched as ready, and still not registered again.
+    func testRecoveredInstanceWithAnIdleRunnerIsWatchedAsReady() async throws {
+        let store = makeTestStore()
+        let tart = FakeTart()
+        runningTartVM(tart)
+        let github = FakeGitHub()
+        github.register(name: "kinhin-t1", busy: false)
+        let ssh = FakeSSH()
+        let engine = makeAdoptingEngine(store: store, github: github, tart: tart, ssh: ssh)
+
+        await engine.recoverIfNeeded()
+        try await Task.sleep(for: .milliseconds(300))
+
+        XCTAssertTrue(ssh.scripts.isEmpty, "no registration script may run on a recovered VM with a registered runner")
+        XCTAssertEqual(store.all.first { $0.id == "kinhin-t1" }?.phase, .ready)
+        await engine.detachKeepingInstances()
+    }
+
+    /// A forge that cannot be asked holds the VM: nothing is registered over it, the status says so, and it is
+    /// released once the forge answers (here: the busy runner is found and watched).
+    func testHeldInstanceIsNotRegisteredUntilTheForgeAnswers() async throws {
+        let store = makeTestStore()
+        let tart = FakeTart()
+        runningTartVM(tart)
+        let github = FakeGitHub()
+        github.register(name: "kinhin-t1", busy: true)
+        github.failRunnerList = true
+        let ssh = FakeSSH()
+        let engine = makeAdoptingEngine(store: store, github: github, tart: tart, ssh: ssh)
+
+        await engine.recoverIfNeeded()
+        try await Task.sleep(for: .milliseconds(300))
+
+        XCTAssertTrue(ssh.scripts.isEmpty, "a held VM is not registered while the forge cannot be asked")
+        XCTAssertEqual(store.all.first { $0.id == "kinhin-t1" }?.phase, .booting)
+        let held = await engine.status().alerts ?? []
+        XCTAssertTrue(held.contains { $0.source == "adoption" }, "the held VM is shown as an alert")
+
+        github.failRunnerList = false
+        await engine.settleAdoptions()
+        try await Task.sleep(for: .milliseconds(300))
+
+        XCTAssertTrue(ssh.scripts.isEmpty, "a released VM with a busy runner is watched, not registered")
+        XCTAssertEqual(store.all.first { $0.id == "kinhin-t1" }?.phase, .busy)
+        let released = await engine.status().alerts ?? []
+        XCTAssertFalse(released.contains { $0.source == "adoption" }, "the alert clears once nothing is held")
+        await engine.detachKeepingInstances()
+    }
+
+    /// Recovery asks the forge once for the whole set, not once per VM.
+    func testRecoveryListsTheForgeOnceForAllInstances() async throws {
+        let store = makeTestStore()
+        let tart = FakeTart()
+        let github = FakeGitHub()
+        for n in 1...3 {
+            tart.vms["kinhin-t\(n)"] = TartVM(name: "kinhin-t\(n)", source: "tahoe-base", status: "running")
+            github.register(name: "kinhin-t\(n)", busy: true)
+        }
+        var config = makeTestConfig()
+        // Classic persistent runners: nothing watches them, so no other list calls happen during recovery.
+        config.vm.ephemeral = false
+        let engine = FleetEngine(
+            config: config, github: github, tart: tart, store: store, ssh: FakeSSH(), host: host,
+            dependencies: .init(lifecycleDrainTimeout: .milliseconds(200)))
+
+        await engine.recoverIfNeeded()
+
+        XCTAssertEqual(github.listRunnersCallCount, 1, "one listing serves every recovered instance")
+        XCTAssertEqual(store.all.first { $0.id == "kinhin-t1" }?.phase, .ready, "a classic runner is not tracked")
+        await engine.detachKeepingInstances()
+    }
+
+    /// Two runners per VM, only the first registered, and idle: registering both is safe, so the VM is registered
+    /// again rather than watched as if the set were complete.
+    func testPartlyRegisteredIdleVMIsRegisteredAgain() async throws {
+        let store = makeTestStore()
+        let tart = FakeTart()
+        runningTartVM(tart)
+        let github = FakeGitHub()
+        github.register(name: "kinhin-t1-r1", busy: false)
+        var config = makeTestConfig()
+        config.vm.ephemeral = true
+        config.runnersPerVM = 2
+        let ssh = FakeSSH()
+        let engine = FleetEngine(
+            config: config, github: github, tart: tart, store: store, ssh: ssh, host: host,
+            dependencies: .init(lifecycleDrainTimeout: .milliseconds(200)))
+
+        await engine.recoverIfNeeded()
+
+        try await waitUntil(timeout: 5) { !ssh.scripts.isEmpty }
+        XCTAssertNotEqual(
+            store.all.first { $0.id == "kinhin-t1" }?.phase, .busy,
+            "a partly registered idle set is not watched as busy")
+        await engine.detachKeepingInstances()
+    }
+
+    /// An account that stays unattached past the hold limit is torn down, so a broken token cannot hold a slot and
+    /// its disk indefinitely.
+    func testHeldInstanceOfAnUnattachedAccountIsTornDownAfterTheHoldLimit() async throws {
+        let store = makeTestStore()
+        let tart = FakeTart()
+        runningTartVM(tart)
+        let github = FakeGitHub()
+        github.register(name: "kinhin-t1", busy: true)
+        var config = makeTestConfig()
+        config.vm.ephemeral = true
+        let engine = FleetEngine(
+            config: config, github: github, tart: tart, store: store, ssh: FakeSSH(), host: host,
+            dependencies: .init(
+                lifecycleDrainTimeout: .milliseconds(200), watchdog: Watchdog(adoptionHoldLimit: .zero)))
+        engine.forgeState.withLock { $0.byPlatform["github"] = nil }
+
+        await engine.recoverIfNeeded()
+        let held = store.all.first { $0.id == "kinhin-t1" }?.phase
+        XCTAssertEqual(held, .booting, "held while the account is unattached")
+
+        await engine.settleAdoptions()
+        try await waitUntil(timeout: 5) { !store.all.contains { $0.id == "kinhin-t1" } }
+        await engine.detachKeepingInstances()
+    }
+
+    /// An instance whose account is no longer in the config has no forge that will ever answer: it is released at once.
+    func testInstanceOfARemovedAccountIsReleasedAtOnce() async throws {
+        let store = makeTestStore()
+        let tart = FakeTart()
+        runningTartVM(tart)
+        var config = makeTestConfig()
+        config.accounts = []
+        let engine = FleetEngine(
+            config: config, github: FakeGitHub(), tart: tart, store: store, ssh: FakeSSH(), host: host,
+            dependencies: .init(lifecycleDrainTimeout: .milliseconds(200)))
+
+        await engine.recoverIfNeeded()
+
+        try await waitUntil(timeout: 5) { !store.all.contains { $0.id == "kinhin-t1" } }
+        await engine.detachKeepingInstances()
+    }
 }
