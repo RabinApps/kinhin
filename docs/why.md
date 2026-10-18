@@ -4,6 +4,8 @@ Self-hosted CI runners do one job at a time. kinhin exists to give your Mac real
 
 [← Back to README](../README.md)
 
+Short answers to common questions: [How many macOS VMs can run at once?](https://kinhin.dev/how-many-macos-vms-can-run-at-once) · [Self-hosted alternative to GitHub-hosted macOS runners](https://kinhin.dev/self-hosted-alternative-to-github-hosted-macos-runners)
+
 ## The problem
 
 A self-hosted runner is built to do one thing at a time. Register a single runner with your CI platform
