@@ -4,6 +4,8 @@ Which CI platforms kinhin serves, how to connect each one, and how to serve many
 
 [← Back to README](../README.md) · [Per-forge API notes](forges/README.md) (endpoints, versions)
 
+Step-by-step guides per forge: [GitHub Actions](https://kinhin.dev/how-to-run-github-actions-on-a-self-hosted-mac) · [GitLab CI](https://kinhin.dev/how-to-run-gitlab-ci-jobs-on-a-mac) · [Gitea and Forgejo Actions](https://kinhin.dev/how-to-run-gitea-or-forgejo-actions-on-a-mac)
+
 A **forge** is a CI platform. kinhin speaks one protocol to all of them (get a registration token, list and remove
 runners, report queued demand), and each platform implements it behind that interface. One fleet can serve **several
 at once**: each VM is assigned to whichever forge has the most pending work, registers there, and is deleted when

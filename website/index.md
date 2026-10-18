@@ -72,3 +72,34 @@ kinhin image prepare && kinhin start
 <DocsGrid />
 
 </div>
+
+<div class="home-section">
+
+## Common questions
+
+<p class="lead">Answers to the questions people ask before they try kinhin.</p>
+
+**Mac CI runners**
+
+- [How to run GitHub Actions on a self-hosted Mac](/how-to-run-github-actions-on-a-self-hosted-mac)
+- [How to autoscale GitHub Actions runners on a Mac](/how-to-autoscale-github-actions-runners-on-a-mac)
+- [How to run GitLab CI jobs on a Mac](/how-to-run-gitlab-ci-jobs-on-a-mac)
+- [How to run Gitea or Forgejo Actions on a Mac](/how-to-run-gitea-or-forgejo-actions-on-a-mac)
+- [How many macOS VMs can run at once?](/how-many-macos-vms-can-run-at-once)
+
+**Store screenshots**
+
+- [How to take App Store screenshots automatically](/how-to-take-app-store-screenshots-automatically)
+- [How to run fastlane screenshots in CI on a Mac](/how-to-run-fastlane-screenshots-in-ci-on-a-mac)
+- [How to generate localized app store screenshots](/how-to-generate-localized-app-store-screenshots)
+
+**Launch videos**
+
+- [How to make a product launch video from code](/how-to-make-a-product-launch-video-from-code)
+
+**Alternatives**
+
+- [Self-hosted alternative to GitHub-hosted macOS runners](/self-hosted-alternative-to-github-hosted-macos-runners)
+- [Alternatives to Orchard for CI on a Mac](/alternatives-to-orchard-for-ci-on-a-mac)
+
+</div>

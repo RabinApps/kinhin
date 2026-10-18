@@ -6,6 +6,7 @@ import AudienceTabs from "./AudienceTabs.vue";
 import LaunchVideo from "./LaunchVideo.vue";
 import DocsGrid from "./DocsGrid.vue";
 import HomeBanners from "./HomeBanners.vue";
+import SearchNextSteps from "./SearchNextSteps.vue";
 import "./version-banner.css";
 import "./home.css";
 
@@ -510,6 +511,7 @@ export default {
     app.component("AudienceTabs", AudienceTabs);
     app.component("LaunchVideo", LaunchVideo);
     app.component("DocsGrid", DocsGrid);
+    app.component("SearchNextSteps", SearchNextSteps);
   },
   Layout: {
     setup() {
