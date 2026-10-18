@@ -207,9 +207,12 @@ finish first; see the known issue below.
 The listener logs every job event as `[scaleset] message <id>: <Event>#<request id>`, which is how to tell this case
 apart from a label mismatch (no events at all for the job).
 
-**Known issue: restarting while a job runs.** After a daemon restart, a recovered VM whose runner is busy can be
-deleted with `runners never registered on github` (GitHub then answers `422 … is currently running a job`), which fails
-that job. Restart or reconfigure when no jobs are running.
+**Known issue: restarting while a job runs (beta 2).** On beta 2, a restart re-runs runner registration on each VM it re-adopts, which can
+disrupt a job already running on one. With a scale set, the VM can be deleted with `runners never registered on github`
+(GitHub then answers `422 … is currently running a job`), which fails that job. A corrupt `fleet.json` causes the same
+re-registration (see [Restarts](../scaling.md#restarts)). From beta 3, kinhin checks the forge first: a runner that is still
+registered is watched and not registered again, and a VM with no runner is registered as normal. On beta 2, restart or
+reconfigure only when no jobs are running.
 
 **`session conflict` after a restart.** GitHub allows one live message session per scale set. If kinhin exits without
 cleaning up (force quit, crash), GitHub keeps the old session until its lease lapses and answers `409` to the next one.
