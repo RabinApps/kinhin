@@ -5,9 +5,10 @@ back, a toolchain cache filling the disk, an account that dropped off for a minu
 Anything destructive or slow (pruning images, reinstalling a runtime) waits for you to approve it. Anything only you
 can do (a new token, an image bake) is shown with the exact command.
 
-In a build that includes it, on a Mac with Apple Intelligence (macOS 26 or later), an on-device model is also asked
-about problems no rule covers. It may only pick from the fixes kinhin allows for that problem, and it can never make a
-fix run that would otherwise wait for you. Nothing leaves your Mac.
+An advisor can also be asked about problems no rule covers: the on-device Apple Intelligence model on a Mac with it (macOS
+26 or later), or your own models on [Ollama](#the-ollama-advisor). It may only pick from the fixes kinhin allows for that
+problem, and it can never make a fix run that would otherwise wait for you. The on-device model sends nothing off your
+Mac; an Ollama host that is not this Mac receives the redacted problem and log lines.
 
 [← Back to README](../README.md) · [How scaling works](scaling.md) · [Troubleshooting](../website/guide/troubleshooting.md)
 
@@ -107,7 +108,7 @@ Printed with sorted keys and ISO 8601 dates. The MCP `heal_status` tool returns 
 | ----- | ------- |
 | `daemon` | False when no daemon answered; `pending` and `surfaced` are then empty and `events` is the stored history |
 | `enabled`, `automatic` | `healing.enabled`, and whether `healing.auto` is `safe` |
-| `advisor` | The advisor consulted (`apple-intelligence`); absent when there is none |
+| `advisor` | The advisor consulted (`apple-intelligence`, or `ollama:<model>`); absent when there is none |
 | `pending` | Fixes waiting for approval, newest first |
 | `surfaced` | Problems only you can fix, newest first |
 | `events` | The whole journal, newest first (`kinhin status` carries only the open entries and the 10 newest closed ones) |
@@ -199,13 +200,17 @@ kind is what `remediation.kind` says in the journal.
 healing:
   enabled: true      # false = only the engine's own retries; nothing new is fixed or journaled
   auto: safe         # safe = automatic-tier fixes run on their own; none = every fix waits for approval
-  ai: auto           # auto = ask the on-device model about problems no rule covers; off = rules only
+  ai: auto           # auto = Apple Intelligence advises on problems no rule covers; off = rules only; ollama = see below
   max_attempts: 3    # tries of one fix for one problem before it escalates (1-10)
+  ollama:            # only with ai: ollama
+    model: my-llm                  # the LLM: any model you pulled, or built with `ollama create`
+    fast_model: clef-flash         # optional System 1 decision model, asked first
+    host: http://127.0.0.1:11434   # the default; a host that is not this Mac must be https
 ```
 
-Every key is optional; the values above are the defaults. Any other value is a config error (exit 3) that names the
-key. Changing them rebuilds the engine (instances are kept, open entries expire and are raised again if the problem
-persists).
+Every key is optional; the values above are the defaults, except `ollama`, which `ai: ollama` requires with a `model`.
+Any other value is a config error (exit 3) that names the key. Changing them rebuilds the engine (instances are kept,
+open entries expire and are raised again if the problem persists).
 
 ## The on-device advisor
 
@@ -230,6 +235,38 @@ The explanation is for reading only and can be wrong about the cause. It never d
 **Requirements:** macOS 26 or later on Apple Silicon with Apple Intelligence turned on. Every kinhin build includes
 the advisor; on macOS 15, or with Apple Intelligence off or its model still downloading, kinhin runs the rules only and
 `kinhin heal` says "rules only".
+
+## The Ollama advisor
+
+With `ai: ollama`, the advisor is a model on an [Ollama](https://ollama.com) server, and you choose the models. There
+are two tiers, and the answer comes from the first one that is confident:
+
+1. **System 1 (`fast_model`, optional):** a decision model such as `clef-flash` or `nimble`, on Ollama's
+   `/v1/systemone` endpoint. It does not write text: it gives each allowed fix a probability. A fix at 80% or more is a
+   confident answer, and System 1's answer is final.
+2. **The LLM (`model`):** any Ollama chat model, asked through `/api/chat` with a schema that allows only the allowed
+   fixes or `none`. It is asked when System 1 is not confident, picks nothing, or is not configured.
+
+If the LLM does not answer, System 1's answer stands, and a doubtful answer is only shown, as with the on-device model.
+The LLM's "confident" is its own judgment, so a confident LLM pick is queued for approval (`kinhin heal approve ID`) rather
+than run, even when the fix is automatic. A confident System 1 pick runs on its own, as its probability is measured.
+A System 1 answer's journal entry names its model (`System 1 (clef-flash) chose …`); `kinhin heal` names the LLM as the
+advisor. Without `fast_model`, the LLM alone advises.
+
+```bash
+ollama serve                 # if it is not already running
+ollama pull clef-flash       # the System 1 model (optional); needs Ollama 0.35.1 or later
+ollama pull <your-llm>       # or: ollama create my-llm -f Modelfile
+```
+
+`nimble-v3` needs Ollama 0.40.4 or later. It is licensed for noncommercial use only (CC BY-NC 4.0), so check its license
+before you use it. `clef-flash` is Apache 2.0. kinhin checks that the server is up, that the model is pulled, and that
+the version is new enough, every 10 minutes. A check that fails is shown as "rules only" with the reason in the log.
+
+**What is sent:** the same redacted problem, allowed fixes and log lines as the on-device advisor (see above). With
+`host` on this Mac (`localhost`, `127.0.0.1` or `::1`), nothing leaves the machine. With any other host, those redacted
+lines are sent to that host, so kinhin requires `https` for it. Point `host` only at a server you trust with your
+fleet's logs.
 
 ## What healing does not do
 
