@@ -223,8 +223,17 @@ A signed build fails without the variable, and a release fails without the secre
 without the public key would ship an updater that can't install anything.
 
 A local rehearsal signs the same way, with the key in the environment and `SPARKLE_TOOLS` pointing at the unpacked
-tools: `KINHIN_SPARKLE_PUBLIC_KEY=… SPARKLE_ED_PRIVATE_KEY="$(cat key.txt)" SPARKLE_TOOLS=~/sparkle scripts/release.sh
-VERSION`. Without the secret the run writes no appcast.
+tools. The private key stays in your login Keychain after step 6, so export it again for the run and delete the file
+afterwards (replace the public key and `<version>`):
+
+```bash
+~/sparkle/bin/generate_keys -x ~/sparkle/sparkle_private_key.txt
+KINHIN_SPARKLE_PUBLIC_KEY="PUBLIC_KEY" SPARKLE_ED_PRIVATE_KEY="$(cat ~/sparkle/sparkle_private_key.txt)" \
+  SPARKLE_TOOLS=~/sparkle scripts/release.sh <version>
+rm ~/sparkle/sparkle_private_key.txt
+```
+
+Without the secret the run writes no appcast.
 
 ## After the release
 
