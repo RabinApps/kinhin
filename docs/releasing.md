@@ -10,14 +10,15 @@ Contributor conventions are in [CONTRIBUTING.md](../CONTRIBUTING.md); what CI ru
 
 ## What a release produces
 
-Four files in `dist/`, all version-pinned to `MAJOR.MINOR.PATCH` (plus an optional `-beta-N` suffix):
+Five files in `dist/`, all version-pinned to `MAJOR.MINOR.PATCH` (plus an optional `-beta-N` suffix):
 
 | File                            | What it is                                                                                     |
 | ------------------------------- | ---------------------------------------------------------------------------------------------- |
 | `kinhin-<v>-arm64.dmg`          | The app: `kinhin.app` (bundle executable + `Resources/bin/kinhin` CLI), Developer ID signed, notarized, stapled, Gatekeeper-verified |
 | `kinhin-cli-<v>-arm64.zip`      | The CLI alone, Developer ID signed and notarized (zips cannot be stapled)                       |
 | `install.sh`                    | The install script, stamped with the Team ID of the app it installs, so a tampered app is refused |
-| `checksums.txt`                 | sha256 of those three files — what `install.sh` and the in-app updater verify against           |
+| `checksums.txt`                 | sha256 of those three files — what `install.sh` verifies against                                 |
+| `appcast.xml`                   | The Sparkle feed: one item pointing at the DMG, with its EdDSA signature. Written only when `SPARKLE_ED_PRIVATE_KEY` is set; the in-app updater verifies that signature, not `checksums.txt` |
 
 The version comes from exactly one place: `Sources/KinhinKit/Core/Version.swift`. Release CI stamps
 that file from the tag; nothing else defines the version.
@@ -97,9 +98,12 @@ It needs a runner labelled `kinhin-xcode` (a Tart pool on a kinhin fleet).
 **Local publish** — when no `kinhin-xcode` runner is available, publish the verified local `dist/`
 instead. `gh` creates the tag on GitHub together with the release, so when the tag's
 `release.yml` run starts, its `existing` job finds the release and skips the rebuild. The commit you
-built must already be pushed.
+built must already be pushed. The release needs a signed `dist/appcast.xml`, which `release-artifacts.sh` writes only
+when `SPARKLE_ED_PRIVATE_KEY` is set; a rehearsal without the key produces none, and a release without it leaves the
+site with no update feed.
 
 ```bash
+[ -s dist/appcast.xml ] || { echo "dist/appcast.xml missing: set SPARKLE_ED_PRIVATE_KEY and rebuild" >&2; exit 1; }
 awk -v h="## v<version>" '$0 == h {f=1; next} /^## /{f=0} f' CHANGELOG.md > dist/release-notes.md
 gh release create v<version> --target "$(git rev-parse HEAD)" --latest --title "v<version>" \
   --notes-file dist/release-notes.md \
@@ -115,7 +119,7 @@ git fetch --tags
 | `scripts/build-app.sh`        | Assembles `dist/kinhin.app`: builds both products, hash-verifies every copied binary, generates App Intents metadata, signs inside-out (nested CLI first) |
 | `scripts/make-dmg.sh`         | Wraps `build-app.sh`, packs the DMG with an `/Applications` shortcut, signs it, calls `notarize.sh`     |
 | `scripts/notarize.sh`         | Submits to Apple, waits for the verdict, prints the notary log on rejection, staples DMGs — as `submit` / `wait` / `staple` / `status` subcommands so an interrupted run resumes (see below) |
-| `scripts/release-artifacts.sh`| CLI zip → Gatekeeper + in-bundle version verification → Team-ID-stamped `install.sh` → `checksums.txt` |
+| `scripts/release-artifacts.sh`| CLI zip → Gatekeeper + in-bundle version verification → Team-ID-stamped `install.sh` → `checksums.txt` → `appcast.xml` (via `appcast.sh`, when the EdDSA key is set) |
 
 `release-artifacts.sh` pins `checksums.txt` to the version's own files: `dist/` is a workbench, and a
 wildcard would silently checksum whatever older artifacts happen to be lying next to the new ones.
@@ -244,5 +248,5 @@ spctl -a -vv -t open --context context:primary-signature dist/kinhin-<v>-arm64.d
 shasum -a 256 -c <(grep 'kinhin-<v>-arm64.dmg' dist/checksums.txt)
 ```
 
-`scripts/release.sh` runs these for you; they are what `install.sh` and the updater check on the
-user's machine.
+`scripts/release.sh` runs these for you; they are what `install.sh` checks on the
+user's machine. The in-app updater checks the appcast's EdDSA signature and Gatekeeper instead.
