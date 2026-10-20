@@ -2434,6 +2434,9 @@
     "That token didn't work — %@\nIt needs — %@" : {
       "comment" : "Forge card status; first is the forge's error, second what the token needs"
     },
+    "The background daemon is still starting. Reopen kinhin in a minute." : {
+      "comment" : "Status line when the daemon hasn't answered after a wait; no in-process engine is started"
+    },
     "The benchmark creates temporary VMs and containers and removes them when it ends." : {
       "comment" : "Benchmarks confirmation body"
     },
@@ -2445,9 +2448,6 @@
     },
     "the daemon LaunchAgent is installed but its binary is missing — run `kinhin daemon uninstall` to remove it" : {
       "comment" : "Warning shown under the fleet status; the backticked command must stay verbatim"
-    },
-    "The daemon was restarted for this update but isn't answering yet. Reopen kinhin in a minute." : {
-      "comment" : "Status line when the daemon restarted by an update hasn't come back; no engine is started"
     },
     "The default pool also keeps whatever share the others leave (Advanced → Capacity)." : {
       "comment" : "HintText in RuntimesView"

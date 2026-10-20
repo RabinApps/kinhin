@@ -11,9 +11,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // for the tab buttons to work.
     var mainController: MainTabsWindowController?
 
-    /// How many 200 ms attach attempts follow a daemon restart (one minute): the daemon verifies every forge before
-    /// it binds its socket.
-    static let restartedDaemonAttachRetries = 300
+    /// How many 200 ms attach attempts wait for a daemon that is still starting (one minute): it verifies every
+    /// forge before it binds its socket.
+    static let startingDaemonAttachRetries = 300
 
     /// Fleet state, polling, pending actions and config push (see AppState/).
     let fleet = FleetController()
@@ -135,21 +135,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Log.info("app", "first run: wrote starter config at \(Paths.config.path)")
         }
         // Attach to daemon when one is running; otherwise run the engine in-process.
-        // A restarted daemon binds its socket only after its engine has verified every forge, which can take
-        // far longer than a normal attach: wait up to a minute for it.
-        let daemonBackend = await FleetBackend.attachToDaemon(
-            retryCount: daemonRestarted ? Self.restartedDaemonAttachRetries : 0)
-        // The restarted daemon is still coming up and will run the fleet. An in-process engine started now would
-        // manage the same VMs and runners alongside it, so say why nothing is attached and leave the fleet to it.
-        if daemonBackend == nil, daemonRestarted {
-            Log.warn("app", "the restarted daemon isn't answering yet; not starting an in-process engine beside it")
+        var daemonBackend = await FleetBackend.attachToDaemon()
+        // A daemon binds its socket only after its engine has verified every forge, which can take far longer than
+        // a normal attach. One we just restarted, or whose LaunchAgent job is running without answering (the app was
+        // reopened mid-start), is still coming up: wait up to a minute for it.
+        let daemonStarting: Bool
+        if daemonBackend != nil {
+            daemonStarting = false
+        } else {
+            daemonStarting = daemonRestarted ? true : await Daemon.agentJobIsRunning()
+        }
+        if daemonStarting {
+            daemonBackend = await FleetBackend.attachToDaemon(retryCount: Self.startingDaemonAttachRetries)
+        }
+        // The daemon is still coming up and will run the fleet. An in-process engine started now would manage the
+        // same VMs and runners alongside it, so say why nothing is attached and leave the fleet to it.
+        if daemonBackend == nil, daemonStarting {
+            Log.warn("app", "the daemon is still starting and isn't answering; not starting an in-process engine")
             fleet.setProblem(
                 .launch,
                 String(
-                    localized:
-                        "The daemon was restarted for this update but isn't answering yet. Reopen kinhin in a minute.",
+                    localized: "The background daemon is still starting. Reopen kinhin in a minute.",
                     bundle: .l10n,
-                    comment: "Status line when the daemon restarted by an update hasn't come back; no engine is started"
+                    comment: "Status line when the daemon hasn't answered after a wait; no in-process engine is started"
                 ))
             return
         }

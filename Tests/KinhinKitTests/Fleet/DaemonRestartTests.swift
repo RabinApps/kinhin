@@ -17,6 +17,19 @@ final class DaemonRestartTests: XCTestCase {
         XCTAssertTrue(Daemon.needsRestart(runningVersion: nil, current: "0.0.1-beta-2"))
     }
 
+    func testARunningJobIsADaemonStillStarting() {
+        let output = "gui/501/dev.kinhin.daemon = {\n\tactive count = 1\n\tstate = running\n\tpid = 4242\n}"
+        XCTAssertTrue(Daemon.jobIsRunning(printOutput: output))
+    }
+
+    func testAJobThatIsNotRunningIsNotStarting() {
+        // A nested section's own `state = running` must not make a waiting job look alive.
+        let output =
+            "gui/501/dev.kinhin.daemon = {\n\tstate = waiting\n\tevent triggers = {\n\t\tstate = running\n\t}\n}"
+        XCTAssertFalse(Daemon.jobIsRunning(printOutput: output))
+        XCTAssertFalse(Daemon.jobIsRunning(printOutput: ""))
+    }
+
     func testMissingBinaryPathsCannotTriggerARestart() {
         let current = URL(fileURLWithPath: "/Applications/kinhin.app/Contents/Resources/bin/kinhin")
         XCTAssertFalse(Daemon.targetsCurrentBinary(nil, currentBinaryURL: current))
