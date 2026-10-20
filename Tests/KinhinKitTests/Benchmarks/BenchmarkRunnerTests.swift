@@ -106,15 +106,21 @@ final class BenchmarkRunnerTests: XCTestCase {
     }
 
     func testHostBootIsTaggedUnisolatedAndOnlyRunsWithConsent() async throws {
+        // host-instances is shared with other runs on this machine (a persistent CI runner can keep a
+        // kinhin-bench-* dir from an earlier job), so only directories this run creates count as leftovers.
+        let instances = Paths.appSupport.appendingPathComponent("host-instances")
+        func benchDirs() -> Set<String> {
+            let entries =
+                (try? FileManager.default.contentsOfDirectory(at: instances, includingPropertiesForKeys: nil)) ?? []
+            return Set(entries.map(\.lastPathComponent).filter { $0.hasPrefix("kinhin-bench-") })
+        }
+        let before = benchDirs()
         let report = try await run(BenchmarkOptions(suites: [.boot], runtimes: [.host], includeHost: true))
         let host = try XCTUnwrap(report.suite("boot", runtime: .host))
         XCTAssertEqual(host.status, .ran, host.error ?? "")
         XCTAssertEqual(host.notes, ["unisolated"])
         XCTAssertEqual(host.steps.map(\.name), ["spawn", "ready"])
-        let leftovers =
-            (try? FileManager.default.contentsOfDirectory(
-                at: Paths.appSupport.appendingPathComponent("host-instances"), includingPropertiesForKeys: nil)) ?? []
-        XCTAssertFalse(leftovers.contains { $0.lastPathComponent.hasPrefix("kinhin-bench-") }, "host work dir scrubbed")
+        XCTAssertTrue(benchDirs().subtracting(before).isEmpty, "host work dir scrubbed")
     }
 
     // MARK: - Preflight

@@ -112,12 +112,11 @@ protocol MainTabsWindowDelegate: AnyObject {
 
 // MARK: - Update card state
 
-/// Where the update check/download stands, rendered by Settings → App.
+/// Where the self-update check stands, rendered by Settings → App.
 enum UpdateCardState: Equatable {
     case idle(lastChecked: Date?)
     case checking
     case upToDate(lastChecked: Date?)
     case available(version: String)
-    case downloading(name: String)
     case failed(String)
 }

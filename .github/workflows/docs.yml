@@ -4,7 +4,12 @@ on:
   push:
     branches: [main]
     paths: ["website/**", "docs/**"]
-    tags: ["v*"]
+  # A release (tag push) deploys the site after it is published, so the signed
+  # appcast the release made is on the site. Deploying on the tag push itself
+  # would race the release and replace the site without it.
+  workflow_run:
+    workflows: ["Release"]
+    types: [completed]
   workflow_dispatch:
 
 # One-time manual step (required before the first deploy):
@@ -20,9 +25,11 @@ concurrency:
 
 jobs:
   build:
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    if: >-
+      (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success')
+      && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     # kinhin's own Apple-container pool (`kinhin-container` is its exclusive
-    # marker). This workflow triggers on push/tag only — PRs never run it — so
+    # marker). This workflow triggers on push, a finished Release, or dispatch — PRs never run it — so
     # no fork guard is needed; the Pages deploy job stays on ubuntu-latest.
     runs-on: kinhin-container
     steps:
@@ -72,6 +79,27 @@ jobs:
             mkdir -p "website/.vitepress/dist/$v"
             cp -R "$RUNNER_TEMP/docs-$v/website/.vitepress/dist/." "website/.vitepress/dist/$v/"
           done
+
+      # The updater's feed (SUFeedURL points at https://kinhin.dev/appcast.xml). The release workflow signs it
+      # into the latest release, so every site build copies that copy in. Before the first signed release there
+      # is none, and the site simply goes out without one.
+      - name: Fetch the update feed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          out=website/.vitepress/dist/appcast.xml
+          # A failed query is not "no appcast": deploying then would drop the live feed on a transient API error.
+          if ! assets=$(gh release view --repo RabinApps/kinhin --json assets -q '.assets[].name'); then
+            echo "::error::could not query the latest release's assets; not deploying without the feed"
+            exit 1
+          elif ! grep -qx appcast.xml <<<"$assets"; then
+            echo "::warning::no appcast.xml on the latest release; the site is deployed without one"
+          elif curl -fsSL --retry 3 -o "$out" "https://github.com/RabinApps/kinhin/releases/latest/download/appcast.xml"; then
+            echo "appcast: $(grep -o 'sparkle:version>[^<]*' "$out" | head -n 1)"
+          else
+            echo "::error::the latest release has appcast.xml but it could not be fetched; not deploying without the feed"
+            exit 1
+          fi
 
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:

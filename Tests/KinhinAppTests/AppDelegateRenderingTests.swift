@@ -77,15 +77,9 @@ final class AppDelegateRenderingTests: XCTestCase {
     }
 
     func testUpdateStateReRendersTheUpdateItems() async {
-        let info = UpdateInfo(
-            tag: "v9.9.9", version: "9.9.9", dmgName: "kinhin-9.9.9-arm64.dmg",
-            dmgURL: URL(string: "https://example.com/d.dmg")!, releaseURL: URL(string: "https://example.com/r")!,
-            publishedAt: nil, notes: nil)
-        delegate.updates.pendingUpdate = info
+        delegate.updates.pendingVersion = "9.9.9"
         await waitUntil("offered") { item("updateItem")?.isHidden == false }
-        delegate.updates.updateCardState = .downloading(name: info.dmgName)
-        await waitUntil("downloading") { item("updateItem")?.title.hasPrefix("Downloading") == true }
-        delegate.updates.pendingUpdate = nil
+        delegate.updates.pendingVersion = nil
         delegate.updates.updateCardState = .upToDate(lastChecked: nil)
         await waitUntil("hidden") { item("updateItem")?.isHidden == true }
     }

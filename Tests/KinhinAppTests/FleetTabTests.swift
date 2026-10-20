@@ -265,7 +265,7 @@ final class FleetTabTests: MainWindowTestCase {
         XCTAssertTrue(model.updateText.contains("checking…"))
 
         updates.updateCardState = .available(version: "9.9.9")
-        XCTAssertEqual(model.updateButtonTitle, "Download…")
+        XCTAssertEqual(model.updateButtonTitle, "Install Update…")
         XCTAssertTrue(model.updateText.contains("Update available — kinhin 9.9.9"))
 
         updates.updateCardState = .upToDate(lastChecked: nil)

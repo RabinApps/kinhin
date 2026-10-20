@@ -11,9 +11,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // for the tab buttons to work.
     var mainController: MainTabsWindowController?
 
+    /// How many 200 ms attach attempts wait for a daemon that is still starting (one minute): it verifies every
+    /// forge before it binds its socket.
+    static let startingDaemonAttachRetries = 300
+
     /// Fleet state, polling, pending actions and config push (see AppState/).
     let fleet = FleetController()
-    /// Update-check and download state.
+    /// Self-update state (Sparkle checks, prompts and installs).
     let updates = UpdateController()
 
     /// Tracks the main window's visibility so the activation policy can be
@@ -50,14 +54,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // window opens below; if setup turns out to be incomplete the
         // bootstrap brings the Setup tab up itself.
         Task {
-            await bootstrapEngine()
+            // An upgrade leaves the previous build's daemon running in memory; restart it onto this build.
+            var daemonRestarted = false
+            do {
+                daemonRestarted = try await Daemon.restartIfStale()
+            } catch {
+                Log.warn("app", "could not restart the daemon for this build: \(error.localizedDescription)")
+            }
+            await bootstrapEngine(daemonRestarted: daemonRestarted)
             autoStartFleetIfEnabled()
         }
         fleet.startPolling()
         // Check whether a LaunchAgent plist exists but points at a binary
         // that no longer exists (app removed without `kinhin daemon uninstall`).
         Task { @MainActor in fleet.detectStaleDaemonPlist() }
-        // Once per day (or on first launch), at most; then hourly.
+        // Sparkle's background checks (once a day, per SUScheduledCheckInterval).
         updates.startScheduledChecks()
         observeControllers()
         // Launch-mode surface selection: the main window opens unless the user
@@ -73,7 +84,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// VMs down) before the process exits; a daemon owns its own fleet, so
     /// there is nothing to wait for.
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        updates.cancelAll()
         guard fleet.engine != nil else {
             fleet.stopPolling()
             return .terminateNow
@@ -106,7 +116,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Engine wiring
 
-    func bootstrapEngine(reopenSetupOnFailure: Bool = true) async {
+    func bootstrapEngine(reopenSetupOnFailure: Bool = true, daemonRestarted: Bool = false) async {
         #if DEBUG
             // Screen-recording demo: a scripted fleet, no config, Keychain, daemon or forge touched.
             if let demo = DemoFleetServing.fromEnvironment() {
@@ -125,7 +135,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Log.info("app", "first run: wrote starter config at \(Paths.config.path)")
         }
         // Attach to daemon when one is running; otherwise run the engine in-process.
-        let daemonBackend = await FleetBackend.attachToDaemon()
+        var daemonBackend = await FleetBackend.attachToDaemon()
+        // A daemon binds its socket only after its engine has verified every forge, which can take far longer than
+        // a normal attach. One we just restarted, or whose LaunchAgent job is running without answering (the app was
+        // reopened mid-start), is still coming up: wait up to a minute for it.
+        let daemonStarting: Bool
+        if daemonBackend != nil {
+            daemonStarting = false
+        } else {
+            daemonStarting = daemonRestarted ? true : await Daemon.agentJobIsRunning()
+        }
+        if daemonStarting {
+            daemonBackend = await FleetBackend.attachToDaemon(retryCount: Self.startingDaemonAttachRetries)
+        }
+        // The daemon is still coming up and will run the fleet. An in-process engine started now would manage the
+        // same VMs and runners alongside it, so say why nothing is attached and leave the fleet to it.
+        if daemonBackend == nil, daemonStarting {
+            Log.warn("app", "the daemon is still starting and isn't answering; not starting an in-process engine")
+            fleet.setProblem(
+                .launch,
+                String(
+                    localized: "The background daemon is still starting. Reopen kinhin in a minute.",
+                    bundle: .l10n,
+                    comment: "Status line when the daemon hasn't answered after a wait; no in-process engine is started"
+                ))
+            return
+        }
         // A broken config stays a broken config for the wizard to surface;
         // loading it here is only a fast-path gate for "skip onboarding".
         // Through ConfigStore, so a parse error is said (under the status
@@ -266,7 +301,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         _ = fleet.pendingFleetAction
         _ = fleet.unreachableReason
         _ = fleet.problems
-        _ = updates.pendingUpdate
+        _ = updates.pendingVersion
         _ = updates.updateCardState
         renderFleetState()
         refreshUpdateItems()

@@ -150,5 +150,16 @@ stage "checksums: dist/checksums.txt"
     install.sh > checksums.txt)
 cat dist/checksums.txt
 
+# --- 5. Appcast (Sparkle) ---------------------------------------------------
+# The in-app updater reads dist/appcast.xml from kinhin.dev, which docs.yml publishes after the
+# release. Without the EdDSA key there is nothing signed to offer, so the app gets no update.
+if [ -n "${SPARKLE_ED_PRIVATE_KEY:-}" ]; then
+    stage "appcast: dist/appcast.xml"
+    scripts/appcast.sh "$VERSION" "$DMG" dist/appcast.xml
+else
+    echo ""
+    echo "NOTE: SPARKLE_ED_PRIVATE_KEY not set; no dist/appcast.xml. The updater cannot offer this release."
+fi
+
 echo ""
 echo "release-artifacts: done (version $VERSION)"

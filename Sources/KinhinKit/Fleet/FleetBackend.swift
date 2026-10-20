@@ -226,10 +226,28 @@ public enum FleetBackend: Sendable {
 
 extension FleetBackend {
     /// The backend for a running daemon, or nil when none answers. The ping
-    /// runs off the caller's thread (it blocks on the socket).
-    public static func attachToDaemon(client: RPCClient = RPCClient()) async -> FleetBackend? {
-        let alive = await Task.detached { RPCClient.isDaemonAlive(socketURL: client.socketURL) }.value
-        return alive ? .daemon(client) : nil
+    /// runs off the caller's thread (it blocks on the socket). After a restart,
+    /// `retryCount` allows the daemon time to bind its socket before falling back.
+    public static func attachToDaemon(client: RPCClient = RPCClient(), retryCount: Int = 0) async -> FleetBackend? {
+        await attachToDaemon(client: client, retryCount: retryCount) {
+            await Task.detached { RPCClient.isDaemonAlive(socketURL: client.socketURL) }.value
+        }
+    }
+
+    /// Injectable readiness probe for deterministic restart-wait tests.
+    static func attachToDaemon(
+        client: RPCClient, retryCount: Int, isAlive: @Sendable () async -> Bool
+    ) async -> FleetBackend? {
+        for attempt in 0...max(0, retryCount) {
+            if await isAlive() { return .daemon(client) }
+            guard attempt < retryCount else { break }
+            do {
+                try await Task.sleep(for: .milliseconds(200))
+            } catch {
+                return nil  // Cancellation ends the readiness wait.
+            }
+        }
+        return nil
     }
 
     /// Attach to a running daemon when there is one; otherwise run an engine
