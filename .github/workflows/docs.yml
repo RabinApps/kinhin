@@ -88,7 +88,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           out=website/.vitepress/dist/appcast.xml
-          if ! gh release view --repo RabinApps/kinhin --json assets -q '.assets[].name' | grep -qx appcast.xml; then
+          # A failed query is not "no appcast": deploying then would drop the live feed on a transient API error.
+          if ! assets=$(gh release view --repo RabinApps/kinhin --json assets -q '.assets[].name'); then
+            echo "::error::could not query the latest release's assets; not deploying without the feed"
+            exit 1
+          elif ! grep -qx appcast.xml <<<"$assets"; then
             echo "::warning::no appcast.xml on the latest release; the site is deployed without one"
           elif curl -fsSL --retry 3 -o "$out" "https://github.com/RabinApps/kinhin/releases/latest/download/appcast.xml"; then
             echo "appcast: $(grep -o 'sparkle:version>[^<]*' "$out" | head -n 1)"
