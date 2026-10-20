@@ -28,9 +28,10 @@ extension Daemon {
             return false  // no live daemon to restart
         }
         guard needsRestart(runningVersion: ping.version, current: kinhinVersion.current) else { return false }
-        guard targetsCurrentBinary(
-            plistBinaryPath,
-            currentBinaryURL: Bundle.main.url(forResource: "kinhin", withExtension: nil, subdirectory: "bin"))
+        guard
+            targetsCurrentBinary(
+                plistBinaryPath,
+                currentBinaryURL: Bundle.main.url(forResource: "kinhin", withExtension: nil, subdirectory: "bin"))
         else { return false }
         Log.info(
             "daemon",
