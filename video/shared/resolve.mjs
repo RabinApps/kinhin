@@ -404,6 +404,19 @@ export function validateTransition(value, where) {
   return value === undefined || value in TRANSITIONS ? [] : [`${where}: transition "${value}" is not one of ${Object.keys(TRANSITIONS).join(', ')}`];
 }
 
+/**
+ * The scenes named in `ids` (comma-separated, or a list), in the project's own order; all of them when `ids` is empty. Builds one or
+ * two scenes for a quick preview (`--scene`); an id the project does not have is an error that lists the ones it has.
+ */
+export function selectScenes(scenes, ids) {
+  const wanted = (Array.isArray(ids) ? ids : String(ids ?? '').split(',')).map((id) => String(id).trim()).filter(Boolean);
+  if (!wanted.length) return scenes;
+  const known = scenes.map((s) => s.id);
+  const unknown = wanted.filter((id) => !known.includes(id));
+  if (unknown.length) throw new Error(`no scene ${unknown.map((id) => `"${id}"`).join(', ')} in this video (its scenes: ${known.join(', ')})`);
+  return scenes.filter((s) => wanted.includes(s.id));
+}
+
 /** Checks a project file and says what is wrong in words. */
 export function validateProject(project) {
   const problems = [];

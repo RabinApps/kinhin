@@ -16,6 +16,7 @@ export function resolveTheme(themes: Record<string, any>, name?: string, overrid
 export function resolveFormat(name?: string): Format;
 export function fitScale(format: {width: number; height: number}, designWidth?: number): number;
 export function validateProject(project: any): string[];
+export function selectScenes<T extends {id: string}>(scenes: T[], ids?: string | string[]): T[];
 export const TRANSITIONS: Record<string, {xfade: string | null; description: string}>;
 export const TRANSITION_LENGTH: number;
 export function validateTransition(value: unknown, where: string): string[];

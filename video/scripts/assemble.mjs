@@ -25,11 +25,20 @@ const look = loadProject();
 const {format, theme, outName} = look;
 const ff = (args) => execFileSync('ffmpeg', ['-nostdin', '-y', '-loglevel', 'error', ...args], {stdio: 'inherit'});
 const FADE = 0.25;
-// Encode profiles: the CRF and preset of each scene clip, of the delivered MP4, and of the WebM (null: not made).
+// How long each part of the final cut takes, written as one line at the end.
+const laps = [];
+let mark = Date.now();
+const lap = (name) => {
+  laps.push(`${name} ${((Date.now() - mark) / 1000).toFixed(1)}s`);
+  mark = Date.now();
+};
+// Encode profiles: the CRF of each scene clip (a temporary file, always encoded with a quick preset), the CRF and preset of the delivered
+// MP4, and the CRF of the WebM (null: not made).
+// `cpu` is libvpx's speed setting (0 is the slowest and best; 2 is several times faster at about the same size).
 const PROFILES = {
   draft: {scene: 23, mp4: 28, preset: 'veryfast', webm: null},
-  standard: {scene: 17, mp4: 18, preset: 'medium', webm: 33},
-  high: {scene: 14, mp4: 15, preset: 'slow', webm: 28},
+  standard: {scene: 17, mp4: 18, preset: 'medium', webm: 33, cpu: 2},
+  high: {scene: 14, mp4: 15, preset: 'slow', webm: 28, cpu: 1},
 };
 const quality = process.env.VIDEO_FAST ? 'draft' : process.env.VIDEO_QUALITY || 'standard';
 if (!PROFILES[quality]) throw new Error(`VIDEO_QUALITY must be draft, standard or high, not "${quality}"`);
@@ -58,18 +67,20 @@ const parts = Object.entries(S).map(([id, s], i) => {
   const out = `out/.work/part-${i + 1}.mp4`;
   const fades = (fadeIn ? `,fade=t=in:st=0:d=${FADE}:color=${bg}` : '') + (fadeOut ? `,fade=t=out:st=${Math.max(0, length - FADE)}:d=${FADE}:color=${bg}` : '');
   ff(['-i', file, '-vf', `${vf},trim=duration=${length},setpts=PTS-STARTPTS${fades}`,
-    '-an', '-c:v', 'libx264', '-crf', String(profile.scene), out]);
+    '-an', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', String(profile.scene), out]);
   return {id, out, length: s.length};
 });
 const total = parts.reduce((a, p) => a + p.length, 0);
 if (crossing) {
   const [graph, label] = joinGraph(parts, cuts, FPS);
-  ff([...parts.flatMap((p) => ['-i', p.out]), '-filter_complex', graph, '-map', `[${label}]`, '-an', '-c:v', 'libx264', '-crf', String(profile.scene), '-pix_fmt', 'yuv420p', 'out/.work/picture.mp4']);
+  ff([...parts.flatMap((p) => ['-i', p.out]), '-filter_complex', graph, '-map', `[${label}]`, '-an', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', String(profile.scene), '-pix_fmt', 'yuv420p', 'out/.work/picture.mp4']);
 } else {
   const list = parts.map((p) => `file '${p.out.replace('out/.work/', '')}'`).join('\n');
   writeFileSync('out/.work/parts.txt', list);
   ff(['-f', 'concat', '-safe', '0', '-i', 'out/.work/parts.txt', '-c', 'copy', 'out/.work/picture.mp4']);
 }
+
+lap('scenes');
 
 // 2. The voice: every cue at its place on the final clock, levelled to -16 LUFS.
 const cues = Object.values(S).flatMap((s) => s.cues.map((c) => ({file: c.file, at: s.start + c.start})));
@@ -110,6 +121,8 @@ if (music) {
     console.warn('could not measure the mix; keeping it as it is');
   }
 }
+
+lap('audio');
 
 // 4. Captions (the project's `captions` block, see shared/resolve.mjs): burned in unless turned off, in the chosen style;
 // out/<name>/<name>.srt always has every cue for a player. Picture and sound are joined here.
@@ -187,7 +200,9 @@ const video = `${dir}/${outName}.mp4`;
 const allCanvas = Object.values(S).every((s) => s.kind === 'canvas');
 ff(['-i', 'out/.work/picture.mp4', '-i', audio, '-vf', vf, '-map', '0:v', '-map', '1:a', '-c:v', 'libx264', '-crf', String(profile.mp4), '-preset', profile.preset, ...(allCanvas && quality === 'high' ? ['-tune', 'animation'] : []), '-pix_fmt', 'yuv420p',
   '-c:a', 'aac', '-b:a', '192k', '-shortest', '-movflags', '+faststart', video]);
-if (profile.webm !== null) ff(['-i', video, '-c:v', 'libvpx-vp9', '-crf', String(profile.webm), '-b:v', '0', '-c:a', 'libopus', `${dir}/${outName}.webm`]);
+lap('mp4');
+if (profile.webm !== null) ff(['-i', video, '-c:v', 'libvpx-vp9', '-crf', String(profile.webm), '-b:v', '0', '-row-mt', '1', '-tile-columns', '2', '-cpu-used', String(profile.cpu), '-c:a', 'libopus', `${dir}/${outName}.webm`]);
+lap('webm');
 // The poster and the hero GIF come from the most detailed scene: a frame near the end of each scene is scored by how
 // much of it is edges (text, shapes, the product), and the best one wins; a clip scene (the product on screen) is
 // preferred when it scores about as well.
@@ -200,6 +215,8 @@ const candidates = Object.entries(S).map(([id, s], i) => {
 const best = candidates.reduce((a, b) => (b.score > a.score ? b : a));
 ff(['-i', best.file, '-vf', `scale=${Math.min(1200, format.width)}:-2`, `${dir}/${outName}-poster.png`]);
 ff(['-ss', String(best.scene.start), '-t', '10', '-i', video, '-vf', 'fps=10,scale=800:-1:flags=lanczos,split[a][b];[a]palettegen[p];[b][p]paletteuse', `${dir}/${outName}-hero.gif`]);
+lap('poster and gif');
+console.log(`assemble: ${laps.join(' · ')}`);
 for (const c of candidates) rmSync(c.file, {force: true});
 if (existsSync('out/.work/music-credit.txt')) copyFileSync('out/.work/music-credit.txt', `${dir}/music-credit.txt`);
 writeFileSync(`${dir}/${outName}.srt`, readFileSync(`out/.work/${tl.project}.captions.srt`));

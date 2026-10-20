@@ -10,11 +10,15 @@
 //   --setup kokoro|supertonic   install that engine's dependency (kokoro: npm i --no-save; supertonic: a venv)
 //   --audition                  render one paragraph in several voices per engine into raw/voice-audition/
 //   --engine, --voice           override the script's "voice" block (also VOICE_ENGINE, VOICE, RATE env)
+// A sentence that has not changed (same text, voice, speed and engine) is not spoken again: its audio is kept in raw/voice-cache/ and
+// the speech model is not even loaded when every sentence is there. VOICE_FORCE=1 speaks everything again.
 import {execFileSync} from 'node:child_process';
 import {mkdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
 import {dirname, join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {prune, voiceKey, withCache} from './cache.mjs';
 import {projectFile, readConfig} from './project.mjs';
+import {selectScenes} from '../shared/resolve.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
@@ -54,6 +58,7 @@ if (setup) {
 }
 
 const script = readConfig(scriptPath);
+script.scenes = selectScenes(script.scenes, process.env.VIDEO_SCENES); // `--scene`: speak only the scenes being built
 const engine = engineFlag || process.env.VOICE_ENGINE || script.voice?.engine || 'say';
 const voice = voiceFlag || process.env.VOICE || script.voice?.name || VOICES[engine]?.[0];
 const rate = process.env.RATE || script.voice?.rate || 175; // `say` words per minute
@@ -145,8 +150,18 @@ const plan = script.scenes.map((scene) => {
     return {...cue, job};
   })};
 });
-const durations = await render(engine, voice, jobs);
-jobs.forEach((job, i) => (job.seconds = durations[i]));
+// What a cue sounds like depends on the engine and its model, the voice, the speed and the (respelled) words: nothing else.
+const MODEL = {say: 'say', kokoro: 'Kokoro-82M-v1.0-ONNX q8', supertonic: 'supertonic'};
+const cacheDir = join(root, 'raw/voice-cache');
+prune(cacheDir);
+const {hits, misses} = await withCache(jobs, {
+  dir: cacheDir,
+  force: !!process.env.VOICE_FORCE,
+  key: (job) => voiceKey({engine, model: MODEL[engine], voice, speed: engine === 'say' ? Math.round(rate * pace) : speed, text: speakable(job.text)}),
+  render: (todo) => render(engine, voice, todo),
+  seconds,
+});
+console.log(`voice: ${misses} spoken, ${hits} from the cache`);
 
 const lead = (scene) => (scene.lead ?? script.lead ?? 0.5) / pace;
 const timings = {engine, voice, scenes: {}};

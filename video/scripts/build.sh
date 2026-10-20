@@ -11,6 +11,8 @@
 #   video/scripts/build.sh --adapter my-product            use another adapter's clips (video/adapters/)
 #   video/scripts/build.sh --music off                     no music; or a catalog track, a file (music/my-track.mp3), or an https URL (with VIDEO_MUSIC_SHA256)
 #   video/scripts/build.sh --fast                          a preview: quicker encode, no WebM
+#   video/scripts/build.sh --scene app,outro               only these scenes (ids, in the video's order), as a quick preview: --fast, no music
+#                                                          unless --quality or --music say otherwise; the output is out/<name>-scene-app+outro/
 #   video/scripts/build.sh --quality high --fps 60         slower, larger encode (draft, standard or high); 24, 30 or 60 fps
 #   video/scripts/build.sh --captions off                  no burned-in captions (on, off, or all scenes); the .srt is still written
 #   video/scripts/build.sh --caption-style box             outline, box, shadow, bold or minimal
@@ -37,6 +39,7 @@ while [ $# -gt 0 ]; do
     --music) export VIDEO_MUSIC="${2:?--music needs a track, a file, a URL, or off}"; shift ;;
     --adapter) export VIDEO_ADAPTER="${2:?--adapter needs a name (see video/adapters/)}"; shift ;;
     --fast) export VIDEO_FAST=1 ;;
+    --scene) export VIDEO_SCENES="${2:?--scene needs scene ids, comma-separated (the scene ids of the video)}"; shift ;;
     --quality) export VIDEO_QUALITY="${2:?--quality needs draft, standard or high}"; shift ;;
     --fps) export VIDEO_FPS="${2:?--fps needs 24, 30 or 60}"; shift ;;
     --captions) export VIDEO_CAPTIONS="${2:?--captions needs on, off or all}"; shift ;;
@@ -46,6 +49,12 @@ while [ $# -gt 0 ]; do
   esac
   shift
 done
+
+# A scene preview is for looking, not for publishing: a draft encode and no music, unless the options say otherwise.
+if [ -n "${VIDEO_SCENES:-}" ]; then
+  [ -n "${VIDEO_QUALITY:-}" ] || export VIDEO_FAST=1
+  [ -n "${VIDEO_MUSIC:-}" ] || export NO_MUSIC=1
+fi
 
 if [ "$CONTAINER" = 1 ] && [ -z "${KINHIN_VIDEO_IN_CONTAINER:-}" ]; then
   # Apple's container first, Docker as the fallback.
@@ -99,13 +108,16 @@ if [ "$CONTAINER" = 1 ] && [ -z "${KINHIN_VIDEO_IN_CONTAINER:-}" ]; then
   "$RUNTIME" run --rm "${SIZE[@]}" ${SRCMOUNT[@]+"${SRCMOUNT[@]}"} ${NET[@]+"${NET[@]}"} \
     -v "$PWD":/src -v "$PWD/raw":/work/raw -v "$PWD/out":/work/out \
     -e NO_MUSIC="${NO_MUSIC:-}" -e VIDEO_MUSIC="${VIDEO_MUSIC:-}" -e VIDEO_MUSIC_SHA256="${VIDEO_MUSIC_SHA256:-}" -e VIDEO_MUSIC_VOLUME="${VIDEO_MUSIC_VOLUME:-}" -e NO_CAPTIONS="${NO_CAPTIONS:-}" -e VOICE_ENGINE="${VOICE_ENGINE:-}" -e VOICE="${VOICE:-}" \
-    -e VIDEO_THEME="${VIDEO_THEME:-}" -e VIDEO_FORMAT="${VIDEO_FORMAT:-}" -e VIDEO_PLATFORM="${VIDEO_PLATFORM:-}" -e VIDEO_PROJECT="${VIDEO_PROJECT:-}" -e VIDEO_ADAPTER="${VIDEO_ADAPTER:-}" -e VIDEO_FAST="${VIDEO_FAST:-}" -e VIDEO_QUALITY="${VIDEO_QUALITY:-}" -e VIDEO_FPS="${VIDEO_FPS:-}" -e VIDEO_CAPTIONS="${VIDEO_CAPTIONS:-}" -e VIDEO_CAPTION_STYLE="${VIDEO_CAPTION_STYLE:-}" \
+    -e VIDEO_THEME="${VIDEO_THEME:-}" -e VIDEO_FORMAT="${VIDEO_FORMAT:-}" -e VIDEO_PLATFORM="${VIDEO_PLATFORM:-}" -e VIDEO_PROJECT="${VIDEO_PROJECT:-}" -e VIDEO_ADAPTER="${VIDEO_ADAPTER:-}" -e VIDEO_FAST="${VIDEO_FAST:-}" -e VIDEO_QUALITY="${VIDEO_QUALITY:-}" -e VIDEO_FPS="${VIDEO_FPS:-}" -e VIDEO_CAPTIONS="${VIDEO_CAPTIONS:-}" -e VIDEO_CAPTION_STYLE="${VIDEO_CAPTION_STYLE:-}" -e VIDEO_SCENES="${VIDEO_SCENES:-}" \
     "$IMAGE" bash -c 'rsync -a --exclude node_modules --exclude raw --exclude out --exclude .venv-tts --exclude output --exclude .generated /src/ /work/ && cd /work && { cp -r fonts/. /usr/local/share/fonts/ 2>/dev/null; fc-cache -f; } && scripts/build.sh'
   echo "==> done: see video/out/<name>/"
   exit 0
 fi
 
-step() { printf '\n==> %s\n' "$*"; }
+# Each step's time is kept for a summary line at the end, so a slow build says which step it was.
+STEP_NAME=""; STEP_AT=$SECONDS; TIMINGS=""
+lap() { [ -z "$STEP_NAME" ] || TIMINGS="$TIMINGS${TIMINGS:+ · }$STEP_NAME $((SECONDS - STEP_AT))s"; }
+step() { lap; STEP_NAME="${*%% (*}"; STEP_AT=$SECONDS; printf '\n==> %s\n' "$*"; }
 [ -d node_modules ] || { step "npm ci"; npm ci; }
 export PATH="/opt/homebrew/opt/ffmpeg-full/bin:$PATH"   # ffmpeg with libass on a Mac; harmless elsewhere
 mkdir -p raw out
@@ -129,5 +141,7 @@ step "music"
 node scripts/fetch-music.mjs
 step "final cut"
 node scripts/assemble.mjs
+lap
+echo "time: $TIMINGS · total ${SECONDS}s"
 # What this build made (the WebM is skipped by --fast, so a glob can match nothing: that is not an error).
 find out -mindepth 2 -maxdepth 2 -not -path 'out/.work/*' -newer package.json -type f \( -name '*.mp4' -o -name '*.webm' -o -name '*-poster.png' -o -name '*-hero.gif' -o -name '*.srt' \) -exec ls -lh {} + 2>/dev/null | tail -8 || true

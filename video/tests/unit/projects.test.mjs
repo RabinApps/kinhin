@@ -67,6 +67,23 @@ test('output names carry a non-default theme or format', () => {
   }
 });
 
+test('VIDEO_SCENES builds only those scenes, in the video\'s order, under their own output name', () => {
+  const all = loadProject('launch').scenes.map((s) => s.id);
+  assert.ok(all.includes('app') && all.includes('intro'));
+  const saved = process.env.VIDEO_SCENES;
+  process.env.VIDEO_SCENES = 'app,intro';
+  try {
+    const p = loadProject('launch');
+    assert.deepEqual(p.scenes.map((s) => s.id), all.filter((id) => id === 'intro' || id === 'app'));
+    assert.equal(p.outName, 'launch-scene-intro+app', 'a preview never overwrites the full video');
+    process.env.VIDEO_SCENES = 'nope';
+    assert.throws(() => loadProject('launch'), /no scene "nope" in this video \(its scenes: intro, /);
+  } finally {
+    saved === undefined ? delete process.env.VIDEO_SCENES : (process.env.VIDEO_SCENES = saved);
+  }
+  assert.deepEqual(loadProject('launch').scenes.map((s) => s.id), all, 'and without it, the whole video');
+});
+
 test('shellEnv exports the look for the ffmpeg scripts', () => {
   const env = Object.fromEntries(shellEnv(loadProject('launch')).split('\n').map((l) => l.match(/^export (\w+)='(.*)'$/).slice(1)));
   assert.equal(env.VIDEO_W, '1920');

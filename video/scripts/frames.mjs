@@ -13,11 +13,14 @@
 //            scene's length (opt-in; a scene without it is unchanged). `{platform}` in a path becomes the look's platform
 //            (ios or android, from VIDEO_PLATFORM; default ios). The screens sit in a phone frame (`frame`: iphone,
 //            android or none; default follows the platform). `hold` seconds per image (default 2.5).
+// A framed scene is kept in raw/frames/<project>/ and used again while nothing that shapes it has changed: its props and length, the look,
+// the recordings it uses and the framing code (RENDER_FORCE=1 frames everything again).
 // Usage: node scripts/frames.mjs        Env: VIDEO_PROJECT, VIDEO_THEME, VIDEO_FORMAT
 import {execFileSync} from 'node:child_process';
-import {existsSync, mkdirSync, readFileSync} from 'node:fs';
+import {copyFileSync, existsSync, mkdirSync, readFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {loadAdapter, resolveClip as resolveClip_} from './adapter.mjs';
+import {frameKey, hashFile, readJson, sha, writeJson} from './cache.mjs';
 import {applyCamera, resolveTargets, wantsCamera} from './camera.mjs';
 import {slideshow} from './slideshow.mjs';
 import {loadProject, root, shellEnv} from './project.mjs';
@@ -73,8 +76,8 @@ function prepare(id, label, spec, found, length, {laptop = false, always = false
   return {file: out, start: 0, speed: '1', covered: laptop};
 }
 
-for (const scene of p.scenes.filter((s) => s.kind === 'clip')) {
-  const length = timeline.scenes[scene.id].length;
+/** Frames one clip scene into out/.work/<id>.mp4. */
+function renderScene(scene, length) {
   if (scene.type === 'split') {
     const panels = ['left', 'right'].map((side) => {
       const spec = scene.props[side];
@@ -86,7 +89,7 @@ for (const scene of p.scenes.filter((s) => s.kind === 'clip')) {
     });
     const out = join('out/.work', `${scene.id}.mp4`);
     execFileSync('scripts/frame-split.sh', [panels[0].file, panels[1].file, out, String(length), panels[0].delay, panels[1].delay, panels[0].bar, panels[1].bar, String(scene.props.ratio ?? 0.5)].map(String), {env, stdio: 'inherit'});
-    continue;
+    return;
   }
   if (Array.isArray(scene.props.screens)) {
     const platform = env.VIDEO_PLATFORM || 'ios';
@@ -98,7 +101,7 @@ for (const scene of p.scenes.filter((s) => s.kind === 'clip')) {
       canvasW: Number(env.VIDEO_W ?? 1920),
       canvasH: Number(env.VIDEO_H ?? 1080),
     });
-    continue;
+    return;
   }
   const out = join('out/.work', `${scene.id}.mp4`);
   // An app recording defaults to the laptop; a terminal or a browser session to a window.
@@ -114,4 +117,47 @@ for (const scene of p.scenes.filter((s) => s.kind === 'clip')) {
     execFileSync('ffmpeg', ['-nostdin', '-y', '-loglevel', 'error', '-i', clip.file, '-t', String(length), '-an', '-c:v', 'libx264', '-crf', '17', out], {stdio: 'inherit'});
     console.log(`wrote ${out}`);
   }
+}
+
+/** The clip specs of a scene (the two panels of a split, or the scene's own props) and the slideshow images, as files on disk. */
+function inputsOf(scene, length) {
+  const specs = scene.type === 'split' ? [scene.props.left, scene.props.right] : Array.isArray(scene.props.screens) ? [] : [scene.props];
+  const files = specs.map((spec, i) => {
+    const found = locate(scene.id, scene.type === 'split' ? [' left', ' right'][i] : '', spec);
+    return {file: hashFile(found.file), meta: found.meta && existsSync(found.meta) ? readFileSync(found.meta, 'utf8') : null};
+  });
+  const images = (scene.props.screens ?? []).map((path) => path.replaceAll('{platform}', env.VIDEO_PLATFORM || 'ios'));
+  for (const image of images) files.push({file: existsSync(image) ? hashFile(image) : null});
+  return {
+    type: scene.type,
+    props: scene.props,
+    targets: specs.map((spec) => adapter?.manifest.clips?.[spec.clip]?.targets ?? null),
+    length,
+    look: shellEnv(p) + (env.VIDEO_PLATFORM ?? ''),
+    files,
+    code: codeHash,
+  };
+}
+
+// The framing code, hashed once: a change to any of it frames every clip again.
+const codeHash = sha(['frame-app.sh', 'frame-terminal.sh', 'frame-split.sh', 'frames.mjs', 'camera.mjs', 'speed.mjs', 'slideshow.mjs'].map((f) => readFileSync(join('scripts', f), 'utf8')));
+const cacheDir = join('raw/frames', p.slug);
+const cacheFile = join(cacheDir, '.cache.json');
+const cache = readJson(cacheFile);
+
+for (const scene of p.scenes.filter((s) => s.kind === 'clip')) {
+  const length = timeline.scenes[scene.id].length;
+  const out = join('out/.work', `${scene.id}.mp4`);
+  const kept = join(cacheDir, `${scene.id}.mp4`);
+  const key = frameKey(inputsOf(scene, length));
+  if (!process.env.RENDER_FORCE && cache[scene.id] === key && existsSync(kept)) {
+    copyFileSync(kept, out);
+    console.log(`cached   ${out}`);
+    continue;
+  }
+  renderScene(scene, length);
+  mkdirSync(cacheDir, {recursive: true});
+  copyFileSync(out, kept);
+  cache[scene.id] = key;
+  writeJson(cacheFile, cache);
 }

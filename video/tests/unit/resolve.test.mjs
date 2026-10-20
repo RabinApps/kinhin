@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
-import {FORMATS, SCENE_TYPES, deepMerge, fitScale, isNarrow, buildThemes, resolveFormat, resolveMusic, resolveTheme, validateMusic, validateProject, validateTheme, TRANSITIONS, validateCamera, validateClipSpec, validateSpeed, validateTransition} from '../../shared/resolve.mjs';
+import {FORMATS, SCENE_TYPES, deepMerge, fitScale, isNarrow, buildThemes, resolveFormat, resolveMusic, resolveTheme, validateMusic, validateProject, validateTheme, TRANSITIONS, validateCamera, validateClipSpec, validateSpeed, validateTransition, selectScenes} from '../../shared/resolve.mjs';
 import {readJson, root, themeNames} from '../helpers.mjs';
 import {join} from 'node:path';
 
@@ -245,6 +245,16 @@ test('a split scene needs two clips; delay and ratio are checked, and delay is f
   assert.deepEqual(validateClipSpec({clip: 'a', delay: 2}, 'p', {panel: true}), []);
   assert.ok('split' in SCENE_TYPES && SCENE_TYPES.split.kind === 'clip');
   assert.match(validateProject({scenes: [{id: 'a', type: 'title', narration: 'x', props: {title: 'T', ramp: 1}}]}).join(), /work on device, terminal and split scenes only/);
+});
+
+test('selectScenes picks scenes by id, in the video\'s own order, and says which ids it has', () => {
+  const scenes = [{id: 'intro'}, {id: 'app'}, {id: 'outro'}];
+  assert.equal(selectScenes(scenes, undefined), scenes);
+  assert.equal(selectScenes(scenes, ''), scenes, 'no ids is every scene');
+  assert.deepEqual(selectScenes(scenes, 'outro,app').map((s) => s.id), ['app', 'outro'], 'the video\'s order, not the order asked for');
+  assert.deepEqual(selectScenes(scenes, ' app , ').map((s) => s.id), ['app'], 'spaces and empty entries are ignored');
+  assert.deepEqual(selectScenes(scenes, ['intro']).map((s) => s.id), ['intro'], 'a list works too');
+  assert.throws(() => selectScenes(scenes, 'app,nope,zip'), /no scene "nope", "zip" in this video \(its scenes: intro, app, outro\)/);
 });
 
 // ---- music ------------------------------------------------------------------------------------------------------------
