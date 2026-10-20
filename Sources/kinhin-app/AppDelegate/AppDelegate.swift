@@ -50,7 +50,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // window opens below; if setup turns out to be incomplete the
         // bootstrap brings the Setup tab up itself.
         Task {
-            await bootstrapEngine()
+            // An upgrade leaves the previous build's daemon running in memory; restart it onto this build.
+            var daemonRestarted = false
+            do {
+                daemonRestarted = try await Daemon.restartIfStale()
+            } catch {
+                Log.warn("app", "could not restart the daemon for this build: \(error.localizedDescription)")
+            }
+            await bootstrapEngine(daemonRestarted: daemonRestarted)
             autoStartFleetIfEnabled()
         }
         fleet.startPolling()
@@ -59,14 +66,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Task { @MainActor in fleet.detectStaleDaemonPlist() }
         // Sparkle's background checks (once a day, per SUScheduledCheckInterval).
         updates.startScheduledChecks()
-        // An upgrade leaves the previous build's daemon running in memory; restart it onto this build.
-        Task { @MainActor in
-            do {
-                try await Daemon.restartIfStale()
-            } catch {
-                Log.warn("app", "could not restart the daemon for this build: \(error.localizedDescription)")
-            }
-        }
         observeControllers()
         // Launch-mode surface selection: the main window opens unless the user
         // chose menu-bar-only or onboarding already took the stage (the
@@ -113,7 +112,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Engine wiring
 
-    func bootstrapEngine(reopenSetupOnFailure: Bool = true) async {
+    func bootstrapEngine(reopenSetupOnFailure: Bool = true, daemonRestarted: Bool = false) async {
         #if DEBUG
             // Screen-recording demo: a scripted fleet, no config, Keychain, daemon or forge touched.
             if let demo = DemoFleetServing.fromEnvironment() {
@@ -132,7 +131,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Log.info("app", "first run: wrote starter config at \(Paths.config.path)")
         }
         // Attach to daemon when one is running; otherwise run the engine in-process.
-        let daemonBackend = await FleetBackend.attachToDaemon()
+        let daemonBackend = await FleetBackend.attachToDaemon(retryCount: daemonRestarted ? 10 : 0)
         // A broken config stays a broken config for the wizard to surface;
         // loading it here is only a fast-path gate for "skip onboarding".
         // Through ConfigStore, so a parse error is said (under the status

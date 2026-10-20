@@ -90,7 +90,7 @@ git push origin v<version>
 The tag triggers `.github/workflows/release.yml`, which runs the tests, stamps `Version.swift` from
 the tag, requires the signing secrets, rebuilds, and runs **the same `scripts/release-artifacts.sh`**
 your local run executed — so a checkout release and a tag publish cannot drift apart. It then uploads
-the four files to a GitHub Release, with the version's CHANGELOG section as its notes. The workflow
+the five files to a GitHub Release, with the version's CHANGELOG section as its notes. The workflow
 runs in the protected `release` environment, so secrets are only reachable after a reviewer approves.
 It needs a runner labelled `kinhin-xcode` (a Tart pool on a kinhin fleet).
 
@@ -103,7 +103,7 @@ built must already be pushed.
 awk -v h="## v<version>" '$0 == h {f=1; next} /^## /{f=0} f' CHANGELOG.md > dist/release-notes.md
 gh release create v<version> --target "$(git rev-parse HEAD)" --latest --title "v<version>" \
   --notes-file dist/release-notes.md \
-  dist/kinhin-<version>-arm64.dmg dist/kinhin-cli-<version>-arm64.zip dist/install.sh dist/checksums.txt
+  dist/kinhin-<version>-arm64.dmg dist/kinhin-cli-<version>-arm64.zip dist/install.sh dist/checksums.txt dist/appcast.xml
 git fetch --tags
 ```
 

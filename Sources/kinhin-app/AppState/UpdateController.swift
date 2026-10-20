@@ -44,6 +44,9 @@ final class UpdateController {
     /// (24h) in Info.plist. Idempotent.
     func startScheduledChecks() {
         guard !scheduledChecksStarted else { return }
+        guard let publicKey = Bundle.main.object(forInfoDictionaryKey: "SUPublicEDKey") as? String,
+            !publicKey.isEmpty
+        else { return }
         scheduledChecksStarted = true
         updaterController.startUpdater()
     }
