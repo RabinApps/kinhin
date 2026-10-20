@@ -10,9 +10,20 @@
   An optional `fast_model` (for example `clef-flash` or `nimble`, Ollama's decision models) is asked first, and the LLM
   answers when it is not confident. Traffic goes to `healing.ollama.host`, which is this Mac by default; any other host
   must be `https`, and it then receives the redacted problem and log lines. See [docs/healing.md](docs/healing.md#the-ollama-advisor).
+
 **Fixed**
 
 - A restart no longer registers a VM again while its runner is still on the forge, which could fail a job running on it. A runner the forge still has is watched; a VM with no runner is registered as normal. A VM whose forge cannot be asked is held, shown by an `adoption` alert, and removed after one hour; a VM whose account was removed from the config is released at once. Forges with no runner list, and partly registered VMs, have their own rules. See [docs/scaling.md](docs/scaling.md#restarts).
+
+**Changed**
+
+- The in-app updater now installs updates itself. It uses [Sparkle](https://sparkle-project.org): kinhin downloads the new release, checks its EdDSA signature, replaces the running app and relaunches. Before, it only opened the DMG for a manual drag into Applications. See [Updates and installs](docs/install.md#how-updates-and-installs-are-verified).
+- Update checks run once a day through Sparkle, and the hourly check is gone. Settings → App shows **Install Update…** when a release is waiting.
+- After an upgrade, the app restarts a daemon that is still running the previous build, so the daemon runs the new binary. This interrupts any jobs that daemon is running.
+
+**Upgrading**
+
+- Builds before this release still open the DMG, so update once by hand. Updates after that install automatically.
 
 ## v0.0.1-beta-2
 
