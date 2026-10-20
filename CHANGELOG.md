@@ -10,6 +10,11 @@
   An optional `fast_model` (for example `clef-flash` or `nimble`, Ollama's decision models) is asked first, and the LLM
   answers when it is not confident. Traffic goes to `healing.ollama.host`, which is this Mac by default; any other host
   must be `https`, and it then receives the redacted problem and log lines. See [docs/healing.md](docs/healing.md#the-ollama-advisor).
+- Videos can move a camera over a recording: a `device` or `terminal` scene's `camera` zooms and pans, `focus` spotlights part of the
+  screen and `cursor` adds a pointer with click rings, all from positions in the recording. A new `karaoke` caption style lights each
+  word as it is spoken, and `transition` (`dissolve`, `push`, `slide`, `wipe` or `circle`, per project or per scene) replaces the
+  fade between scenes without moving the voice. Nothing changes for a video that does not use them. See [docs/video-config.md](docs/video-config.md#camera-on-recordings).
+
 **Fixed**
 
 - A restart no longer registers a VM again while its runner is still on the forge, which could fail a job running on it. A runner the forge still has is watched; a VM with no runner is registered as normal. A VM whose forge cannot be asked is held, shown by an `adoption` alert, and removed after one hour; a VM whose account was removed from the config is released at once. Forges with no runner list, and partly registered VMs, have their own rules. See [docs/scaling.md](docs/scaling.md#restarts).

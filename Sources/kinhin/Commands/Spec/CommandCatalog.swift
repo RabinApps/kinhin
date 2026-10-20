@@ -590,7 +590,7 @@ enum CommandCatalog {
                         .value("--theme", "NAME", "paper, clean, midnight, blueprint, chalk or your own"),
                         .value("--format", "RATIO", "16:9, 9:16, 4:5 or 1:1"),
                         .value("--captions", "on|off|all", "Burn captions into the picture"),
-                        .value("--caption-style", "STYLE", "outline, box, shadow, bold or minimal"),
+                        .value("--caption-style", "STYLE", "outline, box, shadow, bold, minimal or karaoke"),
                         .value("--music", "TRACK", "A catalog track, a file in the repository, or off"),
                         .bool("--fast", "A preview: quicker encode, no WebM"),
                         .value("--quality", "draft|standard|high", "Encode quality (draft is --fast; high is slower)"),

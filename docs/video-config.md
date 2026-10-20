@@ -6,7 +6,7 @@ have not built one yet. Each video is one YAML or JSON file in `.kinhin/videos/`
 [← Back to Add videos to your project](videos-for-your-project.md) · [Recordings](video-adapters.md) · [Troubleshooting](video-troubleshooting.md)
 
 **On this page:** [The project file](#the-project-file) · [Your own theme](#your-own-theme) · [Scene types](#scene-types) ·
-[Captions](#captions) · [Music](#music) · [Build flags](#build-flags)
+[Camera](#camera-on-recordings) · [Transitions](#transitions) · [Captions](#captions) · [Music](#music) · [Build flags](#build-flags)
 
 ## The project file
 
@@ -34,6 +34,7 @@ have not built one yet. Each video is one YAML or JSON file in `.kinhin/videos/`
 | `voice` | The narrator. See [Voices](#voices). |
 | `overrides` | Changes to the theme for this video only, merged over the theme: `{font: {family: Georgia}, colors: {accent: "#ff7a59"}}`. |
 | `adapter` | The product whose recordings the scenes use, by name. Optional for videos made only of drawn scenes. See [Recordings](video-adapters.md). |
+| `transition` | How scenes hand over to each other: `fade` (default), `dissolve`, `push`, `slide`, `wipe` or `circle`. A scene can set its own. See [Transitions](#transitions). |
 | `captions`, `music` | See [Captions](#captions) and [Music](#music). |
 | `scenes` | The scenes, in order. See [Scene types](#scene-types). |
 
@@ -117,6 +118,61 @@ scenes:
 
 The `device` scene needs an adapter with a clip named `app`. Without one, the build stops and names the missing clip.
 
+## Camera on recordings
+
+A `device` or `terminal` scene can move a camera over its recording, spotlight part of the screen and show a cursor. The picture
+inside the laptop or window moves; the frame itself holds still. Every position is a fraction of the recording, from 0 (left or
+top) to 1 (right or bottom), so one script works in every format. All three props are optional and combine.
+
+```yaml
+- id: fleet
+  type: device
+  props:
+    clip: app
+    camera:                                    # zoom and pan
+      - { at: 2, zoom: 1.8, to: [0.62, 0.35] }
+      - { at: 6, zoom: 1 }
+    focus:                                     # dim everything but a box
+      - { from: 2, to: 5, box: [0.5, 0.2, 0.8, 0.5] }
+    cursor:                                    # a pointer, and a ring where it clicks
+      - { at: 2.2, to: [0.7, 0.3] }
+      - { at: 3, to: [0.7, 0.3], click: true }
+  narration: Here the fleet scales to the queue.
+```
+
+| Prop | What it does |
+|---|---|
+| `camera` | A list of keyframes. At `at` seconds into the scene the camera moves (`move` seconds, 0.8 by default) to `zoom` (1 to 4) centred on `to`, then holds. A keyframe without `zoom` or `to` keeps the one before it. The camera starts at zoom 1, centred. |
+| `focus` | A box (or a list of them): `{from, to, box: [x0, y0, x1, y1], dim}`. Between `from` and `to` seconds everything outside the box is dimmed (`dim`, 0.55 by default, up to 0.9), fading in and out. |
+| `cursor` | A list of points: `{at, to, click}`. The pointer is at `to` at `at` seconds, travelling from the point before (it sets off up to a second early). `click: true` spreads a ring from the point. Skip it if your recording already shows its own cursor. |
+
+Times are seconds into the scene, after `speed` is applied. The scene's frame, captions and narration are unchanged. Recordings are
+drawn at their own resolution, so a zoom of 2 or more is sharpest on a recording made at a high resolution.
+
+## Transitions
+
+By default each scene fades out through the backdrop colour and the next fades in. A project's `transition` changes every cut;
+a scene's own `transition` is how it comes in from the scene before it.
+
+| Transition | What you see |
+|---|---|
+| `fade` | A dip through the backdrop colour (the default). |
+| `dissolve` | A cross-dissolve. |
+| `push` | The next scene pushes the last one out to the left. |
+| `slide` | The next scene slides up over the last one. |
+| `wipe` | A hard-edged wipe from the right. |
+| `circle` | The next scene opens from the middle in a circle. |
+
+```yaml
+transition: dissolve          # every cut, unless a scene says otherwise
+scenes:
+  - { id: intro, type: title, props: { title: Acme }, narration: Meet Acme. }
+  - { id: app, type: device, transition: push, props: { clip: app }, narration: This is the app. }
+```
+
+A transition lasts half a second (less between very short scenes) and is centred on the cut, so no scene moves on the clock and
+the narration stays in step. The first scene has nothing to come in from.
+
 ## Captions
 
 A video writes two caption outputs. The **caption file** (`out/<name>/<name>.srt`, every cue) is written on every build for a
@@ -130,17 +186,22 @@ player. **Burned-in** captions are drawn on the picture. Turn them on or off, an
 |---|---|---|
 | `burn` | `true` or `false` | `true` (an adapter can set `false`) |
 | `scenes` | `"clips"` (scenes with no text of their own), `"all"`, or a list of scene ids | `"clips"` |
-| `style` | `outline` (text with an outline), `box` (a semi-transparent box), `shadow` (a soft drop shadow), `bold` (larger, bold, outlined), `minimal` (small, plain) | `outline` (`box` if the theme asks for one) |
+| `style` | `outline` (text with an outline), `box` (a semi-transparent box), `shadow` (a soft drop shadow), `bold` (larger, bold, outlined), `minimal` (small, plain), `karaoke` (bold and outlined, each word lights up as it is spoken) | `outline` (`box` if the theme asks for one) |
 | `position` | `auto` (clear of the laptop or window), `bottom`, `top`, `middle` | `auto` |
 | `size` | A multiplier, up to 3 | `1` |
 | `color`, `outlineColor`, `boxColor`, `font` | `#rrggbb` (`#rrggbbaa` for opacity); a font name | from the theme |
+| `highlightColor` | `karaoke` only: the colour of the words already spoken (the rest are `color`, dimmed) | `color` |
 | `sidecar` | `true` or `false` | `true` |
 
 ```bash
 kinhin video build launch --captions off                 # a clean picture; the .srt is still written
 kinhin video build launch --captions all                 # burn them into every scene
-kinhin video build launch --caption-style box            # outline, box, shadow, bold or minimal
+kinhin video build launch --caption-style box            # outline, box, shadow, bold, minimal or karaoke
 ```
+
+`karaoke` times each word from its length within the narrated sentence, since the voice reports a sentence at a time, so the light
+follows the speech closely but not to the syllable. It suits short sentences and vertical formats best. The caption file is the
+same as for every other style.
 
 Later settings win: the theme, then the adapter's `captions` block, then the video's, then the command line. The
 [gallery](video-gallery.md#captions) shows every style.
