@@ -7,7 +7,7 @@ enum VideoCommand {
     /// Flags that take a value, so a value is never mistaken for the video's name.
     private static let valueFlags: Set<String> = [
         "--dir", "--theme", "--format", "--captions", "--caption-style", "--music", "--runtime", "--image", "--ref",
-        "--runs-on", "--from", "--ci", "--quality", "--fps",
+        "--runs-on", "--from", "--ci", "--quality", "--fps", "--scene",
     ]
 
     /// `--ci SYSTEM`, or the system the repository uses when it is absent or `auto`.
@@ -138,6 +138,7 @@ enum VideoCommand {
         if let fps = options.fps, !VideoBuildOptions.frameRates.contains(fps) {
             throw CLIError("--fps takes 24, 30 or 60", exit: .usage)
         }
+        options.scenes = flag("--scene", in: rest)
         return options
     }
 
@@ -177,7 +178,13 @@ enum VideoCommand {
         let repo = repository(rest)
         let options = try options(from: rest, repo: repo)
         let runtime = try runtimeFlag(rest)
+        let watching = hasFlag("--watch", in: rest)
         if hasFlag("--on-fleet", in: rest) {
+            // A runner builds the whole video from a checkout: it has no scene preview, and nothing of yours to watch.
+            if options.scenes != nil {
+                throw CLIError("--scene works on a local build, not with --on-fleet", exit: .usage)
+            }
+            if watching { throw CLIError("--watch works on a local build, not with --on-fleet", exit: .usage) }
             guard VideoProjects.file(named: options.project, in: repo) != nil else {
                 throw VideoError.unknownProject(name: options.project, available: VideoProjects.list(in: repo))
             }
@@ -194,11 +201,44 @@ enum VideoCommand {
         let plan = try await runner.plan(
             options: options, repo: repo, runtime: runtime, image: flag("--image", in: rest))
         printError("==> \(options.project): \(plan.runtime.rawValue), image \(plan.image)")
-        let code = try await runner.build(plan: plan)
-        guard code == 0 else {
-            throw CLIError("the video build failed (exit \(code)); the log above says why", exit: .general)
+        /// One build; returns false when it failed (the log above says why).
+        func buildOnce() async throws -> Bool {
+            let clock = ContinuousClock()
+            let started = clock.now
+            let code = try await runner.build(plan: plan)
+            guard code == 0 else { return false }
+            let seconds = Int((clock.now - started).components.seconds)
+            print(
+                "Done in \(seconds)s. The video is in \(relative(latestVideoFolder(in: plan.outputDirectory), to: repo))/"
+            )
+            return true
         }
-        print("Done. The video is in \(relative(latestVideoFolder(in: plan.outputDirectory), to: repo))/")
+        guard watching else {
+            guard try await buildOnce() else {
+                throw CLIError("the video build failed; the log above says why", exit: .general)
+            }
+            return
+        }
+        // Watching: a failed build is reported and the next change tries again. Ctrl-C ends it.
+        let folder = VideoProjects.directory(in: repo)
+        var seen = VideoWatcher.snapshot(of: folder)
+        let first = try await buildOnce()
+        if !first { printError("the video build failed; fix it and save to try again") }
+        while true {
+            printError("==> watching \(relative(folder, to: repo)) for changes (Ctrl-C to stop)")
+            let next: (snapshot: [String: Date], changed: [String])
+            do {
+                next = try await VideoWatcher.waitForChange(in: folder, since: seen)
+            } catch is CancellationError {
+                return
+            }
+            seen = next.snapshot
+            printError(
+                "==> changed: \(next.changed.prefix(3).joined(separator: ", "))\(next.changed.count > 3 ? ", ..." : "")"
+            )
+            let rebuilt = try await buildOnce()
+            if !rebuilt { printError("the video build failed; fix it and save to try again") }
+        }
     }
 
     /// Each video has its own folder under `out/` (`out/<name>/`); the one just built is the most recently changed.

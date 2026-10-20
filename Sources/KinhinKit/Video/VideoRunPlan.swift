@@ -21,6 +21,8 @@ public struct VideoBuildOptions: Equatable, Sendable {
     public var quality: String?
     /// `24`, `30` or `60` frames per second (the pipeline's default is 30).
     public var fps: String?
+    /// Scene ids, comma-separated: build only those scenes, as a quick preview (a draft encode with no music).
+    public var scenes: String?
 
     public static let qualities: Set<String> = ["draft", "standard", "high"]
     public static let frameRates: Set<String> = ["24", "30", "60"]
@@ -79,6 +81,7 @@ public struct VideoRunPlan: Equatable, Sendable {
         add("--music", options.music)
         add("--quality", options.quality)
         add("--fps", options.fps)
+        add("--scene", options.scenes)
         if options.fast { entry.append("--fast") }
 
         let run =
