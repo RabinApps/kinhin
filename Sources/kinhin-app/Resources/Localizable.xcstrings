@@ -2446,6 +2446,9 @@
     "the daemon LaunchAgent is installed but its binary is missing — run `kinhin daemon uninstall` to remove it" : {
       "comment" : "Warning shown under the fleet status; the backticked command must stay verbatim"
     },
+    "The daemon was restarted for this update but isn't answering yet. Reopen kinhin in a minute." : {
+      "comment" : "Status line when the daemon restarted by an update hasn't come back; no engine is started"
+    },
     "The default pool also keeps whatever share the others leave (Advanced → Capacity)." : {
       "comment" : "HintText in RuntimesView"
     },
