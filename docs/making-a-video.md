@@ -166,8 +166,8 @@ For the curious: these are the steps `kinhin video build` runs inside the image.
    `out/<project>/<project>.mp4`, `.webm`, `-poster.png`, `-hero.gif` and `.srt`. Burned-in captions follow the project's
    `captions` block.
 
-A scene is re-rendered only when something that shapes it changes, so the render cache at `.kinhin/videos/.cache` makes a second
-build after a one-line edit fast.
+A scene is re-rendered only when something that shapes it changes, and so are its voice and its framed recording, so the cache at
+`.kinhin/videos/.cache` makes a second build after a one-line edit fast (see [Faster rebuilds](videos-for-your-project.md#faster-rebuilds)).
 
 Building the image on Apple's `container`: before 1.5.0, `container build` copies no files from a directory when the build path
 passes through a symlink, such as `/tmp` or `/var/folders` ([apple/container#2285](https://github.com/apple/container/issues/2285)).

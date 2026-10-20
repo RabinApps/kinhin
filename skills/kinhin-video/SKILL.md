@@ -16,13 +16,14 @@ has not run against a real runner. Run `kinhin help video` if a flag here is rej
 | --- | --- |
 | Create a starter video | `kinhin video init <name> [--dir PATH]` (writes `.kinhin/videos/<name>.yml` and a `.gitignore`) |
 | List the videos | `kinhin video list [--json]` |
-| Build one | `kinhin video build <name> [--fast] [--quality draft\|standard\|high] [--fps 24\|30\|60] [--theme T] [--format 16:9\|9:16\|4:5\|1:1] [--captions on\|off\|all] [--music TRACK\|off]` |
+| Build one | `kinhin video build <name> [--fast] [--quality draft\|standard\|high] [--fps 24\|30\|60] [--theme T] [--format 16:9\|9:16\|4:5\|1:1] [--captions on\|off\|all] [--music TRACK\|off] [--scene IDS] [--watch]` |
 | Pick the runtime or image | `--runtime container\|docker`, `--image REF` (or `KINHIN_VIDEO_IMAGE`) |
 | Build on a runner | `kinhin video init --workflow --runs-on LABELS`, commit and push it, then `kinhin video build <name> --on-fleet` |
 | Record an app clip | `kinhin video record <app or title> [--seconds N] [--out PATH]`, or `--window ID`; `--list-windows` shows the choices. One window, the pointer left out; needs Screen Recording permission once |
 
 The result is in `.kinhin/videos/out/<name>/` (`<name>.mp4`, `.webm`, `-poster.png`, `-hero.gif`, `.srt`). Use `--fast` while
-iterating; unchanged scenes come from the render cache. `--quality` sets the encode (`draft` is `--fast`; `high` is slower and larger) and `--fps` the frame rate (30 by default). Never open the MP4 and judge it blind: run a build, then read
+iterating; unchanged scenes, sentences and framed clips come from the cache (`RENDER_FORCE=1` / `VOICE_FORCE=1` ignore it). `--scene a,b` builds only those
+scenes as a preview and `--watch` rebuilds when the files change; every build prints each step's time. `--quality` sets the encode (`draft` is `--fast`; `high` is slower and larger) and `--fps` the frame rate (30 by default). Never open the MP4 and judge it blind: run a build, then read
 the log and the `.srt`, and tell the user where the files are.
 
 ## The config (`.kinhin/videos/<name>.yml`)

@@ -18,6 +18,11 @@
   coordinates, so a redesigned screen is fixed once. `speed` can be a list of segments with eased changes (speed ramps) and works in every
   frame. A new `split` scene plays two recordings side by side, or one above the other in a vertical frame, each with its own camera,
   speed and a `delay`. See [docs/video-config.md](docs/video-config.md#speed-ramps).
+- Video builds reuse more. The voice of each sentence and each framed recording are kept in `.kinhin/videos/.cache/` and used again
+  while nothing that shapes them has changed, so a one-line edit no longer speaks and frames the whole video again. The WebM and the
+  temporary per-scene encodes are faster, and every build prints how long each step took. `kinhin video build --scene app,outro`
+  builds only those scenes as a quick preview, and `--watch` rebuilds when your video files change. See
+  [docs/videos-for-your-project.md](docs/videos-for-your-project.md#faster-rebuilds).
 
 **Fixed**
 
