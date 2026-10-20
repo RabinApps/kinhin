@@ -6,7 +6,7 @@ have not built one yet. Each video is one YAML or JSON file in `.kinhin/videos/`
 [← Back to Add videos to your project](videos-for-your-project.md) · [Recordings](video-adapters.md) · [Troubleshooting](video-troubleshooting.md)
 
 **On this page:** [The project file](#the-project-file) · [Your own theme](#your-own-theme) · [Scene types](#scene-types) ·
-[Camera](#camera-on-recordings) · [Transitions](#transitions) · [Captions](#captions) · [Music](#music) · [Build flags](#build-flags)
+[Camera](#camera-on-recordings) · [Speed ramps](#speed-ramps) · [Split screen](#split-screen) · [Transitions](#transitions) · [Captions](#captions) · [Music](#music) · [Build flags](#build-flags)
 
 ## The project file
 
@@ -101,10 +101,11 @@ only make it longer.
 | `steps` | A numbered list that fills in one step at a time | `title`, `steps` |
 | `code` | A code or terminal block that types itself. `$` and `>` lines are commands, `#` and `//` lines are comments | `label`, `lines`, `caption` |
 | `compare` | Two cards, before and after (stacked in portrait and square frames) | `left`, `right` (each `{title, items}`), `caption` |
-| `device` | A screen recording in a MacBook frame (drawn, no Apple artwork) that tilts and slides in | `clip`, `frame` (`macbook`, `window` or `none`), `speed` |
+| `device` | A screen recording in a MacBook frame (drawn, no Apple artwork) that tilts and slides in | `clip`, `frame` (`macbook`, `window` or `none`), `speed` (a number, or [speed ramps](#speed-ramps)) |
 | `terminal` | A terminal recording in a window | `clip`, `frame` (`window` or `none`) |
+| `split` | Two recordings side by side (one above the other in a vertical or square frame) | `left`, `right` (each a clip with its own [camera](#camera-on-recordings), `speed` and `delay`), `ratio` |
 
-The first ten rows are **drawn scenes**: they need no recording. `device` and `terminal` show a clip from your
+The first ten rows are **drawn scenes**: they need no recording. `device`, `terminal` and `split` show clips from your
 [adapter](video-adapters.md). An app clip defaults to the laptop frame; a browser or terminal clip defaults to a window.
 
 A small example that mixes drawn and recorded scenes:
@@ -146,8 +147,63 @@ top) to 1 (right or bottom), so one script works in every format. All three prop
 | `focus` | A box (or a list of them): `{from, to, box: [x0, y0, x1, y1], dim}`. Between `from` and `to` seconds everything outside the box is dimmed (`dim`, 0.55 by default, up to 0.9), fading in and out. |
 | `cursor` | A list of points: `{at, to, click}`. The pointer is at `to` at `at` seconds, travelling from the point before (it sets off up to a second early). `click: true` spreads a ring from the point. Skip it if your recording already shows its own cursor. |
 
+Anywhere a point or a box goes, you can write the name of a **target** instead, a named box of the clip that its adapter
+declares (`targets` in [Recordings](video-adapters.md#recording-clips)):
+
+```yaml
+camera:  [ { at: 2, target: fleet } ]          # zoom to fit the fleet card, centred on it
+focus:   { from: 2, to: 5, box: fleet }        # spotlight it
+cursor:  [ { at: 2.2, to: fleet } ]            # the pointer goes to its centre
+```
+
+A keyframe's `target` sets `to` and, unless you give a `zoom`, the zoom that fits the box. When the layout of your product changes,
+you fix the box once in the adapter and every video follows. `kinhin video validate` names a target that the clip does not have.
+
 Times are seconds into the scene, after `speed` is applied. The scene's frame, captions and narration are unchanged. Recordings are
 drawn at their own resolution, so a zoom of 2 or more is sharpest on a recording made at a high resolution.
+
+## Speed ramps
+
+A recording can play fast through the waiting and slow down for the moment that matters. `speed` is a number, or a list of
+segments. Each segment plays at its own `speed` up to `until`, a second of the recording counted from where its story starts
+(the last segment has no `until` and plays to the end of the scene):
+
+```yaml
+- id: boot
+  type: device
+  props:
+    clip: app
+    speed: [ { until: 20, speed: 8 }, { until: 30, speed: 1 }, { speed: 4 } ]
+    ramp: 0.4                                  # seconds to ease between speeds (default 0.4; 0 jumps)
+```
+
+Where the speed changes it eases over `ramp` seconds, through speeds in between, so a jump from 8x to 1x reads as the recording
+slowing down. The scene lasts at least as long as its closed segments take to play (in the example, 20/8 + 10 seconds and the two
+eases), however short the narration. Camera times count the scene's own seconds, after the ramps. Speed lists work in every frame.
+
+## Split screen
+
+A `split` scene plays two recordings at once, such as a command in a terminal and the app reacting to it. In a 16:9 frame they
+sit side by side; in a vertical or square frame the first is above the second.
+
+```yaml
+- id: both
+  type: split
+  props:
+    left:  { clip: demo }
+    right: { clip: app, delay: 1.5, speed: [ { until: 3, speed: 3 }, { speed: 1 } ], camera: [ { at: 3, target: centre } ] }
+    ratio: 0.5
+  narration: The command on the left, and what it does on the right.
+```
+
+| Prop | What it does |
+|---|---|
+| `left`, `right` | Each is a clip of your adapter with the props a `device` scene takes: `camera`, `focus`, `cursor`, `speed`, `ramp`. `frame` is `window` (a title bar) or `none`; the default is `none` for a recorded app, which has its own window, and `window` for anything else. |
+| `delay` | Seconds a recording waits on its first frame before it plays, to line it up with the other. |
+| `ratio` | The left (or top) window's share of the room, 0.3 to 0.7. 0.5 by default. |
+
+Each recording is its own file, so lining up cause and effect is up to you: record them together, or use `delay` and `speed` to
+match them. Captions sit at the bottom, as on a terminal scene.
 
 ## Transitions
 

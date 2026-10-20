@@ -1,6 +1,6 @@
 # Recordings of your product
 
-A **device** or **terminal** scene shows a recording of your product. You do not need recording tools to use a clip you
+A **device**, **terminal** or **split** scene shows recordings of your product. You do not need recording tools to use a clip you
 already have. This page covers the adapter folder that holds the recordings, the claims check that keeps the video honest,
 and the optional web recorder.
 
@@ -59,6 +59,9 @@ H.264 is fine. A few hundred KB to a few MB each is small enough to commit.
 
 - **Where the story starts.** An app clip may have a `<clip>.json` beside it, `{"demoStartsAt": 4.5}`. That is the second into
   the recording where the interesting part begins, so the scene skips what comes before.
+- **Named regions (targets).** A clip in `adapter.yml` may name boxes of its picture, as `[x0, y0, x1, y1]` from 0 to 1 across the
+  recording: `app: { kind: app, targets: { fleet: [0.17, 0.69, 0.83, 0.94] } }`. A video's [camera, focus and cursor](video-config.md#camera-on-recordings)
+  can then say `target: fleet` instead of coordinates, so a redesigned screen is fixed once, here.
 - **Terminal variants.** A terminal clip may come in four looks, chosen by the theme's `terminal` mode (`light` or `dark`) and
   the format: `demo.mp4`, `demo-dark.mp4`, `demo-portrait.mp4` and `demo-dark-portrait.mp4`. A missing variant falls back to the
   plain one.

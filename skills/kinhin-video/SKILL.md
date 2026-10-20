@@ -31,13 +31,15 @@ A video is a name, a theme, a format, a voice and typed scenes, each with the wo
 pictures follow the voice, so editing a line re-times the scene.
 
 - **Scene types:** `title`, `statement`, `queue`, `parallel`, `map`, `outro`, `stats`, `steps`, `code`, `compare` (drawn, no
-  recording needed), and `device` / `terminal` (a recorded clip from an adapter). Every scene needs an `id`, a `type`,
+  recording needed), and `device` / `terminal` / `split` (recorded clips from an adapter). Every scene needs an `id`, a `type`,
   `props` and `narration` (or timed `cues`). `docs/videos-for-your-project.md` lists each type's props.
 - **Voice:** `voice: {engine: kokoro, name: af_heart}` (the only engine in the image).
 - **Captions:** `captions: {burn: true|false, style: outline|box|shadow|bold|minimal|karaoke}`; the `.srt` is always written.
 - **Camera and transitions:** a `device` or `terminal` scene can set `props.camera` (zoom and pan keyframes), `props.focus` (a spotlight
   box) and `props.cursor` (a pointer with click rings), all positions 0 to 1 across the recording. `transition: fade|dissolve|push|slide|wipe|circle`
-  at the top level (or on a scene, for how it comes in) replaces the default fade between scenes. See `docs/video-config.md`.
+  at the top level (or on a scene, for how it comes in) replaces the default fade between scenes. Positions may name a clip's `targets` (boxes
+  declared in its adapter): `camera: [{at: 2, target: fleet}]`. `speed` can be a list of `{until, speed}` segments (speed ramps).
+  `type: split` plays two recordings side by side (`props: {left: {clip}, right: {clip, delay}}`). See `docs/video-config.md`.
 - **Themes:** `paper`, `clean`, `midnight`, `blueprint`, `chalk` (`kinhin video theme list`), or the user's own: `kinhin video theme new
   <name> --from midnight` writes `.kinhin/videos/themes/<name>.yml` (`extends:` plus only the values they change; colours are
   `#rrggbb`). Fonts go in `.kinhin/videos/fonts/`.

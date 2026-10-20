@@ -14,6 +14,10 @@
   screen and `cursor` adds a pointer with click rings, all from positions in the recording. A new `karaoke` caption style lights each
   word as it is spoken, and `transition` (`dissolve`, `push`, `slide`, `wipe` or `circle`, per project or per scene) replaces the
   fade between scenes without moving the voice. Nothing changes for a video that does not use them. See [docs/video-config.md](docs/video-config.md#camera-on-recordings).
+- An adapter can name regions of its clips (`targets`), and the camera, spotlight and cursor can point at a name instead of
+  coordinates, so a redesigned screen is fixed once. `speed` can be a list of segments with eased changes (speed ramps) and works in every
+  frame. A new `split` scene plays two recordings side by side, or one above the other in a vertical frame, each with its own camera,
+  speed and a `delay`. See [docs/video-config.md](docs/video-config.md#speed-ramps).
 
 **Fixed**
 

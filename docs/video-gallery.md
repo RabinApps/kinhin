@@ -129,9 +129,21 @@ Code that types itself: install, then verify.
 video/scripts/build.sh --container --project examples/code-walkthrough --theme midnight --format 16:9
 ```
 
+### split-demo
+
+A split scene: a terminal and an app window side by side, one starting late, each with its own camera and speed.
+
+![split-demo: a frame from each scene](assets/video-gallery/split-demo.jpg)
+
+16:9 · clean theme · 19 s · 3 scenes (title, split, outro)
+
+```bash
+video/scripts/build.sh --container --project examples/split-demo --theme clean --format 16:9
+```
+
 ### kinhin-30s
 
-kinhin in thirty seconds, with the kinhin adapter's recorded app clip in a laptop, a guided camera that zooms and spotlights, and a push into the app.
+kinhin in thirty seconds, with the kinhin adapter's recorded app clip in a laptop, a guided camera that zooms and spotlights named regions, a speed ramp and a push into the app.
 
 ![kinhin-30s: a frame from each scene](assets/video-gallery/kinhin-30s.jpg)
 
