@@ -84,13 +84,17 @@ jobs:
       # into the latest release, so every site build copies that copy in. Before the first signed release there
       # is none, and the site simply goes out without one.
       - name: Fetch the update feed
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           out=website/.vitepress/dist/appcast.xml
-          if curl -fsSL -o "$out" "https://github.com/RabinApps/kinhin/releases/latest/download/appcast.xml"; then
+          if ! gh release view --repo RabinApps/kinhin --json assets -q '.assets[].name' | grep -qx appcast.xml; then
+            echo "::warning::no appcast.xml on the latest release; the site is deployed without one"
+          elif curl -fsSL --retry 3 -o "$out" "https://github.com/RabinApps/kinhin/releases/latest/download/appcast.xml"; then
             echo "appcast: $(grep -o 'sparkle:version>[^<]*' "$out" | head -n 1)"
           else
-            echo "::warning::no appcast.xml on the latest release; the site is deployed without one"
-            rm -f "$out"
+            echo "::error::the latest release has appcast.xml but it could not be fetched; not deploying without the feed"
+            exit 1
           fi
 
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
