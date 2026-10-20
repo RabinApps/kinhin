@@ -37,7 +37,8 @@ const blurb = {
   'oss-announcement': 'An open-source announcement for a 4:5 feed.',
   'changelog-month': 'A monthly update, square, with numbers and highlights.',
   'code-walkthrough': 'Code that types itself: install, then verify.',
-  'kinhin-30s': 'kinhin in thirty seconds, with the kinhin adapter\'s recorded app clip in a laptop, a guided camera that zooms and spotlights, and a push into the app.',
+  'split-demo': 'A split scene: a terminal and an app window side by side, one starting late, each with its own camera and speed.',
+  'kinhin-30s': 'kinhin in thirty seconds, with the kinhin adapter\'s recorded app clip in a laptop, a guided camera that zooms and spotlights named regions, a speed ramp and a push into the app.',
 };
 const cases = [
   ...examples.map((e) => ({name: e, project: `examples/${e}`, title: e, text: blurb[e] ?? '', group: 'examples'})),
@@ -102,7 +103,7 @@ if (!flag('--no-build')) {
 
 // The page: play every video.
 // A sensible order: the smallest first, the tour, then the rest by how much they show off.
-const order = ['hello', 'scene-tour', 'product-launch', 'release-notes', 'social-teaser', 'tutorial-chalk', 'architecture-blueprint', 'oss-announcement', 'changelog-month', 'code-walkthrough', 'kinhin-30s', 'template-demo', 'launch'];
+const order = ['hello', 'scene-tour', 'product-launch', 'release-notes', 'social-teaser', 'tutorial-chalk', 'architecture-blueprint', 'oss-announcement', 'changelog-month', 'code-walkthrough', 'split-demo', 'kinhin-30s', 'template-demo', 'launch'];
 const rank = (c) => (c.group === 'examples' ? order.indexOf(c.name) : 0);
 const done = Object.values(index).filter((c) => !c.failed).sort((a, b) => rank(a) - rank(b));
 const card = (c) => `<figure><video controls preload="none" poster="${c.name}.jpg" src="${c.name}.mp4"></video><figcaption><b>${c.title}</b> · ${c.format} · ${c.theme} · ${c.seconds}s<br><small>${c.text}</small></figcaption></figure>`;

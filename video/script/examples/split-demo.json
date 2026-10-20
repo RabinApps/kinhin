@@ -1,0 +1,89 @@
+{
+  "name": "Split screen",
+  "adapter": "template",
+  "theme": "clean",
+  "format": "16:9",
+  "voice": {
+    "engine": "kokoro",
+    "name": "af_heart"
+  },
+  "scenes": [
+    {
+      "id": "intro",
+      "type": "title",
+      "props": {
+        "title": "Cause and effect",
+        "subtitle": "two recordings, side by side",
+        "mark": "none"
+      },
+      "narration": "Show a command and what it does at the same time."
+    },
+    {
+      "id": "both",
+      "type": "split",
+      "props": {
+        "left": {
+          "clip": "demo",
+          "camera": [
+            {
+              "at": 1.0,
+              "target": "prompt"
+            },
+            {
+              "at": 4.5,
+              "zoom": 1
+            }
+          ]
+        },
+        "right": {
+          "clip": "app",
+          "delay": 1.5,
+          "speed": [
+            {
+              "until": 3,
+              "speed": 3
+            },
+            {
+              "speed": 1
+            }
+          ],
+          "camera": [
+            {
+              "at": 3,
+              "target": "centre"
+            },
+            {
+              "at": 6,
+              "zoom": 1
+            }
+          ]
+        }
+      },
+      "cues": [
+        {
+          "at": 0.5,
+          "text": "A split scene plays two recordings at once."
+        },
+        {
+          "at": 4.5,
+          "text": "Each can start late, speed up, and have its own camera."
+        }
+      ],
+      "minLength": 9
+    },
+    {
+      "id": "end",
+      "type": "outro",
+      "props": {
+        "line": "Say it, and show it.",
+        "url": "docs/video-config.md",
+        "facts": [
+          "Two recordings",
+          "One scene"
+        ]
+      },
+      "narration": "Say it, and show it."
+    }
+  ],
+  "overrides": {}
+}

@@ -1,11 +1,14 @@
 #!/usr/bin/env node
-// Puts each clip scene (types "device" and "terminal") of the project in its frame, at the length retime.mjs gave
+// Puts each clip scene (types "device", "terminal" and "split") of the project in its frame, at the length retime.mjs gave
 // it, and writes out/.work/<scene id>.mp4. A scene's props:
 //   clip   a clip of the project's adapter (see scripts/adapter.mjs), or a path relative to video/
 //   frame  "macbook" (device only: frame-app.sh), "window" (frame-terminal.sh) or "none"
-//   speed  playback speed of the clip (default 1)
+//   speed  playback speed of the clip (default 1), or a list of {until, speed} segments for speed ramps (scripts/speed.mjs)
 //   camera, focus, cursor  guided camera work on the recording itself: eased zoom and pan, a spotlight, a cursor with click
 //            rings (scripts/camera.mjs). It is drawn first, so the frame below holds still while the picture inside it moves.
+//            Positions may be names from the clip's `targets` in its adapter.
+//   A "split" scene has `left` and `right`, each its own clip with the props above (and `delay`, seconds before it starts), and
+//   `ratio`: the left or top panel's share. frame-split.sh puts them side by side, or one above the other in a narrow frame.
 //   screens  instead of a clip: a list of PNG paths (relative to video/), shown as a cross-fading slideshow of the
 //            scene's length (opt-in; a scene without it is unchanged). `{platform}` in a path becomes the look's platform
 //            (ios or android, from VIDEO_PLATFORM; default ios). The screens sit in a phone frame (`frame`: iphone,
@@ -15,7 +18,7 @@ import {execFileSync} from 'node:child_process';
 import {existsSync, mkdirSync, readFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {loadAdapter, resolveClip as resolveClip_} from './adapter.mjs';
-import {applyCamera, wantsCamera} from './camera.mjs';
+import {applyCamera, resolveTargets, wantsCamera} from './camera.mjs';
 import {slideshow} from './slideshow.mjs';
 import {loadProject, root, shellEnv} from './project.mjs';
 
@@ -44,8 +47,47 @@ function resolveClip(clip) {
   return null;
 }
 
+/** Finds a scene's clip (the panel `label`, such as " left", for a split scene), or says which is missing. */
+function locate(id, label, spec) {
+  const found = resolveClip(spec.clip);
+  if (!found) throw new Error(`scene "${id}"${label}: no clip "${spec.clip}"${adapter ? ` in the ${adapter.name} adapter (record it, or add it to ${process.env.VIDEO_SOURCE ? '.kinhin/videos/' : ''}adapters/${adapter.name}/reference/)` : ' (the project has no adapter; give a path)'}`);
+  return found;
+}
+
+/**
+ * One recording ready to be framed: resolves its target names and runs the camera and speed pass when its props ask for it (or
+ * when `always` says the frame cannot do what the clip needs: a split panel starts and speeds nothing itself).
+ * Returns {file, start, speed, covered}: `start` and `speed` are what is left for the frame to apply, `covered` that the laptop's
+ * toolbar patch has been drawn already.
+ */
+function prepare(id, label, spec, found, length, {laptop = false, always = false} = {}) {
+  let start = found.meta && existsSync(found.meta) ? JSON.parse(readFileSync(found.meta, 'utf8')).demoStartsAt ?? 0 : 0;
+  let speed = spec.speed ?? 1;
+  if (!(wantsCamera(spec) || (always && (start > 0 || speed !== 1)))) return {file: found.file, start, speed: String(speed), covered: false};
+  // Only the laptop frame starts the clip late and changes its speed. The camera pass applies both, so what the frame gets
+  // is a clip of exactly the scene's length (and, for the laptop, with the window's toolbar buttons already covered).
+  const props = resolveTargets(spec, adapter?.manifest.clips?.[spec.clip]?.targets, `scene "${id}"${label}: clip "${spec.clip}"`);
+  const out = join('out/.work', `${id}${label ? `-${label.replace(/\W/g, '')}` : ''}-camera.mp4`);
+  const fromStory = laptop || always; // the laptop (and a split panel) play a clip from where its story starts, at its `speed`
+  applyCamera({clip: found.file, out, props, start: fromStory ? start : 0, speed: fromStory && !Array.isArray(speed) ? Number(speed) : 1, length, cover: laptop ? env.BAR_COLOR : undefined});
+  return {file: out, start: 0, speed: '1', covered: laptop};
+}
+
 for (const scene of p.scenes.filter((s) => s.kind === 'clip')) {
   const length = timeline.scenes[scene.id].length;
+  if (scene.type === 'split') {
+    const panels = ['left', 'right'].map((side) => {
+      const spec = scene.props[side];
+      const found = locate(scene.id, ` ${side}`, spec);
+      const clip = prepare(scene.id, ` ${side}`, spec, found, length, {always: true});
+      // A recorded app already has its own window; a terminal or a browser session gets a title bar.
+      const frame = spec.frame ?? (found.kind === 'app' ? 'none' : 'window');
+      return {file: clip.file, delay: spec.delay ?? 0, bar: frame === 'window' ? '1' : '0'};
+    });
+    const out = join('out/.work', `${scene.id}.mp4`);
+    execFileSync('scripts/frame-split.sh', [panels[0].file, panels[1].file, out, String(length), panels[0].delay, panels[1].delay, panels[0].bar, panels[1].bar, String(scene.props.ratio ?? 0.5)].map(String), {env, stdio: 'inherit'});
+    continue;
+  }
   if (Array.isArray(scene.props.screens)) {
     const platform = env.VIDEO_PLATFORM || 'ios';
     const images = scene.props.screens.map((path) => path.replaceAll('{platform}', platform));
@@ -58,33 +100,18 @@ for (const scene of p.scenes.filter((s) => s.kind === 'clip')) {
     });
     continue;
   }
-  const found = resolveClip(scene.props.clip);
-  if (!found) throw new Error(`scene "${scene.id}": no clip "${scene.props.clip}"${adapter ? ` in the ${adapter.name} adapter (record it, or add it to ${process.env.VIDEO_SOURCE ? '.kinhin/videos/' : ''}adapters/${adapter.name}/reference/)` : ' (the project has no adapter; give a path)'}`);
-  let clip = found.file;
   const out = join('out/.work', `${scene.id}.mp4`);
   // An app recording defaults to the laptop; a terminal or a browser session to a window.
+  const found = locate(scene.id, '', scene.props);
   const frame = scene.props.frame ?? (found.kind === 'app' || (found.kind === 'path' && scene.type === 'device') ? 'macbook' : 'window');
-  let speed = String(scene.props.speed ?? 1);
-  let start = found.meta && existsSync(found.meta) ? JSON.parse(readFileSync(found.meta, 'utf8')).demoStartsAt ?? 0 : 0;
-  const frameEnv = {...env};
-  if (wantsCamera(scene.props)) {
-    // Only the laptop frame starts the clip late and changes its speed. The camera pass applies both, so what the frame gets
-    // is a clip of exactly the scene's length (and, for the laptop, with the window's toolbar buttons already covered).
-    const laptop = frame === 'macbook';
-    const cameraClip = join('out/.work', `${scene.id}-camera.mp4`);
-    applyCamera({clip, out: cameraClip, props: scene.props, start: laptop ? start : 0, speed: laptop ? Number(speed) : 1, length, cover: laptop ? env.BAR_COLOR : undefined});
-    clip = cameraClip;
-    start = 0;
-    speed = '1';
-    if (laptop) frameEnv.COVER = '0';
-  }
+  const clip = prepare(scene.id, '', scene.props, found, length, {laptop: frame === 'macbook'});
   if (frame === 'macbook') {
-    execFileSync('scripts/frame-app.sh', [clip, out, String(start), String(length)], {env: {...frameEnv, SPEED: speed}, stdio: 'inherit'});
+    execFileSync('scripts/frame-app.sh', [clip.file, out, String(clip.start), String(length)], {env: {...env, SPEED: clip.speed, ...(clip.covered && {COVER: '0'})}, stdio: 'inherit'});
   } else if (frame === 'window') {
-    execFileSync('scripts/frame-terminal.sh', [clip, out, String(length)], {env, stdio: 'inherit'});
+    execFileSync('scripts/frame-terminal.sh', [clip.file, out, String(length)], {env, stdio: 'inherit'});
   } else {
     // No frame: the clip as it is, trimmed to the scene (assemble.mjs fits it to the format).
-    execFileSync('ffmpeg', ['-nostdin', '-y', '-loglevel', 'error', '-i', clip, '-t', String(length), '-an', '-c:v', 'libx264', '-crf', '17', out], {stdio: 'inherit'});
+    execFileSync('ffmpeg', ['-nostdin', '-y', '-loglevel', 'error', '-i', clip.file, '-t', String(length), '-an', '-c:v', 'libx264', '-crf', '17', out], {stdio: 'inherit'});
     console.log(`wrote ${out}`);
   }
 }

@@ -10,7 +10,7 @@ function repo(files) {
   const dir = mkdtempSync(join(tmpdir(), 'kinhin-validate-'));
   const adapter = join(dir, '.kinhin', 'videos', 'adapters', 'acme');
   mkdirSync(join(adapter, 'reference'), {recursive: true});
-  writeFileSync(join(adapter, 'adapter.yml'), 'name: acme\nclips:\n  app: {kind: app}\n  demo: {kind: terminal}\n');
+  writeFileSync(join(adapter, 'adapter.yml'), 'name: acme\nclips:\n  app: {kind: app, targets: {fleet: [0.1, 0.1, 0.5, 0.5]}}\n  demo: {kind: terminal}\n');
   writeFileSync(join(adapter, 'reference', 'app.mp4'), 'x');
   writeFileSync(join(adapter, 'reference', 'demo.mp4'), 'x');
   for (const [name, text] of Object.entries(files)) {
@@ -63,6 +63,28 @@ test('a clip the adapter does not declare, a missing clip and a clip without an 
   assert.match(missing, /scene "a": no clip "nope" in the acme adapter/);
   assert.match(missing, /scene "b": a terminal scene needs props.clip/);
   assert.match(check(dir, 'noadapter').problems.join('\n'), /clip "app" needs an "adapter"/);
+});
+
+test('camera target names must be targets of the clip in its adapter', () => {
+  const dir = repo({
+    'targets.yml': 'name: T\nadapter: acme\nscenes:\n  - {id: a, type: device, props: {clip: app, camera: [{at: 1, target: fleet}], focus: {from: 1, to: 2, box: fleet}, cursor: [{at: 1, to: fleet}]}, narration: Hi.}\n',
+    'nope.yml': 'name: N\nadapter: acme\nscenes:\n  - {id: a, type: device, props: {clip: app, camera: [{at: 1, target: queue}]}, narration: Hi.}\n  - {id: b, type: terminal, props: {clip: demo, cursor: [{at: 1, to: prompt}]}, narration: Hi.}\n',
+  });
+  assert.deepEqual(check(dir, 'targets').problems, []);
+  const problems = check(dir, 'nope').problems.join('\n');
+  assert.match(problems, /scene "a": clip "app" has no target "queue" \(it has: fleet\)/);
+  assert.match(problems, /scene "b": clip "demo" has no target "prompt" \(add "targets" to the clip in its adapter\)/);
+});
+
+test('both panels of a split scene are checked against the adapter', () => {
+  const dir = repo({
+    'split.yml': 'name: S\nadapter: acme\nscenes:\n  - {id: a, type: split, props: {left: {clip: demo}, right: {clip: app, camera: [{at: 1, target: fleet}]}}, narration: Hi.}\n',
+    'bad-split.yml': 'name: B\nadapter: acme\nscenes:\n  - {id: a, type: split, props: {left: {clip: nope}, right: {clip: app, cursor: [{at: 1, to: queue}]}}, narration: Hi.}\n',
+  });
+  assert.deepEqual(check(dir, 'split').problems, []);
+  const problems = check(dir, 'bad-split').problems.join('\n');
+  assert.match(problems, /scene "a" left: no clip "nope" in the acme adapter/);
+  assert.match(problems, /scene "a" right: clip "app" has no target "queue"/);
 });
 
 test('an adapter that does not exist is reported, not silently ignored', () => {

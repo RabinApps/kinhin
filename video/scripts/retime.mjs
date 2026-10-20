@@ -8,6 +8,7 @@
 // Usage: node scripts/retime.mjs          Env: VIDEO_PROJECT (default launch)
 import {readFileSync, writeFileSync} from 'node:fs';
 import {join} from 'node:path';
+import {clipMinLength} from './speed.mjs';
 import {loadProject, root} from './project.mjs';
 
 const {project, scenes: configured, stem, slug, outName, format} = loadProject();
@@ -20,7 +21,9 @@ const srt = [];
 for (const scene of configured) {
   const spoken = voice.scenes[scene.id];
   if (!spoken) throw new Error(`no voice timings for "${scene.id}"; run scripts/voice.mjs`);
-  const length = round(Math.max(scene.minLength ?? 0, spoken.speechEnd + (project.tail ?? 0.8)));
+  // A recording with speed ramps (and a split panel's delay) plays for at least as long as those take, however brief the narration.
+  const playing = scene.type === 'split' ? Math.max(clipMinLength(scene.props.left), clipMinLength(scene.props.right)) : clipMinLength(scene.props);
+  const length = round(Math.max(scene.minLength ?? 0, playing, spoken.speechEnd + (project.tail ?? 0.8)));
   scenes[scene.id] = {type: scene.type, kind: scene.kind, props: scene.props, start: round(cursor), length, cues: spoken.cues};
   for (const cue of spoken.cues) srt.push({start: cursor + cue.start, end: cursor + cue.end, text: cue.text});
   cursor += length;

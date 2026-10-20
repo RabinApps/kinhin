@@ -24,6 +24,7 @@ export const SCENE_TYPES = {
   compare: {kind: 'canvas', minLength: 6, designWidth: 1560},
   device: {kind: 'clip', minLength: 0},
   terminal: {kind: 'clip', minLength: 0},
+  split: {kind: 'clip', minLength: 0},
 };
 
 // How one scene hands over to the next. `fade` (the default) dips through the backdrop colour; the others are ffmpeg `xfade`
@@ -313,6 +314,8 @@ export const isNarrow = (format) => format.width / format.height < 1.2;
 
 const isUnit = (v) => typeof v === 'number' && v >= 0 && v <= 1;
 const point = (v) => Array.isArray(v) && v.length === 2 && v.every(isUnit);
+// A point or a box may be the name of one of the clip's `targets` in its adapter (checked when the video is validated and built).
+const isName = (v) => typeof v === 'string' && v.length > 0;
 
 /** What is wrong with a clip scene's `camera`, `focus` and `cursor` props, in words ("" for the place if the scene is fine). */
 export function validateCamera(props, where) {
@@ -332,7 +335,9 @@ export function validateCamera(props, where) {
       times(camera, 'camera');
       for (const [i, k] of camera.entries()) {
         if ('zoom' in k && !(typeof k.zoom === 'number' && k.zoom >= 1 && k.zoom <= 4)) problems.push(`${where}: camera[${i}].zoom must be a number from 1 to 4`);
-        if ('to' in k && !point(k.to)) problems.push(`${where}: camera[${i}].to must be [x, y], each from 0 to 1 (a point on the recording)`);
+        if ('to' in k && !point(k.to) && !isName(k.to)) problems.push(`${where}: camera[${i}].to must be [x, y], each from 0 to 1 (a point on the recording), or the name of a target`);
+        if ('target' in k && !isName(k.target)) problems.push(`${where}: camera[${i}].target must be the name of a target of the clip`);
+        if ('target' in k && 'to' in k) problems.push(`${where}: camera[${i}] has both "target" and "to"; give one`);
         if ('move' in k && !(typeof k.move === 'number' && k.move > 0 && k.move <= 5)) problems.push(`${where}: camera[${i}].move must be seconds above 0 and up to 5`);
       }
     }
@@ -343,7 +348,7 @@ export function validateCamera(props, where) {
       const name = Array.isArray(focus) ? `focus[${i}]` : 'focus';
       const box = f?.box;
       if (!(typeof f?.from === 'number' && typeof f?.to === 'number' && f.from >= 0 && f.to > f.from)) problems.push(`${where}: ${name} needs "from" and "to" seconds, with "to" after "from"`);
-      if (!(Array.isArray(box) && box.length === 4 && box.every(isUnit) && box[2] > box[0] && box[3] > box[1])) problems.push(`${where}: ${name}.box must be [x0, y0, x1, y1], each from 0 to 1, with x1 > x0 and y1 > y0`);
+      if (!isName(box) && !(Array.isArray(box) && box.length === 4 && box.every(isUnit) && box[2] > box[0] && box[3] > box[1])) problems.push(`${where}: ${name}.box must be [x0, y0, x1, y1], each from 0 to 1, with x1 > x0 and y1 > y0, or the name of a target`);
       if ('dim' in f && !(typeof f.dim === 'number' && f.dim > 0 && f.dim <= 0.9)) problems.push(`${where}: ${name}.dim must be a number above 0 and up to 0.9`);
     }
   }
@@ -352,11 +357,45 @@ export function validateCamera(props, where) {
     else {
       times(cursor, 'cursor');
       for (const [i, k] of cursor.entries()) {
-        if (!point(k?.to)) problems.push(`${where}: cursor[${i}].to must be [x, y], each from 0 to 1 (a point on the recording)`);
+        if (!point(k?.to) && !isName(k?.to)) problems.push(`${where}: cursor[${i}].to must be [x, y], each from 0 to 1 (a point on the recording), or the name of a target`);
         if ('click' in k && typeof k.click !== 'boolean') problems.push(`${where}: cursor[${i}].click must be true or false`);
       }
     }
   }
+  return problems;
+}
+
+/** What is wrong with a clip's `speed`: a number, or a list of {until, speed} segments (source seconds from where the story starts). */
+export function validateSpeed(props, where) {
+  const problems = [];
+  const {speed, ramp} = props ?? {};
+  const rate = (v) => typeof v === 'number' && v >= 0.1 && v <= 30;
+  if (speed !== undefined && !Array.isArray(speed) && !rate(speed)) problems.push(`${where}: speed must be a number from 0.1 to 30, or a list of { until, speed } segments`);
+  if (Array.isArray(speed)) {
+    if (speed.length === 0) problems.push(`${where}: "speed" must not be an empty list`);
+    let last = 0;
+    for (const [i, seg] of speed.entries()) {
+      if (!rate(seg?.speed)) problems.push(`${where}: speed[${i}].speed must be a number from 0.1 to 30`);
+      if (i === speed.length - 1) {
+        if (seg && 'until' in seg) problems.push(`${where}: the last speed segment has no "until"; it runs to the end of the scene`);
+      } else if (!(typeof seg?.until === 'number' && seg.until > last)) problems.push(`${where}: speed[${i}].until must be source seconds, later than the segment before it`);
+      else last = seg.until;
+    }
+  }
+  if (ramp !== undefined && !(typeof ramp === 'number' && ramp >= 0 && ramp <= 2)) problems.push(`${where}: ramp must be seconds from 0 to 2`);
+  if (ramp !== undefined && !Array.isArray(speed)) problems.push(`${where}: ramp only applies when speed is a list of segments`);
+  return problems;
+}
+
+/**
+ * Everything a recording's props can say about how it plays: the camera work and the speed, and for a panel of a split scene
+ * (`panel`) a `delay` before it starts.
+ */
+export function validateClipSpec(props, where, {panel = false} = {}) {
+  const problems = [...validateCamera(props, where), ...validateSpeed(props, where)];
+  const delay = props?.delay;
+  if (delay !== undefined && !panel) problems.push(`${where}: "delay" works on the panels of a split scene only`);
+  else if (delay !== undefined && !(typeof delay === 'number' && delay >= 0 && delay <= 30)) problems.push(`${where}: delay must be seconds from 0 to 30`);
   return problems;
 }
 
@@ -379,8 +418,14 @@ export function validateProject(project) {
     if (!(scene.type in SCENE_TYPES)) problems.push(`${where}: unknown type "${scene.type}" (${Object.keys(SCENE_TYPES).join(', ')})`);
     if (!scene.narration && !scene.cues) problems.push(`${where} has neither "narration" nor "cues"`);
     problems.push(...validateTransition(scene.transition, where));
-    if (SCENE_TYPES[scene.type]?.kind === 'clip') problems.push(...validateCamera(scene.props, where));
-    else if (['camera', 'focus', 'cursor'].some((k) => k in (scene.props ?? {}))) problems.push(`${where}: "camera", "focus" and "cursor" work on device and terminal scenes only`);
+    if (scene.type === 'split') {
+      for (const side of ['left', 'right']) {
+        if (typeof scene.props?.[side] !== 'object' || scene.props[side] === null || Array.isArray(scene.props[side])) problems.push(`${where}: a split scene needs "${side}": { clip, ... }`);
+        else problems.push(...validateClipSpec(scene.props[side], `${where}: ${side}`, {panel: true}));
+      }
+      if ('ratio' in (scene.props ?? {}) && !(typeof scene.props.ratio === 'number' && scene.props.ratio >= 0.3 && scene.props.ratio <= 0.7)) problems.push(`${where}: ratio must be a number from 0.3 to 0.7 (the left or top panel's share)`);
+    } else if (SCENE_TYPES[scene.type]?.kind === 'clip') problems.push(...validateClipSpec(scene.props, where));
+    else if (['camera', 'focus', 'cursor', 'ramp'].some((k) => k in (scene.props ?? {}))) problems.push(`${where}: "camera", "focus" and "cursor" work on device, terminal and split scenes only`);
     for (const [key, max] of Object.entries(TEXT_LIMITS[scene.type] ?? {})) {
       // A key may name a nested prop with dots, such as "left.items".
       const value = key.split('.').reduce((node, part) => node?.[part], scene.props);

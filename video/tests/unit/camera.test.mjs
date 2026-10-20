@@ -4,7 +4,7 @@ import {mkdtempSync, rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {after, before, test} from 'node:test';
-import {applyCamera, cameraGraph, cameraSeries, cursorSeries, expression, probeSize, smooth, valueAt, wantsCamera} from '../../scripts/camera.mjs';
+import {applyCamera, cameraGraph, cameraSeries, cursorSeries, expression, probeSize, resolveTargets, smooth, targetNames, valueAt, wantsCamera} from '../../scripts/camera.mjs';
 import {has} from '../helpers.mjs';
 
 test('smoothstep eases in and out', () => {
@@ -69,6 +69,42 @@ test('the graph has a layer for each thing asked for, and nothing for what was n
   assert.ok(!cameraGraph({...base, props: {cursor: [{at: 1, to: [0.5, 0.5]}]}}).includes('[ring0]'), 'a ring only for a click');
   assert.ok(cameraGraph({...base, cover: '0x2b2b2b', props: {}}).includes('drawbox=x=14:y=6:w=130:h=48:color=0x2b2b2b'), 'the laptop frame covers the toolbar buttons first');
   assert.ok(!plain.includes('drawbox'));
+});
+
+const targets = {fleet: [0.2, 0.6, 0.8, 0.9], list: [0, 0, 0.5, 0.25]};
+
+test('a camera target zooms to fit its box and centres on it; an explicit zoom wins', () => {
+  const r = resolveTargets({camera: [{at: 1, target: 'fleet'}, {at: 4, target: 'list', zoom: 2}, {at: 8, zoom: 1}]}, targets, 'the clip');
+  assert.deepEqual(r.camera[0].to, [0.5, 0.75]);
+  near(r.camera[0].zoom, Math.min(1 / 0.6, 1 / 0.3) * 0.92, 'the box fills 92% of the narrower side', 1e-9);
+  assert.ok(!('target' in r.camera[0]), 'only numbers reach the graph');
+  assert.equal(r.camera[1].zoom, 2);
+  assert.deepEqual(r.camera[1].to, [0.25, 0.125]);
+  assert.deepEqual(r.camera[2], {at: 8, zoom: 1}, 'a keyframe with no name is left as it is');
+  assert.equal(resolveTargets({camera: [{at: 0, target: 'list'}]}, {list: [0, 0, 0.1, 0.1]}).camera[0].zoom, 4, 'never past 4');
+  assert.equal(resolveTargets({camera: [{at: 0, target: 'all'}]}, {all: [0, 0, 1, 1]}).camera[0].zoom, 1, 'nor below 1');
+});
+
+test('names stand for a box in a focus and for its centre as a point', () => {
+  const r = resolveTargets({focus: [{from: 1, to: 2, box: 'fleet'}, {from: 3, to: 4, box: [0, 0, 1, 1]}], cursor: [{at: 1, to: 'list'}, {at: 2, to: [0.3, 0.3]}], camera: [{at: 1, zoom: 2, to: 'fleet'}]}, targets);
+  assert.deepEqual(r.focus[0].box, [0.2, 0.6, 0.8, 0.9]);
+  assert.deepEqual(r.focus[1].box, [0, 0, 1, 1]);
+  assert.deepEqual(r.cursor.map((k) => k.to), [[0.25, 0.125], [0.3, 0.3]]);
+  assert.deepEqual(r.camera[0].to, [0.5, 0.75]);
+  assert.deepEqual(resolveTargets({focus: {from: 1, to: 2, box: 'fleet'}}, targets).focus.box, [0.2, 0.6, 0.8, 0.9], 'a single focus stays single');
+  assert.deepEqual(resolveTargets({clip: 'app', speed: 2}, targets), {clip: 'app', speed: 2}, 'nothing to resolve, nothing changed');
+});
+
+test('an unknown or broken target says what the clip has', () => {
+  assert.throws(() => resolveTargets({cursor: [{at: 1, to: 'nope'}]}, targets, 'scene "a": clip "app"'), /scene "a": clip "app" has no target "nope" \(it has: fleet, list\)/);
+  assert.throws(() => resolveTargets({cursor: [{at: 1, to: 'nope'}]}, undefined, 'the clip'), /has no target "nope" \(add "targets"/);
+  assert.throws(() => resolveTargets({focus: {from: 1, to: 2, box: 'bad'}}, {bad: [0.5, 0.5, 0.4, 0.9]}), /has no target "bad"/, 'a box that is not a box');
+});
+
+test('targetNames lists every name the props use, once', () => {
+  assert.deepEqual(targetNames({camera: [{at: 1, target: 'a'}, {at: 2, to: 'b'}, {at: 3, to: [0.1, 0.1]}], focus: [{box: 'a'}, {box: [0, 0, 1, 1]}], cursor: [{to: 'c'}, {to: [0.5, 0.5]}]}).sort(), ['a', 'b', 'c']);
+  assert.deepEqual(targetNames({}), []);
+  assert.deepEqual(targetNames({focus: {from: 1, to: 2, box: 'x'}}), ['x']);
 });
 
 const ffmpeg = has('ffmpeg') && has('ffprobe');

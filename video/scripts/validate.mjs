@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Checks your videos without rendering them: the same checks the build makes before it starts (the project file, its theme,
-// format, captions and music, the text limits, the claims), plus the things a build only finds later: that each device or
-// terminal scene's clip exists in its adapter, and that a music file is in the repository. Runs in the video image, against
-// your repository (VIDEO_SOURCE), so `kinhin video validate` and the build cannot disagree.
+// format, captions and music, the text limits, the claims), plus the things a build only finds later: that each device,
+// terminal or split scene's clips exist in their adapter (and the camera targets they name), and that a music file is in the
+// repository. Runs in the video image, against your repository (VIDEO_SOURCE), so `kinhin video validate` and the build cannot disagree.
 //
 // Usage: node scripts/validate.mjs [--project NAME | --all]      Exit 1 when a video has a problem.
 import {existsSync} from 'node:fs';
@@ -12,8 +12,9 @@ import {loadAdapter, resolveClip} from './adapter.mjs';
 import {claimsFor, lintProject} from './video-claims-lint.mjs';
 import {adapterFile, listSourceProjects, loadProject, sourceDir} from './project.mjs';
 import {isNarrow} from '../shared/resolve.mjs';
+import {targetNames} from './camera.mjs';
 
-const CLIP_SCENES = new Set(['device', 'terminal']);
+const CLIP_SCENES = new Set(['device', 'terminal', 'split']);
 const LOCAL_AUDIO = /\.(mp3|m4a|wav|flac|ogg)$/i;
 
 /** Every problem with one video, in words, with where it is. An empty list means the build can start. */
@@ -39,18 +40,28 @@ export function validateVideo(name) {
     problems.push(`claims: ${e.message}`);
   }
 
-  // A device or terminal scene shows a recording: the adapter must declare the clip and have a file for this look.
+  // A device, terminal or split scene shows recordings: the adapter must declare each clip and have a file for this look, and
+  // every target name the camera props use must be one of the clip's `targets`.
   const dark = theme.device.terminal === 'dark';
   const narrow = isNarrow(format);
   for (const scene of loaded.scenes) {
     if (!CLIP_SCENES.has(scene.type)) continue;
-    const where = `scene "${scene.id}"`;
-    const clip = scene.props.clip;
-    if (!clip) problems.push(`${where}: a ${scene.type} scene needs props.clip (a clip of its adapter)`);
-    else if (!adapter) problems.push(`${where}: clip "${clip}" needs an "adapter" in the video's file`);
-    else if (!adapter.manifest.clips?.[clip]) problems.push(`${where}: no clip "${clip}" in the ${adapter.name} adapter`);
-    else if (!resolveClip(adapter, clip, {dark, narrow})) {
-      problems.push(`${where}: no recording for clip "${clip}". Put it at ${adapter.referenceDir}/${clip}.mp4 (or a variant for this look)`);
+    const specs = scene.type === 'split' ? ['left', 'right'].map((side) => ({spec: scene.props[side] ?? {}, label: ` ${side}`})) : [{spec: scene.props, label: ''}];
+    for (const {spec, label} of specs) {
+      const where = `scene "${scene.id}"${label}`;
+      const clip = spec.clip;
+      if (!clip) problems.push(`${where}: a ${scene.type} scene needs ${scene.type === 'split' ? 'a clip for each panel' : 'props.clip'} (a clip of its adapter)`);
+      else if (!adapter) problems.push(`${where}: clip "${clip}" needs an "adapter" in the video's file`);
+      else if (!adapter.manifest.clips?.[clip]) problems.push(`${where}: no clip "${clip}" in the ${adapter.name} adapter`);
+      else {
+        if (!resolveClip(adapter, clip, {dark, narrow})) {
+          problems.push(`${where}: no recording for clip "${clip}". Put it at ${adapter.referenceDir}/${clip}.mp4 (or a variant for this look)`);
+        }
+        const targets = adapter.manifest.clips[clip].targets ?? {};
+        for (const name of targetNames(spec)) {
+          if (!(name in targets)) problems.push(`${where}: clip "${clip}" has no target "${name}"${Object.keys(targets).length ? ` (it has: ${Object.keys(targets).join(', ')})` : ' (add "targets" to the clip in its adapter)'}`);
+        }
+      }
     }
   }
 

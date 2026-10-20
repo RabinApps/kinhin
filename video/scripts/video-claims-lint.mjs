@@ -30,7 +30,9 @@ export function textsOf(project) {
       if (cue.say) walk(cue.say, `${scene.id}.cues[${i}].say`);
     }
     // props that name files or settings are not shown
-    const {clip, frame, mark, speed, camera, focus, cursor, ...shown} = scene.props ?? {};
+    const {clip, frame, mark, speed, ramp, camera, focus, cursor, ...shown} = scene.props ?? {};
+    // A split scene's left and right are recordings (a compare scene's are cards with text, which are checked).
+    if (scene.type === 'split') for (const k of ['left', 'right', 'ratio']) delete shown[k];
     walk(shown, `${scene.id}.props`);
   }
   return out;

@@ -39,9 +39,12 @@ test('every clip a project uses exists in its adapter (raw or reference) in the 
     const adapter = loadAdapter(p.adapter);
     const narrow = p.format.width / p.format.height < 1.2;
     for (const s of clipScenes) {
-      const found = resolveClip(adapter, s.props.clip, {dark: p.theme.device.terminal === 'dark', narrow});
-      assert.ok(found, `${name}/${s.id}: no clip "${s.props.clip}" in ${p.adapter}`);
-      assert.ok(existsSync(found.file));
+      // A split scene shows two clips, the left and the right; any other clip scene shows one.
+      for (const spec of s.type === 'split' ? [s.props.left, s.props.right] : [s.props]) {
+        const found = resolveClip(adapter, spec.clip, {dark: p.theme.device.terminal === 'dark', narrow});
+        assert.ok(found, `${name}/${s.id}: no clip "${spec.clip}" in ${p.adapter}`);
+        assert.ok(existsSync(found.file));
+      }
     }
   }
 });

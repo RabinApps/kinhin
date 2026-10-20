@@ -4,11 +4,27 @@
   "clips": {
     "app": {
       "kind": "app",
-      "record": "record-app.sh"
+      "record": "record-app.sh",
+      "targets": {
+        "centre": [
+          0.25,
+          0.25,
+          0.75,
+          0.75
+        ]
+      }
     },
     "demo": {
       "kind": "terminal",
-      "tape": "terminal/demo.tape"
+      "tape": "terminal/demo.tape",
+      "targets": {
+        "prompt": [
+          0,
+          0,
+          0.6,
+          0.35
+        ]
+      }
     },
     "site": {
       "kind": "browser",

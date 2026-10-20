@@ -10,7 +10,11 @@
 //       dims everything outside the box between `from` and `to`, fading in and out; `dim` is how dark, default 0.55.
 //   cursor: [{at: 2.2, to: [0.7, 0.3]}, {at: 3, to: [0.7, 0.3], click: true}]
 //       a pointer that is at `to` at `at` seconds, travelling there from the point before; `click` adds a ring.
+//   speed: a list of {until, speed} segments plays the recording with speed ramps (scripts/speed.mjs).
+//   Anywhere a point or a box is wanted, a name from the clip's `targets` in its adapter does as well (resolveTargets below):
+//   `camera: [{at: 2, target: "fleet"}]` zooms to fit the box named fleet, `focus: {box: "fleet"}` spotlights it.
 import {execFileSync} from 'node:child_process';
+import {sourceSeconds, speedFilter, speedPieces} from './speed.mjs';
 
 const ROUND = 1000;
 const num = (x) => String(Math.round(x * ROUND) / ROUND);
@@ -95,7 +99,10 @@ export function cameraGraph({width, height, length, fps = 30, speed = 1, cover, 
   // `cover` is the colour of the app window's toolbar: the laptop frame hides the window's buttons with a patch of it, which has to
   // be done here, on the unzoomed picture, or the patch would land on whatever the zoom puts at that corner.
   const patch = cover ? `,drawbox=x=14:y=6:w=130:h=48:color=${cover}:t=fill` : '';
-  const steps = [`[0:v]setpts=(PTS-STARTPTS)/${speed},fps=${fps},tpad=stop_mode=clone:stop_duration=30,trim=duration=${length},setpts=PTS-STARTPTS,format=rgba${patch}[c0]`];
+  // A speed list cuts the recording into pieces and plays each at its own speed; a number is one setpts.
+  const ramped = Array.isArray(props.speed);
+  const steps = ramped ? [speedFilter(speedPieces(props.speed, props.ramp), fps)] : [];
+  steps.push(`${ramped ? '[sp]' : '[0:v]'}${ramped ? '' : `setpts=(PTS-STARTPTS)/${speed},`}fps=${fps},tpad=stop_mode=clone:stop_duration=30,trim=duration=${length},setpts=PTS-STARTPTS,format=rgba${patch}[c0]`);
   let label = 'c0';
   let n = 0;
   const overlay = (input, position) => {
@@ -159,14 +166,58 @@ export function cameraGraph({width, height, length, fps = 30, speed = 1, cover, 
   return steps.join(';');
 }
 
+const FIT = 0.92; // a target fills this much of the view when the camera zooms to it
+const centre = (box) => [(box[0] + box[2]) / 2, (box[1] + box[3]) / 2];
+
+/** The names a clip's props point at (from `camera`, `focus` and `cursor`), to check them against the adapter's `targets`. */
+export function targetNames(props) {
+  const names = new Set();
+  const add = (v) => { if (typeof v === 'string') names.add(v); };
+  for (const k of props?.camera ?? []) { add(k.target); add(k.to); }
+  for (const f of [].concat(props?.focus ?? [])) add(f.box);
+  for (const k of props?.cursor ?? []) add(k.to);
+  return [...names];
+}
+
+/**
+ * Replaces the target names in a clip's props with numbers, so cameraGraph sees only coordinates. `targets` is the clip's
+ * `targets` in its adapter: {name: [x0, y0, x1, y1]}. A camera keyframe's `target` zooms to fit the box (unless it gives its
+ * own `zoom`) and centres on it; as a point (`to`, a cursor's `to`) a name means the box's centre. Throws on an unknown name.
+ */
+export function resolveTargets(props, targets = {}, clip = 'the clip') {
+  const box = (name) => {
+    const b = targets[name];
+    if (!(Array.isArray(b) && b.length === 4 && b.every((v) => typeof v === 'number' && v >= 0 && v <= 1) && b[2] > b[0] && b[3] > b[1])) {
+      const known = Object.keys(targets);
+      throw new Error(`${clip} has no target "${name}"${known.length ? ` (it has: ${known.join(', ')})` : ' (add "targets": {"name": [x0, y0, x1, y1]} to the clip in its adapter)'}`);
+    }
+    return b;
+  };
+  const point = (v) => (typeof v === 'string' ? centre(box(v)) : v);
+  const out = {...props};
+  if (props.camera) {
+    out.camera = props.camera.map(({target, ...k}) => {
+      if (target === undefined) return {...k, ...(k.to !== undefined && {to: point(k.to)})};
+      const b = box(target);
+      return {zoom: Math.min(4, Math.max(1, Math.min(1 / (b[2] - b[0]), 1 / (b[3] - b[1])) * FIT)), ...k, to: centre(b)};
+    });
+  }
+  if (props.focus) {
+    const resolve = (f) => ({...f, box: typeof f.box === 'string' ? box(f.box) : f.box});
+    out.focus = Array.isArray(props.focus) ? props.focus.map(resolve) : resolve(props.focus);
+  }
+  if (props.cursor) out.cursor = props.cursor.map((k) => ({...k, to: point(k.to)}));
+  return out;
+}
+
 /** The width and height of a video file's first stream. */
 export function probeSize(file) {
   const [width, height] = execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height', '-of', 'csv=p=0:s=x', file]).toString().trim().split('x').map(Number);
   return {width, height};
 }
 
-/** True when a clip scene's props ask for any camera work. */
-export const wantsCamera = (props) => ['camera', 'focus', 'cursor'].some((k) => props?.[k] !== undefined);
+/** True when a clip's props need the pre-pass: camera work, or a speed list (a constant speed is the laptop frame's own). */
+export const wantsCamera = (props) => ['camera', 'focus', 'cursor'].some((k) => props?.[k] !== undefined) || Array.isArray(props?.speed);
 
 /**
  * Writes `out`: `length` seconds of `clip` (from `start`, at `speed`) with the camera work in `props` applied, at the clip's own
@@ -175,6 +226,7 @@ export const wantsCamera = (props) => ['camera', 'focus', 'cursor'].some((k) => 
 export function applyCamera({clip, out, props, start = 0, speed = 1, length, fps = 30, cover}) {
   const {width, height} = probeSize(clip);
   const graph = cameraGraph({width, height, length, fps, speed, cover, props});
-  execFileSync('ffmpeg', ['-nostdin', '-y', '-loglevel', 'error', '-ss', String(start), '-t', String(length * speed), '-i', clip, '-filter_complex', graph, '-map', '[out]', '-an', '-c:v', 'libx264', '-crf', '16', '-pix_fmt', 'yuv420p', out], {stdio: 'inherit'});
+  const seconds = Array.isArray(props.speed) ? sourceSeconds(props.speed, length, props.ramp) : length * speed;
+  execFileSync('ffmpeg', ['-nostdin', '-y', '-loglevel', 'error', '-ss', String(start), '-t', String(seconds), '-i', clip, '-filter_complex', graph, '-map', '[out]', '-an', '-c:v', 'libx264', '-crf', '16', '-pix_fmt', 'yuv420p', out], {stdio: 'inherit'});
   console.log(`wrote ${out}`);
 }

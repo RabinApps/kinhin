@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
-import {FORMATS, SCENE_TYPES, deepMerge, fitScale, isNarrow, buildThemes, resolveFormat, resolveMusic, resolveTheme, validateMusic, validateProject, validateTheme, TRANSITIONS, validateCamera, validateTransition} from '../../shared/resolve.mjs';
+import {FORMATS, SCENE_TYPES, deepMerge, fitScale, isNarrow, buildThemes, resolveFormat, resolveMusic, resolveTheme, validateMusic, validateProject, validateTheme, TRANSITIONS, validateCamera, validateClipSpec, validateSpeed, validateTransition} from '../../shared/resolve.mjs';
 import {readJson, root, themeNames} from '../helpers.mjs';
 import {join} from 'node:path';
 
@@ -208,7 +208,43 @@ test('camera, focus and cursor are checked on clip scenes and refused on drawn o
   assert.match(text({cursor: [{at: 1, to: [0, 0], click: 'yes'}]}), /click must be true or false/);
   const device = {id: 'a', type: 'device', narration: 'x', props: {clip: 'app', camera: [{at: 1, zoom: 9}]}};
   assert.match(validateProject({scenes: [device]}).join(), /scene 1 \("a"\): camera\[0\].zoom/);
-  assert.match(validateProject({scenes: [{id: 'a', type: 'title', narration: 'x', props: {title: 'T', camera: [{at: 1}]}}]}).join(), /work on device and terminal scenes only/);
+  assert.match(validateProject({scenes: [{id: 'a', type: 'title', narration: 'x', props: {title: 'T', camera: [{at: 1}]}}]}).join(), /work on device, terminal and split scenes only/);
+});
+
+test('a camera position may be the name of a target', () => {
+  assert.deepEqual(validateCamera({camera: [{at: 1, target: 'fleet'}, {at: 3, to: 'list', zoom: 2}], focus: {from: 1, to: 2, box: 'fleet'}, cursor: [{at: 1, to: 'list'}]}, 's'), []);
+  assert.match(validateCamera({camera: [{at: 1, target: 'a', to: [0.5, 0.5]}]}, 's').join(), /has both "target" and "to"/);
+  assert.match(validateCamera({camera: [{at: 1, target: 3}]}, 's').join(), /camera\[0\].target must be the name of a target/);
+  assert.match(validateCamera({cursor: [{at: 1, to: 3}]}, 's').join(), /cursor\[0\].to must be \[x, y\].*or the name of a target/);
+});
+
+test('speed is a number or a list of segments, each with `until` but the last', () => {
+  const text = (props) => validateSpeed(props, 's').join('\n');
+  assert.deepEqual(validateSpeed({speed: 2}, 's'), []);
+  assert.deepEqual(validateSpeed({}, 's'), []);
+  assert.deepEqual(validateSpeed({speed: [{until: 20, speed: 8}, {until: 30, speed: 1}, {speed: 4}], ramp: 0.5}, 's'), []);
+  assert.match(text({speed: 99}), /speed must be a number from 0.1 to 30, or a list/);
+  assert.match(text({speed: []}), /must not be an empty list/);
+  assert.match(text({speed: [{speed: 2}, {speed: 1}]}), /speed\[0\].until must be source seconds/);
+  assert.match(text({speed: [{until: 5, speed: 2}, {until: 4, speed: 1}, {speed: 1}]}), /speed\[1\].until must be source seconds, later than/);
+  assert.match(text({speed: [{until: 5, speed: 2}, {until: 9, speed: 1}]}), /the last speed segment has no "until"/);
+  assert.match(text({speed: [{until: 5, speed: 0}, {speed: 1}]}), /speed\[0\].speed must be a number/);
+  assert.match(text({speed: [{until: 5, speed: 2}, {speed: 1}], ramp: 3}), /ramp must be seconds from 0 to 2/);
+  assert.match(text({speed: 2, ramp: 0.5}), /ramp only applies when speed is a list/);
+});
+
+test('a split scene needs two clips; delay and ratio are checked, and delay is for panels only', () => {
+  const split = (props) => validateProject({scenes: [{id: 's', type: 'split', narration: 'x', props}]}).join('\n');
+  assert.equal(split({left: {clip: 'a'}, right: {clip: 'b', delay: 1.5, speed: [{until: 3, speed: 2}, {speed: 1}], camera: [{at: 1, target: 'x'}]}, ratio: 0.4}), '');
+  assert.match(split({left: {clip: 'a'}}), /a split scene needs "right"/);
+  assert.match(split({}), /needs "left".*needs "right"/s);
+  assert.match(split({left: {clip: 'a'}, right: {clip: 'b'}, ratio: 0.9}), /ratio must be a number from 0.3 to 0.7/);
+  assert.match(split({left: {clip: 'a'}, right: {clip: 'b', delay: 99}}), /scene 1 \("s"\): right: delay must be seconds from 0 to 30/);
+  assert.match(split({left: {clip: 'a', camera: [{at: 1, zoom: 9}]}, right: {clip: 'b'}}), /left: camera\[0\].zoom/);
+  assert.match(validateClipSpec({clip: 'a', delay: 2}, 'scene 2').join(), /"delay" works on the panels of a split scene only/);
+  assert.deepEqual(validateClipSpec({clip: 'a', delay: 2}, 'p', {panel: true}), []);
+  assert.ok('split' in SCENE_TYPES && SCENE_TYPES.split.kind === 'clip');
+  assert.match(validateProject({scenes: [{id: 'a', type: 'title', narration: 'x', props: {title: 'T', ramp: 1}}]}).join(), /work on device, terminal and split scenes only/);
 });
 
 // ---- music ------------------------------------------------------------------------------------------------------------

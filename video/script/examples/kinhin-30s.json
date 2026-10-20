@@ -27,23 +27,27 @@
       "props": {
         "clip": "app",
         "frame": "macbook",
-        "speed": 2.2,
+        "speed": [
+          {
+            "until": 6,
+            "speed": 3
+          },
+          {
+            "until": 14,
+            "speed": 1.5
+          },
+          {
+            "speed": 2.5
+          }
+        ],
         "camera": [
           {
             "at": 1.2,
-            "zoom": 1.5,
-            "to": [
-              0.5,
-              0.42
-            ]
+            "target": "runtimes"
           },
           {
             "at": 5.6,
-            "zoom": 1.5,
-            "to": [
-              0.5,
-              0.76
-            ]
+            "target": "fleet"
           },
           {
             "at": 9.4,
@@ -54,22 +58,12 @@
           {
             "from": 1.6,
             "to": 5.2,
-            "box": [
-              0.17,
-              0.2,
-              0.83,
-              0.68
-            ]
+            "box": "runtimes"
           },
           {
             "from": 6.0,
             "to": 9.0,
-            "box": [
-              0.17,
-              0.69,
-              0.83,
-              0.94
-            ]
+            "box": "fleet"
           }
         ]
       },

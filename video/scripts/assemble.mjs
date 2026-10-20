@@ -165,7 +165,7 @@ const wrapLines = (t) => {
 };
 const wrap = (t) => wrapLines(t).join('\n');
 const cuesOf = (types) => Object.entries(S).filter(([id, s]) => burned.includes(id) && types.includes(s.type)).flatMap(([, s]) => s.cues.map((c) => ({...c, start: s.start + c.start, end: s.start + c.end})));
-const groups = [['device'], ['terminal'], ['title', 'statement', 'queue', 'parallel', 'map', 'outro']].map((types) => ({type: types[0], cues: cuesOf(types)})).filter((g) => g.cues.length);
+const groups = [['device'], ['terminal', 'split'], ['title', 'statement', 'queue', 'parallel', 'map', 'outro']].map((types) => ({type: types[0], cues: cuesOf(types)})).filter((g) => g.cues.length);
 // The karaoke style lights each word as it is spoken (scripts/karaoke.mjs): an ASS file with its own style, the spoken
 // words in the highlight colour and the others in the text colour, dimmed.
 const burnedFile = (i) => `out/.work/burned-${i}.${cap.karaoke ? 'ass' : 'srt'}`;
