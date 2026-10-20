@@ -26,6 +26,19 @@ export const SCENE_TYPES = {
   terminal: {kind: 'clip', minLength: 0},
 };
 
+// How one scene hands over to the next. `fade` (the default) dips through the backdrop colour; the others are ffmpeg `xfade`
+// transitions centred on the cut, so the scenes and the voice keep their places. A project's `transition` is the default
+// for every cut; a scene's own `transition` is how it comes in from the scene before it.
+export const TRANSITIONS = {
+  fade: {xfade: null, description: 'dip through the backdrop colour (the default)'},
+  dissolve: {xfade: 'dissolve', description: 'cross-dissolve'},
+  push: {xfade: 'slideleft', description: 'the next scene pushes the last one out to the left'},
+  slide: {xfade: 'slideup', description: 'the next scene slides up over the last one'},
+  wipe: {xfade: 'wipeleft', description: 'a hard-edged wipe from the right'},
+  circle: {xfade: 'circleopen', description: 'the next scene opens from the middle in a circle'},
+};
+export const TRANSITION_LENGTH = 0.5;
+
 // The most characters each on-screen text of a scene may have (a list prop counts each item; `facts` counts the joined row).
 // The scene wraps and shrinks what it is given (src/stage.ts fitText), but a text this long stops being readable on one
 // slide, so a project over the limit fails the build and asks for a shorter line or another slide.
@@ -174,6 +187,7 @@ export const CAPTION_STYLES = {
   shadow: {border: 'shadow', description: 'text with a soft drop shadow, no outline'},
   bold: {border: 'outline', bold: true, size: 1.25, description: 'larger, bold text with an outline'},
   minimal: {border: 'none', size: 0.85, description: 'small, plain text'},
+  karaoke: {border: 'outline', bold: true, size: 1.15, karaoke: true, description: 'bold outlined text whose words light up as they are spoken'},
 };
 export const CAPTION_POSITIONS = ['auto', 'bottom', 'top', 'middle'];
 const HEX = /^#[0-9a-f]{6}([0-9a-f]{2})?$/i;
@@ -189,7 +203,7 @@ export function validateCaptions(cfg) {
   if ('position' in cfg && !CAPTION_POSITIONS.includes(cfg.position)) problems.push(`captions.position "${cfg.position}" is not one of ${CAPTION_POSITIONS.join(', ')}`);
   if ('scenes' in cfg && !(cfg.scenes === 'clips' || cfg.scenes === 'all' || (Array.isArray(cfg.scenes) && cfg.scenes.every((x) => typeof x === 'string')))) problems.push('captions.scenes must be "clips", "all" or a list of scene ids');
   if ('size' in cfg && !(typeof cfg.size === 'number' && cfg.size > 0 && cfg.size <= 3)) problems.push('captions.size must be a number above 0 and up to 3 (a multiplier)');
-  for (const k of ['color', 'outlineColor', 'boxColor']) if (k in cfg && !HEX.test(cfg[k])) problems.push(`captions.${k} must be a hex colour like #ffffff (or #000000b3 with opacity)`);
+  for (const k of ['color', 'outlineColor', 'boxColor', 'highlightColor']) if (k in cfg && !HEX.test(cfg[k])) problems.push(`captions.${k} must be a hex colour like #ffffff (or #000000b3 with opacity)`);
   return problems;
 }
 
@@ -236,6 +250,8 @@ export function resolveCaptions({theme, project = {}, adapter = {}, env = {}}) {
     text: cfg.color ?? theme.caption.text,
     outline: cfg.outlineColor ?? theme.caption.outline,
     box: cfg.boxColor ?? theme.caption.boxColor ?? '#000000b3',
+    karaoke: preset.karaoke ?? false,
+    highlight: cfg.highlightColor ?? cfg.color ?? theme.caption.text, // spoken words; the unspoken ones are this text colour, dimmed
     sidecar: cfg.sidecar !== false,
   };
 }
@@ -295,11 +311,65 @@ export function resolveMusic({project = {}, adapter = {}, env = {}}) {
 /** True for portrait and square frames, which get their own layouts. */
 export const isNarrow = (format) => format.width / format.height < 1.2;
 
+const isUnit = (v) => typeof v === 'number' && v >= 0 && v <= 1;
+const point = (v) => Array.isArray(v) && v.length === 2 && v.every(isUnit);
+
+/** What is wrong with a clip scene's `camera`, `focus` and `cursor` props, in words ("" for the place if the scene is fine). */
+export function validateCamera(props, where) {
+  const problems = [];
+  const {camera, focus, cursor} = props ?? {};
+  const times = (list, name) => {
+    let last = -1;
+    for (const [i, k] of list.entries()) {
+      if (!(typeof k?.at === 'number' && k.at >= 0)) problems.push(`${where}: ${name}[${i}].at must be seconds into the scene, 0 or more`);
+      else if (k.at <= last) problems.push(`${where}: ${name}[${i}].at must be later than the one before it`);
+      else last = k.at;
+    }
+  };
+  if (camera !== undefined) {
+    if (!Array.isArray(camera) || camera.length === 0) problems.push(`${where}: "camera" must be a list of keyframes: { at, zoom, to }`);
+    else {
+      times(camera, 'camera');
+      for (const [i, k] of camera.entries()) {
+        if ('zoom' in k && !(typeof k.zoom === 'number' && k.zoom >= 1 && k.zoom <= 4)) problems.push(`${where}: camera[${i}].zoom must be a number from 1 to 4`);
+        if ('to' in k && !point(k.to)) problems.push(`${where}: camera[${i}].to must be [x, y], each from 0 to 1 (a point on the recording)`);
+        if ('move' in k && !(typeof k.move === 'number' && k.move > 0 && k.move <= 5)) problems.push(`${where}: camera[${i}].move must be seconds above 0 and up to 5`);
+      }
+    }
+  }
+  if (focus !== undefined) {
+    const list = Array.isArray(focus) ? focus : [focus];
+    for (const [i, f] of list.entries()) {
+      const name = Array.isArray(focus) ? `focus[${i}]` : 'focus';
+      const box = f?.box;
+      if (!(typeof f?.from === 'number' && typeof f?.to === 'number' && f.from >= 0 && f.to > f.from)) problems.push(`${where}: ${name} needs "from" and "to" seconds, with "to" after "from"`);
+      if (!(Array.isArray(box) && box.length === 4 && box.every(isUnit) && box[2] > box[0] && box[3] > box[1])) problems.push(`${where}: ${name}.box must be [x0, y0, x1, y1], each from 0 to 1, with x1 > x0 and y1 > y0`);
+      if ('dim' in f && !(typeof f.dim === 'number' && f.dim > 0 && f.dim <= 0.9)) problems.push(`${where}: ${name}.dim must be a number above 0 and up to 0.9`);
+    }
+  }
+  if (cursor !== undefined) {
+    if (!Array.isArray(cursor) || cursor.length === 0) problems.push(`${where}: "cursor" must be a list of points: { at, to, click }`);
+    else {
+      times(cursor, 'cursor');
+      for (const [i, k] of cursor.entries()) {
+        if (!point(k?.to)) problems.push(`${where}: cursor[${i}].to must be [x, y], each from 0 to 1 (a point on the recording)`);
+        if ('click' in k && typeof k.click !== 'boolean') problems.push(`${where}: cursor[${i}].click must be true or false`);
+      }
+    }
+  }
+  return problems;
+}
+
+/** What is wrong with a `transition` value (a name from TRANSITIONS), in words. */
+export function validateTransition(value, where) {
+  return value === undefined || value in TRANSITIONS ? [] : [`${where}: transition "${value}" is not one of ${Object.keys(TRANSITIONS).join(', ')}`];
+}
+
 /** Checks a project file and says what is wrong in words. */
 export function validateProject(project) {
   const problems = [];
   if (!Array.isArray(project.scenes) || project.scenes.length === 0) problems.push('a project needs a "scenes" list');
-  problems.push(...validateCaptions(project.captions), ...validateMusic(project.music));
+  problems.push(...validateCaptions(project.captions), ...validateMusic(project.music), ...validateTransition(project.transition, 'the project'));
   const ids = new Set();
   for (const [i, scene] of (project.scenes ?? []).entries()) {
     const where = `scene ${i + 1}${scene.id ? ` ("${scene.id}")` : ''}`;
@@ -308,6 +378,9 @@ export function validateProject(project) {
     ids.add(scene.id);
     if (!(scene.type in SCENE_TYPES)) problems.push(`${where}: unknown type "${scene.type}" (${Object.keys(SCENE_TYPES).join(', ')})`);
     if (!scene.narration && !scene.cues) problems.push(`${where} has neither "narration" nor "cues"`);
+    problems.push(...validateTransition(scene.transition, where));
+    if (SCENE_TYPES[scene.type]?.kind === 'clip') problems.push(...validateCamera(scene.props, where));
+    else if (['camera', 'focus', 'cursor'].some((k) => k in (scene.props ?? {}))) problems.push(`${where}: "camera", "focus" and "cursor" work on device and terminal scenes only`);
     for (const [key, max] of Object.entries(TEXT_LIMITS[scene.type] ?? {})) {
       // A key may name a nested prop with dots, such as "left.items".
       const value = key.split('.').reduce((node, part) => node?.[part], scene.props);

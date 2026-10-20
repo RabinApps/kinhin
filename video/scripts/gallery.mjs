@@ -31,13 +31,13 @@ const blurb = {
   'scene-tour': 'All ten canvas scene types, one after another.',
   'product-launch': 'A product launch: problem, before and after, numbers, steps.',
   'release-notes': 'Release notes: a statement per feature, then the numbers.',
-  'social-teaser': 'A fifteen-second vertical teaser for Shorts, Reels and TikTok.',
+  'social-teaser': 'A fifteen-second vertical teaser for Shorts, Reels and TikTok, with word-by-word captions and push transitions.',
   'tutorial-chalk': 'A tutorial on a chalkboard: a plan and the commands.',
   'architecture-blueprint': 'An architecture explainer in blueprint style.',
   'oss-announcement': 'An open-source announcement for a 4:5 feed.',
   'changelog-month': 'A monthly update, square, with numbers and highlights.',
   'code-walkthrough': 'Code that types itself: install, then verify.',
-  'kinhin-30s': 'kinhin in thirty seconds, with the kinhin adapter\'s recorded app clip in a laptop.',
+  'kinhin-30s': 'kinhin in thirty seconds, with the kinhin adapter\'s recorded app clip in a laptop, a guided camera that zooms and spotlights, and a push into the app.',
 };
 const cases = [
   ...examples.map((e) => ({name: e, project: `examples/${e}`, title: e, text: blurb[e] ?? '', group: 'examples'})),

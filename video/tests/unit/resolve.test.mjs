@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
-import {FORMATS, SCENE_TYPES, deepMerge, fitScale, isNarrow, buildThemes, resolveFormat, resolveMusic, resolveTheme, validateMusic, validateProject, validateTheme} from '../../shared/resolve.mjs';
+import {FORMATS, SCENE_TYPES, deepMerge, fitScale, isNarrow, buildThemes, resolveFormat, resolveMusic, resolveTheme, validateMusic, validateProject, validateTheme, TRANSITIONS, validateCamera, validateTransition} from '../../shared/resolve.mjs';
 import {readJson, root, themeNames} from '../helpers.mjs';
 import {join} from 'node:path';
 
@@ -112,8 +112,8 @@ test('captions default to burned in on the clip scenes, outlined, positioned aut
   assert.equal(c.text, theme.caption.text);
 });
 
-test('every style preset resolves, and the five documented styles exist', () => {
-  assert.deepEqual(Object.keys(CAPTION_STYLES).sort(), ['bold', 'box', 'minimal', 'outline', 'shadow']);
+test('every style preset resolves, and the six documented styles exist', () => {
+  assert.deepEqual(Object.keys(CAPTION_STYLES).sort(), ['bold', 'box', 'karaoke', 'minimal', 'outline', 'shadow']);
   for (const style of Object.keys(CAPTION_STYLES)) assert.equal(caps({project: {captions: {style}}}).style, style);
   assert.equal(caps({project: {captions: {style: 'box'}}}).border, 'box');
   assert.equal(caps({project: {captions: {style: 'minimal'}}}).border, 'none');
@@ -163,6 +163,52 @@ test('assColor converts to libass order and inverts opacity', () => {
   assert.equal(assColor('#102030'), '&H00302010&', 'blue, green, red');
   assert.equal(assColor('#000000b3'), '&H4C000000&', 'b3 = 70% opaque = 0x4C transparent');
   assert.equal(assColor('#ff000000'), '&HFF0000FF&', 'fully transparent red');
+});
+
+test('the karaoke style is bold and outlined, lights words in the caption colour unless told otherwise', () => {
+  const k = caps({project: {captions: {style: 'karaoke'}}});
+  assert.equal(k.karaoke, true);
+  assert.equal(k.border, 'outline');
+  assert.ok(k.bold);
+  assert.equal(k.highlight, theme.caption.text, 'the spoken words keep the caption colour; the unspoken ones are dimmed from it');
+  assert.equal(caps({project: {captions: {style: 'karaoke', highlightColor: '#ffd166'}}}).highlight, '#ffd166');
+  assert.equal(caps({project: {captions: {style: 'karaoke', color: '#eeeeee'}}}).highlight, '#eeeeee');
+  assert.equal(caps({}).karaoke, false, 'no other style is word by word');
+  assert.match(validateCaptions({highlightColor: 'gold'}).join(), /captions.highlightColor must be a hex/);
+});
+
+// ---- transitions and camera --------------------------------------------------------------------------------------------
+
+test('transitions are named, default to the fade, and are checked on the project and on each scene', () => {
+  assert.equal(TRANSITIONS.fade.xfade, null, 'the fade is the current behaviour, not an xfade');
+  for (const [name, t] of Object.entries(TRANSITIONS)) assert.ok(name === 'fade' || t.xfade, `${name} names an ffmpeg xfade`);
+  assert.deepEqual(validateTransition(undefined, 's'), []);
+  assert.deepEqual(validateTransition('push', 's'), []);
+  assert.match(validateTransition('spin', 'scene 2').join(), /scene 2: transition "spin" is not one of fade, dissolve, push/);
+  const scenes = [{id: 'a', type: 'title', narration: 'x'}, {id: 'b', type: 'title', narration: 'x', transition: 'push'}];
+  assert.deepEqual(validateProject({transition: 'wipe', scenes}), []);
+  assert.match(validateProject({transition: 'spin', scenes}).join(), /the project: transition "spin"/);
+  assert.match(validateProject({scenes: [{...scenes[0], transition: 'spin'}]}).join(), /scene 1 \("a"\): transition "spin"/);
+});
+
+test('camera, focus and cursor are checked on clip scenes and refused on drawn ones', () => {
+  const good = {camera: [{at: 1, zoom: 2, to: [0.5, 0.5], move: 1}, {at: 4, zoom: 1}], focus: {from: 1, to: 3, box: [0.1, 0.1, 0.5, 0.5], dim: 0.5}, cursor: [{at: 1, to: [0.2, 0.2]}, {at: 2, to: [0.3, 0.3], click: true}]};
+  assert.deepEqual(validateCamera(good, 's'), []);
+  assert.deepEqual(validateCamera({}, 's'), [], 'all three are optional');
+  const text = (props) => validateCamera(props, 's').join('\n');
+  assert.match(text({camera: []}), /"camera" must be a list/);
+  assert.match(text({camera: [{at: 2}, {at: 1}]}), /camera\[1\].at must be later than the one before it/);
+  assert.match(text({camera: [{at: 1, zoom: 9}]}), /zoom must be a number from 1 to 4/);
+  assert.match(text({camera: [{at: 1, to: [2, 0]}]}), /camera\[0\].to must be \[x, y\]/);
+  assert.match(text({camera: [{at: 1, move: 0}]}), /move must be seconds above 0/);
+  assert.match(text({focus: {from: 3, to: 2, box: [0, 0, 1, 1]}}), /needs "from" and "to"/);
+  assert.match(text({focus: [{from: 1, to: 2, box: [0.5, 0.5, 0.4, 0.9]}]}), /focus\[0\].box must be \[x0, y0, x1, y1\]/);
+  assert.match(text({focus: {from: 1, to: 2, box: [0, 0, 1, 1], dim: 1}}), /dim must be/);
+  assert.match(text({cursor: [{at: 1}]}), /cursor\[0\].to must be \[x, y\]/);
+  assert.match(text({cursor: [{at: 1, to: [0, 0], click: 'yes'}]}), /click must be true or false/);
+  const device = {id: 'a', type: 'device', narration: 'x', props: {clip: 'app', camera: [{at: 1, zoom: 9}]}};
+  assert.match(validateProject({scenes: [device]}).join(), /scene 1 \("a"\): camera\[0\].zoom/);
+  assert.match(validateProject({scenes: [{id: 'a', type: 'title', narration: 'x', props: {title: 'T', camera: [{at: 1}]}}]}).join(), /work on device and terminal scenes only/);
 });
 
 // ---- music ------------------------------------------------------------------------------------------------------------

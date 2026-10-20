@@ -4,6 +4,8 @@
 //   clip   a clip of the project's adapter (see scripts/adapter.mjs), or a path relative to video/
 //   frame  "macbook" (device only: frame-app.sh), "window" (frame-terminal.sh) or "none"
 //   speed  playback speed of the clip (default 1)
+//   camera, focus, cursor  guided camera work on the recording itself: eased zoom and pan, a spotlight, a cursor with click
+//            rings (scripts/camera.mjs). It is drawn first, so the frame below holds still while the picture inside it moves.
 //   screens  instead of a clip: a list of PNG paths (relative to video/), shown as a cross-fading slideshow of the
 //            scene's length (opt-in; a scene without it is unchanged). `{platform}` in a path becomes the look's platform
 //            (ios or android, from VIDEO_PLATFORM; default ios). The screens sit in a phone frame (`frame`: iphone,
@@ -13,6 +15,7 @@ import {execFileSync} from 'node:child_process';
 import {existsSync, mkdirSync, readFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {loadAdapter, resolveClip as resolveClip_} from './adapter.mjs';
+import {applyCamera, wantsCamera} from './camera.mjs';
 import {slideshow} from './slideshow.mjs';
 import {loadProject, root, shellEnv} from './project.mjs';
 
@@ -57,14 +60,26 @@ for (const scene of p.scenes.filter((s) => s.kind === 'clip')) {
   }
   const found = resolveClip(scene.props.clip);
   if (!found) throw new Error(`scene "${scene.id}": no clip "${scene.props.clip}"${adapter ? ` in the ${adapter.name} adapter (record it, or add it to ${process.env.VIDEO_SOURCE ? '.kinhin/videos/' : ''}adapters/${adapter.name}/reference/)` : ' (the project has no adapter; give a path)'}`);
-  const clip = found.file;
+  let clip = found.file;
   const out = join('out/.work', `${scene.id}.mp4`);
   // An app recording defaults to the laptop; a terminal or a browser session to a window.
   const frame = scene.props.frame ?? (found.kind === 'app' || (found.kind === 'path' && scene.type === 'device') ? 'macbook' : 'window');
-  const speed = String(scene.props.speed ?? 1);
+  let speed = String(scene.props.speed ?? 1);
+  let start = found.meta && existsSync(found.meta) ? JSON.parse(readFileSync(found.meta, 'utf8')).demoStartsAt ?? 0 : 0;
+  const frameEnv = {...env};
+  if (wantsCamera(scene.props)) {
+    // Only the laptop frame starts the clip late and changes its speed. The camera pass applies both, so what the frame gets
+    // is a clip of exactly the scene's length (and, for the laptop, with the window's toolbar buttons already covered).
+    const laptop = frame === 'macbook';
+    const cameraClip = join('out/.work', `${scene.id}-camera.mp4`);
+    applyCamera({clip, out: cameraClip, props: scene.props, start: laptop ? start : 0, speed: laptop ? Number(speed) : 1, length, cover: laptop ? env.BAR_COLOR : undefined});
+    clip = cameraClip;
+    start = 0;
+    speed = '1';
+    if (laptop) frameEnv.COVER = '0';
+  }
   if (frame === 'macbook') {
-    const start = found.meta && existsSync(found.meta) ? JSON.parse(readFileSync(found.meta, 'utf8')).demoStartsAt ?? 0 : 0;
-    execFileSync('scripts/frame-app.sh', [clip, out, String(start), String(length)], {env: {...env, SPEED: speed}, stdio: 'inherit'});
+    execFileSync('scripts/frame-app.sh', [clip, out, String(start), String(length)], {env: {...frameEnv, SPEED: speed}, stdio: 'inherit'});
   } else if (frame === 'window') {
     execFileSync('scripts/frame-terminal.sh', [clip, out, String(length)], {env, stdio: 'inherit'});
   } else {

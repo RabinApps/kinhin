@@ -30,7 +30,7 @@ export function textsOf(project) {
       if (cue.say) walk(cue.say, `${scene.id}.cues[${i}].say`);
     }
     // props that name files or settings are not shown
-    const {clip, frame, mark, speed, ...shown} = scene.props ?? {};
+    const {clip, frame, mark, speed, camera, focus, cursor, ...shown} = scene.props ?? {};
     walk(shown, `${scene.id}.props`);
   }
   return out;
