@@ -42,6 +42,12 @@ done
 (( dry )) || command -v gh >/dev/null || die "gh not found"
 repo="${GITHUB_REPOSITORY:-RabinApps/kinhin}"
 
+# real_date DATE: true for a real calendar day. BSD date rolls 2026-02-31 over to March instead of refusing it, so
+# compare the round trip; GNU date refuses it outright.
+real_date() {
+    [[ $(date -u -d "$1" +%Y-%m-%d 2>/dev/null || date -j -u -f %Y-%m-%d "$1" +%Y-%m-%d 2>/dev/null) == "$1" ]]
+}
+
 # epoch DATE: midnight UTC of a YYYY-MM-DD date, with GNU date (CI) or BSD date (macOS).
 epoch() {
     date -u -d "$1" +%s 2>/dev/null || date -j -u -f %Y-%m-%d "$1" +%s 2>/dev/null || die "cannot read the date '$1'"
@@ -63,7 +69,13 @@ check() {
         fi
         return 0
     fi
-    [[ $expires =~ ^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$ ]] || die "$label: '$expires' is not a YYYY-MM-DD date"
+    # A bad date is reported and fails the run, but must not stop the checks of the forges after it.
+    if ! [[ $expires =~ ^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$ ]] || ! real_date "$expires"; then
+        echo "::warning::$label e2e token expiry '$expires' is not a real YYYY-MM-DD date"
+        say "$label: '$expires' is not a real date; fix KINHIN_E2E_$(echo "$forge" | tr '[:lower:]' '[:upper:]')_TOKEN_EXPIRES"
+        expired=1
+        return 0
+    fi
     local days=$(( ($(epoch "$expires") - today) / 86400 ))
     if (( days > warn_days )); then
         say "$label: expires $expires, $days days left"

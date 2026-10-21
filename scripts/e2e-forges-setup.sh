@@ -212,9 +212,23 @@ set_variable() { # NAME VALUE ('' removes it)
         gh variable set "$1" --repo "$gh_repo" --body "$2" >/dev/null
         say "stored variable $1=$2"
     else
-        gh variable delete "$1" --repo "$gh_repo" >/dev/null 2>&1 || true
-        say "no expiry recorded: removed $1 if it was set"
+        # Delete only a variable that exists, and let a real failure stop the run: a stale date would make the
+        # reminder workflow warn about the token this run replaced.
+        local names
+        names="$(gh variable list --repo "$gh_repo" --json name --jq '.[].name')" || die "cannot list the variables of $gh_repo"
+        if grep -Fqx -- "$1" <<<"$names"; then
+            gh variable delete "$1" --repo "$gh_repo" >/dev/null
+            say "no expiry recorded: removed $1"
+        else
+            say "no expiry recorded"
+        fi
     fi
+}
+
+# real_date DATE: true for a real calendar day. BSD date rolls 2026-02-31 over to March instead of refusing it, so
+# compare the round trip; GNU date refuses it outright.
+real_date() {
+    [[ $(date -u -d "$1" +%Y-%m-%d 2>/dev/null || date -j -u -f %Y-%m-%d "$1" +%Y-%m-%d 2>/dev/null) == "$1" ]]
 }
 
 # set_expiry FORGE [required]: ask when the new token expires and record it, so e2e-token-expiry.yml can warn
@@ -229,6 +243,7 @@ set_expiry() {
     fi
     [[ -n $date || -z ${2-} || $dry == 1 || $secrets == 0 ]] || die "this token expires, so a date is required; the reminder workflow reads it"
     [[ -z $date || $date =~ ^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$ ]] || die "'$date' is not a YYYY-MM-DD date"
+    [[ -z $date ]] || real_date "$date" || die "'$date' is not a real calendar date"
     set_variable "KINHIN_E2E_${1}_TOKEN_EXPIRES" "$date"
 }
 
