@@ -1,0 +1,37 @@
+name: E2E token expiry
+
+# The hosted e2e lanes (docs/e2e-hosted-forges.md) use tokens that cannot be minted through an API and expire after
+# at most a year. scripts/e2e-forges-setup.sh records each token's expiry as a repository variable; this opens an
+# issue 30 days before it, so a lane never fails with a 401 out of the blue. It reads only the dates, never a token.
+
+on:
+  schedule:
+    - cron: "0 9 * * 1" # weekly, Monday
+  workflow_dispatch:
+
+# A scheduled and a manual run must not overlap: both could find no open reminder and each open one.
+concurrency:
+  group: e2e-token-expiry
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  expiry:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Check token expiry dates
+        env:
+          GH_TOKEN: ${{ github.token }}
+          KINHIN_E2E_BUILDKITE_TOKEN_EXPIRES: ${{ vars.KINHIN_E2E_BUILDKITE_TOKEN_EXPIRES }}
+          KINHIN_E2E_BITBUCKET_TOKEN_EXPIRES: ${{ vars.KINHIN_E2E_BITBUCKET_TOKEN_EXPIRES }}
+          KINHIN_E2E_AZURE_TOKEN_EXPIRES: ${{ vars.KINHIN_E2E_AZURE_TOKEN_EXPIRES }}
+          # Whether each token that expires is stored at all (never its value), so a missing date can be told
+          # apart from a lane that is not set up.
+          KINHIN_E2E_BITBUCKET_TOKEN_CONFIGURED: ${{ secrets.KINHIN_E2E_BITBUCKET_TOKEN != '' }}
+          KINHIN_E2E_AZURE_TOKEN_CONFIGURED: ${{ secrets.KINHIN_E2E_AZURE_TOKEN != '' }}
+        run: scripts/e2e-token-expiry.sh

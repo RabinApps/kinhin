@@ -13,6 +13,27 @@ How to create the throwaway Buildkite, Azure DevOps and Bitbucket accounts the [
 - **Names.** The secret names are fixed by [`.github/workflows/e2e.yml`](../.github/workflows/e2e.yml). The values you pick (organization, project, pool, repository) are free.
 - **Keep the tokens out of shell history.** The commands below read them from the clipboard or a prompt. Use short expiry dates and revoke each token when you finish a test pass.
 
+## Set it up with the script
+
+[`scripts/e2e-forges-setup.sh`](../scripts/e2e-forges-setup.sh) does the API part of each section below: it creates what the lane needs, checks the token against the service and stores the secrets with `gh secret set`. It looks each resource up first, so re-running it is safe.
+
+```bash
+scripts/e2e-forges-setup.sh all                       # or buildkite, bitbucket, azure
+scripts/e2e-forges-setup.sh azure --dry-run           # print every request without sending any
+```
+
+You still do the web-UI steps first, because they have no API: sign up, create the Buildkite organization, the Bitbucket workspace and the Azure DevOps organization, and mint the tokens. The script prints where and what scopes, and asks for each token at a hidden prompt. Nothing is stored or passed as an argument.
+
+| Lane | The script creates | You provide |
+| ---- | ------------------ | ----------- |
+| Buildkite | the cluster and the `kinhin` queue | the organization, and the API token |
+| Bitbucket | the private repository, its first commit, Pipelines on | the workspace, a one-time Atlassian API token to create the repository, and the repository access token |
+| Azure DevOps | the project, its first commit, the agent pool and its project queue authorized for all pipelines | the organization, a one-time broader PAT to create the project and pool, and the e2e PAT |
+
+The one-time credentials are used only to provision; revoke them afterwards. Options and names are in `scripts/e2e-forges-setup.sh --help`. The script only talks to the three services and GitHub, never the Mac, so it is safe to run anywhere.
+
+> **Written from the vendors' documentation, not yet run against live accounts.** If a call is refused, the script stops with the service's answer; the manual sections below say what the same step looks like in the web UI. Not found in the Bitbucket and Azure references and worth checking first: the scope the Bitbucket pipelines-configuration call needs, and whether Azure's `autoProvision` pool already has a queue in an existing project (the script adds one if not).
+
 Summary of the secrets:
 
 | Lane | Secret | Value |
@@ -62,7 +83,7 @@ curl -s -H "Authorization: Bearer $BK_TOKEN" https://api.buildkite.com/v2/access
 curl -s -H "Authorization: Bearer $BK_TOKEN" https://api.buildkite.com/v2/organizations/ORG/clusters
 ```
 
-The first call must list every scope above. The second must show your cluster; copy its `id` and then check the queue:
+(`scripts/e2e-forges-setup.sh` runs these checks too.) The first call must list every scope above. The second must show your cluster; copy its `id` and then check the queue:
 
 ```bash
 curl -s -H "Authorization: Bearer $BK_TOKEN" https://api.buildkite.com/v2/organizations/ORG/clusters/CLUSTER_ID/queues
@@ -192,6 +213,19 @@ gh secret set KINHIN_E2E_AZURE_POOL --repo RabinApps/kinhin --body "POOL"
 
 - Each job commits `/e2e/<name>-<nonce>.yml`, creates a pipeline in the `\kinhin-e2e` folder and starts a run. `stop()` cancels the runs, deletes the pipelines and removes the files.
 - **Empty-pool risk.** Azure may fail a job at once when no agent in the pool advertises its demands, so kinhin never sees demand to scale up from. The lane runs **without** a runner floor on purpose, to find out. If the first run fails that way, set `KINHIN_E2E_AZURE_FLOOR=1` (add it to the workflow's `env:` block) so the lane runs with `min_runners: 1`, and record the result in [forges/azuredevops.md](forges/azuredevops.md#before-support-to-verify-against-a-live-service).
+
+## Token expiry and rotation
+
+The three tokens expire (a Bitbucket repository access token and an Azure PAT after at most a year; a Buildkite token only if you gave it a date), and none of them can be minted through an API, so a person has to replace each one. When a token lapses its lane fails on the first call with a `401`. Two things keep that from being a surprise:
+
+- **A reminder.** `scripts/e2e-forges-setup.sh` asks when each token expires and stores the date as the repository variable `KINHIN_E2E_BUILDKITE_TOKEN_EXPIRES`, `KINHIN_E2E_BITBUCKET_TOKEN_EXPIRES` or `KINHIN_E2E_AZURE_TOKEN_EXPIRES`. The weekly [`e2e-token-expiry.yml`](../.github/workflows/e2e-token-expiry.yml) workflow runs [`scripts/e2e-token-expiry.sh`](../scripts/e2e-token-expiry.sh), which opens one issue per forge when a date is within 30 days and fails the run once a date has passed. It reads the dates only, never a token. A Bitbucket or Azure token that is stored without a date fails the run, since those tokens always expire; a Buildkite token with no date is skipped. To record a date for a token you stored earlier: `gh variable set KINHIN_E2E_BITBUCKET_TOKEN_EXPIRES --repo RabinApps/kinhin --body 2027-10-20`.
+- **One command to rotate.** Create the new token in the web UI with the same scopes, then run:
+
+  ```bash
+  scripts/e2e-forges-setup.sh bitbucket --bitbucket-workspace WORKSPACE --rotate   # or buildkite, azure
+  ```
+
+  `--rotate` provisions nothing. It checks the new token against the existing resources, replaces only its secret and records the new expiry. Revoke the old token afterwards and close the reminder issue.
 
 ## Run the lanes
 
