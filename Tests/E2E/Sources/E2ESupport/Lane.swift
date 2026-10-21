@@ -55,6 +55,7 @@ public final class Lane: @unchecked Sendable {
         case .gitea, .forgejo: fixture = try GiteaFixture(kind: forge, image: options.forgeImage)
         case .gitlab: fixture = try GitLabFixture()
         case .github: fixture = try GitHubFixture()
+        case .buildkite: fixture = try BuildkiteFixture()
         }
         let minRunners = options.minRunners ?? (fixture.needsRunnerFloor ? 1 : 0)
         if runtime == .host, minRunners > 0 {

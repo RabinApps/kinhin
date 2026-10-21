@@ -33,6 +33,9 @@ jobs:
       # Optional lanes: set these repository secrets to turn the GitHub lane on (use a throwaway repository).
       KINHIN_E2E_GITHUB_TOKEN: ${{ secrets.KINHIN_E2E_GITHUB_TOKEN }}
       KINHIN_E2E_GITHUB_REPO: ${{ secrets.KINHIN_E2E_GITHUB_REPO }}
+      # The Buildkite lane: a throwaway organization, scope `org/cluster`, with a `kinhin` queue in the cluster.
+      KINHIN_E2E_BUILDKITE_TOKEN: ${{ secrets.KINHIN_E2E_BUILDKITE_TOKEN }}
+      KINHIN_E2E_BUILDKITE_SCOPE: ${{ secrets.KINHIN_E2E_BUILDKITE_SCOPE }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 

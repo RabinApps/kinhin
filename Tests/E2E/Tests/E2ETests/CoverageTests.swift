@@ -24,7 +24,8 @@ struct CoverageTests {
         "forgejo": .live("Forgejo in Docker (LifecycleTests)"),
         "gitlab": .live("GitLab CE in Docker (LifecycleTests; heavy: KINHIN_E2E_HEAVY=1 or KINHIN_E2E_FORGES=gitlab)"),
         "github": .gated("KINHIN_E2E_GITHUB_TOKEN + KINHIN_E2E_GITHUB_REPO (LifecycleTests, once configured)"),
-        "buildkite": .waived("planned, not supported yet; hosted-only, needs a Buildkite org and cluster token"),
+        "buildkite": .gated(
+            "KINHIN_E2E_BUILDKITE_TOKEN + KINHIN_E2E_BUILDKITE_SCOPE (LifecycleTests, once configured)"),
         "azuredevops": .waived("planned, not supported yet; needs an organization, agent pool and PAT"),
         "bitbucket": .waived("planned, not supported yet; Bitbucket Cloud only, needs a workspace and token"),
     ]
