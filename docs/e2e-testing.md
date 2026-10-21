@@ -168,6 +168,12 @@ real runner job on every guest runtime that runs `kinhin-toolchain install node@
   name a command that no longer exists;
 - every command must answer `--help` with exit 0.
 
+## Hosted forges
+
+GitHub, Buildkite, Azure DevOps and Bitbucket are real services, so their lanes are gated on credentials. The full
+set-up (accounts, tokens, secrets, what the first run must confirm) is in
+[Setting up the hosted e2e lanes](e2e-hosted-forges.md).
+
 ## Adding a forge
 
 Follow [adding-a-forge.md](adding-a-forge.md), then:

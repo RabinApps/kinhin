@@ -229,6 +229,7 @@ export default defineConfig({
         items: [
           { text: "Contributing", link: "/guide/contributing" },
           { text: "End-to-end testing", link: "/guide/e2e-testing" },
+          { text: "Setting up the hosted e2e lanes", link: "/guide/e2e-hosted-forges" },
           { text: "Making kinhin's demo video", link: "/guide/making-a-video" },
           { text: "Debugging races (TSan)", link: "/guide/debugging-races" },
           { text: "Cutting a release", link: "/guide/releasing" },
