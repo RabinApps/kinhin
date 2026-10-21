@@ -20,7 +20,7 @@ import {execFileSync} from 'node:child_process';
 import {copyFileSync, existsSync, mkdirSync, readFileSync, utimesSync} from 'node:fs';
 import {join} from 'node:path';
 import {loadAdapter, resolveClip as resolveClip_} from './adapter.mjs';
-import {frameKey, hashFileOnce, pruneFolders, readJson, sha, writeJson} from './cache.mjs';
+import {copyAtomic, frameKey, hashFileOnce, pruneFolders, readJson, sha, writeJson} from './cache.mjs';
 import {applyCamera, resolveTargets, wantsCamera} from './camera.mjs';
 import {slideshow} from './slideshow.mjs';
 import {loadProject, root, shellEnv} from './project.mjs';
@@ -165,7 +165,7 @@ for (const scene of p.scenes.filter((s) => s.kind === 'clip')) {
   }
   renderScene(scene, length);
   mkdirSync(cacheDir, {recursive: true});
-  copyFileSync(out, kept);
+  copyAtomic(out, kept);
   cache[scene.id] = key;
   writeJson(cacheFile, cache);
 }

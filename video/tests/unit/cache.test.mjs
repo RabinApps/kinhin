@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
-import {existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync} from 'node:fs';
+import {existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, utimesSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {after, before, test} from 'node:test';
-import {frameKey, hashFile, hashFileOnce, prune, pruneFolders, readJson, sha, voiceKey, withCache, writeJson} from '../../scripts/cache.mjs';
+import {copyAtomic, fileSha, frameKey, hashFile, hashFileOnce, prune, pruneFolders, readJson, sha, voiceKey, withCache, writeJson} from '../../scripts/cache.mjs';
 
 let dir;
 before(() => { dir = mkdtempSync(join(tmpdir(), 'cache-')); });
@@ -124,4 +124,30 @@ test('pruneFolders clears old files from each project folder and removes the fol
   assert.ok(!existsSync(join(frames, 'old')), 'a folder with nothing left goes');
   assert.ok(existsSync(join(frames, 'mixed', 'b.mp4')) && !existsSync(join(frames, 'mixed', 'a.mp4')));
   assert.equal(pruneFolders(join(dir, 'nothing-here')), 0);
+});
+
+test('a file is copied or written into place whole, leaving nothing half-made beside it', () => {
+  const folder = join(dir, 'atomic');
+  mkdirSync(folder, {recursive: true});
+  writeFileSync(join(folder, 'from.m4a'), 'audio');
+  copyAtomic(join(folder, 'from.m4a'), join(folder, 'entry.m4a'));
+  writeJson(join(folder, 'keys.json'), {a: 1});
+  assert.equal(readFileSync(join(folder, 'entry.m4a'), 'utf8'), 'audio');
+  assert.deepEqual(readJson(join(folder, 'keys.json')), {a: 1});
+  assert.deepEqual(readdirSync(folder).sort(), ['entry.m4a', 'from.m4a', 'keys.json'], 'no temporary file is left');
+  writeFileSync(join(folder, 'from.m4a'), 'newer audio');
+  copyAtomic(join(folder, 'from.m4a'), join(folder, 'entry.m4a'));
+  assert.equal(readFileSync(join(folder, 'entry.m4a'), 'utf8'), 'newer audio', 'an existing entry is replaced');
+  assert.throws(() => copyAtomic(join(folder, 'nope'), join(folder, 'x.m4a')), /ENOENT/);
+  assert.ok(!existsSync(join(folder, 'x.m4a')), 'a failed copy publishes nothing');
+});
+
+test('fileSha follows a script\'s text and says when it is missing', () => {
+  const file = join(dir, 'renderer.py');
+  assert.equal(fileSha(file), 'missing');
+  writeFileSync(file, 'print(1)');
+  const first = fileSha(file);
+  assert.equal(first, sha('print(1)'));
+  writeFileSync(file, 'print(2)');
+  assert.notEqual(fileSha(file), first);
 });

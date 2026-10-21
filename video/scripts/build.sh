@@ -20,7 +20,7 @@
 # It uses your own recordings in raw/<adapter>/ when they exist, and the small committed clips in
 # adapters/<adapter>/reference/ otherwise, so it works on any machine, including Linux. Output: video/out/ (launch.mp4,
 # launch.webm, poster.png, hero.gif) and out/launch.srt (every caption, for a player).
-# Env: VIDEO_IMAGE=<image> runs a published image instead of building one (--container); VOICE_ENGINE / VOICE override the script's voice (kokoro af_heart); NO_MUSIC=1 (same as --music off); VIDEO_MUSIC_VOLUME=0.2;
+# Env: RENDER_FORCE=1 renders and frames everything again, VOICE_FORCE=1 speaks everything again (both also inside --container); VIDEO_IMAGE=<image> runs a published image instead of building one (--container); VOICE_ENGINE / VOICE override the script's voice (kokoro af_heart); NO_MUSIC=1 (same as --music off); VIDEO_MUSIC_VOLUME=0.2;
 #      VIDEO_CAPTIONS=off; CONTAINER_NETWORK=none (Docker) runs the build with no network; the container's size: CONTAINER_CPUS (default 4), CONTAINER_MEMORY (default 6G).
 set -euo pipefail
 CALLER_DIR="$PWD"   # --source is relative to where you ran this, not to video/
@@ -108,7 +108,7 @@ if [ "$CONTAINER" = 1 ] && [ -z "${KINHIN_VIDEO_IN_CONTAINER:-}" ]; then
   "$RUNTIME" run --rm "${SIZE[@]}" ${SRCMOUNT[@]+"${SRCMOUNT[@]}"} ${NET[@]+"${NET[@]}"} \
     -v "$PWD":/src -v "$PWD/raw":/work/raw -v "$PWD/out":/work/out \
     -e NO_MUSIC="${NO_MUSIC:-}" -e VIDEO_MUSIC="${VIDEO_MUSIC:-}" -e VIDEO_MUSIC_SHA256="${VIDEO_MUSIC_SHA256:-}" -e VIDEO_MUSIC_VOLUME="${VIDEO_MUSIC_VOLUME:-}" -e NO_CAPTIONS="${NO_CAPTIONS:-}" -e VOICE_ENGINE="${VOICE_ENGINE:-}" -e VOICE="${VOICE:-}" \
-    -e VIDEO_THEME="${VIDEO_THEME:-}" -e VIDEO_FORMAT="${VIDEO_FORMAT:-}" -e VIDEO_PLATFORM="${VIDEO_PLATFORM:-}" -e VIDEO_PROJECT="${VIDEO_PROJECT:-}" -e VIDEO_ADAPTER="${VIDEO_ADAPTER:-}" -e VIDEO_FAST="${VIDEO_FAST:-}" -e VIDEO_QUALITY="${VIDEO_QUALITY:-}" -e VIDEO_FPS="${VIDEO_FPS:-}" -e VIDEO_CAPTIONS="${VIDEO_CAPTIONS:-}" -e VIDEO_CAPTION_STYLE="${VIDEO_CAPTION_STYLE:-}" -e VIDEO_SCENES="${VIDEO_SCENES:-}" \
+    -e VIDEO_THEME="${VIDEO_THEME:-}" -e VIDEO_FORMAT="${VIDEO_FORMAT:-}" -e VIDEO_PLATFORM="${VIDEO_PLATFORM:-}" -e VIDEO_PROJECT="${VIDEO_PROJECT:-}" -e VIDEO_ADAPTER="${VIDEO_ADAPTER:-}" -e VIDEO_FAST="${VIDEO_FAST:-}" -e VIDEO_QUALITY="${VIDEO_QUALITY:-}" -e VIDEO_FPS="${VIDEO_FPS:-}" -e VIDEO_CAPTIONS="${VIDEO_CAPTIONS:-}" -e VIDEO_CAPTION_STYLE="${VIDEO_CAPTION_STYLE:-}" -e VIDEO_SCENES="${VIDEO_SCENES:-}" -e RENDER_FORCE="${RENDER_FORCE:-}" -e VOICE_FORCE="${VOICE_FORCE:-}" \
     "$IMAGE" bash -c 'rsync -a --exclude node_modules --exclude raw --exclude out --exclude .venv-tts --exclude output --exclude .generated /src/ /work/ && cd /work && { cp -r fonts/. /usr/local/share/fonts/ 2>/dev/null; fc-cache -f; } && scripts/build.sh'
   echo "==> done: see video/out/<name>/"
   exit 0

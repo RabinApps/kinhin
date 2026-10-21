@@ -114,8 +114,9 @@ Every build prints how long each step took. To iterate on one scene, build just 
 kinhin video build launch --scene app --watch
 ```
 
-A preview is written to `out/<name>-scene-<ids>/`, so it never replaces the full video. If a rebuild ever shows something old, `RENDER_FORCE=1`
-frames and renders everything again, and `VOICE_FORCE=1` speaks everything again; deleting `.kinhin/videos/.cache/` starts clean.
+A preview is written to `out/<name>-scene-<ids>/`, so it never replaces the full video. If a rebuild ever shows something old, delete
+`.kinhin/videos/.cache/` (or one of its folders from the table) and build again. In a checkout of kinhin, `RENDER_FORCE=1` and `VOICE_FORCE=1`
+with `video/scripts/build.sh` frame, render and speak everything again for one build.
 
 `--format` takes `16:9`, `9:16`, `4:5` or `1:1`. Other options: `--dir PATH` (a repository other than the current
 directory), `--runtime container|docker`, and `--image REF` (or `KINHIN_VIDEO_IMAGE`) to run a different image.

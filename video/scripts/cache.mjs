@@ -2,7 +2,7 @@
 // which `kinhin video build` keeps between runs (out/.work does not), and a result is reused only when everything that shapes it
 // hashes the same, so a hit is the file the step would have made again.
 import {createHash} from 'node:crypto';
-import {closeSync, copyFileSync, existsSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, statSync, utimesSync, writeFileSync, rmSync} from 'node:fs';
+import {closeSync, copyFileSync, existsSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, renameSync, rmSync, statSync, utimesSync, writeFileSync} from 'node:fs';
 import {join} from 'node:path';
 
 /** sha256 of a string, or of a value as JSON (object keys in the order given: build the value the same way every time). */
@@ -35,7 +35,26 @@ export function hashFileOnce(file, store) {
 }
 
 export const readJson = (file, fallback = {}) => (existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : fallback);
-export const writeJson = (file, value) => writeFileSync(file, JSON.stringify(value, null, 2) + '\n');
+
+/** sha256 of a file's text, or 'missing' when it is not there (a script that goes into a key, such as a renderer). */
+export const fileSha = (file) => (existsSync(file) ? sha(readFileSync(file, 'utf8')) : 'missing');
+
+// A cache file is written beside its place and renamed into it, so a build that stops half-way leaves no partial entry for the next
+// build to find (rename is atomic on one filesystem, and the temporary name is in the same folder).
+const temporary = (file) => `${file}.tmp-${process.pid}`;
+
+/** Copies `from` to `to` so that `to` is either whole or not there. */
+export function copyAtomic(from, to) {
+  const part = temporary(to);
+  copyFileSync(from, part);
+  renameSync(part, to);
+}
+
+export function writeJson(file, value) {
+  const part = temporary(file);
+  writeFileSync(part, JSON.stringify(value, null, 2) + '\n');
+  renameSync(part, file);
+}
 
 /** The key of one spoken cue: everything that changes how it sounds. `speed` is the engine's own rate. */
 export const voiceKey = ({engine, model, voice, speed, text}) => sha({engine, model, voice, speed, text});
@@ -90,7 +109,7 @@ export async function withCache(jobs, {dir, force = false, key, render, seconds}
     const durations = await render(misses);
     misses.forEach((job, i) => {
       job.seconds = durations[i];
-      copyFileSync(job.out, job.entry);
+      copyAtomic(job.out, job.entry);
     });
   }
   return {hits: jobs.length - misses.length, misses: misses.length};

@@ -218,6 +218,19 @@ test('a camera position may be the name of a target', () => {
   assert.match(validateCamera({cursor: [{at: 1, to: 3}]}, 's').join(), /cursor\[0\].to must be \[x, y\].*or the name of a target/);
 });
 
+test('an empty or bare entry in a camera, focus, cursor or speed list is a problem, not a crash', () => {
+  const text = (props) => validateClipSpec(props, 's').join('\n');
+  for (const entry of [null, 2, 'x', [1]]) {
+    assert.match(text({camera: [entry]}), /camera\[0\] must be a keyframe/, String(entry));
+    assert.match(text({focus: [entry]}), /focus\[0\] must be \{ from, to, box \}/, String(entry));
+    assert.match(text({cursor: [entry]}), /cursor\[0\] must be a point/, String(entry));
+    assert.match(text({speed: [entry, {speed: 1}]}), /speed\[0\] must be a segment/, String(entry));
+  }
+  assert.match(text({focus: null}), /focus must be/, 'a bare `focus:` in the file');
+  assert.match(text({camera: [{at: 1, zoom: 2}, null, {at: 5}]}), /camera\[1\] must be a keyframe/, 'the rest of the list is still checked');
+  assert.doesNotMatch(text({camera: [null]}), /at must be seconds/, 'one problem per entry');
+});
+
 test('speed is a number or a list of segments, each with `until` but the last', () => {
   const text = (props) => validateSpeed(props, 's').join('\n');
   assert.deepEqual(validateSpeed({speed: 2}, 's'), []);

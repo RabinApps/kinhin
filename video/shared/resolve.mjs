@@ -322,6 +322,7 @@ const isUnit = (v) => typeof v === 'number' && v >= 0 && v <= 1;
 const point = (v) => Array.isArray(v) && v.length === 2 && v.every(isUnit);
 // A point or a box may be the name of one of the clip's `targets` in its adapter (checked when the video is validated and built).
 const isName = (v) => typeof v === 'string' && v.length > 0;
+const isObject = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);
 
 /** What is wrong with a clip scene's `camera`, `focus` and `cursor` props, in words ("" for the place if the scene is fine). */
 export function validateCamera(props, where) {
@@ -330,7 +331,8 @@ export function validateCamera(props, where) {
   const times = (list, name) => {
     let last = -1;
     for (const [i, k] of list.entries()) {
-      if (!(typeof k?.at === 'number' && k.at >= 0)) problems.push(`${where}: ${name}[${i}].at must be seconds into the scene, 0 or more`);
+      if (!isObject(k)) continue; // reported by the caller, with what the entry should look like
+      if (!(typeof k.at === 'number' && k.at >= 0)) problems.push(`${where}: ${name}[${i}].at must be seconds into the scene, 0 or more`);
       else if (k.at <= last) problems.push(`${where}: ${name}[${i}].at must be later than the one before it`);
       else last = k.at;
     }
@@ -340,6 +342,7 @@ export function validateCamera(props, where) {
     else {
       times(camera, 'camera');
       for (const [i, k] of camera.entries()) {
+        if (!isObject(k)) { problems.push(`${where}: camera[${i}] must be a keyframe: { at, zoom, to }`); continue; }
         if ('zoom' in k && !(typeof k.zoom === 'number' && k.zoom >= 1 && k.zoom <= 4)) problems.push(`${where}: camera[${i}].zoom must be a number from 1 to 4`);
         if ('to' in k && !point(k.to) && !isName(k.to)) problems.push(`${where}: camera[${i}].to must be [x, y], each from 0 to 1 (a point on the recording), or the name of a target`);
         if ('target' in k && !isName(k.target)) problems.push(`${where}: camera[${i}].target must be the name of a target of the clip`);
@@ -352,7 +355,8 @@ export function validateCamera(props, where) {
     const list = Array.isArray(focus) ? focus : [focus];
     for (const [i, f] of list.entries()) {
       const name = Array.isArray(focus) ? `focus[${i}]` : 'focus';
-      const box = f?.box;
+      if (!isObject(f)) { problems.push(`${where}: ${name} must be { from, to, box }`); continue; }
+      const box = f.box;
       if (!(typeof f?.from === 'number' && typeof f?.to === 'number' && f.from >= 0 && f.to > f.from)) problems.push(`${where}: ${name} needs "from" and "to" seconds, with "to" after "from"`);
       if (!isName(box) && !(Array.isArray(box) && box.length === 4 && box.every(isUnit) && box[2] > box[0] && box[3] > box[1])) problems.push(`${where}: ${name}.box must be [x0, y0, x1, y1], each from 0 to 1, with x1 > x0 and y1 > y0, or the name of a target`);
       if ('dim' in f && !(typeof f.dim === 'number' && f.dim > 0 && f.dim <= 0.9)) problems.push(`${where}: ${name}.dim must be a number above 0 and up to 0.9`);
@@ -363,7 +367,8 @@ export function validateCamera(props, where) {
     else {
       times(cursor, 'cursor');
       for (const [i, k] of cursor.entries()) {
-        if (!point(k?.to) && !isName(k?.to)) problems.push(`${where}: cursor[${i}].to must be [x, y], each from 0 to 1 (a point on the recording), or the name of a target`);
+        if (!isObject(k)) { problems.push(`${where}: cursor[${i}] must be a point: { at, to, click }`); continue; }
+        if (!point(k.to) && !isName(k.to)) problems.push(`${where}: cursor[${i}].to must be [x, y], each from 0 to 1 (a point on the recording), or the name of a target`);
         if ('click' in k && typeof k.click !== 'boolean') problems.push(`${where}: cursor[${i}].click must be true or false`);
       }
     }
@@ -382,10 +387,11 @@ export function validateSpeed(props, where) {
     if (speed.length === 0) problems.push(`${where}: "speed" must not be an empty list`);
     let last = 0;
     for (const [i, seg] of speed.entries()) {
-      if (!rate(seg?.speed)) problems.push(`${where}: speed[${i}].speed must be a number from 0.1 to 30`);
+      if (!isObject(seg)) { problems.push(`${where}: speed[${i}] must be a segment: { until, speed }`); continue; }
+      if (!rate(seg.speed)) problems.push(`${where}: speed[${i}].speed must be a number from 0.1 to 30`);
       if (i === speed.length - 1) {
-        if (seg && 'until' in seg) problems.push(`${where}: the last speed segment has no "until"; it runs to the end of the scene`);
-      } else if (!(typeof seg?.until === 'number' && seg.until > last)) problems.push(`${where}: speed[${i}].until must be source seconds, later than the segment before it`);
+        if ('until' in seg) problems.push(`${where}: the last speed segment has no "until"; it runs to the end of the scene`);
+      } else if (!(typeof seg.until === 'number' && seg.until > last)) problems.push(`${where}: speed[${i}].until must be source seconds, later than the segment before it`);
       else last = seg.until;
     }
   }

@@ -22,7 +22,7 @@ has not run against a real runner. Run `kinhin help video` if a flag here is rej
 | Record an app clip | `kinhin video record <app or title> [--seconds N] [--out PATH]`, or `--window ID`; `--list-windows` shows the choices. One window, the pointer left out; needs Screen Recording permission once |
 
 The result is in `.kinhin/videos/out/<name>/` (`<name>.mp4`, `.webm`, `-poster.png`, `-hero.gif`, `.srt`). Use `--fast` while
-iterating; unchanged scenes, sentences and framed clips come from the cache (`RENDER_FORCE=1` / `VOICE_FORCE=1` ignore it). `--scene a,b` builds only those
+iterating; unchanged scenes, sentences and framed clips come from the cache (delete `.kinhin/videos/.cache/` to start clean). `--scene a,b` builds only those
 scenes as a preview and `--watch` rebuilds when the files change; every build prints each step's time. `--quality` sets the encode (`draft` is `--fast`; `high` is slower and larger) and `--fps` the frame rate (30 by default). Never open the MP4 and judge it blind: run a build, then read
 the log and the `.srt`, and tell the user where the files are.
 

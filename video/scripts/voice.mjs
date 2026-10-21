@@ -13,10 +13,10 @@
 // A sentence that has not changed (same text, voice, speed and engine) is not spoken again: its audio is kept in raw/voice-cache/ and
 // the speech model is not even loaded when every sentence is there. VOICE_FORCE=1 speaks everything again.
 import {execFileSync} from 'node:child_process';
-import {mkdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
+import {mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync} from 'node:fs';
 import {dirname, join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {prune, voiceKey, withCache} from './cache.mjs';
+import {fileSha, prune, voiceKey, withCache} from './cache.mjs';
 import {projectFile, readConfig} from './project.mjs';
 import {selectScenes} from '../shared/resolve.mjs';
 
@@ -159,10 +159,23 @@ const packageVersion = (name) => {
     return 'unknown'; // not installed here (the engine is not in use): the key then matches nothing that was made with it
   }
 };
+// Supertonic is a pip package run by our own script: the script and the installed package decide the audio, so both are in the key.
+const supertonicVersion = () => {
+  try {
+    const lib = join(root, '.venv-tts/lib');
+    for (const python of readdirSync(lib)) {
+      const found = readdirSync(join(lib, python, 'site-packages')).find((f) => /^supertonic-.*\.dist-info$/.test(f));
+      if (found) return found.replace(/^supertonic-|\.dist-info$/g, '');
+    }
+  } catch {
+    // no venv: the engine is not in use here, and nothing cached by it can match
+  }
+  return 'unknown';
+};
 const MODEL = {
   say: 'say',
   kokoro: `Kokoro-82M-v1.0-ONNX q8, kokoro-js ${packageVersion('kokoro-js')}, phonemizer ${packageVersion('phonemizer')}, transformers ${packageVersion('@huggingface/transformers')}`,
-  supertonic: 'supertonic',
+  supertonic: `supertonic ${supertonicVersion()}, renderer ${fileSha(join(root, 'scripts/tts_supertonic.py')).slice(0, 16)}`,
 };
 const cacheDir = join(root, 'raw/voice-cache');
 prune(cacheDir);
