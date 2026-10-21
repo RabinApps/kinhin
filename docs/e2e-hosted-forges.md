@@ -52,7 +52,7 @@ You do not create a pipeline, an agent token or a repository. The fixture create
    - `read_build_logs` (optional; only the app's pipeline view reads logs)
 4. Create the token and copy it.
 
-kinhin itself needs only the first three pairs ([Buildkite](forges/buildkite.md#auth)); the lane adds `write_builds` and `write_pipelines` for the fixture.
+kinhin itself needs `read_agents`, `write_agents`, `read_builds`, `read_clusters` and `write_clusters` ([Buildkite](forges/buildkite.md#auth)); the fixture also needs `write_builds`, `read_pipelines` and `write_pipelines` to create pipelines and start builds.
 
 ### 3. Check it with curl
 
