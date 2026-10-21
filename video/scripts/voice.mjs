@@ -151,7 +151,19 @@ const plan = script.scenes.map((scene) => {
   })};
 });
 // What a cue sounds like depends on the engine and its model, the voice, the speed and the (respelled) words: nothing else.
-const MODEL = {say: 'say', kokoro: 'Kokoro-82M-v1.0-ONNX q8', supertonic: 'supertonic'};
+// The model's name is not enough: the packages that run it decide the pronunciation too, so their versions are part of the key.
+const packageVersion = (name) => {
+  try {
+    return JSON.parse(readFileSync(join(root, 'node_modules', name, 'package.json'), 'utf8')).version;
+  } catch {
+    return 'unknown'; // not installed here (the engine is not in use): the key then matches nothing that was made with it
+  }
+};
+const MODEL = {
+  say: 'say',
+  kokoro: `Kokoro-82M-v1.0-ONNX q8, kokoro-js ${packageVersion('kokoro-js')}, phonemizer ${packageVersion('phonemizer')}, transformers ${packageVersion('@huggingface/transformers')}`,
+  supertonic: 'supertonic',
+};
 const cacheDir = join(root, 'raw/voice-cache');
 prune(cacheDir);
 const {hits, misses} = await withCache(jobs, {

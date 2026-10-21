@@ -3,7 +3,7 @@ import {existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, utim
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {after, before, test} from 'node:test';
-import {frameKey, hashFile, prune, readJson, sha, voiceKey, withCache, writeJson} from '../../scripts/cache.mjs';
+import {frameKey, hashFile, hashFileOnce, prune, pruneFolders, readJson, sha, voiceKey, withCache, writeJson} from '../../scripts/cache.mjs';
 
 let dir;
 before(() => { dir = mkdtempSync(join(tmpdir(), 'cache-')); });
@@ -94,4 +94,34 @@ test('prune removes what has not been used for a while and keeps the rest', () =
   assert.ok(!existsSync(join(store, 'old.m4a')) && existsSync(join(store, 'new.m4a')));
   assert.equal(prune(join(dir, 'absent')), 0, 'no folder, nothing to do');
   assert.ok(statSync(join(store, 'new.m4a')).isFile());
+});
+
+test('a recording is hashed once, and again when its size or time changes', () => {
+  const file = join(dir, 'recording.mov');
+  writeFileSync(file, 'one');
+  const store = {};
+  const first = hashFileOnce(file, store);
+  assert.equal(first, sha('one'));
+  store[file].sha = 'remembered'; // what the store says is used while the file looks the same
+  assert.equal(hashFileOnce(file, store), 'remembered');
+  writeFileSync(file, 'three'); // a different size
+  assert.equal(hashFileOnce(file, store), sha('three'));
+  const t = new Date(Date.now() + 5000);
+  utimesSync(file, t, t); // the same bytes, a new time: read again
+  store[file].sha = 'stale';
+  assert.equal(hashFileOnce(file, store), sha('three'));
+});
+
+test('pruneFolders clears old files from each project folder and removes the folders left empty', () => {
+  const frames = join(dir, 'frames');
+  for (const project of ['old', 'mixed']) mkdirSync(join(frames, project), {recursive: true});
+  writeFileSync(join(frames, 'old', 'a.mp4'), 'x');
+  writeFileSync(join(frames, 'mixed', 'a.mp4'), 'x');
+  writeFileSync(join(frames, 'mixed', 'b.mp4'), 'x');
+  const longAgo = new Date(Date.now() - 90 * 86400000);
+  for (const f of ['old/a.mp4', 'mixed/a.mp4']) utimesSync(join(frames, f), longAgo, longAgo);
+  assert.equal(pruneFolders(frames, 60), 2);
+  assert.ok(!existsSync(join(frames, 'old')), 'a folder with nothing left goes');
+  assert.ok(existsSync(join(frames, 'mixed', 'b.mp4')) && !existsSync(join(frames, 'mixed', 'a.mp4')));
+  assert.equal(pruneFolders(join(dir, 'nothing-here')), 0);
 });

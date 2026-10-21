@@ -15,13 +15,19 @@ export function wordCentiseconds(words, total) {
   return shares;
 }
 
+/**
+ * A word as ASS text. A brace opens an override block and a backslash starts a command (\N is a line break), so a braced word in the
+ * narration would vanish: braces get libass's own escapes and a backslash becomes its full-width look-alike.
+ */
+export const escapeAss = (word) => word.replaceAll('\\', '\uFF3C').replace(/[{}]/g, (c) => `\\${c}`);
+
 /** The text of one cue as ASS: a \kf sweep per word, lines broken with \N where `lines` (already wrapped) breaks them. */
 export function karaokeText(lines, seconds) {
   const words = lines.flat();
   const cs = wordCentiseconds(words, Math.max(words.length, Math.round(seconds * 100)));
   let i = 0;
   return lines
-    .map((line) => line.map((word, n) => `{\\kf${cs[i++]}}${word}${n < line.length - 1 ? ' ' : ''}`).join(''))
+    .map((line) => line.map((word, n) => `{\\kf${cs[i++]}}${escapeAss(word)}${n < line.length - 1 ? ' ' : ''}`).join(''))
     .join('\\N');
 }
 

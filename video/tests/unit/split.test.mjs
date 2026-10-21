@@ -71,6 +71,23 @@ test('in a portrait frame the clips are stacked, the left one on top', {skip: !f
   assert.equal(dominant(mean(out, 0.5, '540:75:0:880')), 'grey', 'the bottom of the frame is left for the captions');
 });
 
+test('in a 16:9 frame a tall window stops above the band kept for the captions', {skip: !ffmpeg && 'needs ffmpeg'}, () => {
+  const tall = join(dir, 'tall-clip.mp4');
+  execFileSync('ffmpeg', ['-nostdin', '-y', '-loglevel', 'error', '-f', 'lavfi', '-i', 'color=c=red:s=200x400:r=30:d=3', '-pix_fmt', 'yuv420p', tall]);
+  const out = join(dir, 'tall-wide.mp4');
+  split([tall, tall, out, '2', '0', '0', '0', '0', '0.5'], look(960, 540, false));
+  assert.equal(dominant(mean(out, 0.5, '100:60:190:250')), 'red', 'the window is there');
+  assert.equal(dominant(mean(out, 0.5, '960:70:0:470')), 'grey', 'the bottom of the frame, where the captions go, is clear');
+});
+
+test('a clip that cannot be read stops the script with the reason', {skip: !ffmpeg && 'needs ffmpeg'}, () => {
+  const {left} = clips();
+  const r = spawnSync('bash', ['scripts/frame-split.sh', left, join(dir, 'missing.mp4'), join(dir, 'x.mp4'), '2'], {cwd: root, env: {...process.env, ...look(960, 540, false)}, encoding: 'utf8'});
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /missing\.mp4/, 'it names the file');
+  assert.doesNotMatch(r.stderr, /unbound variable/, 'and does not fail later on an unset variable');
+});
+
 test('a usage mistake is reported, not a broken video', {skip: !ffmpeg && 'needs ffmpeg'}, () => {
   const r = spawnSync('bash', ['scripts/frame-split.sh', 'only-one.mp4'], {cwd: root, env: {...process.env, ...look(960, 540, false)}, encoding: 'utf8'});
   assert.notEqual(r.status, 0);

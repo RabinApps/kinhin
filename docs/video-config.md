@@ -164,7 +164,7 @@ drawn at their own resolution, so a zoom of 2 or more is sharpest on a recording
 
 ## Speed ramps
 
-A recording can play fast through the waiting and slow down for the moment that matters. `speed` is a number, or a list of
+A recording can play fast through the waiting and slow down for the moment that matters. `speed` is a number (any positive one), or a list of
 segments. Each segment plays at its own `speed` up to `until`, a second of the recording counted from where its story starts
 (the last segment has no `until` and plays to the end of the scene):
 
@@ -177,7 +177,7 @@ segments. Each segment plays at its own `speed` up to `until`, a second of the r
     ramp: 0.4                                  # seconds to ease between speeds (default 0.4; 0 jumps)
 ```
 
-Where the speed changes it eases over `ramp` seconds, through speeds in between, so a jump from 8x to 1x reads as the recording
+Each speed in the list is from 0.1 to 30. Where the speed changes it eases over `ramp` seconds, through speeds in between, so a jump from 8x to 1x reads as the recording
 slowing down. The scene lasts at least as long as its closed segments take to play (in the example, 20/8 + 10 seconds and the two
 eases), however short the narration. Camera times count the scene's own seconds, after the ramps. Speed lists work in every frame.
 

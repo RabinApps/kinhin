@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
-import {FORMATS, SCENE_TYPES, deepMerge, fitScale, isNarrow, buildThemes, resolveFormat, resolveMusic, resolveTheme, validateMusic, validateProject, validateTheme, TRANSITIONS, validateCamera, validateClipSpec, validateSpeed, validateTransition, selectScenes} from '../../shared/resolve.mjs';
+import {FORMATS, SCENE_TYPES, deepMerge, fitScale, isNarrow, buildThemes, resolveFormat, resolveMusic, resolveTheme, validateMusic, validateProject, validateTheme, TRANSITIONS, validateCamera, validateClipSpec, validateSpeed, validateTransition, selectScenes, CAPTION_GROUPS} from '../../shared/resolve.mjs';
 import {readJson, root, themeNames} from '../helpers.mjs';
 import {join} from 'node:path';
 
@@ -222,8 +222,11 @@ test('speed is a number or a list of segments, each with `until` but the last', 
   const text = (props) => validateSpeed(props, 's').join('\n');
   assert.deepEqual(validateSpeed({speed: 2}, 's'), []);
   assert.deepEqual(validateSpeed({}, 's'), []);
+  assert.deepEqual(validateSpeed({speed: 60}, 's'), [], 'a constant speed is any positive number, as it always was (a time-lapse may be 60x)');
+  assert.deepEqual(validateSpeed({speed: 0.05}, 's'), []);
   assert.deepEqual(validateSpeed({speed: [{until: 20, speed: 8}, {until: 30, speed: 1}, {speed: 4}], ramp: 0.5}, 's'), []);
-  assert.match(text({speed: 99}), /speed must be a number from 0.1 to 30, or a list/);
+  for (const bad of [0, -2, '2', NaN, Infinity, null]) assert.match(text({speed: bad}), /speed must be a positive number, or a list/, String(bad));
+  assert.match(text({speed: [{until: 5, speed: 99}, {speed: 1}]}), /speed\[0\].speed must be a number from 0.1 to 30/, 'the limits are for the speeds of a list');
   assert.match(text({speed: []}), /must not be an empty list/);
   assert.match(text({speed: [{speed: 2}, {speed: 1}]}), /speed\[0\].until must be source seconds/);
   assert.match(text({speed: [{until: 5, speed: 2}, {until: 4, speed: 1}, {speed: 1}]}), /speed\[1\].until must be source seconds, later than/);
@@ -255,6 +258,13 @@ test('selectScenes picks scenes by id, in the video\'s own order, and says which
   assert.deepEqual(selectScenes(scenes, ' app , ').map((s) => s.id), ['app'], 'spaces and empty entries are ignored');
   assert.deepEqual(selectScenes(scenes, ['intro']).map((s) => s.id), ['intro'], 'a list works too');
   assert.throws(() => selectScenes(scenes, 'app,nope,zip'), /no scene "nope", "zip" in this video \(its scenes: intro, app, outro\)/);
+});
+
+test('every scene type has its captions burned somewhere: each is in exactly one caption group', () => {
+  for (const type of Object.keys(SCENE_TYPES)) assert.equal(CAPTION_GROUPS.filter((g) => g.includes(type)).length, 1, `${type} is in one group`);
+  const drawn = CAPTION_GROUPS[2];
+  for (const type of ['title', 'statement', 'queue', 'parallel', 'map', 'outro', 'stats', 'steps', 'code', 'compare']) assert.ok(drawn.includes(type), `${type} is a drawn scene`);
+  assert.deepEqual(CAPTION_GROUPS.slice(0, 2), [['device'], ['terminal', 'split']]);
 });
 
 // ---- music ------------------------------------------------------------------------------------------------------------

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
-import {assDocument, karaokeText, wordCentiseconds} from '../../scripts/karaoke.mjs';
+import {assDocument, escapeAss, karaokeText, wordCentiseconds} from '../../scripts/karaoke.mjs';
 
 test('a cue is shared out over its words by length, and the shares add up exactly', () => {
   const words = ['Every', 'job', 'gets', 'a', 'fresh', 'VM,', 'deleted', 'when', 'it', 'is', 'done.'];
@@ -35,4 +35,12 @@ test('assDocument writes a 288-line script with the style, the sung and unsung c
   assert.match(doc, /Style: Default,Inter,23.00,&H00FFFFFF,&H8CFFFFFF,&H00000000,&H00000000,-1,0,0,0,100,100,0,0,1,1.60,0,2,0,0,24.0,1/);
   assert.match(doc, /Dialogue: 0,0:00:00.50,0:00:04.50,Default,,0,0,0,,\{\\kf\d+\}Hi /);
   assert.match(doc, /Dialogue: 0,1:02:05.25,1:02:06.00,/, 'the clock runs past an hour');
+});
+
+test('braces and backslashes in the words cannot open an override block or run a command', () => {
+  assert.equal(escapeAss('plain'), 'plain');
+  assert.equal(escapeAss('{braces}'), '\\{braces\\}', 'libass prints an escaped brace');
+  assert.equal(escapeAss('a\\Nb'), 'a\uFF3CNb', 'a backslash is not left to start \\N or \\h');
+  const text = karaokeText([['In', '{x}', 'it']], 1);
+  assert.match(text, /\{\\kf\d+\}\\\{x\\\} /);
 });

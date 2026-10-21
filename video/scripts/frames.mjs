@@ -17,10 +17,10 @@
 // the recordings it uses and the framing code (RENDER_FORCE=1 frames everything again).
 // Usage: node scripts/frames.mjs        Env: VIDEO_PROJECT, VIDEO_THEME, VIDEO_FORMAT
 import {execFileSync} from 'node:child_process';
-import {copyFileSync, existsSync, mkdirSync, readFileSync} from 'node:fs';
+import {copyFileSync, existsSync, mkdirSync, readFileSync, utimesSync} from 'node:fs';
 import {join} from 'node:path';
 import {loadAdapter, resolveClip as resolveClip_} from './adapter.mjs';
-import {frameKey, hashFile, readJson, sha, writeJson} from './cache.mjs';
+import {frameKey, hashFileOnce, pruneFolders, readJson, sha, writeJson} from './cache.mjs';
 import {applyCamera, resolveTargets, wantsCamera} from './camera.mjs';
 import {slideshow} from './slideshow.mjs';
 import {loadProject, root, shellEnv} from './project.mjs';
@@ -50,10 +50,14 @@ function resolveClip(clip) {
   return null;
 }
 
-/** Finds a scene's clip (the panel `label`, such as " left", for a split scene), or says which is missing. */
+/** Finds a scene's clip (the panel `label`, such as " left", for a split scene), or says which is missing. Looked up once per scene. */
+const located = new Map();
 function locate(id, label, spec) {
+  const memo = `${id}|${label}|${spec.clip}`;
+  if (located.has(memo)) return located.get(memo);
   const found = resolveClip(spec.clip);
   if (!found) throw new Error(`scene "${id}"${label}: no clip "${spec.clip}"${adapter ? ` in the ${adapter.name} adapter (record it, or add it to ${process.env.VIDEO_SOURCE ? '.kinhin/videos/' : ''}adapters/${adapter.name}/reference/)` : ' (the project has no adapter; give a path)'}`);
+  located.set(memo, found);
   return found;
 }
 
@@ -124,10 +128,10 @@ function inputsOf(scene, length) {
   const specs = scene.type === 'split' ? [scene.props.left, scene.props.right] : Array.isArray(scene.props.screens) ? [] : [scene.props];
   const files = specs.map((spec, i) => {
     const found = locate(scene.id, scene.type === 'split' ? [' left', ' right'][i] : '', spec);
-    return {file: hashFile(found.file), meta: found.meta && existsSync(found.meta) ? readFileSync(found.meta, 'utf8') : null};
+    return {file: hashFileOnce(found.file, hashes), meta: found.meta && existsSync(found.meta) ? readFileSync(found.meta, 'utf8') : null};
   });
   const images = (scene.props.screens ?? []).map((path) => path.replaceAll('{platform}', env.VIDEO_PLATFORM || 'ios'));
-  for (const image of images) files.push({file: existsSync(image) ? hashFile(image) : null});
+  for (const image of images) files.push({file: existsSync(image) ? hashFileOnce(image, hashes) : null});
   return {
     type: scene.type,
     props: scene.props,
@@ -143,7 +147,10 @@ function inputsOf(scene, length) {
 const codeHash = sha(['frame-app.sh', 'frame-terminal.sh', 'frame-split.sh', 'frames.mjs', 'camera.mjs', 'speed.mjs', 'slideshow.mjs'].map((f) => readFileSync(join('scripts', f), 'utf8')));
 const cacheDir = join('raw/frames', p.slug);
 const cacheFile = join(cacheDir, '.cache.json');
+const hashesFile = join(cacheDir, '.hashes.json');
 const cache = readJson(cacheFile);
+const hashes = readJson(hashesFile); // path, size and time of each recording, with its hash
+pruneFolders('raw/frames'); // framed clips of projects and scenes that have not been built for two months
 
 for (const scene of p.scenes.filter((s) => s.kind === 'clip')) {
   const length = timeline.scenes[scene.id].length;
@@ -152,6 +159,7 @@ for (const scene of p.scenes.filter((s) => s.kind === 'clip')) {
   const key = frameKey(inputsOf(scene, length));
   if (!process.env.RENDER_FORCE && cache[scene.id] === key && existsSync(kept)) {
     copyFileSync(kept, out);
+    utimesSync(kept, new Date(), new Date()); // used: keep it out of the prune
     console.log(`cached   ${out}`);
     continue;
   }
@@ -161,3 +169,7 @@ for (const scene of p.scenes.filter((s) => s.kind === 'clip')) {
   cache[scene.id] = key;
   writeJson(cacheFile, cache);
 }
+// Written every build, so the folder's bookkeeping files count as used while its clips do.
+mkdirSync(cacheDir, {recursive: true});
+writeJson(cacheFile, cache);
+writeJson(hashesFile, hashes);

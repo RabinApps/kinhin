@@ -26,8 +26,11 @@ W="$VIDEO_W"; H="$VIDEO_H"
 size() { ffprobe -v error -select_streams v -show_entries stream=width,height -of csv=p=0:s=x "$1"; }
 
 # Where each window goes, worked out once: the clip is scaled to fit its share of the room and the window hugs it.
-# Prints: CW_L CH_L X_L Y_L CW_R CH_R X_R Y_R TB (content size, window position, title bar height).
-read -r CW_L CH_L X_L Y_L CW_R CH_R X_R Y_R TB < <(python3 - "$W" "$H" "$VIDEO_FIT" "${VIDEO_NARROW:-0}" "$RATIO" "$BAR_L" "$BAR_R" "$(size "$IN_L")" "$(size "$IN_R")" <<'PY'
+# Prints: CW_L CH_L X_L Y_L CW_R CH_R X_R Y_R TB (content size, window position, title bar height). The sizes and the layout are
+# plain assignments, so a clip ffprobe cannot read stops the script with its message (a process substitution would not).
+SIZE_L="$(size "$IN_L")"
+SIZE_R="$(size "$IN_R")"
+read -r -d '' LAYOUT_PY <<'PY' || true
 import sys
 w, h, fit, narrow, ratio, bar_l, bar_r = int(sys.argv[1]), int(sys.argv[2]), float(sys.argv[3]), sys.argv[4] == '1', float(sys.argv[5]), int(sys.argv[6]), int(sys.argv[7])
 clips = [tuple(int(v) for v in s.split('x')) for s in sys.argv[8:10]]
@@ -38,14 +41,16 @@ even = lambda v: max(2, int(v) // 2 * 2)
 shares = [ratio, 1 - ratio]
 out = []
 if not narrow:
-    room_w, room_h = w - 2 * margin - gap, h - 2 * margin
+    # The bottom of the frame is kept for the captions (about 16%), so a tall clip's window never runs into them.
+    reserve = max(margin, round(h * 0.16))
+    room_w, room_h = w - 2 * margin - gap, h - margin - reserve
     col_x = margin
     for i, (cw0, ch0) in enumerate(clips):
         col_w = room_w * shares[i]
         top = tb * bars[i]
         s = min(col_w / cw0, (room_h - top) / ch0)
         cw, ch = even(cw0 * s), even(ch0 * s)
-        out += [cw, ch, round(col_x + (col_w - cw) / 2), round((h - (ch + top)) / 2 - sc(10))]
+        out += [cw, ch, round(col_x + (col_w - cw) / 2), round(margin + (room_h - (ch + top)) / 2)]
         col_x += col_w + gap
 else:
     # Stacked: the top 72% of the frame is for the windows, the rest for the captions.
@@ -61,7 +66,8 @@ else:
         band_y += band_h + gap
 print(*out, tb)
 PY
-)
+LAYOUT="$(python3 -c "$LAYOUT_PY" "$W" "$H" "$VIDEO_FIT" "${VIDEO_NARROW:-0}" "$RATIO" "$BAR_L" "$BAR_R" "$SIZE_L" "$SIZE_R")"
+read -r CW_L CH_L X_L Y_L CW_R CH_R X_R Y_R TB <<<"$LAYOUT"
 
 R=$(python3 -c "print(max(4, round(18 * $VIDEO_FIT)))")
 M=$(python3 -c "print(max(8, round(90 * $VIDEO_FIT)))")      # margin around a shadow layer so its blur can spread

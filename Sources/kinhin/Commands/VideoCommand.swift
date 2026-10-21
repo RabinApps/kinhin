@@ -219,11 +219,23 @@ enum VideoCommand {
             }
             return
         }
-        // Watching: a failed build is reported and the next change tries again. Ctrl-C ends it.
+        // Watching: a build that fails, or cannot start (the container runtime went away), is reported and the next change tries
+        // again. Ctrl-C ends it.
+        /// One build while watching; false when the watch was cancelled.
+        func attempt() async -> Bool {
+            do {
+                let built = try await buildOnce()
+                if !built { printError("the video build failed; fix it and save to try again") }
+            } catch is CancellationError {
+                return false
+            } catch {
+                printError("\(error.localizedDescription); fix it and save to try again")
+            }
+            return true
+        }
         let folder = VideoProjects.directory(in: repo)
         var seen = VideoWatcher.snapshot(of: folder)
-        let first = try await buildOnce()
-        if !first { printError("the video build failed; fix it and save to try again") }
+        guard await attempt() else { return }
         while true {
             printError("==> watching \(relative(folder, to: repo)) for changes (Ctrl-C to stop)")
             let next: (snapshot: [String: Date], changed: [String])
@@ -236,8 +248,7 @@ enum VideoCommand {
             printError(
                 "==> changed: \(next.changed.prefix(3).joined(separator: ", "))\(next.changed.count > 3 ? ", ..." : "")"
             )
-            let rebuilt = try await buildOnce()
-            if !rebuilt { printError("the video build failed; fix it and save to try again") }
+            guard await attempt() else { return }
         }
     }
 

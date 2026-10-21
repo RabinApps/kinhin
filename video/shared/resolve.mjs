@@ -27,6 +27,12 @@ export const SCENE_TYPES = {
   split: {kind: 'clip', minLength: 0},
 };
 
+/**
+ * The scene types whose narration is burned in together, each group in the placement that suits it: the laptop scenes, the window
+ * scenes, and every drawn scene (a new scene type is a drawn one unless it says `kind: 'clip'`, so it is never left out).
+ */
+export const CAPTION_GROUPS = [['device'], ['terminal', 'split'], Object.keys(SCENE_TYPES).filter((t) => SCENE_TYPES[t].kind === 'canvas')];
+
 // How one scene hands over to the next. `fade` (the default) dips through the backdrop colour; the others are ffmpeg `xfade`
 // transitions centred on the cut, so the scenes and the voice keep their places. A project's `transition` is the default
 // for every cut; a scene's own `transition` is how it comes in from the scene before it.
@@ -365,12 +371,13 @@ export function validateCamera(props, where) {
   return problems;
 }
 
-/** What is wrong with a clip's `speed`: a number, or a list of {until, speed} segments (source seconds from where the story starts). */
+/** What is wrong with a clip's `speed`: a positive number, or a list of {until, speed} segments (source seconds from where the story starts; each speed 0.1 to 30). */
 export function validateSpeed(props, where) {
   const problems = [];
   const {speed, ramp} = props ?? {};
   const rate = (v) => typeof v === 'number' && v >= 0.1 && v <= 30;
-  if (speed !== undefined && !Array.isArray(speed) && !rate(speed)) problems.push(`${where}: speed must be a number from 0.1 to 30, or a list of { until, speed } segments`);
+  // A constant speed has always been any positive number (a long time-lapse may be 60x); the limits are for a segment's speed.
+  if (speed !== undefined && !Array.isArray(speed) && !(typeof speed === 'number' && speed > 0 && Number.isFinite(speed))) problems.push(`${where}: speed must be a positive number, or a list of { until, speed } segments`);
   if (Array.isArray(speed)) {
     if (speed.length === 0) problems.push(`${where}: "speed" must not be an empty list`);
     let last = 0;

@@ -21,6 +21,19 @@ export function hashFile(file) {
   return hash.digest('hex');
 }
 
+/**
+ * sha256 of a file, remembered by its path, size and modification time in `store` (a plain object the caller keeps in a JSON file),
+ * so a long recording is read once and not on every build. The file's bytes are read again when its size or time changes.
+ */
+export function hashFileOnce(file, store) {
+  const {size, mtimeMs} = statSync(file);
+  const known = store[file];
+  if (known && known.size === size && known.mtimeMs === mtimeMs) return known.sha;
+  const sha = hashFile(file);
+  store[file] = {size, mtimeMs, sha};
+  return sha;
+}
+
 export const readJson = (file, fallback = {}) => (existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : fallback);
 export const writeJson = (file, value) => writeFileSync(file, JSON.stringify(value, null, 2) + '\n');
 
@@ -37,6 +50,19 @@ export function prune(dir, days = 30) {
       rmSync(join(dir, name), {force: true});
       removed++;
     }
+  }
+  return removed;
+}
+
+/** Prunes every folder of `dir` (one per project) of files not used for `days` days, and removes the folders that end up empty. */
+export function pruneFolders(dir, days = 60) {
+  if (!existsSync(dir)) return 0;
+  let removed = 0;
+  for (const name of readdirSync(dir)) {
+    const folder = join(dir, name);
+    if (!statSync(folder).isDirectory()) continue;
+    removed += prune(folder, days);
+    if (readdirSync(folder).length === 0) rmSync(folder, {recursive: true, force: true});
   }
   return removed;
 }

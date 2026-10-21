@@ -106,7 +106,7 @@ A build keeps what it can reuse in `.kinhin/videos/.cache/` (commit nothing from
 |---|---|---|
 | The voice of each sentence | `voice-cache/` | the sentence, the voice and its speed are the same, so a change to one line speaks only that line |
 | Title and other drawn scenes | `scenes/` | the scene's props, length, theme and format are the same |
-| Framed recordings (laptop, window, split) | `frames/` | the scene's props, length, look and recordings are the same, and so is the framing code |
+| Framed recordings (laptop, window, split) | `frames/` | the scene's props, length, look and recordings are the same, and so is the framing code; unused ones are cleared after two months |
 
 Every build prints how long each step took. To iterate on one scene, build just that scene, and add `--watch` to rebuild on every save:
 
