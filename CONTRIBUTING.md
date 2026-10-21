@@ -37,6 +37,8 @@ swift build
 swift test                        # ~3100 XCTest tests, ~5 min with --parallel; no VMs or network needed
 scripts/tsan.sh                   # ThreadSanitizer run (serial); recipe below
 scripts/e2e.sh                    # end-to-end suite against real forges and runners; see docs/e2e-testing.md
+scripts/e2e-forges-setup.sh all   # create the Buildkite, Bitbucket and Azure DevOps e2e fixtures and their CI secrets; see docs/e2e-hosted-forges.md
+scripts/e2e-token-expiry.sh        # open an issue for any hosted-lane e2e token expiring soon (runs weekly in CI)
 scripts/l10n-lint.sh              # String Catalog vs. the app's sources; --sync adds/drops entries
 scripts/dev-run.sh                # debug app, signed with a stable identity so Keychain "Always Allow" survives rebuilds
 swift package --disable-sandbox dev   # same, as a SwiftPM command plugin (Plugins/Dev)
