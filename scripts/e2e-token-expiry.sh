@@ -6,8 +6,11 @@
 #
 # Reads KINHIN_E2E_BUILDKITE_TOKEN_EXPIRES, KINHIN_E2E_BITBUCKET_TOKEN_EXPIRES and KINHIN_E2E_AZURE_TOKEN_EXPIRES
 # (YYYY-MM-DD, UTC) from the environment. scripts/e2e-forges-setup.sh records them as repository variables and
-# .github/workflows/e2e-token-expiry.yml passes them in weekly. A forge with no date is skipped, because Buildkite
-# tokens do not expire unless you set a date.
+# .github/workflows/e2e-token-expiry.yml passes them in weekly. A Buildkite token does not expire unless you set a
+# date, so without one it is skipped. Bitbucket and Azure DevOps tokens always expire: when
+# KINHIN_E2E_BITBUCKET_TOKEN_CONFIGURED or KINHIN_E2E_AZURE_TOKEN_CONFIGURED is "true" (the workflow sets them from
+# whether the secret exists) and the date is missing, that is reported and fails the run instead of being skipped.
+# An unset or "false" flag means the lane is not set up, so it is skipped.
 #
 # For each token that expires within --warn-days (default 30) it opens one issue per forge, unless one is already
 # open, and exits 1 when a token has already expired so the workflow run goes red. It never reads or prints a
@@ -47,11 +50,17 @@ epoch() {
 today="$(epoch "$(date -u +%Y-%m-%d)")"
 expired=0
 
-# check FORGE LABEL EXPIRES ROTATE_NAME
+# check FORGE LABEL EXPIRES [CONFIGURED]: CONFIGURED is given for a token that always expires.
 check() {
-    local forge=$1 label=$2 expires=$3
+    local forge=$1 label=$2 expires=$3 configured=${4-}
     if [[ -z $expires ]]; then
-        say "$label: no expiry recorded"
+        if [[ $configured == true ]]; then
+            echo "::warning::$label e2e token is stored but no expiry date is recorded"
+            say "$label: stored with no expiry date; set KINHIN_E2E_$(echo "$forge" | tr '[:lower:]' '[:upper:]')_TOKEN_EXPIRES (gh variable set ... --body YYYY-MM-DD)"
+            expired=1
+        else
+            say "$label: no expiry recorded"
+        fi
         return 0
     fi
     [[ $expires =~ ^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$ ]] || die "$label: '$expires' is not a YYYY-MM-DD date"
@@ -91,7 +100,7 @@ Opened by .github/workflows/e2e-token-expiry.yml." >/dev/null
 }
 
 check buildkite Buildkite "${KINHIN_E2E_BUILDKITE_TOKEN_EXPIRES:-}"
-check bitbucket Bitbucket "${KINHIN_E2E_BITBUCKET_TOKEN_EXPIRES:-}"
-check azure "Azure DevOps" "${KINHIN_E2E_AZURE_TOKEN_EXPIRES:-}"
+check bitbucket Bitbucket "${KINHIN_E2E_BITBUCKET_TOKEN_EXPIRES:-}" "${KINHIN_E2E_BITBUCKET_TOKEN_CONFIGURED:-}"
+check azure "Azure DevOps" "${KINHIN_E2E_AZURE_TOKEN_EXPIRES:-}" "${KINHIN_E2E_AZURE_TOKEN_CONFIGURED:-}"
 
 exit "$expired"

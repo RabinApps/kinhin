@@ -174,9 +174,11 @@ expect() {
     [[ $HTTP_STATUS =~ ^($1)$ ]] || die "$2: HTTP $HTTP_STATUS $(brief)"
 }
 
-# check_azure_org ORG_URL: tell "no such organization" and "PAT rejected" apart from a missing project.
+# check_azure_org ORG_URL PROBE_PATH: tell "no such organization" and "PAT rejected" apart from a missing project.
+# The probe must be a read the PAT's own scopes cover: Projects - List needs Project and Team (Read), which the
+# narrow e2e PAT does not have to carry.
 check_azure_org() {
-    api GET "$1/_apis/projects?\$top=1&api-version=7.1"
+    api GET "$1$2"
     (( dry )) && return 0
     case "$HTTP_STATUS" in
         200) ;;
@@ -215,7 +217,8 @@ set_variable() { # NAME VALUE ('' removes it)
     fi
 }
 
-# set_expiry FORGE: ask when the new token expires and record it, so e2e-token-expiry.yml can warn before it does.
+# set_expiry FORGE [required]: ask when the new token expires and record it, so e2e-token-expiry.yml can warn
+# before it does. A token that always expires (Bitbucket, Azure DevOps) must have a date.
 set_expiry() {
     local date=""
     if (( dry )); then
@@ -224,6 +227,7 @@ set_expiry() {
         [[ -t 0 ]] || die "token expiry: needs a terminal to ask on"
         read -r -p "When does this token expire? (YYYY-MM-DD, blank if never): " date || die "token expiry: no input"
     fi
+    [[ -n $date || -z ${2-} || $dry == 1 || $secrets == 0 ]] || die "this token expires, so a date is required; the reminder workflow reads it"
     [[ -z $date || $date =~ ^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$ ]] || die "'$date' is not a YYYY-MM-DD date"
     set_variable "KINHIN_E2E_${1}_TOKEN_EXPIRES" "$date"
 }
@@ -380,7 +384,7 @@ EOF
     expect 200 "the token cannot list runners (needs the Runners scopes)"
     say "Bitbucket ready: $bb_workspace/$bb_repo"
 
-    set_expiry BITBUCKET # first, so a mistyped date stops the run before any secret changes
+    set_expiry BITBUCKET required # first, so a mistyped date stops the run before any secret changes
     set_secret KINHIN_E2E_BITBUCKET_TOKEN "$token"
     (( rotate )) || set_secret KINHIN_E2E_BITBUCKET_SCOPE "$bb_workspace/$bb_repo"
 }
@@ -401,7 +405,7 @@ EOF
     ask_secret bootstrap "Azure DevOps bootstrap PAT"
     AUTH="Basic $(b64 ":$bootstrap")"
 
-    check_azure_org "$org_url"
+    check_azure_org "$org_url" "/_apis/projects?\$top=1&$v"
     api GET "$org_url/_apis/projects/$az_project?$v"
     local created=0
     if [[ $HTTP_STATUS == 404 ]]; then
@@ -533,15 +537,14 @@ EOF
     ask_secret token "Azure DevOps e2e PAT"
     AUTH="Basic $(b64 ":$token")"
 
-    check_azure_org "$org_url"
-    api GET "$org_url/_apis/distributedtask/pools?poolName=$az_pool&$v"
-    expect 200 "the e2e PAT cannot list pools (a 203 or an HTML answer means it is rejected)"
+    check_azure_org "$org_url" "/_apis/distributedtask/pools?poolName=$az_pool&$v"
+    expect 200 "the e2e PAT cannot list pools"
     [[ -n $(jqr '.value[0].id // empty') || $dry == 1 ]] || die "the e2e PAT cannot see the pool $az_pool"
     api GET "$project_url/_apis/git/repositories/$repo_name?$v"
     expect 200 "the e2e PAT cannot read the repository $repo_name"
     say "Azure DevOps ready: $org_url / $az_project / $az_pool"
 
-    set_expiry AZURE # first, so a mistyped date stops the run before any secret changes
+    set_expiry AZURE required # first, so a mistyped date stops the run before any secret changes
     set_secret KINHIN_E2E_AZURE_TOKEN "$token"
     if (( ! rotate )); then
         set_secret KINHIN_E2E_AZURE_ORG "$az_org"

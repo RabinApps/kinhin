@@ -9,6 +9,11 @@ on:
     - cron: "0 9 * * 1" # weekly, Monday
   workflow_dispatch:
 
+# A scheduled and a manual run must not overlap: both could find no open reminder and each open one.
+concurrency:
+  group: e2e-token-expiry
+  cancel-in-progress: false
+
 permissions:
   contents: read
   issues: write
@@ -25,4 +30,8 @@ jobs:
           KINHIN_E2E_BUILDKITE_TOKEN_EXPIRES: ${{ vars.KINHIN_E2E_BUILDKITE_TOKEN_EXPIRES }}
           KINHIN_E2E_BITBUCKET_TOKEN_EXPIRES: ${{ vars.KINHIN_E2E_BITBUCKET_TOKEN_EXPIRES }}
           KINHIN_E2E_AZURE_TOKEN_EXPIRES: ${{ vars.KINHIN_E2E_AZURE_TOKEN_EXPIRES }}
+          # Whether each token that expires is stored at all (never its value), so a missing date can be told
+          # apart from a lane that is not set up.
+          KINHIN_E2E_BITBUCKET_TOKEN_CONFIGURED: ${{ secrets.KINHIN_E2E_BITBUCKET_TOKEN != '' }}
+          KINHIN_E2E_AZURE_TOKEN_CONFIGURED: ${{ secrets.KINHIN_E2E_AZURE_TOKEN != '' }}
         run: scripts/e2e-token-expiry.sh
