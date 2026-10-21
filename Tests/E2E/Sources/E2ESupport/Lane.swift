@@ -57,6 +57,7 @@ public final class Lane: @unchecked Sendable {
         case .github: fixture = try GitHubFixture()
         case .buildkite: fixture = try BuildkiteFixture()
         case .bitbucket: fixture = try BitbucketFixture()
+        case .azuredevops: fixture = try AzureDevOpsFixture()
         }
         let minRunners = options.minRunners ?? (fixture.needsRunnerFloor ? 1 : 0)
         if runtime == .host, minRunners > 0 {

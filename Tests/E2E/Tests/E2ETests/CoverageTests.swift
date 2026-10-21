@@ -26,7 +26,8 @@ struct CoverageTests {
         "github": .gated("KINHIN_E2E_GITHUB_TOKEN + KINHIN_E2E_GITHUB_REPO (LifecycleTests, once configured)"),
         "buildkite": .gated(
             "KINHIN_E2E_BUILDKITE_TOKEN + KINHIN_E2E_BUILDKITE_SCOPE (LifecycleTests, once configured)"),
-        "azuredevops": .waived("planned, not supported yet; needs an organization, agent pool and PAT"),
+        "azuredevops": .gated(
+            "KINHIN_E2E_AZURE_TOKEN + _ORG + _PROJECT + _POOL (LifecycleTests, once configured)"),
         "bitbucket": .gated(
             "KINHIN_E2E_BITBUCKET_TOKEN + KINHIN_E2E_BITBUCKET_SCOPE (LifecycleTests, once configured)"),
     ]

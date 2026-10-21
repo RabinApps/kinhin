@@ -39,6 +39,12 @@ jobs:
       # The Bitbucket lane: a throwaway repository (with one commit), scope `workspace/repo`, and a repository access token.
       KINHIN_E2E_BITBUCKET_TOKEN: ${{ secrets.KINHIN_E2E_BITBUCKET_TOKEN }}
       KINHIN_E2E_BITBUCKET_SCOPE: ${{ secrets.KINHIN_E2E_BITBUCKET_SCOPE }}
+      # The Azure DevOps lane: a throwaway project with a self-hosted pool authorized for all pipelines. Set
+      # KINHIN_E2E_AZURE_REPO to use a repository other than the project's own, KINHIN_E2E_AZURE_FLOOR=1 for a floor.
+      KINHIN_E2E_AZURE_TOKEN: ${{ secrets.KINHIN_E2E_AZURE_TOKEN }}
+      KINHIN_E2E_AZURE_ORG: ${{ secrets.KINHIN_E2E_AZURE_ORG }}
+      KINHIN_E2E_AZURE_PROJECT: ${{ secrets.KINHIN_E2E_AZURE_PROJECT }}
+      KINHIN_E2E_AZURE_POOL: ${{ secrets.KINHIN_E2E_AZURE_POOL }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
