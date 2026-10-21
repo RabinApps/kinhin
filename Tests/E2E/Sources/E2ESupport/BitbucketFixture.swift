@@ -63,16 +63,40 @@ public actor BitbucketFixture: ForgeFixture {
         }
     }
 
-    public func stop() async {
+    public func stop() async throws {
+        var failures: [String] = []
+        var running: [String] = []
         for uuid in started {
-            _ = try? await call("POST", "/pipelines/\(Self.encode(uuid))/stopPipeline")
+            do {
+                let pipeline = try await call("GET", "/pipelines/\(Self.encode(uuid))")
+                let state = (pipeline.json as? [String: Any])?["state"] as? [String: Any]
+                // A finished pipeline cannot be stopped and needs no stopping.
+                if pipeline.ok, state?["name"] as? String == "COMPLETED" { continue }
+                let response = try await call("POST", "/pipelines/\(Self.encode(uuid))/stopPipeline")
+                guard response.ok else { throw E2EError.failed("\(response.status) \(response.text)") }
+            } catch {
+                running.append(uuid)
+                failures.append("stopping pipeline \(uuid): \(error)")
+            }
         }
-        started.removeAll()
-        guard !customPipelines.isEmpty else { return }
-        customPipelines.removeAll()
-        // A form field named `files` deletes that path in the commit.
-        _ = try? await commit(
-            form: ["files": Self.pipelineFile, "message": "e2e cleanup", "branch": branch])
+        started = running
+        if !customPipelines.isEmpty {
+            do {
+                // A form field named `files` deletes that path in the commit.
+                let removed = try await commit(
+                    form: ["files": Self.pipelineFile, "message": "e2e cleanup", "branch": branch])
+                if removed.ok {
+                    customPipelines.removeAll()
+                } else {
+                    failures.append("removing \(Self.pipelineFile): \(removed.status) \(removed.text)")
+                }
+            } catch {
+                failures.append("removing \(Self.pipelineFile): \(error)")
+            }
+        }
+        guard failures.isEmpty else {
+            throw E2EError.failed("cleanup left Bitbucket state behind:\n" + failures.joined(separator: "\n"))
+        }
     }
 
     /// `runs-on` labels: `self.hosted`, the platform label the runner advertises, and the pool's marker.
@@ -139,8 +163,8 @@ public actor BitbucketFixture: ForgeFixture {
                 let log = try await call("GET", "/pipelines/\(Self.encode(uuid))/steps/\(Self.encode(stepUUID))/log")
                 guard log.ok else { continue }
                 // The command's own echo spells `$E2E_NONCE`, so only the printed line starts with the literal nonce.
-                for line in log.text.split(whereSeparator: \.isNewline) {
-                    if let range = line.range(of: prefix) { return String(line[range.upperBound...]) }
+                for line in log.text.split(whereSeparator: \.isNewline) where line.hasPrefix(prefix) {
+                    return String(line.dropFirst(prefix.count))
                 }
             }
         }

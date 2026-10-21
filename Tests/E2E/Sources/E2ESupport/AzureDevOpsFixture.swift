@@ -208,8 +208,15 @@ public actor AzureDevOpsFixture: ForgeFixture {
     public func registeredRunners() async throws -> [String] {
         let response = try await call(
             "GET", "/_apis/distributedtask/pools/\(poolID)/agents", at: organizationURL)
-        guard let values = (response.json as? [String: Any])?["value"] as? [[String: Any]] else { return [] }
-        return values.compactMap { $0["name"] as? String }
+        guard response.ok, let values = (response.json as? [String: Any])?["value"] as? [[String: Any]] else {
+            throw E2EError.failed("cannot list the agents of pool \(pool): \(response.status) \(response.text)")
+        }
+        return try values.map { agent in
+            guard let name = agent["name"] as? String else {
+                throw E2EError.failed("pool \(pool) lists an agent with no name: \(agent)")
+            }
+            return name
+        }
     }
 
     public func diagnostics() async -> String {

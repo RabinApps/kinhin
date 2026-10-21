@@ -74,10 +74,26 @@ public actor BuildkiteFixture: ForgeFixture {
         }
     }
 
-    public func stop() async {
-        for slug in pipelines { _ = try? await call("DELETE", "/pipelines/\(slug)") }
-        pipelines.removeAll()
-        builds.removeAll()
+    public func stop() async throws {
+        var failures: [String] = []
+        var remaining: [String] = []
+        for slug in pipelines {
+            do {
+                let response = try await call("DELETE", "/pipelines/\(slug)")
+                // A pipeline that is already gone needs no deleting.
+                guard response.ok || response.status == 404 else {
+                    throw E2EError.failed("\(response.status) \(response.text)")
+                }
+            } catch {
+                remaining.append(slug)
+                failures.append("deleting pipeline \(slug): \(error)")
+            }
+        }
+        pipelines = remaining
+        builds = builds.filter { remaining.contains($0.pipeline) }
+        guard failures.isEmpty else {
+            throw E2EError.failed("cleanup left Buildkite pipelines behind:\n" + failures.joined(separator: "\n"))
+        }
     }
 
     /// Agent query rules, `key=value`: the queue the account's agents join, plus the pool marker as a tag.

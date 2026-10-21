@@ -48,7 +48,9 @@ public protocol ForgeFixture: Sendable {
     var needsRunnerFloor: Bool { get }
 
     func start() async throws
-    func stop() async
+    /// Removes what the fixture created. Attempts every removal, then throws if any failed, so a gated lane against a
+    /// real service cannot silently leave resources behind.
+    func stop() async throws
 
     /// Pushes a workflow named `name` whose job asks for exactly `labels` (`runs-on`, or GitLab `tags`) and runs
     /// `script`. The job's environment carries `E2E_NONCE`, `E2E_API` (the forge's API root for the repository)
