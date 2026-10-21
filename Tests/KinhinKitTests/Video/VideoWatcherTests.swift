@@ -2,6 +2,15 @@ import XCTest
 
 @testable import KinhinKit
 
+/// Writes a file under `directory` (creating its folders), optionally setting its modification time. At file scope, so a task can
+/// call it without capturing the test case or its type.
+private func writeTestFile(in directory: URL, _ path: String, _ text: String = "x", at date: Date? = nil) throws {
+    let url = directory.appendingPathComponent(path)
+    try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try text.write(to: url, atomically: true, encoding: .utf8)
+    if let date { try FileManager.default.setAttributes([.modificationDate: date], ofItemAtPath: url.path) }
+}
+
 final class VideoWatcherTests: XCTestCase {
     private var directory: URL!
 
@@ -15,15 +24,7 @@ final class VideoWatcherTests: XCTestCase {
     }
 
     private func write(_ path: String, _ text: String = "x", at date: Date? = nil) throws {
-        try Self.write(in: directory, path, text, at: date)
-    }
-
-    /// Static, so a task can write files without capturing the test case.
-    private static func write(in directory: URL, _ path: String, _ text: String = "x", at date: Date? = nil) throws {
-        let url = directory.appendingPathComponent(path)
-        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try text.write(to: url, atomically: true, encoding: .utf8)
-        if let date { try FileManager.default.setAttributes([.modificationDate: date], ofItemAtPath: url.path) }
+        try writeTestFile(in: directory, path, text, at: date)
     }
 
     func testASnapshotListsTheVideosFilesButNotWhatABuildWrites() throws {
@@ -55,8 +56,8 @@ final class VideoWatcherTests: XCTestCase {
         let folder: URL = directory
         let writer = Task {
             try await Task.sleep(for: .milliseconds(80))
-            try Self.write(in: folder, "launch.yml", "changed", at: Date())
-            try Self.write(in: folder, "adapters/acme/adapter.yml")
+            try writeTestFile(in: folder, "launch.yml", "changed", at: Date())
+            try writeTestFile(in: folder, "adapters/acme/adapter.yml")
         }
         let result = try await VideoWatcher.waitForChange(
             in: folder, since: since, poll: .milliseconds(20), settle: .milliseconds(100))
