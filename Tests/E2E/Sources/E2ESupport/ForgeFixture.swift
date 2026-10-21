@@ -7,8 +7,31 @@ public enum ForgeKind: String, CaseIterable, Sendable, CustomStringConvertible {
     case gitlab
     /// Gated: a real GitHub repository, used only when credentials are provided.
     case github
+    /// Gated: a real Buildkite organization and cluster, used only when credentials are provided.
+    case buildkite
+    /// Gated: a real Bitbucket Cloud repository, used only when credentials are provided.
+    case bitbucket
+    /// Gated: a real Azure DevOps project and agent pool, used only when credentials are provided.
+    case azuredevops
 
     public var description: String { rawValue }
+
+    /// A forge that is a real service, not a container this suite starts.
+    public var isHosted: Bool {
+        self == .github || self == .buildkite || self == .bitbucket
+            || self == .azuredevops
+    }
+
+    /// False for a hosted forge whose credentials are not set; self-hosted forges are always available.
+    public var isConfigured: Bool {
+        switch self {
+        case .github: return GitHubFixture.isConfigured
+        case .buildkite: return BuildkiteFixture.isConfigured
+        case .bitbucket: return BitbucketFixture.isConfigured
+        case .azuredevops: return AzureDevOpsFixture.isConfigured
+        case .gitea, .forgejo, .gitlab: return true
+        }
+    }
 }
 
 /// What a lifecycle scenario needs from a real forge, whatever its API.
@@ -25,7 +48,9 @@ public protocol ForgeFixture: Sendable {
     var needsRunnerFloor: Bool { get }
 
     func start() async throws
-    func stop() async
+    /// Removes what the fixture created. Attempts every removal, then throws if any failed, so a gated lane against a
+    /// real service cannot silently leave resources behind.
+    func stop() async throws
 
     /// Pushes a workflow named `name` whose job asks for exactly `labels` (`runs-on`, or GitLab `tags`) and runs
     /// `script`. The job's environment carries `E2E_NONCE`, `E2E_API` (the forge's API root for the repository)

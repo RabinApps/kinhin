@@ -1,8 +1,8 @@
 import Foundation
 
 /// A complete, running scenario environment: a real forge, a sandboxed kinhin install, a baked image and a live
-/// daemon, wired together. Build one with `Lane.start`, and always `await lane.tearDown()` (use `defer` in a `Task`
-/// or `do/catch`), which removes everything the lane created.
+/// daemon, wired together. Build one with `Lane.start`, and always `try await lane.tearDown()` (in a `do/catch`),
+/// which removes everything the lane created and throws if the forge's cleanup failed.
 public final class Lane: @unchecked Sendable {
     public let fixture: any ForgeFixture
     public let sandbox: Sandbox
@@ -55,6 +55,9 @@ public final class Lane: @unchecked Sendable {
         case .gitea, .forgejo: fixture = try GiteaFixture(kind: forge, image: options.forgeImage)
         case .gitlab: fixture = try GitLabFixture()
         case .github: fixture = try GitHubFixture()
+        case .buildkite: fixture = try BuildkiteFixture()
+        case .bitbucket: fixture = try BitbucketFixture()
+        case .azuredevops: fixture = try AzureDevOpsFixture()
         }
         let minRunners = options.minRunners ?? (fixture.needsRunnerFloor ? 1 : 0)
         if runtime == .host, minRunners > 0 {
@@ -88,7 +91,11 @@ public final class Lane: @unchecked Sendable {
             if options.startDaemon { try await lane.startDaemon() }
             return lane
         } catch {
-            await fixture.stop()
+            do {
+                try await fixture.stop()
+            } catch let cleanup {
+                throw E2EError.failed("\(error)\n--- cleanup failed ---\n\(cleanup)")
+            }
             throw error
         }
     }
@@ -98,15 +105,20 @@ public final class Lane: @unchecked Sendable {
         forge: ForgeKind, runtime: RuntimeKind, options: Options = Options(), _ body: (Lane) async throws -> T
     ) async throws -> T {
         let lane = try await start(forge: forge, runtime: runtime, options: options)
+        let value: T
         do {
-            let value = try await body(lane)
-            await lane.tearDown()
-            return value
+            value = try await body(lane)
         } catch {
-            let tail = lane.logTail()
-            await lane.tearDown()
-            throw E2EError.failed("\(error)\n--- kinhin log (tail) ---\n\(tail)")
+            var message = "\(error)\n--- kinhin log (tail) ---\n\(lane.logTail())"
+            do {
+                try await lane.tearDown()
+            } catch let cleanup {
+                message += "\n--- cleanup failed ---\n\(cleanup)"
+            }
+            throw E2EError.failed(message)
         }
+        try await lane.tearDown()
+        return value
     }
 
     public func startDaemon() async throws {
@@ -124,15 +136,22 @@ public final class Lane: @unchecked Sendable {
         return (nonce, proof)
     }
 
-    /// Stops everything the lane started. Idempotent, and safe after a failed scenario.
-    public func tearDown() async {
+    /// Stops everything the lane started. Idempotent, and safe after a failed scenario. Local cleanup always runs; the
+    /// fixture's cleanup failure is thrown last.
+    public func tearDown() async throws {
         guard !tornDown else { return }
         tornDown = true
         await daemon?.stop()
         await Instances.removeAll(runtime, image: image)
-        await fixture.stop()
+        var cleanup: Error?
+        do {
+            try await fixture.stop()
+        } catch {
+            cleanup = error
+        }
         // KINHIN_E2E_KEEP=1 leaves the sandbox (config, logs) behind for debugging a failed run.
         if E2E.flag("KINHIN_E2E_KEEP") == nil { sandbox.dispose() }
+        if let cleanup { throw cleanup }
     }
 
     /// The last lines of kinhin's own log, for failure messages.

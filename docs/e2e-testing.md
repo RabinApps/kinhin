@@ -39,7 +39,7 @@ are already set. Narrow the matrix with environment variables:
 
 | Variable                                            | Effect                                                                         |
 | --------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `KINHIN_E2E_FORGES=gitea,forgejo`                   | Only these forges (`gitea`, `forgejo`, `gitlab`, `github`)                     |
+| `KINHIN_E2E_FORGES=gitea,forgejo`                   | Only these forges (`gitea`, `forgejo`, `gitlab`, `github`, `buildkite`, `bitbucket`, `azuredevops`) |
 | `KINHIN_E2E_RUNTIMES=docker,appleContainer`         | Only these runtimes                                                            |
 | `KINHIN_E2E_HEAVY=1`                                | Include GitLab CE (several GB, minutes to boot)                                |
 | `KINHIN_E2E_TOOLCHAINS=full`                        | The whole toolchain catalog instead of the smoke set                           |
@@ -47,6 +47,9 @@ are already set. Narrow the matrix with environment variables:
 | `KINHIN_E2E_TART_LINUX_BASE=<Linux tart image>`     | Turn on the Tart Linux lane (e.g. `ghcr.io/cirruslabs/ubuntu:latest`)          |
 | `KINHIN_E2E_HOST=1`                                 | Turn on the host lane (jobs run on this Mac, in the sandbox's work dirs)       |
 | `KINHIN_E2E_GITHUB_TOKEN`, `KINHIN_E2E_GITHUB_REPO` | Turn on the GitHub lane against a **throwaway** repository                     |
+| `KINHIN_E2E_BUILDKITE_TOKEN`, `KINHIN_E2E_BUILDKITE_SCOPE` | Turn on the Buildkite lane against a **throwaway** organization; the scope is `org/cluster` and the cluster needs a `kinhin` queue (`KINHIN_E2E_BUILDKITE_REPO` overrides the placeholder repository the pipeline names) |
+| `KINHIN_E2E_BITBUCKET_TOKEN`, `KINHIN_E2E_BITBUCKET_SCOPE` | Turn on the Bitbucket lane against a **throwaway** repository with one commit; the scope is `workspace/repo`, the token a repository access token with `repository:write`, `pipeline`, `pipeline:write` and `runner:write` |
+| `KINHIN_E2E_AZURE_TOKEN`, `_ORG`, `_PROJECT`, `_POOL` | Turn on the Azure DevOps lane against a **throwaway** project and its self-hosted pool (authorized for all pipelines); the PAT needs Agent Pools, Build and Code scopes. `KINHIN_E2E_AZURE_REPO` names another repository for the pipeline files, `KINHIN_E2E_AZURE_FLOOR=1` runs with `min_runners: 1` if the pool fails jobs fast when no agent matches |
 | `KINHIN_E2E_KEEP=1`                                 | Keep the sandbox directories (config, logs) of a failed run                    |
 | `KINHIN_E2E_VIDEO_IMAGE=<image>`                    | Turn on the real-video test of `kinhin video` (a built video image, e.g. `kinhin-video:local`); `KINHIN_E2E_VIDEO_RUNTIME=container\|docker` picks the runtime |
 | `KINHIN_E2E_GITEA_IMAGE`, `_FORGEJO_IMAGE`, `_GITLAB_IMAGE` | Override the pinned forge images                                       |
@@ -165,6 +168,12 @@ real runner job on every guest runtime that runs `kinhin-toolchain install node@
   name a command that no longer exists;
 - every command must answer `--help` with exit 0.
 
+## Hosted forges
+
+GitHub, Buildkite, Azure DevOps and Bitbucket are real services, so their lanes are gated on credentials. The full
+set-up (accounts, tokens, secrets, what the first run must confirm) is in
+[Setting up the hosted e2e lanes](e2e-hosted-forges.md).
+
 ## Adding a forge
 
 Follow [adding-a-forge.md](adding-a-forge.md), then:
@@ -210,7 +219,9 @@ What has actually been run, so the table does not claim more than it checked (20
 | Toolchains: bench `--thorough` smoke set                  | Run, passing on Docker, Apple container, Tart Linux; full catalog **not run** |
 | Toolchains: per-job `kinhin-toolchain install`            | Run, passing on Docker, Apple container, Tart Linux, Tart macOS            |
 | GitHub                                                    | Fixture written, **not run**: needs a throwaway repository and a token     |
-| Buildkite, Azure DevOps, Bitbucket                        | Planned forges, not supported yet; the fixture protocol is ready for them  |
+| Buildkite                                                 | Fixture written, **not run**: needs a throwaway organization, a cluster with a `kinhin` queue and a token. The forge stays planned until it passes |
+| Bitbucket                                                 | Fixture written, **not run**: needs a throwaway repository and an access token. The forge stays planned until it passes |
+| Azure DevOps                                              | Fixture written, **not run**: needs a throwaway project, a pool and a PAT. The forge stays planned until it passes |
 | Healing (quick tier: `HealingCLITests`)                   | Run, passing (2026-10-14)                                                  |
 | Healing on Gitea × Docker (`HealingTests`, 6 scenarios)   | Run, passing (2026-10-14)                                                  |
 | Healing, live on-device advisor (`KINHIN_E2E_AI=1`)       | Run, passing on macOS 27 with Apple Intelligence (2026-10-14)              |
