@@ -27,7 +27,8 @@ struct CoverageTests {
         "buildkite": .gated(
             "KINHIN_E2E_BUILDKITE_TOKEN + KINHIN_E2E_BUILDKITE_SCOPE (LifecycleTests, once configured)"),
         "azuredevops": .waived("planned, not supported yet; needs an organization, agent pool and PAT"),
-        "bitbucket": .waived("planned, not supported yet; Bitbucket Cloud only, needs a workspace and token"),
+        "bitbucket": .gated(
+            "KINHIN_E2E_BITBUCKET_TOKEN + KINHIN_E2E_BITBUCKET_SCOPE (LifecycleTests, once configured)"),
     ]
 
     /// Command → the test (or reason) that exercises it. Keyed by the words `kinhin help` prints.

@@ -36,6 +36,9 @@ jobs:
       # The Buildkite lane: a throwaway organization, scope `org/cluster`, with a `kinhin` queue in the cluster.
       KINHIN_E2E_BUILDKITE_TOKEN: ${{ secrets.KINHIN_E2E_BUILDKITE_TOKEN }}
       KINHIN_E2E_BUILDKITE_SCOPE: ${{ secrets.KINHIN_E2E_BUILDKITE_SCOPE }}
+      # The Bitbucket lane: a throwaway repository (with one commit), scope `workspace/repo`, and a repository access token.
+      KINHIN_E2E_BITBUCKET_TOKEN: ${{ secrets.KINHIN_E2E_BITBUCKET_TOKEN }}
+      KINHIN_E2E_BITBUCKET_SCOPE: ${{ secrets.KINHIN_E2E_BITBUCKET_SCOPE }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 

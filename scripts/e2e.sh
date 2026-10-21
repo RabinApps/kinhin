@@ -13,7 +13,8 @@
 # Other switches: KINHIN_E2E_KEEP=1 (keep sandboxes), KINHIN_E2E_TART_BASE=<macOS tart image> (Tart macOS lane),
 # KINHIN_E2E_TART_LINUX_BASE=<Linux tart image> (Tart Linux lane), KINHIN_E2E_HOST=1 (host lane),
 # KINHIN_E2E_GITHUB_TOKEN + KINHIN_E2E_GITHUB_REPO (the gated GitHub lane),
-# KINHIN_E2E_BUILDKITE_TOKEN + KINHIN_E2E_BUILDKITE_SCOPE (the gated Buildkite lane).
+# KINHIN_E2E_BUILDKITE_TOKEN + KINHIN_E2E_BUILDKITE_SCOPE (the gated Buildkite lane),
+# KINHIN_E2E_BITBUCKET_TOKEN + KINHIN_E2E_BITBUCKET_SCOPE (the gated Bitbucket lane).
 set -euo pipefail
 
 cd "$(dirname "$0")/.."

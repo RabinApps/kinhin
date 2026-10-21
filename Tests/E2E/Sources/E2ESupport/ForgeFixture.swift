@@ -9,17 +9,20 @@ public enum ForgeKind: String, CaseIterable, Sendable, CustomStringConvertible {
     case github
     /// Gated: a real Buildkite organization and cluster, used only when credentials are provided.
     case buildkite
+    /// Gated: a real Bitbucket Cloud repository, used only when credentials are provided.
+    case bitbucket
 
     public var description: String { rawValue }
 
     /// A forge that is a real service, not a container this suite starts.
-    public var isHosted: Bool { self == .github || self == .buildkite }
+    public var isHosted: Bool { self == .github || self == .buildkite || self == .bitbucket }
 
     /// False for a hosted forge whose credentials are not set; self-hosted forges are always available.
     public var isConfigured: Bool {
         switch self {
         case .github: return GitHubFixture.isConfigured
         case .buildkite: return BuildkiteFixture.isConfigured
+        case .bitbucket: return BitbucketFixture.isConfigured
         case .gitea, .forgejo, .gitlab: return true
         }
     }

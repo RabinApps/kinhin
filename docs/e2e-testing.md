@@ -39,7 +39,7 @@ are already set. Narrow the matrix with environment variables:
 
 | Variable                                            | Effect                                                                         |
 | --------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `KINHIN_E2E_FORGES=gitea,forgejo`                   | Only these forges (`gitea`, `forgejo`, `gitlab`, `github`, `buildkite`)         |
+| `KINHIN_E2E_FORGES=gitea,forgejo`                   | Only these forges (`gitea`, `forgejo`, `gitlab`, `github`, `buildkite`, `bitbucket`) |
 | `KINHIN_E2E_RUNTIMES=docker,appleContainer`         | Only these runtimes                                                            |
 | `KINHIN_E2E_HEAVY=1`                                | Include GitLab CE (several GB, minutes to boot)                                |
 | `KINHIN_E2E_TOOLCHAINS=full`                        | The whole toolchain catalog instead of the smoke set                           |
@@ -48,6 +48,7 @@ are already set. Narrow the matrix with environment variables:
 | `KINHIN_E2E_HOST=1`                                 | Turn on the host lane (jobs run on this Mac, in the sandbox's work dirs)       |
 | `KINHIN_E2E_GITHUB_TOKEN`, `KINHIN_E2E_GITHUB_REPO` | Turn on the GitHub lane against a **throwaway** repository                     |
 | `KINHIN_E2E_BUILDKITE_TOKEN`, `KINHIN_E2E_BUILDKITE_SCOPE` | Turn on the Buildkite lane against a **throwaway** organization; the scope is `org/cluster` and the cluster needs a `kinhin` queue (`KINHIN_E2E_BUILDKITE_REPO` overrides the placeholder repository the pipeline names) |
+| `KINHIN_E2E_BITBUCKET_TOKEN`, `KINHIN_E2E_BITBUCKET_SCOPE` | Turn on the Bitbucket lane against a **throwaway** repository with one commit; the scope is `workspace/repo`, the token a repository access token with `repository:write`, `pipeline`, `pipeline:write` and `runner:write` |
 | `KINHIN_E2E_KEEP=1`                                 | Keep the sandbox directories (config, logs) of a failed run                    |
 | `KINHIN_E2E_VIDEO_IMAGE=<image>`                    | Turn on the real-video test of `kinhin video` (a built video image, e.g. `kinhin-video:local`); `KINHIN_E2E_VIDEO_RUNTIME=container\|docker` picks the runtime |
 | `KINHIN_E2E_GITEA_IMAGE`, `_FORGEJO_IMAGE`, `_GITLAB_IMAGE` | Override the pinned forge images                                       |
@@ -212,7 +213,8 @@ What has actually been run, so the table does not claim more than it checked (20
 | Toolchains: per-job `kinhin-toolchain install`            | Run, passing on Docker, Apple container, Tart Linux, Tart macOS            |
 | GitHub                                                    | Fixture written, **not run**: needs a throwaway repository and a token     |
 | Buildkite                                                 | Fixture written, **not run**: needs a throwaway organization, a cluster with a `kinhin` queue and a token. The forge stays planned until it passes |
-| Azure DevOps, Bitbucket                                   | Planned forges, not supported yet; the fixture protocol is ready for them  |
+| Bitbucket                                                 | Fixture written, **not run**: needs a throwaway repository and an access token. The forge stays planned until it passes |
+| Azure DevOps                                              | Planned forge, not supported yet; the fixture protocol is ready for it     |
 | Healing (quick tier: `HealingCLITests`)                   | Run, passing (2026-10-14)                                                  |
 | Healing on Gitea × Docker (`HealingTests`, 6 scenarios)   | Run, passing (2026-10-14)                                                  |
 | Healing, live on-device advisor (`KINHIN_E2E_AI=1`)       | Run, passing on macOS 27 with Apple Intelligence (2026-10-14)              |
