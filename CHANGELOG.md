@@ -10,6 +10,19 @@
   An optional `fast_model` (for example `clef-flash` or `nimble`, Ollama's decision models) is asked first, and the LLM
   answers when it is not confident. Traffic goes to `healing.ollama.host`, which is this Mac by default; any other host
   must be `https`, and it then receives the redacted problem and log lines. See [docs/healing.md](docs/healing.md#the-ollama-advisor).
+- Videos can move a camera over a recording: a `device` or `terminal` scene's `camera` zooms and pans, `focus` spotlights part of the
+  screen and `cursor` adds a pointer with click rings, all from positions in the recording. A new `karaoke` caption style lights each
+  word as it is spoken, and `transition` (`dissolve`, `push`, `slide`, `wipe` or `circle`, per project or per scene) replaces the
+  fade between scenes without moving the voice. Nothing changes for a video that does not use them. See [docs/video-config.md](docs/video-config.md#camera-on-recordings).
+- An adapter can name regions of its clips (`targets`), and the camera, spotlight and cursor can point at a name instead of
+  coordinates, so a redesigned screen is fixed once. `speed` can be a list of segments with eased changes (speed ramps) and works in every
+  frame. A new `split` scene plays two recordings side by side, or one above the other in a vertical frame, each with its own camera,
+  speed and a `delay`. See [docs/video-config.md](docs/video-config.md#speed-ramps).
+- Video builds reuse more. The voice of each sentence and each framed recording are kept in `.kinhin/videos/.cache/` and used again
+  while nothing that shapes them has changed, so a one-line edit no longer speaks and frames the whole video again. The WebM and the
+  temporary per-scene encodes are faster, and every build prints how long each step took. `kinhin video build --scene app,outro`
+  builds only those scenes as a quick preview, and `--watch` rebuilds when your video files change. See
+  [docs/videos-for-your-project.md](docs/videos-for-your-project.md#faster-rebuilds).
 
 **Fixed**
 

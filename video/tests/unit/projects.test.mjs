@@ -39,9 +39,12 @@ test('every clip a project uses exists in its adapter (raw or reference) in the 
     const adapter = loadAdapter(p.adapter);
     const narrow = p.format.width / p.format.height < 1.2;
     for (const s of clipScenes) {
-      const found = resolveClip(adapter, s.props.clip, {dark: p.theme.device.terminal === 'dark', narrow});
-      assert.ok(found, `${name}/${s.id}: no clip "${s.props.clip}" in ${p.adapter}`);
-      assert.ok(existsSync(found.file));
+      // A split scene shows two clips, the left and the right; any other clip scene shows one.
+      for (const spec of s.type === 'split' ? [s.props.left, s.props.right] : [s.props]) {
+        const found = resolveClip(adapter, spec.clip, {dark: p.theme.device.terminal === 'dark', narrow});
+        assert.ok(found, `${name}/${s.id}: no clip "${spec.clip}" in ${p.adapter}`);
+        assert.ok(existsSync(found.file));
+      }
     }
   }
 });
@@ -62,6 +65,23 @@ test('output names carry a non-default theme or format', () => {
     saved.t === undefined ? delete process.env.VIDEO_THEME : (process.env.VIDEO_THEME = saved.t);
     saved.f === undefined ? delete process.env.VIDEO_FORMAT : (process.env.VIDEO_FORMAT = saved.f);
   }
+});
+
+test('VIDEO_SCENES builds only those scenes, in the video\'s order, under their own output name', () => {
+  const all = loadProject('launch').scenes.map((s) => s.id);
+  assert.ok(all.includes('app') && all.includes('intro'));
+  const saved = process.env.VIDEO_SCENES;
+  process.env.VIDEO_SCENES = 'app,intro';
+  try {
+    const p = loadProject('launch');
+    assert.deepEqual(p.scenes.map((s) => s.id), all.filter((id) => id === 'intro' || id === 'app'));
+    assert.equal(p.outName, 'launch-scene-intro+app', 'a preview never overwrites the full video');
+    process.env.VIDEO_SCENES = 'nope';
+    assert.throws(() => loadProject('launch'), /no scene "nope" in this video \(its scenes: intro, /);
+  } finally {
+    saved === undefined ? delete process.env.VIDEO_SCENES : (process.env.VIDEO_SCENES = saved);
+  }
+  assert.deepEqual(loadProject('launch').scenes.map((s) => s.id), all, 'and without it, the whole video');
 });
 
 test('shellEnv exports the look for the ffmpeg scripts', () => {

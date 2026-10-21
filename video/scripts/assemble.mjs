@@ -12,7 +12,9 @@
 //        larger), VIDEO_FPS=24|30|60 (default 30), VIDEO_FAST=1 (the same as VIDEO_QUALITY=draft)
 import {execFileSync, spawnSync} from 'node:child_process';
 import {copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
-import {assColor} from '../shared/resolve.mjs';
+import {CAPTION_GROUPS, assColor} from '../shared/resolve.mjs';
+import {assDocument} from './karaoke.mjs';
+import {joinGraph, partPlan, planCuts} from './transitions.mjs';
 import {loadProject, root} from './project.mjs';
 import {edgeFraction} from './verify.mjs';
 
@@ -23,11 +25,20 @@ const look = loadProject();
 const {format, theme, outName} = look;
 const ff = (args) => execFileSync('ffmpeg', ['-nostdin', '-y', '-loglevel', 'error', ...args], {stdio: 'inherit'});
 const FADE = 0.25;
-// Encode profiles: the CRF and preset of each scene clip, of the delivered MP4, and of the WebM (null: not made).
+// How long each part of the final cut takes, written as one line at the end.
+const laps = [];
+let mark = Date.now();
+const lap = (name) => {
+  laps.push(`${name} ${((Date.now() - mark) / 1000).toFixed(1)}s`);
+  mark = Date.now();
+};
+// Encode profiles: the CRF of each scene clip (a temporary file, always encoded with a quick preset), the CRF and preset of the delivered
+// MP4, and the CRF of the WebM (null: not made).
+// `cpu` is libvpx's speed setting (0 is the slowest and best; 2 is several times faster at about the same size).
 const PROFILES = {
   draft: {scene: 23, mp4: 28, preset: 'veryfast', webm: null},
-  standard: {scene: 17, mp4: 18, preset: 'medium', webm: 33},
-  high: {scene: 14, mp4: 15, preset: 'slow', webm: 28},
+  standard: {scene: 17, mp4: 18, preset: 'medium', webm: 33, cpu: 2},
+  high: {scene: 14, mp4: 15, preset: 'slow', webm: 28, cpu: 1},
 };
 const quality = process.env.VIDEO_FAST ? 'draft' : process.env.VIDEO_QUALITY || 'standard';
 if (!PROFILES[quality]) throw new Error(`VIDEO_QUALITY must be draft, standard or high, not "${quality}"`);
@@ -35,26 +46,41 @@ const FPS = Number(process.env.VIDEO_FPS || 30);
 if (![24, 30, 60].includes(FPS)) throw new Error(`VIDEO_FPS must be 24, 30 or 60, not "${process.env.VIDEO_FPS}"`);
 const profile = PROFILES[quality];
 
-// 1. One normalised clip per scene (format-sized, VIDEO_FPS, 30 by default), cut or held to the scene's length, faded at both ends.
+// 1. One normalised clip per scene (format-sized, VIDEO_FPS, 30 by default), cut or held to the scene's length. By default
+// each is faded at both ends through the backdrop and the clips are joined as they are; a scene or project `transition` other
+// than `fade` crosses over instead (scripts/transitions.mjs), with the clips carrying half the crossover as extra frames.
 const mix = (a, b) => '0x' + [1, 3, 5].map((i) => Math.round((parseInt(a.slice(i, i + 2), 16) + parseInt(b.slice(i, i + 2), 16)) / 2).toString(16).padStart(2, '0')).join('');
 const bg = mix(theme.background.from, theme.background.to); // the middle of the backdrop, for fades and padding
+const entering = Object.fromEntries(look.scenes.map((s) => [s.id, s.transition]));
+const cuts = planCuts(Object.entries(S).map(([id, s]) => ({length: s.length, transition: entering[id]})), look.project.transition);
+const crossing = cuts.some((c) => c.xfade);
 const parts = Object.entries(S).map(([id, s], i) => {
   const file = s.kind === 'canvas' ? `raw/scenes/${tl.project}/${id}.mp4` : `out/.work/${id}.mp4`;
   if (!existsSync(file)) throw new Error(`missing ${file}`);
+  const {padStart, padEnd, fadeIn, fadeOut} = partPlan(cuts, i);
+  const length = padStart + s.length + padEnd;
   const vf = [
     `scale=${format.width}:${format.height}:force_original_aspect_ratio=decrease`,
     `pad=${format.width}:${format.height}:(ow-iw)/2:(oh-ih)/2:${bg}`,
-    `fps=${FPS}`, 'tpad=stop_mode=clone:stop_duration=30', 'format=yuv420p',
+    `fps=${FPS}`, `tpad=stop_mode=clone:stop_duration=30${padStart ? `:start_mode=clone:start_duration=${padStart}` : ''}`, 'format=yuv420p',
   ].join(',');
   const out = `out/.work/part-${i + 1}.mp4`;
-  ff(['-i', file, '-vf', `${vf},trim=duration=${s.length},setpts=PTS-STARTPTS,fade=t=in:st=0:d=${FADE}:color=${bg},fade=t=out:st=${Math.max(0, s.length - FADE)}:d=${FADE}:color=${bg}`,
-    '-an', '-c:v', 'libx264', '-crf', String(profile.scene), out]);
+  const fades = (fadeIn ? `,fade=t=in:st=0:d=${FADE}:color=${bg}` : '') + (fadeOut ? `,fade=t=out:st=${Math.max(0, length - FADE)}:d=${FADE}:color=${bg}` : '');
+  ff(['-i', file, '-vf', `${vf},trim=duration=${length},setpts=PTS-STARTPTS${fades}`,
+    '-an', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', String(profile.scene), out]);
   return {id, out, length: s.length};
 });
 const total = parts.reduce((a, p) => a + p.length, 0);
-const list = parts.map((p) => `file '${p.out.replace('out/.work/', '')}'`).join('\n');
-writeFileSync('out/.work/parts.txt', list);
-ff(['-f', 'concat', '-safe', '0', '-i', 'out/.work/parts.txt', '-c', 'copy', 'out/.work/picture.mp4']);
+if (crossing) {
+  const [graph, label] = joinGraph(parts, cuts, FPS);
+  ff([...parts.flatMap((p) => ['-i', p.out]), '-filter_complex', graph, '-map', `[${label}]`, '-an', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', String(profile.scene), '-pix_fmt', 'yuv420p', 'out/.work/picture.mp4']);
+} else {
+  const list = parts.map((p) => `file '${p.out.replace('out/.work/', '')}'`).join('\n');
+  writeFileSync('out/.work/parts.txt', list);
+  ff(['-f', 'concat', '-safe', '0', '-i', 'out/.work/parts.txt', '-c', 'copy', 'out/.work/picture.mp4']);
+}
+
+lap('scenes');
 
 // 2. The voice: every cue at its place on the final clock, levelled to -16 LUFS.
 const cues = Object.values(S).flatMap((s) => s.cues.map((c) => ({file: c.file, at: s.start + c.start})));
@@ -95,6 +121,8 @@ if (music) {
     console.warn('could not measure the mix; keeping it as it is');
   }
 }
+
+lap('audio');
 
 // 4. Captions (the project's `captions` block, see shared/resolve.mjs): burned in unless turned off, in the chosen style;
 // out/<name>/<name>.srt always has every cue for a player. Picture and sound are joined here.
@@ -139,20 +167,30 @@ const stamp = (x) => {
 const limit = format.width >= 1500 ? 44 : 24;
 // Word wrap: each line takes as many whole words as fit in `limit` characters, so no caption line runs past the frame's
 // edge and no word is split. A word longer than the limit keeps its own line.
-const wrap = (t) => {
+const wrapLines = (t) => {
   const lines = [];
   for (const word of t.split(' ')) {
     const last = lines.length - 1;
     if (last >= 0 && `${lines[last]} ${word}`.length <= limit) lines[last] += ` ${word}`;
     else lines.push(word);
   }
-  return lines.join('\n');
+  return lines;
 };
+const wrap = (t) => wrapLines(t).join('\n');
 const cuesOf = (types) => Object.entries(S).filter(([id, s]) => burned.includes(id) && types.includes(s.type)).flatMap(([, s]) => s.cues.map((c) => ({...c, start: s.start + c.start, end: s.start + c.end})));
-const groups = [['device'], ['terminal'], ['title', 'statement', 'queue', 'parallel', 'map', 'outro']].map((types) => ({type: types[0], cues: cuesOf(types)})).filter((g) => g.cues.length);
+const groups = CAPTION_GROUPS.map((types) => ({type: types[0], cues: cuesOf(types)})).filter((g) => g.cues.length);
+// The karaoke style lights each word as it is spoken (scripts/karaoke.mjs): an ASS file with its own style, the spoken
+// words in the highlight colour and the others in the text colour, dimmed.
+const burnedFile = (i) => `out/.work/burned-${i}.${cap.karaoke ? 'ass' : 'srt'}`;
 const filters = groups.map((g, i) => {
-  writeFileSync(`out/.work/burned-${i}.srt`, g.cues.map((c, n) => `${n + 1}\n${stamp(c.start)} --> ${stamp(c.end)}\n${wrap(c.text)}\n`).join('\n'));
-  return `subtitles=out/.work/burned-${i}.srt:force_style='${styleFor(g.type)}'`;
+  if (cap.karaoke) {
+    const style = Object.fromEntries(styleFor(g.type).split(',').map((kv) => kv.split('=')));
+    const cues = g.cues.map((c) => ({start: c.start, end: c.end, lines: wrapLines(c.text).map((l) => l.split(' '))}));
+    writeFileSync(burnedFile(i), assDocument({cues, style, sung: assColor(cap.highlight), unsung: assColor(`${cap.text.slice(0, 7)}8c`), width: format.width, height: format.height}));
+    return `subtitles=${burnedFile(i)}`;
+  }
+  writeFileSync(burnedFile(i), g.cues.map((c, n) => `${n + 1}\n${stamp(c.start)} --> ${stamp(c.end)}\n${wrap(c.text)}\n`).join('\n'));
+  return `subtitles=${burnedFile(i)}:force_style='${styleFor(g.type)}'`;
 });
 const vf = !cap.burn || !filters.length ? 'null' : filters.join(',');
 const dir = `out/${outName}`; // everything a build delivers lives in its own folder; out/.work is scratch
@@ -162,7 +200,9 @@ const video = `${dir}/${outName}.mp4`;
 const allCanvas = Object.values(S).every((s) => s.kind === 'canvas');
 ff(['-i', 'out/.work/picture.mp4', '-i', audio, '-vf', vf, '-map', '0:v', '-map', '1:a', '-c:v', 'libx264', '-crf', String(profile.mp4), '-preset', profile.preset, ...(allCanvas && quality === 'high' ? ['-tune', 'animation'] : []), '-pix_fmt', 'yuv420p',
   '-c:a', 'aac', '-b:a', '192k', '-shortest', '-movflags', '+faststart', video]);
-if (profile.webm !== null) ff(['-i', video, '-c:v', 'libvpx-vp9', '-crf', String(profile.webm), '-b:v', '0', '-c:a', 'libopus', `${dir}/${outName}.webm`]);
+lap('mp4');
+if (profile.webm !== null) ff(['-i', video, '-c:v', 'libvpx-vp9', '-crf', String(profile.webm), '-b:v', '0', '-row-mt', '1', '-tile-columns', '2', '-cpu-used', String(profile.cpu), '-c:a', 'libopus', `${dir}/${outName}.webm`]);
+lap('webm');
 // The poster and the hero GIF come from the most detailed scene: a frame near the end of each scene is scored by how
 // much of it is edges (text, shapes, the product), and the best one wins; a clip scene (the product on screen) is
 // preferred when it scores about as well.
@@ -175,8 +215,10 @@ const candidates = Object.entries(S).map(([id, s], i) => {
 const best = candidates.reduce((a, b) => (b.score > a.score ? b : a));
 ff(['-i', best.file, '-vf', `scale=${Math.min(1200, format.width)}:-2`, `${dir}/${outName}-poster.png`]);
 ff(['-ss', String(best.scene.start), '-t', '10', '-i', video, '-vf', 'fps=10,scale=800:-1:flags=lanczos,split[a][b];[a]palettegen[p];[b][p]paletteuse', `${dir}/${outName}-hero.gif`]);
+lap('poster and gif');
+console.log(`assemble: ${laps.join(' · ')}`);
 for (const c of candidates) rmSync(c.file, {force: true});
 if (existsSync('out/.work/music-credit.txt')) copyFileSync('out/.work/music-credit.txt', `${dir}/music-credit.txt`);
 writeFileSync(`${dir}/${outName}.srt`, readFileSync(`out/.work/${tl.project}.captions.srt`));
-for (const f of [...parts.map((p) => p.out), 'out/.work/parts.txt', ...groups.map((_, i) => `out/.work/burned-${i}.srt`), 'out/.work/picture.mp4', 'out/.work/voice.wav', 'out/.work/audio.wav', 'out/.work/final.wav']) rmSync(f, {force: true});
+for (const f of [...parts.map((p) => p.out), 'out/.work/parts.txt', ...groups.map((_, i) => burnedFile(i)), 'out/.work/picture.mp4', 'out/.work/voice.wav', 'out/.work/audio.wav', 'out/.work/final.wav']) rmSync(f, {force: true});
 console.log(`wrote ${video} (${format.name} ${format.width}x${format.height}, ${theme.name}, ${total.toFixed(1)}s${music ? ', with music' : ', no music'}), .webm, -poster.png, -hero.gif, .srt`);

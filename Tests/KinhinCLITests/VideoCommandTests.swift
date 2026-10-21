@@ -72,6 +72,26 @@ final class VideoCommandTests: XCTestCase {
         XCTAssertEqual(options.fps, "60")
     }
 
+    func testASceneListIsAnOptionAndItsValueIsNotTheVideosName() throws {
+        try VideoCommand.initialize(["launch", "--dir", repo.path])
+        XCTAssertEqual(
+            try VideoCommand.options(from: ["launch", "--scene", "app,outro"], repo: repo).scenes, "app,outro")
+        XCTAssertNil(try VideoCommand.options(from: ["launch"], repo: repo).scenes)
+        XCTAssertEqual(VideoCommand.operand(in: ["--scene", "app", "launch"]), "launch")
+    }
+
+    func testSceneAndWatchAreRefusedOnAFleetBuild() async throws {
+        try VideoCommand.initialize(["launch", "--dir", repo.path])
+        for flags in [["--scene", "app"], ["--watch"]] {
+            do {
+                try await VideoCommand.build(["launch", "--dir", repo.path, "--on-fleet"] + flags)
+                XCTFail("\(flags) with --on-fleet should be refused")
+            } catch let error as CLIError {
+                XCTAssertEqual(error.exit, .usage)
+            }
+        }
+    }
+
     func testQualityAndFrameRateAreChecked() throws {
         try VideoCommand.initialize(["launch", "--dir", repo.path])
         XCTAssertThrowsError(try VideoCommand.options(from: ["launch", "--quality", "ultra"], repo: repo))

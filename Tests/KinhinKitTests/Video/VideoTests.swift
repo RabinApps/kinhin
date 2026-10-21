@@ -158,6 +158,15 @@ final class VideoTests: XCTestCase {
             ])
     }
 
+    func testASceneBecomesAFlagOfTheEntryScript() {
+        var options = VideoBuildOptions(project: "launch")
+        options.scenes = "app,outro"
+        let tail = Array(plan(options).run.drop { $0 != "/work/scripts/container-build.sh" })
+        XCTAssertEqual(tail, ["/work/scripts/container-build.sh", "--project", "launch", "--scene", "app,outro"])
+        options.scenes = ""
+        XCTAssertFalse(plan(options).run.contains("--scene"), "an empty list builds the whole video")
+    }
+
     // MARK: the runner
 
     private final class ScriptedShell: ShellRunning, Sendable {
