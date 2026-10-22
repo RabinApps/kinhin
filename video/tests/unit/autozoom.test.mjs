@@ -64,4 +64,5 @@ test('autoZoom is checked with the camera props', () => {
   assert.ok(validateCamera({autoZoom: 'yes'}, 'scene "a"').some((p) => p.includes('must be true, or')));
   assert.ok(validateCamera({autoZoom: true, camera: [{at: 1, zoom: 2}]}, 'scene "a"').some((p) => p.includes('keep one')));
   assert.ok(validateCamera({autoZoom: {zoom: 9}}, 'scene "a"').some((p) => p.includes('from 1 to 4')));
+  assert.ok(validateCamera({autoZoom: {move: 0.5}}, 'scene "a"').some((p) => p.includes('autoZoom.move is not a setting')));
 });

@@ -339,6 +339,9 @@ export function validateCamera(props, where) {
       for (const key of ['lead', 'hold', 'gap', 'reach']) {
         if (key in autoZoom && !(typeof autoZoom[key] === 'number' && autoZoom[key] >= 0)) problems.push(`${where}: autoZoom.${key} must be seconds (or a fraction of the picture, for reach), 0 or more`);
       }
+      // Only these settings are read; anything else (such as move, which is the camera's own) is named rather than passed on.
+      const known = ['zoom', 'lead', 'hold', 'gap', 'reach'];
+      for (const key of Object.keys(autoZoom).filter((k) => !known.includes(k))) problems.push(`${where}: autoZoom.${key} is not a setting; use ${known.join(', ')}`);
     }
   }
   const times = (list, name) => {

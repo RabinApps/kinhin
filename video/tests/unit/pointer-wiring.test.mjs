@@ -6,7 +6,7 @@ import {join} from 'node:path';
 import {after, before, test} from 'node:test';
 import {applyCamera, autoZoomSpec, pointerFileOf} from '../../scripts/camera.mjs';
 import {cutPointerLog} from '../../scripts/pointer-log.mjs';
-import {root} from '../helpers.mjs';
+import {has, root} from '../helpers.mjs';
 
 const reference = join(root, 'adapters/kinhin/reference/app.mp4');
 const log = {
@@ -73,7 +73,7 @@ test('autoZoom is refused with a camera, and with no log beside the recording', 
   );
 });
 
-test('the zoom lands at the clicked time: frames match before it and differ while it is on', () => {
+test('the zoom lands at the clicked time: frames match before it and differ while it is on', {skip: !has('ffmpeg') && 'needs ffmpeg'}, () => {
   const plainFile = join(dir, 'plain.mp4');
   const zoomedFile = join(dir, 'zoomed.mp4');
   const spec = autoZoomSpec({clip: 'app', autoZoom: true}, {file: join(dir, 'app.mp4'), length: 10, where: 'scene "x"'});

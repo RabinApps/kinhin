@@ -51,7 +51,7 @@ A scene that names a clip the adapter does not declare stops the build and names
 
 Record each clip with anything you like, and save it as `reference/<clip>.mp4`:
 
-- **App:** `kinhin video record <app>` on a Mac (one window, pointer left out; needs Screen Recording permission for your terminal once), or QuickTime. Add `--pointer <clip>-pointer.json` to keep where the pointer was and where it clicked, which a video's [autoZoom](video-config.md#zoom-on-the-clicks-autozoom) follows.
+- **App:** `kinhin video record <app>` on a Mac (one window, pointer left out; needs Screen Recording permission for your terminal once), or QuickTime. Add `--pointer <clip>-pointer.json` to keep where the pointer was and where it clicked, which a video's [autoZoom](video-config.md#zoom-on-the-clicks-autozoom) follows. Copy that `<clip>-pointer.json` into `reference/` beside the clip, since autoZoom reads it from there.
 - **Terminal:** [VHS](https://github.com/charmbracelet/vhs), or any terminal recorder that writes an MP4.
 - **Website or browser:** any browser recorder. See [Record a web product](#record-a-web-product) for a scripted option.
 

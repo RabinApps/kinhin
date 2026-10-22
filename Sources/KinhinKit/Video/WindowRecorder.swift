@@ -152,8 +152,8 @@ public enum WindowRecorder {
         try await stream.startCapture()
         try await Task.sleep(for: .seconds(seconds))
         try await stream.stopCapture()
-        try await writer.finish()
         sampling?.cancel()
+        try await writer.finish()
 
         guard writer.frameCount > 0 else { throw WindowRecorderError.noFrames(window.label) }
         if let pointer, let sampling, let origin = writer.firstFrameAt {

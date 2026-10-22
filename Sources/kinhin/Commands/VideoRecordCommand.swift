@@ -26,6 +26,10 @@ enum VideoRecordCommand {
             let json = hasFlag("--json", in: rest)
             if !json { print("recording \(target.label) for \(Int(seconds)) s…") }
             let pointer = flag("--pointer", in: rest).map { URL(fileURLWithPath: $0) }
+            // The log is written after the movie, so the same path would overwrite the movie with JSON.
+            if let pointer, pointer.standardizedFileURL == out.standardizedFileURL {
+                throw CLIError("--pointer and --out must be different files", exit: .usage)
+            }
             let recording = try await WindowRecorder.record(target, seconds: seconds, to: out, pointer: pointer)
             if json {
                 try printJSON(recording)
