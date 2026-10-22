@@ -21,7 +21,7 @@ import {copyFileSync, existsSync, mkdirSync, readFileSync, utimesSync} from 'nod
 import {join} from 'node:path';
 import {loadAdapter, resolveClip as resolveClip_} from './adapter.mjs';
 import {copyAtomic, frameKey, hashFileOnce, pruneFolders, readJson, sha, writeJson} from './cache.mjs';
-import {applyCamera, resolveTargets, wantsCamera} from './camera.mjs';
+import {applyCamera, autoZoomSpec, pointerFileOf, resolveTargets, wantsCamera} from './camera.mjs';
 import {slideshow} from './slideshow.mjs';
 import {loadProject, root, shellEnv} from './project.mjs';
 
@@ -73,10 +73,13 @@ function prepare(id, label, spec, found, length, {laptop = false, always = false
   if (!(wantsCamera(spec) || (always && (start > 0 || speed !== 1)))) return {file: found.file, start, speed: String(speed), covered: false};
   // Only the laptop frame starts the clip late and changes its speed. The camera pass applies both, so what the frame gets
   // is a clip of exactly the scene's length (and, for the laptop, with the window's toolbar buttons already covered).
-  const props = resolveTargets(spec, adapter?.manifest.clips?.[spec.clip]?.targets, `scene "${id}"${label}: clip "${spec.clip}"`);
   const out = join('out/.work', `${id}${label ? `-${label.replace(/\W/g, '')}` : ''}-camera.mp4`);
   const fromStory = laptop || always; // the laptop (and a split panel) play a clip from where its story starts, at its `speed`
-  applyCamera({clip: found.file, out, props, start: fromStory ? start : 0, speed: fromStory && !Array.isArray(speed) ? Number(speed) : 1, length, cover: laptop ? env.BAR_COLOR : undefined});
+  const cut = fromStory ? start : 0;
+  const pace = Array.isArray(speed) ? speed : fromStory ? Number(speed) : 1;
+  const withZoom = autoZoomSpec(spec, {file: found.file, cut, pace, length, where: `scene "${id}"${label}`});
+  const props = resolveTargets(withZoom, adapter?.manifest.clips?.[spec.clip]?.targets, `scene "${id}"${label}: clip "${spec.clip}"`);
+  applyCamera({clip: found.file, out, props, start: cut, speed: fromStory && !Array.isArray(speed) ? Number(speed) : 1, length, cover: laptop ? env.BAR_COLOR : undefined});
   return {file: out, start: 0, speed: '1', covered: laptop};
 }
 
@@ -118,7 +121,7 @@ function renderScene(scene, length) {
     execFileSync('scripts/frame-terminal.sh', [clip.file, out, String(length)], {env, stdio: 'inherit'});
   } else {
     // No frame: the clip as it is, trimmed to the scene (assemble.mjs fits it to the format).
-    execFileSync('ffmpeg', ['-nostdin', '-y', '-loglevel', 'error', '-i', clip.file, '-t', String(length), '-an', '-c:v', 'libx264', '-crf', '17', out], {stdio: 'inherit'});
+    execFileSync('ffmpeg', ['-nostdin', '-y', '-loglevel', 'error', '-i', clip.file, '-t', String(length), '-an', '-c:v', 'libx264', '-crf', '12', out], {stdio: 'inherit'});
     console.log(`wrote ${out}`);
   }
 }
@@ -128,7 +131,8 @@ function inputsOf(scene, length) {
   const specs = scene.type === 'split' ? [scene.props.left, scene.props.right] : Array.isArray(scene.props.screens) ? [] : [scene.props];
   const files = specs.map((spec, i) => {
     const found = locate(scene.id, scene.type === 'split' ? [' left', ' right'][i] : '', spec);
-    return {file: hashFileOnce(found.file, hashes), meta: found.meta && existsSync(found.meta) ? readFileSync(found.meta, 'utf8') : null};
+    const log = pointerFileOf(found.file);
+    return {file: hashFileOnce(found.file, hashes), meta: found.meta && existsSync(found.meta) ? readFileSync(found.meta, 'utf8') : null, log: existsSync(log) ? hashFileOnce(log, hashes) : null};
   });
   const images = (scene.props.screens ?? []).map((path) => path.replaceAll('{platform}', env.VIDEO_PLATFORM || 'ios'));
   for (const image of images) files.push({file: existsSync(image) ? hashFileOnce(image, hashes) : null});

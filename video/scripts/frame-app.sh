@@ -89,5 +89,5 @@ ffmpeg -nostdin -y -loglevel error -ss "$SS" -t "$SRC_LEN" -i "$IN" \
     [1:v]format=yuv420p[bg];
     [bg][shadow]overlay=0:$(sc 46):format=auto[b1];
     [b1][fg]overlay=0:0:format=auto,format=yuv420p[v]" \
-  -map "[v]" -an -c:v libx264 -crf 18 "$OUT"
+  -map "[v]" -an -c:v libx264 -crf 12 "$OUT"
 echo "wrote $OUT"

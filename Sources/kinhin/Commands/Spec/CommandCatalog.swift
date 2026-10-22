@@ -663,6 +663,9 @@ enum CommandCatalog {
                         .value("--seconds", "N", "How long to record (default 10, at most 600)"),
                         .value(
                             "--out", "PATH", "Where to write the .mov (default: the app's name in the current folder)"),
+                        .value(
+                            "--pointer", "PATH",
+                            "Also write where the pointer was and where it clicked, as JSON, for a video's autoZoom"),
                         .bool("--list-windows", "List the windows that can be recorded, with their ids"),
                         jsonFlag,
                     ],

@@ -33,12 +33,12 @@ const lap = (name) => {
   mark = Date.now();
 };
 // Encode profiles: the CRF of each scene clip (a temporary file, always encoded with a quick preset), the CRF and preset of the delivered
-// MP4, and the CRF of the WebM (null: not made).
+// MP4, and the CRF of the WebM (null: not made). Scene clips are low CRF because every extra lossy pass costs UI text its sharpness.
 // `cpu` is libvpx's speed setting (0 is the slowest and best; 2 is several times faster at about the same size).
 const PROFILES = {
   draft: {scene: 23, mp4: 28, preset: 'veryfast', webm: null},
-  standard: {scene: 17, mp4: 18, preset: 'medium', webm: 33, cpu: 2},
-  high: {scene: 14, mp4: 15, preset: 'slow', webm: 28, cpu: 1},
+  standard: {scene: 12, mp4: 18, preset: 'medium', webm: 33, cpu: 2},
+  high: {scene: 10, mp4: 15, preset: 'slow', webm: 28, cpu: 1},
 };
 const quality = process.env.VIDEO_FAST ? 'draft' : process.env.VIDEO_QUALITY || 'standard';
 if (!PROFILES[quality]) throw new Error(`VIDEO_QUALITY must be draft, standard or high, not "${quality}"`);

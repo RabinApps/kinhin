@@ -13,7 +13,11 @@
 //   speed: a list of {until, speed} segments plays the recording with speed ramps (scripts/speed.mjs).
 //   Anywhere a point or a box is wanted, a name from the clip's `targets` in its adapter does as well (resolveTargets below):
 //   `camera: [{at: 2, target: "fleet"}]` zooms to fit the box named fleet, `focus: {box: "fleet"}` spotlights it.
+//   autoZoom: true (or {zoom, lead, hold, gap, reach}) follows the clicks in the clip's pointer log (autoCamera below): the camera
+//       zooms in on each burst of clicks and back out. The log is `<clip>-pointer.json`, written by `kinhin video record --pointer`.
+//       It is camera work of its own, so it does not go with `camera`.
 import {execFileSync} from 'node:child_process';
+import {existsSync, readFileSync} from 'node:fs';
 import {sourceSeconds, speedFilter, speedPieces} from './speed.mjs';
 
 const ROUND = 1000;
@@ -217,7 +221,74 @@ export function probeSize(file) {
 }
 
 /** True when a clip's props need the pre-pass: camera work, or a speed list (a constant speed is the laptop frame's own). */
-export const wantsCamera = (props) => ['camera', 'focus', 'cursor'].some((k) => props?.[k] !== undefined) || Array.isArray(props?.speed);
+export const wantsCamera = (props) => ['camera', 'focus', 'cursor', 'autoZoom'].some((k) => props?.[k] !== undefined) || Array.isArray(props?.speed);
+
+const AUTO = {zoom: 1.6, lead: 0.6, hold: 1.5, gap: 3, reach: 0.35, move: 0.6};
+
+/**
+ * Where a point `c` seconds into a recording lands in the scene, given the clip's pace: a constant speed (a number), or a speed
+ * list, in which case `ramp` is its ease (scripts/speed.mjs). Counted from the same start as `c`.
+ */
+export function sceneTime(c, pace = 1, ramp) {
+  if (!Array.isArray(pace)) return c / Number(pace);
+  let out = 0;
+  for (const p of speedPieces(pace, ramp)) {
+    if (c < p.to) return out + (c - p.from) / p.speed;
+    out += (p.to - p.from) / p.speed;
+  }
+  return out;
+}
+
+/**
+ * Camera keyframes that follow a recording's clicks ({t, x, y}: seconds into the clip, and the point 0 to 1 across it). Clicks that
+ * come close in time and place form one group. Each group zooms in on its centre `lead` seconds before its first click, holds
+ * `hold` seconds after its last, and zooms back out, unless the next group starts before that (then it zooms straight on).
+ * `cut` is where the scene's story starts in the clip, `pace` and `ramp` how it plays, `length` the scene's length in seconds.
+ * Returns [] when no click falls in the scene.
+ */
+export function autoCamera(clicks, {cut = 0, pace = 1, ramp, length, zoom = AUTO.zoom, lead = AUTO.lead, hold = AUTO.hold, gap = AUTO.gap, reach = AUTO.reach, move = AUTO.move} = {}) {
+  const at = clicks
+    .filter((c) => c.t >= cut)
+    .map((c) => ({at: sceneTime(c.t - cut, pace, ramp), x: c.x, y: c.y}))
+    .filter((c) => c.at <= length)
+    .sort((a, b) => a.at - b.at);
+  const groups = [];
+  for (const c of at) {
+    const last = groups[groups.length - 1];
+    const near = last && c.at - last.end <= gap && Math.hypot(c.x - last.first.x, c.y - last.first.y) <= reach;
+    if (near) {
+      last.end = c.at;
+      last.points.push(c);
+    } else groups.push({first: c, end: c.at, points: [c]});
+  }
+  const keys = [];
+  groups.forEach((g, i) => {
+    const x = g.points.reduce((sum, p) => sum + p.x, 0) / g.points.length;
+    const y = g.points.reduce((sum, p) => sum + p.y, 0) / g.points.length;
+    keys.push({at: Math.max(0, g.first.at - lead), zoom: Math.min(4, Math.max(1, zoom)), to: [x, y], move});
+    const out = g.end + hold;
+    if (groups[i + 1] === undefined || groups[i + 1].first.at - lead > out) keys.push({at: out, zoom: 1, to: [0.5, 0.5], move});
+  });
+  return keys;
+}
+
+/** The pointer log that goes with a recording: `<name>-pointer.json` beside it (raw or reference), from `--pointer`. */
+export const pointerFileOf = (file) => file.replace(/\.[^./]+$/, '-pointer.json');
+
+/**
+ * The scene's props with its `autoZoom` turned into `camera` keyframes, read from the pointer log beside the recording `file`
+ * (`cut`, `pace` and `length` as autoCamera takes them). Props without autoZoom come back as they are. Throws when the scene also
+ * has a `camera`, or the log is missing. A log with no click in the scene gives no keyframes, so the camera stays where it is.
+ */
+export function autoZoomSpec(spec, {file, cut = 0, pace = 1, length, where = 'the scene'}) {
+  if (spec.autoZoom === undefined) return spec;
+  if (spec.camera !== undefined) throw new Error(`${where}: "camera" and "autoZoom" both move the camera; keep one`);
+  const log = pointerFileOf(file);
+  if (!existsSync(log)) throw new Error(`${where}: autoZoom needs ${log}; record the clip with --pointer (record-app.sh does it)`);
+  const clicks = JSON.parse(readFileSync(log, 'utf8')).clicks;
+  const keys = autoCamera(clicks, {...(typeof spec.autoZoom === 'object' ? spec.autoZoom : {}), cut, pace, ramp: spec.ramp, length});
+  return keys.length ? {...spec, camera: keys} : spec;
+}
 
 /**
  * Writes `out`: `length` seconds of `clip` (from `start`, at `speed`) with the camera work in `props` applied, at the clip's own
