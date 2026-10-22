@@ -21,7 +21,7 @@ import {copyFileSync, existsSync, mkdirSync, readFileSync, utimesSync} from 'nod
 import {join} from 'node:path';
 import {loadAdapter, resolveClip as resolveClip_} from './adapter.mjs';
 import {copyAtomic, frameKey, hashFileOnce, pruneFolders, readJson, sha, writeJson} from './cache.mjs';
-import {applyCamera, autoCamera, resolveTargets, wantsCamera} from './camera.mjs';
+import {applyCamera, autoZoomSpec, pointerFileOf, resolveTargets, wantsCamera} from './camera.mjs';
 import {slideshow} from './slideshow.mjs';
 import {loadProject, root, shellEnv} from './project.mjs';
 
@@ -50,9 +50,6 @@ function resolveClip(clip) {
   return null;
 }
 
-/** The pointer log that goes with a recording: `<name>-pointer.json` beside it (raw or reference), from `--pointer`. */
-const pointerFileOf = (file) => file.replace(/\.[^./]+$/, '-pointer.json');
-
 /** Finds a scene's clip (the panel `label`, such as " left", for a split scene), or says which is missing. Looked up once per scene. */
 const located = new Map();
 function locate(id, label, spec) {
@@ -80,15 +77,8 @@ function prepare(id, label, spec, found, length, {laptop = false, always = false
   const fromStory = laptop || always; // the laptop (and a split panel) play a clip from where its story starts, at its `speed`
   const cut = fromStory ? start : 0;
   const pace = Array.isArray(speed) ? speed : fromStory ? Number(speed) : 1;
-  let camera = spec;
-  if (spec.autoZoom !== undefined) {
-    if (spec.camera !== undefined) throw new Error(`scene "${id}"${label}: "camera" and "autoZoom" both move the camera; keep one`);
-    const log = pointerFileOf(found.file);
-    if (!existsSync(log)) throw new Error(`scene "${id}"${label}: autoZoom needs ${log}; record the clip with --pointer (record-app.sh does it)`);
-    const keys = autoCamera(JSON.parse(readFileSync(log, 'utf8')).clicks, {...(typeof spec.autoZoom === 'object' ? spec.autoZoom : {}), cut, pace, ramp: spec.ramp, length});
-    if (keys.length) camera = {...spec, camera: keys};
-  }
-  const props = resolveTargets(camera, adapter?.manifest.clips?.[spec.clip]?.targets, `scene "${id}"${label}: clip "${spec.clip}"`);
+  const withZoom = autoZoomSpec(spec, {file: found.file, cut, pace, length, where: `scene "${id}"${label}`});
+  const props = resolveTargets(withZoom, adapter?.manifest.clips?.[spec.clip]?.targets, `scene "${id}"${label}: clip "${spec.clip}"`);
   applyCamera({clip: found.file, out, props, start: cut, speed: fromStory && !Array.isArray(speed) ? Number(speed) : 1, length, cover: laptop ? env.BAR_COLOR : undefined});
   return {file: out, start: 0, speed: '1', covered: laptop};
 }

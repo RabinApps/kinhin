@@ -17,6 +17,7 @@
 //       zooms in on each burst of clicks and back out. The log is `<clip>-pointer.json`, written by `kinhin video record --pointer`.
 //       It is camera work of its own, so it does not go with `camera`.
 import {execFileSync} from 'node:child_process';
+import {existsSync, readFileSync} from 'node:fs';
 import {sourceSeconds, speedFilter, speedPieces} from './speed.mjs';
 
 const ROUND = 1000;
@@ -269,6 +270,24 @@ export function autoCamera(clicks, {cut = 0, pace = 1, ramp, length, zoom = AUTO
     if (groups[i + 1] === undefined || groups[i + 1].first.at - lead > out) keys.push({at: out, zoom: 1, to: [0.5, 0.5], move});
   });
   return keys;
+}
+
+/** The pointer log that goes with a recording: `<name>-pointer.json` beside it (raw or reference), from `--pointer`. */
+export const pointerFileOf = (file) => file.replace(/\.[^./]+$/, '-pointer.json');
+
+/**
+ * The scene's props with its `autoZoom` turned into `camera` keyframes, read from the pointer log beside the recording `file`
+ * (`cut`, `pace` and `length` as autoCamera takes them). Props without autoZoom come back as they are. Throws when the scene also
+ * has a `camera`, or the log is missing. A log with no click in the scene gives no keyframes, so the camera stays where it is.
+ */
+export function autoZoomSpec(spec, {file, cut = 0, pace = 1, length, where = 'the scene'}) {
+  if (spec.autoZoom === undefined) return spec;
+  if (spec.camera !== undefined) throw new Error(`${where}: "camera" and "autoZoom" both move the camera; keep one`);
+  const log = pointerFileOf(file);
+  if (!existsSync(log)) throw new Error(`${where}: autoZoom needs ${log}; record the clip with --pointer (record-app.sh does it)`);
+  const clicks = JSON.parse(readFileSync(log, 'utf8')).clicks;
+  const keys = autoCamera(clicks, {...(typeof spec.autoZoom === 'object' ? spec.autoZoom : {}), cut, pace, ramp: spec.ramp, length});
+  return keys.length ? {...spec, camera: keys} : spec;
 }
 
 /**
