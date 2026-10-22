@@ -32,6 +32,16 @@ while read -r clip kind; do
     ffmpeg -nostdin -y -loglevel error -ss "$START" -t "$KEEP" -i "$RAW/$clip.mov" \
       -vf "scale=1280:-2,fps=30" -c:v libx264 -crf 29 -preset slow -pix_fmt yuv420p -an -movflags +faststart "$REF/$clip.mp4"
     echo '{"demoStartsAt": 0}' > "$REF/$clip.json"
+    # The pointer log (record-app.sh --pointer) is cut the same way: its times now count from the story's start.
+    if [ -f "$RAW/$clip-pointer.json" ]; then
+      node -e "
+        const fs = require('fs');
+        const log = JSON.parse(fs.readFileSync('$RAW/$clip-pointer.json', 'utf8'));
+        const inClip = (r) => r.t >= $START && r.t - $START <= $KEEP;
+        const shift = (r) => ({...r, t: Math.round((r.t - $START) * 1000) / 1000});
+        fs.writeFileSync('$REF/$clip-pointer.json', JSON.stringify({samples: log.samples.filter(inClip).map(shift), clicks: log.clicks.filter(inClip).map(shift)}, null, 2));
+      "
+    fi
   elif [ "$kind" = browser ] && [ "$TERMINAL_ONLY" = 0 ]; then
     [ -f "$RAW/$clip.webm" ] || { echo "no $RAW/$clip.webm: record it first"; continue; }
     ffmpeg -nostdin -y -loglevel error -t "$KEEP" -i "$RAW/$clip.webm" \

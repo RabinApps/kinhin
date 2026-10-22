@@ -117,9 +117,11 @@ public enum WindowRecorder {
     }
 
     /// Records `window` for `seconds` into `url` (an existing file is replaced). Records the window's own pixels only, so
-    /// anything over it, and the pointer, stay out of the clip.
-    public static func record(_ window: RecordableWindow, seconds: Double, to url: URL) async throws -> WindowRecording
-    {
+    /// anything over it, and the pointer, stay out of the clip. With `pointer`, also writes a `PointerLog` there: where the
+    /// pointer was over the window and where it clicked, which is how the pointer still shapes the video (`autoZoom`).
+    public static func record(
+        _ window: RecordableWindow, seconds: Double, to url: URL, pointer: URL? = nil
+    ) async throws -> WindowRecording {
         let content = try await shareableContent()
         guard let target = content.windows.first(where: { $0.windowID == window.id }) else {
             throw WindowRecorderError.noWindowWithID(window.id)
@@ -144,18 +146,39 @@ public enum WindowRecorder {
         let stream = SCStream(filter: filter, configuration: configuration, delegate: writer)
         // A nil queue lets ScreenCaptureKit deliver frames on its own background queue.
         try stream.addStreamOutput(writer, type: .screen, sampleHandlerQueue: nil)
+        let frame = target.frame
+        let sampling: Task<PointerLogBuilder, Never>? = pointer == nil ? nil : Task { await samplePointer(over: frame) }
+        defer { sampling?.cancel() }
         try await stream.startCapture()
         try await Task.sleep(for: .seconds(seconds))
         try await stream.stopCapture()
         try await writer.finish()
+        sampling?.cancel()
 
         guard writer.frameCount > 0 else { throw WindowRecorderError.noFrames(window.label) }
+        if let pointer, let sampling, let origin = writer.firstFrameAt {
+            try await sampling.value.finish(from: origin.timeIntervalSince1970).write(to: pointer)
+        }
         return WindowRecording(
             url: url, width: width, height: height, frames: writer.frameCount, seconds: seconds,
             firstFrameAt: writer.firstFrameAt)
     }
 
     // MARK: private
+
+    /// Reads the pointer's position and left button about 30 times a second until cancelled. Both are readable without a
+    /// permission grant, and the pointer is never drawn into the picture, so this costs the clip nothing.
+    private static func samplePointer(over frame: CGRect) async -> PointerLogBuilder {
+        var builder = PointerLogBuilder(window: frame)
+        while !Task.isCancelled {
+            let point = CGEvent(source: nil)?.location ?? .zero
+            let down = CGEventSource.buttonState(.combinedSessionState, button: .left)
+            builder.add(at: Date().timeIntervalSince1970, point: point, leftDown: down)
+            // A cancelled sleep throws; the loop then ends on its own check, so the error is not needed.
+            try? await Task.sleep(for: .milliseconds(33))
+        }
+        return builder
+    }
 
     /// Starts the window server connection a command-line process needs before ScreenCaptureKit works.
     @MainActor

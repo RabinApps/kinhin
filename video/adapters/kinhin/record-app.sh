@@ -58,8 +58,9 @@ sleep 1
 
 echo "==> recording window $WID for ${SECONDS_TO_RECORD}s"
 # kinhin video record captures the window with ScreenCaptureKit, which leaves the pointer out of the clip. It reports
-# when its first picture arrived, so the demo's start in the clip is measured, not estimated.
-TAKE="$("$CLI" video record "$PROC" --window "$WID" --seconds "$SECONDS_TO_RECORD" --out "$OUT" --json)"
+# when its first picture arrived, so the demo's start in the clip is measured, not estimated. --pointer keeps where the
+# pointer was and where it clicked (app-pointer.json), so a video's autoZoom can follow the clicks.
+TAKE="$("$CLI" video record "$PROC" --window "$WID" --seconds "$SECONDS_TO_RECORD" --out "$OUT" --pointer "${OUT%.*}-pointer.json" --json)"
 python3 - "$ORIGIN" "$TAKE" "${OUT%.*}.json" <<'PY'
 import json, sys
 # The demo starts at ORIGIN (wall clock). Its place in the clip is the time from the clip's first picture to ORIGIN.

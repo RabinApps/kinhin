@@ -5,6 +5,7 @@ import {test} from 'node:test';
 import {loadAdapter, resolveClip} from '../../scripts/adapter.mjs';
 import {listSourceProjects, loadProject, loadThemes, shellEnv, userThemeNames} from '../../scripts/project.mjs';
 import {projectNames, readJson, root, themeNames} from '../helpers.mjs';
+import {FORMATS} from '../../shared/resolve.mjs';
 
 const themeFile = (name) => readJson(join(root, 'themes', `${name}.json`));
 
@@ -97,10 +98,12 @@ test('an unknown project or a broken one fails with a useful message', () => {
   assert.throws(() => loadProject('does-not-exist'), /ENOENT|no such file|no video project/);
 });
 
-test('kinhin videos burn no captions; every other adapter keeps them, and the caption file is always available', () => {
+test('kinhin videos burn captions only in the vertical and square formats; every other adapter keeps them, and the caption file is always available', () => {
   for (const name of projectNames()) {
     const p = loadProject(name);
-    if (p.adapter === 'kinhin') assert.equal(p.captions.burn, false, `${name}: the kinhin adapter turns captions off`);
+    const formatName = Object.entries(FORMATS).find(([, f]) => f.width === p.format.width && f.height === p.format.height)?.[0];
+    const vertical = ['9:16', '1:1'].includes(formatName);
+    if (p.adapter === 'kinhin') assert.equal(p.captions.burn, vertical, `${name}: the kinhin adapter burns captions in 9:16 and 1:1 only`);
     else assert.equal(p.captions.burn, true, `${name}: captions on`);
     assert.equal(p.captions.sidecar, true, `${name}: the .srt is still written`);
   }

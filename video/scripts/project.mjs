@@ -130,7 +130,7 @@ export function loadProject(name = process.env.VIDEO_PROJECT || 'launch') {
   const adapter = process.env.VIDEO_ADAPTER || project.adapter || null;
   const manifestFile = adapter && adapterFile(adapter);
   const adapterManifest = manifestFile ? readConfig(manifestFile) : {};
-  const captions = resolveCaptions({theme, project, adapter: adapterManifest, env: process.env});
+  const captions = resolveCaptions({theme, project, adapter: adapterManifest, env: process.env, format: formatName});
   const music = resolveMusic({project, adapter: adapterManifest, env: process.env});
   return {name: project.name ?? stem, stem, slug, outName, adapter, captions, music, file, project, scenes, theme, format, fit: fitScale(format)};
 }

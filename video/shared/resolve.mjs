@@ -204,7 +204,8 @@ export function validateCaptions(cfg) {
   const problems = [];
   if (cfg === undefined) return problems;
   if (typeof cfg !== 'object' || cfg === null || Array.isArray(cfg)) return ['"captions" must be an object'];
-  if ('burn' in cfg && typeof cfg.burn !== 'boolean') problems.push('captions.burn must be true or false');
+  const formatList = Array.isArray(cfg.burn) && cfg.burn.every((f) => typeof f === 'string' && f in FORMATS);
+  if ('burn' in cfg && typeof cfg.burn !== 'boolean' && !formatList) problems.push(`captions.burn must be true or false, or the formats to burn them in, such as ["9:16", "1:1"] (${Object.keys(FORMATS).join(', ')})`);
   if ('sidecar' in cfg && typeof cfg.sidecar !== 'boolean') problems.push('captions.sidecar must be true or false');
   if ('style' in cfg && !(cfg.style in CAPTION_STYLES)) problems.push(`captions.style "${cfg.style}" is not one of ${Object.keys(CAPTION_STYLES).join(', ')}`);
   if ('position' in cfg && !CAPTION_POSITIONS.includes(cfg.position)) problems.push(`captions.position "${cfg.position}" is not one of ${CAPTION_POSITIONS.join(', ')}`);
@@ -226,12 +227,14 @@ export function assColor(hex) {
  * The caption settings a build uses. Later wins: the theme's caption look, the adapter's "captions", the project's
  * "captions", then the environment (VIDEO_CAPTIONS=on|off|all, VIDEO_CAPTION_STYLE, CAPTION_SCENES, and the older
  * NO_CAPTIONS). `burn: false` leaves the picture clean; the caption file for a player (out/<name>.srt) is written either way.
+ * `burn` may also be a list of formats (`["9:16", "1:1"]`): burned in those formats, clean in the others. `format` is the
+ * output format's name, 16:9 by default.
  */
-export function resolveCaptions({theme, project = {}, adapter = {}, env = {}}) {
+export function resolveCaptions({theme, project = {}, adapter = {}, env = {}, format = '16:9'}) {
   const cfg = deepMerge(deepMerge({}, adapter.captions ?? {}), project.captions ?? {});
   const problems = [...validateCaptions(adapter.captions), ...validateCaptions(project.captions)];
   if (problems.length) throw new Error(problems.join('; '));
-  let burn = cfg.burn ?? true;
+  let burn = Array.isArray(cfg.burn) ? cfg.burn.includes(format) : cfg.burn ?? true;
   let scenes = cfg.scenes ?? 'clips';
   const mode = (env.VIDEO_CAPTIONS || '').toLowerCase();
   if (mode && !['on', 'off', 'all'].includes(mode)) throw new Error(`VIDEO_CAPTIONS must be on, off or all, not "${env.VIDEO_CAPTIONS}"`);
@@ -324,10 +327,20 @@ const point = (v) => Array.isArray(v) && v.length === 2 && v.every(isUnit);
 const isName = (v) => typeof v === 'string' && v.length > 0;
 const isObject = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);
 
-/** What is wrong with a clip scene's `camera`, `focus` and `cursor` props, in words ("" for the place if the scene is fine). */
+/** What is wrong with a clip scene's `camera`, `focus`, `cursor` and `autoZoom` props, in words ("" for the place if the scene is fine). */
 export function validateCamera(props, where) {
   const problems = [];
-  const {camera, focus, cursor} = props ?? {};
+  const {camera, focus, cursor, autoZoom} = props ?? {};
+  if (autoZoom !== undefined) {
+    if (camera !== undefined) problems.push(`${where}: "autoZoom" and "camera" both move the camera; keep one`);
+    if (autoZoom !== true && !isObject(autoZoom)) problems.push(`${where}: "autoZoom" must be true, or { zoom, lead, hold, gap, reach }`);
+    else if (isObject(autoZoom)) {
+      if ('zoom' in autoZoom && !(typeof autoZoom.zoom === 'number' && autoZoom.zoom >= 1 && autoZoom.zoom <= 4)) problems.push(`${where}: autoZoom.zoom must be a number from 1 to 4`);
+      for (const key of ['lead', 'hold', 'gap', 'reach']) {
+        if (key in autoZoom && !(typeof autoZoom[key] === 'number' && autoZoom[key] >= 0)) problems.push(`${where}: autoZoom.${key} must be seconds (or a fraction of the picture, for reach), 0 or more`);
+      }
+    }
+  }
   const times = (list, name) => {
     let last = -1;
     for (const [i, k] of list.entries()) {
@@ -451,7 +464,7 @@ export function validateProject(project) {
       }
       if ('ratio' in (scene.props ?? {}) && !(typeof scene.props.ratio === 'number' && scene.props.ratio >= 0.3 && scene.props.ratio <= 0.7)) problems.push(`${where}: ratio must be a number from 0.3 to 0.7 (the left or top panel's share)`);
     } else if (SCENE_TYPES[scene.type]?.kind === 'clip') problems.push(...validateClipSpec(scene.props, where));
-    else if (['camera', 'focus', 'cursor', 'ramp'].some((k) => k in (scene.props ?? {}))) problems.push(`${where}: "camera", "focus" and "cursor" work on device, terminal and split scenes only`);
+    else if (['camera', 'focus', 'cursor', 'autoZoom', 'ramp'].some((k) => k in (scene.props ?? {}))) problems.push(`${where}: "camera", "focus", "cursor" and "autoZoom" work on device, terminal and split scenes only`);
     for (const [key, max] of Object.entries(TEXT_LIMITS[scene.type] ?? {})) {
       // A key may name a nested prop with dots, such as "left.items".
       const value = key.split('.').reduce((node, part) => node?.[part], scene.props);

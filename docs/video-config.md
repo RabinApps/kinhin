@@ -159,6 +159,32 @@ cursor:  [ { at: 2.2, to: fleet } ]            # the pointer goes to its centre
 A keyframe's `target` sets `to` and, unless you give a `zoom`, the zoom that fits the box. When the layout of your product changes,
 you fix the box once in the adapter and every video follows. `kinhin video validate` names a target that the clip does not have.
 
+### Zoom on the clicks (autoZoom)
+
+`autoZoom: true` (or `{zoom, lead, hold, gap, reach}`) moves the camera for you. It reads the clicks in the clip's pointer log,
+`<clip>-pointer.json`, and zooms in on each burst of clicks, then zooms back out. The picture still never shows the pointer.
+
+```yaml
+- id: fleet
+  type: device
+  props:
+    clip: app
+    autoZoom: true                             # or { zoom: 1.6, lead: 0.6, hold: 1.5, gap: 3, reach: 0.35 }
+  narration: Here the fleet scales to the queue.
+```
+
+| Setting | What it does (default) |
+|---|---|
+| `zoom` | How far the camera zooms on a burst of clicks, from 1 to 4 (1.6) |
+| `lead` | Seconds before the first click that the zoom starts (0.6) |
+| `hold` | Seconds after the last click that the camera stays zoomed (1.5) |
+| `gap` | Clicks further apart in time than this make a new burst (3) |
+| `reach` | Clicks further apart on the picture than this (a fraction, 0.35) make a new burst |
+
+The log is written by `kinhin video record --pointer PATH` (`record-app.sh` passes it), and `make-reference.sh` carries it into
+the committed reference clip. It is only where the pointer was and where it clicked, so a take with no clicks gives no zoom: click
+where you want the camera to go while you record. `autoZoom` is camera work of its own, so it does not go with `camera`.
+
 Times are seconds into the scene, after `speed` is applied. The scene's frame, captions and narration are unchanged. Recordings are
 drawn at their own resolution, so a zoom of 2 or more is sharpest on a recording made at a high resolution.
 
@@ -240,7 +266,7 @@ player. **Burned-in** captions are drawn on the picture. Turn them on or off, an
 
 | Setting | Values | Default |
 |---|---|---|
-| `burn` | `true` or `false` | `true` (an adapter can set `false`) |
+| `burn` | `true`, `false`, or the formats to burn them in, such as `["9:16", "1:1"]` (clean in the others) | `true` (an adapter can set `false` or a list) |
 | `scenes` | `"clips"` (scenes with no text of their own), `"all"`, or a list of scene ids | `"clips"` |
 | `style` | `outline` (text with an outline), `box` (a semi-transparent box), `shadow` (a soft drop shadow), `bold` (larger, bold, outlined), `minimal` (small, plain), `karaoke` (bold and outlined, each word lights up as it is spoken) | `outline` (`box` if the theme asks for one) |
 | `position` | `auto` (clear of the laptop or window), `bottom`, `top`, `middle` | `auto` |
