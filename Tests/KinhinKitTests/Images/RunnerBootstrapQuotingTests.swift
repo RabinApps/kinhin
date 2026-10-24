@@ -94,8 +94,12 @@ final class RunnerBootstrapQuotingTests: XCTestCase {
         helper.waitUntilExit()
 
         XCTAssertEqual(helper.terminationStatus, 0)
-        child.waitUntilExit()
-        XCTAssertFalse(child.isRunning, "the matching process is stopped")
+        // Bounded: a helper that failed to stop the child must fail here, not hang for the length of its sleep.
+        let deadline = Date().addingTimeInterval(3)
+        while child.isRunning, Date() < deadline { Thread.sleep(forTimeInterval: 0.05) }
+        let stopped = !child.isRunning
+        if !stopped { child.terminate() }
+        XCTAssertTrue(stopped, "the matching process is stopped")
     }
 
     /// A quoted `~` is never expanded: the template copy for runners 2..N must
