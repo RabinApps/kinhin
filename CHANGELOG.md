@@ -27,6 +27,11 @@
 **Fixed**
 
 - A classic (non-ephemeral) runner in an Apple container or Docker container is registered again after a restart when the forge no longer has it. Stopping the container (host reboot, `container system stop`) kills the agent inside, and kinhin used to watch the instance as `ready` with no runner until you deleted it. Registration also stops an agent left from an earlier registration first.
+- `kinhin image digest` and the app's Pin button no longer fail with `registry answered HTTP 404` for Cirrus Labs images such as `macos-sequoia-base:latest`. The registry request now names every manifest type, not only image indexes.
+- A new VM no longer waits the whole `vm_boot_timeout` (about five minutes) before kinhin tries SSH when macOS Local Network privacy blocks its port 22 probe. After 15 seconds kinhin tries SSH anyway and logs why. The app now declares a Local Network usage description. See [Troubleshooting](website/guide/troubleshooting.md).
+- `kinhin doctor` no longer calls Command Line Tools outdated when they only trail macOS by a patch release (CLT 27.0.0 on macOS 27.0.1).
+- `kinhin auth list --json` now exists, and `kinhin auth status --account NAME --json` reports only that account instead of every forge.
+- Azure DevOps: kinhin warns at start-up when the agent pool has no agents, because Azure then rejects labelled jobs instead of queueing them. The Azure DevOps page documents the offline placeholder agent that fixes it. Azure is now described as experimental rather than planned; it has had live smoke runs, not real application builds.
 - A restart no longer registers a VM again while its runner is still on the forge, which could fail a job running on it. A runner the forge still has is watched; a VM with no runner is registered as normal. A VM whose forge cannot be asked is held, shown by an `adoption` alert, and removed after one hour; a VM whose account was removed from the config is released at once. Forges with no runner list, and partly registered VMs, have their own rules. See [docs/scaling.md](docs/scaling.md#restarts).
 
 **Changed**

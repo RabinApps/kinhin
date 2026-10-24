@@ -16,6 +16,9 @@
     "  No routes — every job uses the default pool." : {
       "comment" : "StatusText in RuntimesView"
     },
+    " (experimental)" : {
+      "comment" : "Suffix appended to a forge/runtime name in a menu picker when it has run real jobs for a user but is not in kinhin's own end-to-end tests"
+    },
     " (untested)" : {
       "comment" : "Suffix appended to a forge/runtime name in a menu picker when it hasn't been tested against the real service"
     },
@@ -2639,6 +2642,18 @@
     },
     "Unmatched jobs → %@" : {
       "comment" : "StatusText in RuntimesView"
+    },
+    "experimental" : {
+      "comment" : ".accessibilityLabel in MaturityBadge"
+    },
+    "Experimental" : {
+      "comment" : "Label in MaturityBadge"
+    },
+    "Experimental. Click for details." : {
+      "comment" : ".help in MaturityBadge"
+    },
+    "Has run real jobs for a user, but not yet in kinhin's own end-to-end tests. Please report errors on GitHub to help us improve support for this forge." : {
+      "comment" : "Text in MaturityBadge popover for an experimental forge"
     },
     "untested" : {
       "comment" : ".accessibilityLabel in MaturityBadge"

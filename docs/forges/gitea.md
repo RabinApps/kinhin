@@ -8,9 +8,9 @@ How kinhin talks to Gitea Actions and Forgejo Actions, and how that compares wit
 
 | | |
 |---|---|
-| Forge ids | `gitea`, `forgejo` (`GiteaForge.swift:36` only switches the id and display name) |
+| Forge ids | `gitea`, `forgejo` (`GiteaForge.swift:102` only switches the id and display name) |
 | Hosting | Self-hosted (Gitea, Forgejo) or hosted (gitea.com, codeberg.org). `instance` is required. |
-| Scope | `owner/name` or an org. `actionsBase` is `/api/v1/repos/{scope}/actions` or `/api/v1/orgs/{scope}/actions` (`GiteaClient.swift:32-36`). |
+| Scope | `owner/name` or an org. `actionsBase` is `/api/v1/repos/{scope}/actions` or `/api/v1/orgs/{scope}/actions` (`GiteaClient.swift:36,44`). |
 | Source | `Sources/KinhinKit/Forges/GiteaClient.swift`, `GiteaForge.swift`, `GiteaModels.swift` |
 | Live-tested | Gitea 1.24 and 1.26, Forgejo 11, on every runtime, by the [end-to-end suite](../e2e-testing.md). Unit tests stub HTTP (`StubProtocol`); `FakeGitea` in `KinhinTestSupport` is pinned to `GiteaForge` by contract tests. |
 
@@ -52,7 +52,7 @@ No output is shown: there is no stable public log endpoint across Gitea and Forg
 
 - Registration mode `sharedLongLived`, exit semantics `idleGrace` (`GiteaForge.swift`).
 - The token is fetched once in `GiteaForge.make` and reused by every runner.
-- Runner start: `gitea-runner register --no-interactive --token --labels`, then `gitea-runner daemon` (`RunnerBootstrap+Linux.swift:235-240`). The binary comes from gitea.com releases (`RunnerBootstrap+Verification.swift:62`).
+- Runner start: `gitea-runner register --no-interactive --token --labels`, then `gitea-runner daemon` (`RunnerBootstrap+Linux.swift:179,184`). The binary comes from gitea.com releases (`RunnerBootstrap+Verification.swift:62`).
 
 ## Demand and label matching
 

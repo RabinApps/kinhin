@@ -55,7 +55,7 @@ Output is the job trace, `GET /projects/{id}/jobs/{job}/trace` (live while the j
 
 ## Registration flow
 
-- Registration mode `perRunner`: one runner is created per VM runner name (`GitLabForge.swift:68-77`). Exit semantics `deregisters`.
+- Registration mode `perRunner`: one runner is created per VM runner name (`GitLabForge.swift:75,96`). Exit semantics `deregisters`.
 - `tag_list` is the pool's labels (fleet labels plus the runtime marker, minus what the pool's platform cannot serve). When the engine names no pool it falls back to the account's labels. The two are not unioned, because that re-added labels routing had removed (`macos` on a Linux VM).
 - `vm.ephemeral: false` is rejected at config load for a GitLab account: the runner takes one job (`run-single --max-builds 1`) and deletes itself, so a persistent VM would sit idle after its first job.
 - Each runner runs `gitlab-runner run-single --description ... --executor shell` and removes itself afterwards (`RunnerBootstrap+GitLab.swift:68`).
@@ -72,7 +72,7 @@ Output is the job trace, `GET /projects/{id}/jobs/{job}/trace` (live while the j
 
 ## Pagination, rate limits, retries
 
-- Offset pagination, following `X-Next-Page`, `per_page=100`, up to 50 pages (`GitLabClient.swift:230-245`). GitLab documents `per_page` max 100.
+- Offset pagination, following `X-Next-Page`, `per_page=100`, up to 50 pages (`GitLabClient.swift:245,272`). GitLab documents `per_page` max 100.
 - `withTransientRetry` on network errors, 429 and 5xx. `RateLimit-*` and `X-RateLimit-*` headers are parsed and kept as the account's rate-limit state; self-managed instances often send none.
 
 ## Self-hosted notes and minimum versions

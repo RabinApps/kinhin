@@ -113,7 +113,11 @@ gen_maturity() {
         sed -E 's/\.([a-zA-Z]+)/`\1`/g')
     runtimes=$(sed -nE 's/^.*liveTestedRuntimes: \[RuntimeID\] = \[(.*)\]$/\1/p' Sources/KinhinKit/Core/MaturityTable.swift |
         sed -E 's/\.([a-zA-Z]+)/`\1`/g')
+    local experimental
+    experimental=$(sed -nE 's/^.*experimentalForges: \[ForgeID\] = \[(.*)\]$/\1/p' Sources/KinhinKit/Core/MaturityTable.swift |
+        sed -E 's/\.([a-zA-Z]+)/`\1`/g')
     echo "Live-tested forges (\`MaturityTable\`): $forges. Live-tested runtimes: $runtimes (\`tart\` means macOS VMs)."
+    echo "Experimental forges (real jobs for a user, not yet in the project's own tests): $experimental, shown with an **experimental** badge."
     if grep -q 'tartLinux: Maturity = .liveTested' Sources/KinhinKit/Core/MaturityTable.swift; then
         echo "Tart serving Linux VMs is live-tested too. Every other forge and runtime is shown with an **untested** badge."
     else

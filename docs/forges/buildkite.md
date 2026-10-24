@@ -56,18 +56,18 @@ Output is `GET /organizations/{org}/pipelines/{slug}/builds/{n}/jobs/{id}/log`, 
 
 ## Registration flow
 
-- Registration mode `sharedLongLived`, exit semantics `deregisters` (`BuildkiteForge.swift:24-25`).
+- Registration mode `sharedLongLived`, exit semantics `deregisters` (`BuildkiteForge.swift:30-31`).
 - `BuildkiteForge.make` verifies scopes, resolves the cluster, checks that the `queue=` tag names a queue of the cluster (`default` when there is none; the error lists the queues that exist), revokes tokens left by dead processes of this account on this host, and creates a fresh agent token. The token value is shown only once. Listing queues is a clusters read, so it needs the `read_clusters` scope kinhin already requires.
 - The token description is `kinhin: <account> @ <host>/<pid>`, so a second engine or host never revokes another's token. Tokens in the older `kinhin: <account>` form are left alone: **revoke them once by hand** in the cluster's agent tokens.
 - The agent start script waits 5 s and, when an agent has already exited non-zero (bad token, unknown queue), fails registration with the tail of that agent's `agent.log` and stops the others.
 - Pool runtime markers travel as a `kinhin-runtime=<x>` tag: `kinhin-docker`, `kinhin-container` and `kinhin-host` become `kinhin-runtime=docker`, `=container` and `=host`, the only form an agent query rule can target. A job's `kinhin-runtime=docker` rule is translated back to the `kinhin-docker` marker for routing.
 - The agent archive is extracted whole and the script asserts `./buildkite-agent` exists, whichever member name the tarball uses; the SHA256SUMS lookup strips `*` and `./` prefixes.
-- Agents register at `https://agent.buildkite.com/v3` and run `buildkite-agent start --name --tags --disconnect-after-job` (`RunnerBootstrap+Buildkite.swift:73`).
+- Agents register at `https://agent.buildkite.com/v3` and run `buildkite-agent start --name --tags --disconnect-after-job` (`RunnerBootstrap+Buildkite.swift:91`).
 
 ## Demand and label matching
 
 - Labels are agent tags in `key=value` form. Default: `["queue=kinhin"]`.
-- `tags(_:satisfy:)` (`BuildkiteForge.swift:~125`) requires every `agent_query_rule` to match a same-key tag, with `*` as a glob. A job with no `queue` rule is treated as `queue=default`.
+- `tags(_:satisfy:)` (`BuildkiteForge.swift:190`) requires every `agent_query_rule` to match a same-key tag, with `*` as a glob. A job with no `queue` rule is treated as `queue=default`.
 - A `kinhin-runtime` rule is the pool's to satisfy (the router picks the pool), so it is ignored when matching the account's labels.
 - Jobs from another cluster (`cluster_id`) are excluded. Only `script` jobs count.
 - Queued and running jobs and the pipeline view share one cached builds read per interval.
@@ -75,7 +75,7 @@ Output is `GET /organizations/{org}/pipelines/{slug}/builds/{n}/jobs/{id}/log`, 
 
 ## Pagination, rate limits, retries
 
-- `per_page=100` and the RFC 8288 `Link: rel="next"` header, up to 20 pages (`BuildkiteClient.swift:17,164-193`).
+- `per_page=100` and the RFC 8288 `Link: rel="next"` header, up to 20 pages (`BuildkiteClient.swift:17,164,193`).
 - A `next` link is followed only over https to the API host; anything else throws `untrustedPageLink` (`BuildkiteClient.swift:175`).
 - `withTransientRetry` on network errors, 429 and 5xx. No rate-limit header handling.
 

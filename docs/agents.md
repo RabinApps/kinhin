@@ -94,7 +94,8 @@ For agents that shell out instead of speaking MCP:
 | `kinhin status --json` | Fleet status, flattened `paused` / `autoResume` / `queueAgeSeconds` fields |
 | `kinhin doctor --json` | Merged diagnostics: host, runtimes, tokens, checklist, capacity, image disk usage (`imageTotalGB`), prune hint (`imagePrune`), disk pressure (`diskPressure`) |
 | `kinhin setup status --json` | First-run checklist |
-| `kinhin auth status --json` | Stored-token state across every configured forge |
+| `kinhin auth status --json` | Stored-token state across every configured forge, or one account with `--account NAME` |
+| `kinhin auth list --json` | Every account with its scope and token state (`stored`, `none`, `error`); never the token |
 | `kinhin runtimes [--json] [--no-health]` | Pools, capacity, budget, health, routes |
 | `kinhin pipeline [VM] [--job N] --json` | Live jobs and steps |
 | `kinhin config validate --json` | `valid` + parsed facts, or `valid: false` + `error` (exit 3) |

@@ -206,6 +206,60 @@ final class AzureDevOpsForgeTests: XCTestCase {
         XCTAssertEqual(deletes.withLock { $0 }.count, 1)
     }
 
+    /// The queue anchor (a placeholder agent that carries the capabilities and never runs) keeps an otherwise empty
+    /// pool accepting labelled jobs. It is never seen online, so it is never reaped, however long it stays offline.
+    func testAnOfflinePlaceholderAgentIsNeverReapedOrCountedOnline() async throws {
+        let clock = Locked(Date(timeIntervalSince1970: 1_000_000))
+        let deletes = Locked<[String]>([])
+        StubProtocol.handler = { request in
+            if request.httpMethod == "DELETE" {
+                deletes.withLock { $0.append(request.url?.path ?? "") }
+                return (204, Data(), [:])
+            }
+            return (200, Self.agents([(36, "azure-queue-anchor-do-not-run", "offline")]), [:])
+        }
+        let forge = makeForge(offlineGrace: 60, idleOfflineGrace: 15, now: { clock.withLock { $0 } })
+        for _ in 0..<3 {
+            let runners = try await forge.runners()
+            XCTAssertEqual(runners.map(\.name), ["azure-queue-anchor-do-not-run"])
+            XCTAssertEqual(runners.map(\.online), [false])
+            clock.withLock { $0 = $0.addingTimeInterval(3600) }
+        }
+        XCTAssertTrue(deletes.withLock { $0 }.isEmpty, "the anchor must survive")
+    }
+
+    func testTheEmptyPoolWarningIsGivenOncePerPool() {
+        let key = "https://dev.azure.com/once|\(UUID().uuidString)"
+        XCTAssertTrue(AzureDevOpsForge.firstWarning(for: key))
+        XCTAssertFalse(AzureDevOpsForge.firstWarning(for: key), "a rebuilt forge must not repeat it")
+    }
+
+    func testEmptyPoolAdvicePointsAtThePlaceholderAgent() {
+        let advice = AzureDevOpsForge.emptyPoolAdvice(agents: [], labels: ["kinhin"], pool: "Mac Fleet")
+        XCTAssertTrue(advice?.contains("Mac Fleet") == true, advice ?? "nil")
+        XCTAssertTrue(advice?.contains("docs/forges/azuredevops.md") == true, advice ?? "nil")
+        let bare = AzureDevOpsAgent(id: 1, name: "a")
+        let anchor = AzureDevOpsAgent(id: 2, name: "anchor", status: "offline", userCapabilities: ["KINHIN": "true"])
+        XCTAssertNil(AzureDevOpsForge.emptyPoolAdvice(agents: [bare], labels: [], pool: "p"), "no labels: any agent")
+        XCTAssertNotNil(
+            AzureDevOpsForge.emptyPoolAdvice(agents: [bare], labels: ["kinhin"], pool: "p"),
+            "an agent without the label's capability does not satisfy the demand")
+        XCTAssertNil(AzureDevOpsForge.emptyPoolAdvice(agents: [bare, anchor], labels: ["kinhin"], pool: "p"))
+
+        // A disabled agent is never given a job, so it does not satisfy the demand either.
+        let disabled = AzureDevOpsAgent(
+            id: 5, name: "off", status: "offline", userCapabilities: ["kinhin": "true"], enabled: false)
+        XCTAssertNotNil(AzureDevOpsForge.emptyPoolAdvice(agents: [disabled], labels: ["kinhin"], pool: "p"))
+
+        // A `name=value` label needs that value: xcode=15 cannot satisfy an `-equals 16` demand.
+        let xcode15 = AzureDevOpsAgent(
+            id: 3, name: "x15", status: "offline", userCapabilities: ["xcode": "15"])
+        let xcode16 = AzureDevOpsAgent(
+            id: 4, name: "x16", status: "offline", userCapabilities: ["XCODE": "16"])
+        XCTAssertNotNil(AzureDevOpsForge.emptyPoolAdvice(agents: [xcode15], labels: ["xcode=16"], pool: "p"))
+        XCTAssertNil(AzureDevOpsForge.emptyPoolAdvice(agents: [xcode15, xcode16], labels: ["xcode=16"], pool: "p"))
+    }
+
     func testAnAgentThatComesBackOnlineIsNeverReaped() async throws {
         let clock = Locked(Date(timeIntervalSince1970: 1_000_000))
         let listing = Locked(Self.agents([(1, "kinhin-1", "online")]))

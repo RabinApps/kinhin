@@ -79,6 +79,11 @@ public struct AzureDevOpsAgent: Decodable, Sendable, Equatable {
     /// "online" or "offline".
     public let status: String?
     let assignedRequest: RequestRef?
+    /// Azure's `enabled` flag; a disabled agent is never given a job. Absent counts as enabled.
+    let enabled: Bool?
+    /// Only present when listed with `includeCapabilities`.
+    let userCapabilities: [String: String]?
+    let systemCapabilities: [String: String]?
 
     struct RequestRef: Decodable, Sendable, Equatable {
         let requestId: Int64
@@ -86,9 +91,26 @@ public struct AzureDevOpsAgent: Decodable, Sendable, Equatable {
 
     public var busy: Bool { assignedRequest != nil }
 
-    init(id: Int, name: String, status: String? = "online", assignedRequestID: Int64? = nil) {
+    /// Whether the agent advertises a capability of this name (either kind; names compare
+    /// case-insensitively), and, when `value` is given, with that value (an `-equals` demand).
+    func hasCapability(_ name: String, value: String? = nil) -> Bool {
+        [userCapabilities, systemCapabilities].contains { capabilities in
+            capabilities?.contains { entry in
+                entry.key.caseInsensitiveCompare(name) == .orderedSame
+                    && (value.map { entry.value.caseInsensitiveCompare($0) == .orderedSame } ?? true)
+            } == true
+        }
+    }
+
+    init(
+        id: Int, name: String, status: String? = "online", assignedRequestID: Int64? = nil,
+        userCapabilities: [String: String]? = nil, enabled: Bool? = nil
+    ) {
         self.id = id
         self.name = name
+        self.enabled = enabled
+        self.userCapabilities = userCapabilities
+        self.systemCapabilities = nil
         self.status = status
         self.assignedRequest = assignedRequestID.map(RequestRef.init(requestId:))
     }

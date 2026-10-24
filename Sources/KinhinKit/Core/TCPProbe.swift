@@ -18,7 +18,10 @@ enum TCPProbe {
                     case .ready: gate.finish(true)
                     // `.waiting` is a refused/unreachable connect that the
                     // framework would retry; the caller does its own retrying.
-                    case .waiting, .failed, .cancelled: gate.finish(false)
+                    case .waiting(let error):
+                        noteWaiting(host: host, error: error)
+                        gate.finish(false)
+                    case .failed, .cancelled: gate.finish(false)
                     default: break
                     }
                 }
@@ -30,6 +33,23 @@ enum TCPProbe {
             }
         } onCancel: {
             gate.finish(false)
+        }
+    }
+
+    private static let reportedWaiting = Mutex(false)
+
+    /// Says once per process why a connect is not completing, so a block that
+    /// never clears (macOS Local Network privacy shows up here as a path
+    /// error, not a refusal) is visible in the log. A refused connect is the
+    /// normal "sshd is not up yet" and is not reported.
+    private static func noteWaiting(host: String, error: NWError) {
+        if case .posix(let code) = error, code == .ECONNREFUSED { return }
+        let first = reportedWaiting.withLock { reported -> Bool in
+            defer { reported = true }
+            return !reported
+        }
+        if first {
+            Log.info("tcp-probe", "connect to \(host):22 is not completing: \(error) (retrying)")
         }
     }
 

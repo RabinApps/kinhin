@@ -87,8 +87,8 @@ in-process engine) the same way the Fleet tab does.
 
 | Command | What it does |
 | ------- | ------------ |
-| `kinhin start` | Starts the fleet in the current terminal (Ctrl-C to stop). Runs the engine in-process. |
-| `kinhin stop` | Stops the fleet — dispatches to the daemon if one is alive, otherwise finds an in-process engine to stop. |
+| `kinhin start` | Starts the fleet in the current terminal (Ctrl-C to stop). Runs the engine in-process and opens no control socket, so `status`, `stop`, `pause` and `watch` cannot see it (`status` reports `daemonRunning: false`); use `kinhin daemon` when you need them. |
+| `kinhin stop` | Stops the fleet through the daemon (it prints that no daemon is running otherwise; a fleet started with `kinhin start` stops with Ctrl-C). It is not a drain: it deletes every active VM, ending any job running on one. `kinhin pause` first lets running jobs finish. |
 | `kinhin pause` / `kinhin resume` | Hold the fleet / let it scale again. Requires a running daemon. |
 | `kinhin status [--json]` | Show fleet status (queue depth, VMs, jobs). Attach to the daemon if running. |
 | `kinhin watch` | Live status view, refreshes every 2s. |

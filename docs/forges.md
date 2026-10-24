@@ -18,7 +18,7 @@ its job finishes.
 | Forgejo Actions     | ✅ supported | gitea-runner   | `owner/name` repo or org, any instance                 |
 | GitLab CE           | ✅ supported | gitlab-runner  | project or group path (`group/sub/proj`)               |
 | Buildkite           | 🔜 planned   | —              | —                                                      |
-| Azure Pipelines     | 🔜 planned   | —              | —                                                      |
+| Azure Pipelines     | 🧪 experimental | azure agent  | agent pool name, `instance` is the organization URL    |
 | Bitbucket Pipelines | 🔜 planned   | —              | —                                                      |
 
 ## What has been tested
@@ -100,7 +100,14 @@ runs one job, and deletes it. A pending job counts as demand when every tag it a
 deletes itself after one job. Only the tagged jobs of projects the token can read count; a single project the token
 cannot read is an error, not an empty queue.
 
-### Planned: Buildkite, Azure Pipelines, Bitbucket Pipelines
+### Experimental: Azure Pipelines
+
+One user has run real jobs against Azure DevOps Services: smoke jobs, two concurrent VMs, scale from zero and
+automatic cleanup. Real application builds, several Macs and Azure DevOps Server are unverified. A pool with no
+agents makes Azure reject labelled jobs instead of queueing them, so scale-to-zero needs a permanently offline
+placeholder agent; see [Azure DevOps](forges/azuredevops.md#empty-pools).
+
+### Planned: Buildkite, Bitbucket Pipelines
 
 Support for these is planned for a later release and is not part of the beta. Follow the
 [roadmap](beta-roadmap.md) for progress.

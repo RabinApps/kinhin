@@ -65,7 +65,7 @@ accounts:
 
 ::: warning Beta
 Gitea, Forgejo and GitLab CE have run real jobs on every runtime; GitHub Actions on Tart macOS VMs and
-apple/container. Buildkite, Azure Pipelines and Bitbucket Pipelines are planned, not supported yet. See
+apple/container. Azure Pipelines is experimental (smoke-tested by one user, not by the project). Buildkite and Bitbucket Pipelines are planned, not supported yet. See
 [what has been tested](/guide/forges#what-has-been-tested), and please report how it goes.
 :::
 

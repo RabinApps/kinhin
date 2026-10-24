@@ -147,6 +147,48 @@ final class AuthAccountsCommandTests: XCTestCase {
         XCTAssertEqual(report.accounts.first?.prefix, "ghp_")
     }
 
+    /// `--account NAME` narrows the JSON document and the exit verdict to that account.
+    func testStatusJSONNarrowsToTheNamedAccount() async throws {
+        let recorder = AuthRecorder()
+        try await addWork(recorder)
+        try await AuthCommand.run(
+            ["auth", "add", "other", "--github", "--scope", "elsewhere"], environment: environment(recorder))
+        let env = environment(recorder, stored: ["work": "ghp_abcd"])
+        let (all, _) = try AuthCommand.emitStatusJSON(environment: env, quiet: true)
+        XCTAssertEqual(all.accounts.map(\.name).sorted(), ["other", "work"])
+        XCTAssertFalse(all.allGood, "the account without a token spoils the full report")
+
+        let (work, _) = try AuthCommand.emitStatusJSON(environment: env, quiet: true, account: "work")
+        XCTAssertEqual(work.accounts.map(\.name), ["work"])
+        XCTAssertTrue(work.forges.isEmpty)
+        XCTAssertTrue(work.allGood)
+
+        let (other, _) = try AuthCommand.emitStatusJSON(environment: env, quiet: true, account: "other")
+        XCTAssertFalse(other.allGood)
+    }
+
+    /// A stored token with an empty scope cannot route a job: the narrowed verdict matches the full report's.
+    func testNarrowedReportRequiresAScopeLikeTheFullReport() {
+        let row = AuthStatusReport.Account(
+            name: "work", forge: "github", stored: true, prefix: "ghp_", scope: "", instance: nil, detail: "")
+        let report = AuthStatusReport(forges: [], allGood: false, accounts: [row])
+        XCTAssertFalse(report.narrowed(toAccount: "work").allGood)
+    }
+
+    func testListedAccountsReportTokenStateWithoutTheToken() async throws {
+        let recorder = AuthRecorder()
+        try await addWork(recorder)
+        let rows = AuthCommand.listedAccounts(environment: environment(recorder, stored: ["work": "ghp_secret"]))
+        XCTAssertEqual(rows.map(\.name), ["work"])
+        XCTAssertEqual(rows.first?.token, "stored")
+        XCTAssertEqual(rows.first?.forge, "github")
+        XCTAssertEqual(rows.first?.scope, "bigco")
+        let encoded = try String(decoding: JSONEncoder().encode(rows), as: UTF8.self)
+        XCTAssertFalse(encoded.contains("ghp_secret"), "the token never appears in the listing")
+        XCTAssertEqual(
+            AuthCommand.listedAccounts(environment: environment(recorder)).first?.token, "none")
+    }
+
     // MARK: - GitLab
 
     func testGitLabAccountRoundTrip() async throws {

@@ -78,6 +78,11 @@ public struct CLTProbe: Sendable {
         return parts.joined(separator: ".")
     }
 
+    /// "27.0.1" → "27.0": the major.minor release line.
+    static func releaseLine(_ version: String) -> String {
+        version.split(separator: ".").prefix(2).joined(separator: ".")
+    }
+
     /// Compare dotted numeric versions; true when `version` satisfies `required`
     /// (segment-wise, missing segments are zeros). "26.6" satisfies "27.0"? No.
     /// "27.0" satisfies "27.0"? Yes.
@@ -139,7 +144,10 @@ public struct CLTProbe: Sendable {
         // 3. Compare the receipt version against the running macOS version.
         let macOS = osVersion()
         let clt = Self.displayVersion(receiptVersion)
-        if Self.isVersion(clt, atLeast: macOS) {
+        // Compared by release line (major.minor): Apple ships Command Line
+        // Tools per macOS release, not per macOS patch, so CLT 27.0.0 is the
+        // current tools for macOS 27.0.1 and reinstalling them would change nothing.
+        if Self.isVersion(Self.releaseLine(clt), atLeast: Self.releaseLine(macOS)) {
             return .ok(version: clt)
         }
         return .outdated(version: clt, macOSVersion: macOS)
