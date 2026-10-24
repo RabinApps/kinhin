@@ -8,10 +8,10 @@ Ephemeral, autoscaling runners for GitHub Actions, Gitea and Forgejo Actions and
 narrated launch videos built from files in your repo.
 
 **[kinhin.dev](https://kinhin.dev)** · [Quick start](https://kinhin.dev/guide/quick-start) ·
-[Beta 2](https://kinhin.dev/blog/beta-2)
+[Beta 3](https://kinhin.dev/blog/beta-3)
 
 <!-- docs-sync:begin release-banner -->
-> **Beta (`v0.0.1-beta-2`).** Supported: GitHub, Gitea, Forgejo and GitLab CE. See
+> **Beta (`v0.0.1-beta-3`).** Supported: GitHub, Gitea, Forgejo and GitLab CE. See
 > [what has been tested](docs/forges.md#what-has-been-tested) and the [roadmap](docs/beta-roadmap.md), and
 > [report what you find](https://github.com/RabinApps/kinhin/issues/new/choose). No telemetry.
 <!-- docs-sync:end release-banner -->

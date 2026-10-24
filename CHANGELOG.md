@@ -4,6 +4,8 @@
 
 <!-- changelog: entries for the next release go here -->
 
+## v0.0.1-beta-3
+
 **Added**
 
 - The healing agent can use [Ollama](https://ollama.com) with your own models: `healing: {ai: ollama, ollama: {model: …}}`.
@@ -23,6 +25,13 @@
   temporary per-scene encodes are faster, and every build prints how long each step took. `kinhin video build --scene app,outro`
   builds only those scenes as a quick preview, and `--watch` rebuilds when your video files change. See
   [docs/videos-for-your-project.md](docs/videos-for-your-project.md#faster-rebuilds).
+- `kinhin video record --pointer` writes where the pointer was and where it clicked beside the clip, and a `device` scene's
+  `autoZoom` turns those clicks into camera moves. The picture still never shows the pointer. `captions.burn` can be a list of
+  formats (`["9:16", "1:1"]`); kinhin's own adapter now burns captions in the vertical and square cuts and leaves 16:9 clean,
+  while other projects keep burning them in every format.
+- The menu bar app is translated into Spanish, Japanese, German, Hebrew, Arabic, Italian and French, and follows the macOS
+  language. The translations are first drafts awaiting native-speaker review, so please report wrong or awkward wording. The
+  CLI, its output and the docs stay English. Disclosure arrows now mirror in right-to-left languages.
 
 **Fixed**
 
