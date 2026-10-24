@@ -48,6 +48,30 @@ final class RegistryDigestResolverTests: XCTestCase {
             authHeaders.withLock { $0 }, ["Bearer anon-123"], "the anonymous token authorizes the manifest HEAD")
     }
 
+    /// Cirrus macOS images are plain OCI image manifests. A registry answers
+    /// 404 unless the Accept header names that type, which an index-only
+    /// header did not (the live "HTTP 404" for macos-sequoia-base:latest).
+    func testManifestAcceptNamesEveryManifestTypeSoPlainOCIImagesResolve() async throws {
+        StubProtocol.handler = { request in
+            let path = request.url?.path ?? ""
+            if path == "/token" { return (200, Data(#"{"token":"anon"}"#.utf8), [:]) }
+            let accept = request.value(forHTTPHeaderField: "Accept") ?? ""
+            guard path.hasPrefix("/v2/"), accept.contains("application/vnd.oci.image.manifest.v1+json") else {
+                return (404, Data(), [:])
+            }
+            return (200, Data(), ["Docker-Content-Digest": Self.digest])
+        }
+        let digest = try await makeResolver().resolveDigest("ghcr.io/cirruslabs/macos-sequoia-base:latest")
+        XCTAssertEqual(digest, Self.digest)
+        for type in [
+            "application/vnd.oci.image.index.v1+json",
+            "application/vnd.docker.distribution.manifest.list.v2+json",
+            "application/vnd.docker.distribution.manifest.v2+json",
+        ] {
+            XCTAssertTrue(RegistryDigestResolver.manifestAccept.contains(type), "Accept must also name \(type)")
+        }
+    }
+
     func testRegistryErrorsSurfaceWithTheReferenceAndReason() async {
         StubProtocol.handler = { _ in (404, Data(), [:]) }
         do {

@@ -81,11 +81,22 @@ public struct RegistryDigestResolver: DigestResolving, Sendable {
         return try await manifestDigest(host: ref.host, repository: ref.repository, tag: ref.tag, token: token)
     }
 
-    /// `POST /v2/auth` on ghcr.io mints a short-lived anonymous pull token
+    /// Every manifest media type a tag can point at. A registry answers 404 for
+    /// a tag whose manifest type is not listed, and Cirrus Labs images are
+    /// plain OCI image manifests, not indexes, so an index-only Accept header
+    /// finds nothing.
+    static let manifestAccept = [
+        "application/vnd.oci.image.index.v1+json",
+        "application/vnd.oci.image.manifest.v1+json",
+        "application/vnd.docker.distribution.manifest.list.v2+json",
+        "application/vnd.docker.distribution.manifest.v2+json",
+    ].joined(separator: ", ")
+
+    /// `GET /token` on ghcr.io mints a short-lived anonymous pull token
     /// scoped to the repository. (docker.io would use auth.docker.io/token.)
     private func anonymousToken(host: String, repository: String) async throws -> String {
         guard
-            let url = URL(string: "https://\(host)/token?service=ghcr.io&scope=repository:\(repository):pull")
+            let url = URL(string: "https://\(host)/token?service=\(host)&scope=repository:\(repository):pull")
         else {
             throw ImageError.malformedVersionFeed(feed: host, reason: "token URL did not parse")
         }
@@ -124,7 +135,7 @@ public struct RegistryDigestResolver: DigestResolving, Sendable {
         var request = URLRequest(url: url)
         request.httpMethod = "HEAD"
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/vnd.oci.image.index.v1+json", forHTTPHeaderField: "Accept")
+        request.setValue(Self.manifestAccept, forHTTPHeaderField: "Accept")
         request.setValue("Kinhin/1.0", forHTTPHeaderField: "User-Agent")
         let (_, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else {
