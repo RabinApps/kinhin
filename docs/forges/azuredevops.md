@@ -4,7 +4,7 @@ How kinhin talks to Azure Pipelines agent pools, and how that compares with Micr
 
 [← Back to README](../../README.md) · [Forge reference index](README.md) · [Setup guide](../forges.md)
 
-> **Planned.** Azure DevOps support is not part of the beta. This page records the implementation for the work ahead; see the [roadmap](../beta-roadmap.md).
+> **Experimental.** One user has run kinhin against Azure DevOps Services (beta 2, 2026-10): smoke jobs, two concurrent VMs, scale from zero and automatic cleanup worked. Real application builds, several Macs and Azure DevOps Server are unverified, and the project's own live test lane has not run (see the [roadmap](../beta-roadmap.md)). Read [Empty pools](#empty-pools) before relying on scale-to-zero.
 
 ## Overview
 
@@ -14,7 +14,7 @@ How kinhin talks to Azure Pipelines agent pools, and how that compares with Micr
 | Hosting | Azure DevOps Services (`https://dev.azure.com/{org}`) or Azure DevOps Server (self-hosted). `instance` is required and is the organization (or collection) URL. |
 | Scope | An agent pool name. |
 | Source | `Sources/KinhinKit/Forges/AzureDevOps/AzureDevOpsClient.swift`, `AzureDevOpsForge.swift`, `AzureDevOpsModels.swift`; agent start-up in `Sources/KinhinKit/Images/RunnerBootstrap/RunnerBootstrap+AzureDevOps.swift` |
-| Status | **Planned, not supported yet.** Implemented and unit-tested; not yet run against the real service. |
+| Status | **Experimental.** Unit-tested, and smoke-tested live by a user on Azure DevOps Services (see the banner above). Not in the project's live-tested lane. |
 
 ## Auth
 
@@ -61,7 +61,7 @@ Output is `GET /{project}/_apis/build/builds/{id}/logs/{logId}`, with the log id
 
 ## Registration flow
 
-- Registration mode `sharedLongLived`, exit semantics `deregisters` (`AzureDevOpsForge.swift:28-29`).
+- Registration mode `sharedLongLived`, exit semantics `deregisters` (`AzureDevOpsForge.swift:32-33`).
 - The registration credential **is the PAT itself**: `mintRegistrationToken` returns `credentials.token`. The agent is configured **in the foreground** with `config.sh --unattended --url --auth pat --pool --agent`, the token passed through `VSTS_AGENT_INPUT_TOKEN` for that command only, so a failed registration fails the script with the tail of `agent.log`. Registration is sequential, one runner after another. The registered agent then runs in the background (`run.sh --once` when the instance is ephemeral, plain `run.sh` when `vm.ephemeral` is false). The agent does **not** remove itself: an in-guest `config.sh remove` would need the PAT for the whole job, where job code could read it. The script unsets the PAT as soon as `config.sh` returns, and the host deletes the agent's record once it goes offline (below). The PAT still reaches every runner VM for registration, which `TokenRequirements` already warns about.
 
 ## Demand and label matching
@@ -89,15 +89,37 @@ No pagination: every list is a single `{value: [...]}` read. `withTransientRetry
 | Endpoints used | The pool and agent operations exist in the 5.1, 6.0, 6.1, 7.0 and 7.1 references, so lowering `api-version` for older Server is plausible. Not tested. |
 | Preview versions | After a release, its `-preview` form is deprecated and can be removed after 12 weeks. kinhin uses only stable versions. |
 
-## Before support: to verify against a live service
+## Empty pools
 
-- **Highest-impact risk: an empty pool plus a `demands:` job may fail fast rather than queue.** Azure may reject a request whose demands no agent in the pool satisfies instead of leaving it waiting, so kinhin would never see demand to scale up from. If so, the pool needs a placeholder offline agent that advertises the capabilities, or `min_runners >= 1`. Not verified.
+Azure queues a job only when some agent in the pool could run it. With no agent registered it fails the run at once, with `No agent found in pool … which satisfies the specified demands: kinhin, Agent.Version -gtVersion 2.144.0`. kinhin therefore never sees queued demand to scale from. (KEDA's Azure Pipelines scaler documents the same behaviour and uses a placeholder agent for it.) Observed live:
+
+- `min_runners: 1` does not avoid it: the pool is briefly empty while an ephemeral agent is replaced, and jobs queued then failed.
+- A permanently **offline** placeholder agent record in the pool fixes it. The record must be enabled and carry what the job demands: the account's labels as capabilities (`kinhin` becomes `kinhin=true`; names are letters, digits and `_`) and an `Agent.Version` at least as high as the YAML demand (`Agent.Version -gtVersion 2.144.0` is added by the pipeline, not by you). The user's record was named `azure-queue-anchor-do-not-run`; it never ran an agent process.
+- With the placeholder present, jobs queued without a `reservedAgent`, so kinhin counted them as demand and scaled from zero. kinhin does not reap it: an agent is only reaped after it was seen online (`AgentPresence`), and the placeholder never is.
+
+How the record was created is not recorded in the report. One approach, not verified by the project: register a real agent in the pool with `config.sh` under a name that is not a kinhin instance name, never start it, then add any missing user capabilities in **Project settings → Agent pools → the agent → Capabilities**. Keep these rules:
+
+- Use it only in the pool kinhin serves, and never point kinhin at a pool with other self-hosted agents.
+- Do not name it like a kinhin instance (`<prefix><digits>-<hex>`), which the orphan sweep removes.
+- Re-test it after a kinhin or agent upgrade and after changing labels: a changed label needs a matching capability on the record.
+- This is a user-verified workaround, not something Azure guarantees. kinhin only warns at start-up when the pool has no agents at all, and never writes the record itself.
+
+## Other setup notes from the live run
+
+- A classic pipeline definition created through the REST API was rejected until the job authorization scope `project` was set on **both** the definition and its phase.
+- The PAT needs Agent Pools (read and manage). Its scope is organization-wide; it is not restricted to one pool, so pool permissions also matter. Keep it in the Keychain via `kinhin auth set --account NAME`, never in `config.yaml`.
+- Parallelism is bounded by the organization's self-hosted parallel-job purchase and by Apple's limit of two macOS guests per Mac, not only by hardware. Several Macs each run their own scaler and see the same queue, so they can overprovision; multi-Mac operation is untested.
+- The jobs' guest needs its own toolchains: the host's Xcode, Node and Android SDK are not inherited by a VM.
+
+## Before full support: still to verify against a live service
+
 - That an exported `kinhin_docker=true` environment variable is picked up as a capability by the agent, and that the demand arrives as `kinhin_docker`.
 - That `installdependencies.sh` under `sudo` succeeds on the Tart Linux image and that `Agent.Listener --version` runs there.
 - That the 60 s busy grace never reaps an agent mid-job, and how often an idle agent blips offline before its first job (each such blip costs a respawn under the 15 s idle grace).
 - That a request carries `reservedAgent` before `assignTime`, as the queued rule assumes.
 - That a redirect really is how an expired PAT presents on Azure DevOps Services and Server.
 - That sequential registration of several runners in one VM is fast enough.
+- Real application builds, and scaling across several Macs.
 
 ## Verified
 

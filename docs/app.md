@@ -24,12 +24,13 @@ main window (and the ○ in your menu bar shows the number of live runner VMs).
 ### Supported forges and runtimes
 
 The beta supports GitHub, Gitea, Forgejo and GitLab CE. Gitea, Forgejo and GitLab CE are tested on every runtime;
-GitHub on Tart macOS VMs and apple/container. The forge grid also shows Buildkite, Azure
-DevOps and Bitbucket with an **untested** badge: their support is planned for a later release and is not part of the
-beta. The list comes from one table in the code (`MaturityTable`).
+GitHub on Tart macOS VMs and apple/container. The forge grid also shows Azure DevOps with an **experimental** badge (it has run real jobs for one user, but not in
+kinhin's own tests), and Buildkite and Bitbucket with an **untested** badge: their support is planned for a later
+release and is not part of the beta. The list comes from one table in the code (`MaturityTable`).
 
 <!-- docs-sync:begin maturity -->
 Live-tested forges (`MaturityTable`): `github`, `gitea`, `forgejo`, `gitlab`. Live-tested runtimes: `tart`, `appleContainer`, `docker`, `host` (`tart` means macOS VMs).
+Experimental forges (real jobs for a user, not yet in the project's own tests): `azuredevops`, shown with an **experimental** badge.
 Tart serving Linux VMs is live-tested too. Every other forge and runtime is shown with an **untested** badge.
 <!-- docs-sync:end maturity -->
 

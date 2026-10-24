@@ -79,6 +79,9 @@ public struct AzureDevOpsAgent: Decodable, Sendable, Equatable {
     /// "online" or "offline".
     public let status: String?
     let assignedRequest: RequestRef?
+    /// Only present when listed with `includeCapabilities`.
+    let userCapabilities: [String: String]?
+    let systemCapabilities: [String: String]?
 
     struct RequestRef: Decodable, Sendable, Equatable {
         let requestId: Int64
@@ -86,9 +89,21 @@ public struct AzureDevOpsAgent: Decodable, Sendable, Equatable {
 
     public var busy: Bool { assignedRequest != nil }
 
-    init(id: Int, name: String, status: String? = "online", assignedRequestID: Int64? = nil) {
+    /// Whether the agent advertises a capability of this name (either kind; names compare case-insensitively).
+    func hasCapability(_ name: String) -> Bool {
+        [userCapabilities, systemCapabilities].contains { capabilities in
+            capabilities?.keys.contains { $0.caseInsensitiveCompare(name) == .orderedSame } == true
+        }
+    }
+
+    init(
+        id: Int, name: String, status: String? = "online", assignedRequestID: Int64? = nil,
+        userCapabilities: [String: String]? = nil
+    ) {
         self.id = id
         self.name = name
+        self.userCapabilities = userCapabilities
+        self.systemCapabilities = nil
         self.status = status
         self.assignedRequest = assignedRequestID.map(RequestRef.init(requestId:))
     }

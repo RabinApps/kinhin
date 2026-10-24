@@ -217,7 +217,7 @@ export default defineConfig({
               { text: "Gitea & Forgejo", link: "/guide/forges/gitea" },
               { text: "GitLab", link: "/guide/forges/gitlab" },
               { text: "Buildkite (planned)", link: "/guide/forges/buildkite" },
-              { text: "Azure DevOps (planned)", link: "/guide/forges/azuredevops" },
+              { text: "Azure DevOps (experimental)", link: "/guide/forges/azuredevops" },
               { text: "Bitbucket (planned)", link: "/guide/forges/bitbucket" },
             ],
           },
