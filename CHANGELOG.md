@@ -41,7 +41,7 @@
 - `kinhin doctor` no longer calls Command Line Tools outdated when they only trail macOS by a patch release (CLT 27.0.0 on macOS 27.0.1).
 - `kinhin auth list --json` now exists, and `kinhin auth status --account NAME --json` reports only that account instead of every forge.
 - Azure DevOps: kinhin warns at start-up when the agent pool has no agents, because Azure then rejects labelled jobs instead of queueing them. The Azure DevOps page documents the offline placeholder agent that fixes it. Azure is now described as experimental rather than planned; it has had live smoke runs, not real application builds.
-- A restart no longer registers a VM again while its runner is still on the forge, which could fail a job running on it. A runner the forge still has is watched; a VM with no runner is registered as normal. A VM whose forge cannot be asked is held, shown by an `adoption` alert, and removed after one hour; a VM whose account was removed from the config is released at once. Forges with no runner list, and partly registered VMs, have their own rules. See [docs/scaling.md](docs/scaling.md#restarts).
+- A restart no longer registers a VM again while its runner is still on the forge, which could fail a job running on it. A runner the forge still has is watched; a VM with no runner is registered as normal. A VM whose forge cannot be asked is held, shown by an `adoption` alert, until it can be; a VM whose account has no forge attached is held the same way and removed after one hour; a VM whose account was removed from the config is released at once. Forges with no runner list, and partly registered VMs, have their own rules. See [docs/scaling.md](docs/scaling.md#restarts).
 
 **Changed**
 

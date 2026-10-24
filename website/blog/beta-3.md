@@ -23,8 +23,8 @@ again, which could disrupt a job already running on one. Beta 3 fixes that.
 
 - A restart no longer registers a VM again while its runner is still on the forge. A runner the forge still has is watched. A VM
   with no runner is registered as normal.
-- A VM whose forge cannot be asked is held, shown by an `adoption` alert, and removed after one hour. A VM whose account was
-  removed from the config is released at once.
+- A VM whose forge cannot be asked is held, shown by an `adoption` alert, until it can be. A VM whose account has no forge
+  attached is held the same way and removed after one hour. A VM whose account was removed from the config is released at once.
 - A classic container runner is registered again after a host reboot or `container system stop`, when the forge no longer has it.
 - Registration stops a leftover agent without `pkill`, and fails if it survives.
 
@@ -49,7 +49,7 @@ updater, so the first real test is beta 3 to the next release.
 
 The healing agent can ask [Ollama](https://ollama.com) instead of Apple Intelligence: `healing: {ai: ollama, ollama: {model: …}}`.
 An optional `fast_model` is asked first, and the larger model answers when it is not confident. Traffic goes to this Mac by
-default. Any other host must be `https`, and it then receives the redacted problem and log lines. It still only chooses among
+default. Any other host must be `https`, and it then receives the redacted problem, the allowed fixes and the log lines. It still only chooses among
 fixes that are already allowed. See [docs/healing.md](https://github.com/RabinApps/kinhin/blob/main/docs/healing.md#the-ollama-advisor).
 
 ### Videos with a camera

@@ -1,4 +1,4 @@
-# Beta 3 launch checklist (v0.0.1-beta-3, Thursday, October 29, 2026)
+# Beta 3 launch checklist (v0.0.1-beta-3, Saturday, October 24, 2026)
 
 Release checklist for [beta-3-launch-post-draft.md](beta-3-launch-post-draft.md). Same rules as the
 [beta 2 checklist](beta-2-launch-checklist.md): per gate, keep exactly one of the GATE or FALLBACK block, delete the other with
