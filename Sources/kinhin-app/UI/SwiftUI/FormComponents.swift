@@ -190,7 +190,7 @@ struct CollapsibleFormCard<Content: View>: View {
                 expanded.toggle()
             } label: {
                 HStack(spacing: 6) {
-                    Image(systemName: expanded ? "chevron.down" : "chevron.right")
+                    Image(systemName: expanded ? "chevron.down" : "chevron.forward")
                         .font(.system(size: 10, weight: .semibold))
                         .frame(width: 10)
                     title.font(.system(size: 13, weight: .semibold))
@@ -242,7 +242,7 @@ struct TokenRequirementsView: View {
                 expanded.toggle()
             } label: {
                 HStack(spacing: 4) {
-                    Image(systemName: expanded ? "chevron.down" : "chevron.right")
+                    Image(systemName: expanded ? "chevron.down" : "chevron.forward")
                         .font(.system(size: 9, weight: .semibold))
                         .frame(width: 10)
                     Text("Token permissions needed").font(.system(size: 11, weight: .semibold))
