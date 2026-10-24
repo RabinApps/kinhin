@@ -76,6 +76,28 @@ final class RunnerBootstrapQuotingTests: XCTestCase {
         XCTAssertEqual(process.terminationStatus, 0)
     }
 
+    /// The helper terminates a process whose command line matches. Needs `/proc`, so it runs on Linux only.
+    func testStopLeftoverAgentTerminatesAMatchingProcess() throws {
+        try XCTSkipUnless(FileManager.default.fileExists(atPath: "/proc/self"), "needs /proc")
+        let marker = String(Int.random(in: 100_000_000...999_999_999))
+        let child = Process()
+        child.executableURL = URL(fileURLWithPath: "/bin/sleep")
+        child.arguments = [marker]
+        try child.run()
+        defer { if child.isRunning { child.terminate() } }
+
+        let script = RunnerBootstrap.stopLeftoverAgentScript(pattern: "[s]leep \(marker)")
+        let helper = Process()
+        helper.executableURL = URL(fileURLWithPath: "/bin/bash")
+        helper.arguments = ["-c", "set -euo pipefail\n" + script]
+        try helper.run()
+        helper.waitUntilExit()
+
+        XCTAssertEqual(helper.terminationStatus, 0)
+        child.waitUntilExit()
+        XCTAssertFalse(child.isRunning, "the matching process is stopped")
+    }
+
     /// A quoted `~` is never expanded: the template copy for runners 2..N must
     /// name `"$HOME"/…`, or the copy fails and every extra runner re-downloads.
     func testJitTemplateCopyExpandsHome() {

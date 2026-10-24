@@ -41,7 +41,7 @@ extension RunnerBootstrap {
         """
         stop_agent() {
           [ -d /proc/self ] || return 0
-          for _ in 1 2 3 4 5; do
+          for attempt in 1 2 3 4 5 6; do
             found=""
             for dir in /proc/[0-9]*; do
               pid="${dir#/proc/}"
@@ -52,7 +52,8 @@ extension RunnerBootstrap {
               fi
             done
             [ -n "$found" ] || return 0
-            sleep 1
+            # The sixth pass is a last scan after the fifth wait, so an agent that exits in it is not reported.
+            [ "$attempt" = 6 ] || sleep 1
           done
           echo "an earlier agent matching $1 is still running" >&2
           return 1
