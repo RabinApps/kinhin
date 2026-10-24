@@ -1,5 +1,11 @@
 # Beta 3 plan
 
+## Status update (2026-10-24)
+
+beta-2 shipped on 2026-10-16. The scope below is **superseded**: beta-3 ships what is done (Sparkle updater, restart-recovery
+fixes, Ollama healing, video camera and karaoke, seven app languages, Azure experimental) on 2026-10-29, and the forge
+live-testing work moves to beta-4. See [beta-3-launch-checklist.md](beta-3-launch-checklist.md).
+
 ## Context
 
 beta-1 is the latest public release. beta-2 is merged on `develop` and `Version.swift` says `0.0.1-beta-2`, but the
