@@ -21,14 +21,16 @@ enum AuthCommand {
 
     /// Builds, prints, and returns the machine-readable status document.
     /// Static — no network probes, tolerant of a missing config file.
-    static func emitStatusJSON(environment: AuthEnvironment, quiet: Bool = false) throws -> (
+    static func emitStatusJSON(environment: AuthEnvironment, quiet: Bool = false, account: String? = nil) throws -> (
         report: AuthStatusReport, data: Data
     ) {
-        let report = statusReport(
+        var report = statusReport(
             jsonConfig: environment.jsonConfig,
             load: environment.load,
             loadAccount: environment.loadAccount
         )
+        // `--account NAME` narrows the document (and the exit code) to that account.
+        if let account { report = report.narrowed(toAccount: account) }
         let data = try CLIJSON.data(report)
         if !quiet { print(String(decoding: data, as: UTF8.self)) }
         return (report, data)
@@ -73,27 +75,66 @@ enum AuthCommand {
         }
     }
 
+    /// One `auth list --json` row. Field names are a stable API: add, never rename.
+    struct ListedAccount: Codable, Equatable {
+        let name: String
+        let forge: String
+        let scope: String
+        let instance: String?
+        /// "stored", "none" or "error" (the Keychain could not be read; see `error`).
+        let token: String
+        let error: String?
+    }
+
     /// `auth list`: every account, its scope and whether a token is stored.
-    private static func list(environment: AuthEnvironment) {
-        let config = environment.lookupConfig
-        let accounts = config?.allAccounts ?? []
-        guard !accounts.isEmpty else {
+    private static func list(args: [String], environment: AuthEnvironment) throws {
+        let rows = listedAccounts(environment: environment)
+        if args.contains("--json") {
+            try emitJSON(rows)
+            return
+        }
+        printListed(rows)
+    }
+
+    /// Every configured account with its Keychain state; never the token.
+    static func listedAccounts(environment: AuthEnvironment) -> [ListedAccount] {
+        let accounts = environment.lookupConfig?.allAccounts ?? []
+        var rows: [ListedAccount] = []
+        for account in accounts {
+            var token = "none"
+            var failure: String?
+            do {
+                let stored =
+                    try account.name == account.forge.rawValue
+                    ? environment.load(account.forge) : environment.loadAccount(account.forge, account.name)
+                token = stored == nil ? "none" : "stored"
+            } catch {
+                // Report it on this row (and keep listing the rest) rather than claim "no token".
+                token = "error"
+                failure = error.localizedDescription
+            }
+            rows.append(
+                ListedAccount(
+                    name: account.name, forge: account.forge.rawValue, scope: account.scope,
+                    instance: account.instance, token: token, error: failure))
+        }
+        return rows
+    }
+
+    private static func printListed(_ rows: [ListedAccount]) {
+        guard !rows.isEmpty else {
             print("no accounts configured")
             return
         }
-        for account in accounts {
+        for row in rows {
             let state: String
-            do {
-                let token =
-                    try account.name == account.forge.rawValue
-                    ? environment.load(account.forge) : environment.loadAccount(account.forge, account.name)
-                state = token == nil ? "no token" : "token stored"
-            } catch {
-                // Report it on this row (and keep listing the rest) rather than claim "no token".
-                state = "keychain error: \(error.localizedDescription)"
+            switch row.token {
+            case "stored": state = "token stored"
+            case "error": state = "keychain error: \(row.error ?? "unknown")"
+            default: state = "no token"
             }
-            let where_ = account.instance.map { "\(account.scope) @ \($0)" } ?? account.scope
-            print("\(account.name)\t\(account.forge.rawValue)\t\(where_)\t\(state)")
+            let where_ = row.instance.map { "\(row.scope) @ \($0)" } ?? row.scope
+            print("\(row.name)\t\(row.forge)\t\(where_)\t\(state)")
         }
     }
 
@@ -123,7 +164,7 @@ enum AuthCommand {
         let sub = args.dropFirst().first ?? "set"
         switch sub {
         case "add": return try add(args, environment: environment)
-        case "list": return list(environment: environment)
+        case "list": return try list(args: args, environment: environment)
         case "remove": return try remove(args, environment: environment)
         case "set", "status", "clear": break
         default: try environment.fail("unknown auth subcommand '\(sub)' (use set|status|clear|list|add|remove)")
@@ -204,7 +245,8 @@ enum AuthCommand {
         let quiet = args.contains("--quiet") || args.contains("-q")
         let say: (String) -> Void = { if !quiet { print($0) } }
         if args.contains("--json") {
-            let (report, _) = try Self.emitStatusJSON(environment: environment, quiet: quiet)
+            let (report, _) = try Self.emitStatusJSON(
+                environment: environment, quiet: quiet, account: target.named?.name ?? flag("--account", in: args))
             if !report.allGood { try environment.exit(1) }
             return
         }
