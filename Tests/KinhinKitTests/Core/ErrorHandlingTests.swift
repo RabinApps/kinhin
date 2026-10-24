@@ -165,13 +165,15 @@ final class ErrorHandlingTests: XCTestCase {
 
     /// A probe that has worked keeps gating ssh past the grace: a slow sshd must not cost a process per retry.
     func testRegistrationKeepsGatingOnAProbeThatHasWorked() async throws {
-        let ssh = PortGatedSSH(closedProbes: 0, reclosedProbes: 30)
+        let ssh = PortGatedSSH(closedProbes: 0, reclosedProbes: 30, failFirstExec: true)
         let runtime = TartRuntime(
             tart: FakeTart(), bootTimeout: { 300 }, ssh: ssh, sshReadyWindow: 300, sshRetryInterval: .milliseconds(1),
             sshProbeInterval: .milliseconds(5), sshProbeGrace: 0.02)
         let result = try await runtime.execRegistration("vm-1", ip: "10.0.0.2", "true", timeout: 5)
         XCTAssertTrue(result.succeeded)
-        XCTAssertEqual(ssh.execs, 1, "ssh ran once, after the probe reopened, not while it was merely closed")
+        XCTAssertEqual(ssh.execs, 2, "the first attempt failed retryably, then one more")
+        // Probes 2...31 answer "closed" again; the retry must wait for the probe to reopen (probe 32).
+        XCTAssertGreaterThanOrEqual(ssh.probesAtExec.last ?? 0, 32, "the retry waited for the probe, not for the grace")
     }
 
     func testTartTeardownDoesNotNeedList() async throws {
@@ -235,16 +237,21 @@ private final class FlakySSH: SSHExecuting, Sendable {
 }
 
 private final class PortGatedSSH: SSHExecuting, Sendable {
-    private let state = Mutex((probes: 0, execs: 0))
+    private let state = Mutex((probes: 0, execs: 0, probesAtExec: [Int]()))
     let closedProbes: Int
     /// Probes that answer "closed" again after the first open answer (sshd restarting).
     let reclosedProbes: Int
-    init(closedProbes: Int, reclosedProbes: Int = 0) {
+    /// The first exec fails with a retryable "not listening" error.
+    let failFirstExec: Bool
+    init(closedProbes: Int, reclosedProbes: Int = 0, failFirstExec: Bool = false) {
         self.closedProbes = closedProbes
         self.reclosedProbes = reclosedProbes
+        self.failFirstExec = failFirstExec
     }
     var probes: Int { state.withLock { $0.probes } }
     var execs: Int { state.withLock { $0.execs } }
+    /// How many probes had been made when each exec ran.
+    var probesAtExec: [Int] { state.withLock { $0.probesAtExec } }
 
     func isSSHPortOpen(ip: String) async -> Bool {
         state.withLock { state in
@@ -257,7 +264,15 @@ private final class PortGatedSSH: SSHExecuting, Sendable {
     }
 
     func exec(vm: String, user: String, ip: String, script: String, timeout: TimeInterval) async throws -> ShellResult {
-        state.withLock { $0.execs += 1 }
+        let n = state.withLock { state -> Int in
+            state.execs += 1
+            state.probesAtExec.append(state.probes)
+            return state.execs
+        }
+        if failFirstExec, n == 1 {
+            return ShellResult(
+                exitCode: 255, stdout: "", stderr: "ssh: connect to host 10.0.0.2 port 22: Connection refused")
+        }
         return ShellResult(exitCode: 0, stdout: "ok", stderr: "")
     }
 

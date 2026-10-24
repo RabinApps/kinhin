@@ -102,7 +102,7 @@ How the record was created is not recorded in the report. One approach, not veri
 - Use it only in the pool kinhin serves, and never point kinhin at a pool with other self-hosted agents.
 - Do not name it like a kinhin instance (`<prefix><digits>-<hex>`), which the orphan sweep removes.
 - Re-test it after a kinhin or agent upgrade and after changing labels: a changed label needs a matching capability on the record.
-- This is a user-verified workaround, not something Azure guarantees. kinhin only warns at start-up when the pool has no agents at all, and never writes the record itself.
+- This is a user-verified workaround, not something Azure guarantees. kinhin warns at start-up when no listed agent advertises the account's labels as capabilities (with the same value, for a `name=value` label), and never writes the record itself.
 
 ## Other setup notes from the live run
 
