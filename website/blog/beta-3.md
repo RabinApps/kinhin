@@ -29,7 +29,7 @@ again, which could disrupt a job already running on one. Beta 3 fixes that.
 - Registration stops a leftover agent without `pkill`, and fails if it survives.
 
 [Restarts](https://github.com/RabinApps/kinhin/blob/main/docs/scaling.md#restarts) explains each rule.
-This is covered by unit tests. I have not yet restarted kinhin under a real running job, so treat that as untested.
+I tested this live on 2026-10-24: I upgraded a Mac with real state from beta 2, and restarted kinhin while a job was running. The job was left alone.
 
 ## What is new
 
@@ -96,7 +96,7 @@ forges.
 
 - **Run:** the unit suite (3,453 tests, no VMs or network) and the release build's own check, on the release commit.
 - **Run:** the ThreadSanitizer run on the release commit, with no reports.
-- **Not yet:** upgrading from beta 2 on a Mac with real state, and a restart under a real running job.
+- **Run:** an upgrade from beta 2 on a Mac with real state (nothing lost), and a restart under a real running job, which was left alone. One Mac, one pass.
 - **Not yet:** the end-to-end suite on this release. It runs only in CI, and its dedicated Mac is not registered yet.
 - **Not yet:** the Buildkite, Azure Pipelines and Bitbucket Pipelines lanes.
 - **Not yet:** a long-running soak test.
