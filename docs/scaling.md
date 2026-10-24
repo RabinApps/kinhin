@@ -110,7 +110,9 @@ When the daemon or app restarts, kinhin reads its saved state (`fleet.json` in t
 running on each runtime before it starts anything new.
 
 - **Intact `fleet.json`.** Records are reloaded. A runner that was registered (idle or busy) is watched, not registered again,
-  so its job is not disturbed. A warm VM returns to the warm pool.
+  so its job is not disturbed. The exception is an idle classic (non-ephemeral) runner in an Apple container or Docker
+  container: the agent dies with a stopped container, so when the forge lists runners and has none for it, it is registered
+  again. A warm VM returns to the warm pool.
 - **Unreadable `fleet.json`.** kinhin moves the file aside to `fleet.json.corrupt-<timestamp>` (it is never overwritten), and
   the status alert and `kinhin status` name the kept copy. The engine starts with no VM records, so job and repo attribution
   is lost. It then re-adopts each VM it finds and checks that VM's runner with the forge, asking each account once:

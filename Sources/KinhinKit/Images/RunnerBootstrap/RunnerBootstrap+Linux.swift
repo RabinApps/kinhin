@@ -33,6 +33,47 @@ extension RunnerBootstrap {
             ]).joined(separator: "\n")
     }
 
+    /// Stops any process that runs `executable` (matched on the first word's base name, as a fixed string) with
+    /// `arguments` as its leading arguments, and fails the script if one survives five seconds. Nothing else is
+    /// matched: text in another process's arguments, or in this script's own `bash -c` command line, never is. It
+    /// reads `/proc` instead of calling `pkill`, which minimal images lack, and does nothing where there is no
+    /// `/proc` (a macOS guest is a fresh clone).
+    static func stopLeftoverAgentScript(executable: String, arguments: [String] = []) -> String {
+        """
+        stop_agent() {
+          [ -d /proc/self ] || return 0
+          wanted="$1"
+          shift
+          wanted_args="$*"
+          for attempt in 1 2 3 4 5 6; do
+            found=""
+            for dir in /proc/[0-9]*; do
+              pid="${dir#/proc/}"
+              [ "$pid" != "$$" ] || continue
+              line=$(tr '\\0' ' ' < "$dir/cmdline" 2>/dev/null) || continue
+              first="${line%% *}"
+              [ "${first##*/}" = "$wanted" ] || continue
+              rest="${line#"$first"}"
+              if [ -n "$wanted_args" ]; then
+                case "$rest" in
+                  " $wanted_args"|" $wanted_args "*) ;;
+                  *) continue ;;
+                esac
+              fi
+              found=1
+              kill "$pid" 2>/dev/null || true
+            done
+            [ -n "$found" ] || return 0
+            # The sixth pass is a last scan after the fifth wait, so an agent that exits in it is not reported.
+            [ "$attempt" = 6 ] || sleep 1
+          done
+          echo "an earlier $wanted $wanted_args is still running" >&2
+          return 1
+        }
+        stop_agent \(([executable] + arguments).map(shellQuote).joined(separator: " "))
+        """
+    }
+
     // MARK: - Linux runner agent installers (baked into images)
 
     /// Installs the GitHub Actions runner agent into a Linux image for the
@@ -148,6 +189,9 @@ extension RunnerBootstrap {
             set -euo pipefail
             # Containers run as root, which the runner refuses unless allowed.
             export RUNNER_ALLOW_RUNASROOT=1
+            # An agent left from an earlier registration (this container is being registered again) would hold
+            # the runner's session and make the new one fail to connect.
+            \(stopLeftoverAgentScript(executable: "Runner.Listener"))
 
             \(blocks)
             """
@@ -187,6 +231,8 @@ extension RunnerBootstrap {
         }
         return """
             set -euo pipefail
+            # A daemon left from an earlier registration would keep running beside the new one.
+            \(stopLeftoverAgentScript(executable: "gitea-runner", arguments: ["daemon"]))
 
             \(blocks)
             """
