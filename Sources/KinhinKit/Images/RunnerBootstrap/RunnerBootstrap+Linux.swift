@@ -33,6 +33,34 @@ extension RunnerBootstrap {
             ]).joined(separator: "\n")
     }
 
+    /// Stops any process whose command line matches `pattern` (a grep regex) and fails the script if one survives
+    /// five seconds. It reads `/proc` instead of calling `pkill`, which minimal images lack, and does nothing where
+    /// there is no `/proc` (a macOS guest is a fresh clone). Write the pattern with one character in brackets
+    /// (`[g]itea`): the script's own command line, which may carry this text under `bash -c`, then cannot match it.
+    static func stopLeftoverAgentScript(pattern: String) -> String {
+        """
+        stop_agent() {
+          [ -d /proc/self ] || return 0
+          for _ in 1 2 3 4 5; do
+            found=""
+            for dir in /proc/[0-9]*; do
+              pid="${dir#/proc/}"
+              [ "$pid" != "$$" ] || continue
+              if tr '\\0' ' ' < "$dir/cmdline" 2>/dev/null | grep -q -e "$1"; then
+                found=1
+                kill "$pid" 2>/dev/null || true
+              fi
+            done
+            [ -n "$found" ] || return 0
+            sleep 1
+          done
+          echo "an earlier agent matching $1 is still running" >&2
+          return 1
+        }
+        stop_agent \(shellQuote(pattern))
+        """
+    }
+
     // MARK: - Linux runner agent installers (baked into images)
 
     /// Installs the GitHub Actions runner agent into a Linux image for the
@@ -148,10 +176,9 @@ extension RunnerBootstrap {
             set -euo pipefail
             # Containers run as root, which the runner refuses unless allowed.
             export RUNNER_ALLOW_RUNASROOT=1
-            # The bracket keeps the pattern from matching this script's own command line.
             # An agent left from an earlier registration (this container is being registered again) would hold
             # the runner's session and make the new one fail to connect.
-            pkill -f '/bin/[R]unner.Listener' 2>/dev/null && sleep 1 || true
+            \(stopLeftoverAgentScript(pattern: "/bin/[R]unner.Listener"))
 
             \(blocks)
             """
@@ -191,9 +218,8 @@ extension RunnerBootstrap {
         }
         return """
             set -euo pipefail
-            # A daemon left from an earlier registration would keep running beside the new one. The bracket keeps the
-            # pattern from matching this script's own command line (a VM may receive it as `bash -c`).
-            pkill -f '[g]itea-runner daemon' 2>/dev/null && sleep 1 || true
+            # A daemon left from an earlier registration would keep running beside the new one.
+            \(stopLeftoverAgentScript(pattern: "[g]itea-runner daemon"))
 
             \(blocks)
             """

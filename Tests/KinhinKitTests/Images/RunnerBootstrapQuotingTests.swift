@@ -59,10 +59,21 @@ final class RunnerBootstrapQuotingTests: XCTestCase {
             configureURL: "https://github.com/acme/r", token: "t", labels: ["x"], ephemeral: false, name: "vm")
         let gitea = RunnerBootstrap.linuxGiteaRegistrationScript(
             instance: "https://gitea.example", token: "t", labels: ["x"], name: "vm")
-        XCTAssertTrue(github.contains("pkill -f '/bin/[R]unner.Listener'"), github)
-        XCTAssertTrue(gitea.contains("pkill -f '[g]itea-runner daemon'"), gitea)
-        XCTAssertFalse(github.contains("pkill -f '/bin/Runner.Listener'"))
-        XCTAssertFalse(gitea.contains("pkill -f 'gitea-runner daemon'"))
+        XCTAssertTrue(github.contains("stop_agent '/bin/[R]unner.Listener'"), github)
+        XCTAssertTrue(gitea.contains("stop_agent '[g]itea-runner daemon'"), gitea)
+        XCTAssertFalse(github.contains("pkill"))
+        XCTAssertFalse(gitea.contains("pkill"))
+    }
+
+    /// The helper is valid bash and succeeds when no process matches.
+    func testStopLeftoverAgentSucceedsWhenNothingMatches() throws {
+        let script = RunnerBootstrap.stopLeftoverAgentScript(pattern: "[n]o-such-agent-\(UUID().uuidString)")
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/bash")
+        process.arguments = ["-c", "set -euo pipefail\n" + script]
+        try process.run()
+        process.waitUntilExit()
+        XCTAssertEqual(process.terminationStatus, 0)
     }
 
     /// A quoted `~` is never expanded: the template copy for runners 2..N must
