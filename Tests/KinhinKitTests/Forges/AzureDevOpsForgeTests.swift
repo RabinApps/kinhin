@@ -245,6 +245,14 @@ final class AzureDevOpsForgeTests: XCTestCase {
             AzureDevOpsForge.emptyPoolAdvice(agents: [bare], labels: ["kinhin"], pool: "p"),
             "an agent without the label's capability does not satisfy the demand")
         XCTAssertNil(AzureDevOpsForge.emptyPoolAdvice(agents: [bare, anchor], labels: ["kinhin"], pool: "p"))
+
+        // A `name=value` label needs that value: xcode=15 cannot satisfy an `-equals 16` demand.
+        let xcode15 = AzureDevOpsAgent(
+            id: 3, name: "x15", status: "offline", userCapabilities: ["xcode": "15"])
+        let xcode16 = AzureDevOpsAgent(
+            id: 4, name: "x16", status: "offline", userCapabilities: ["XCODE": "16"])
+        XCTAssertNotNil(AzureDevOpsForge.emptyPoolAdvice(agents: [xcode15], labels: ["xcode=16"], pool: "p"))
+        XCTAssertNil(AzureDevOpsForge.emptyPoolAdvice(agents: [xcode15, xcode16], labels: ["xcode=16"], pool: "p"))
     }
 
     func testAnAgentThatComesBackOnlineIsNeverReaped() async throws {

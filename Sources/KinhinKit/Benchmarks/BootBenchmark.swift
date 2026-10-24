@@ -83,12 +83,15 @@ enum BootBenchmark {
     private static func awaitSSH(_ ctx: BenchmarkContext, vm: String, ip: String) async throws {
         let started = Date()
         let deadline = started.addingTimeInterval(max(ctx.bootTimeout, 30))
-        // As in registration, a probe blocked by Local Network privacy must not
-        // gate ssh past a short grace.
+        // As in registration, a probe that has never seen the port open (blocked by Local
+        // Network privacy) must not gate ssh past a short grace; one that has keeps gating.
         let probeDeadline = min(deadline, started.addingTimeInterval(TartRuntime.defaultSSHProbeGrace))
+        var probeSawOpen = false
         while true {
             try Task.checkCancellation()
-            if !(await ctx.env.ssh.isSSHPortOpen(ip: ip)), Date() < probeDeadline {
+            let portOpen = await ctx.env.ssh.isSSHPortOpen(ip: ip)
+            if portOpen { probeSawOpen = true }
+            if !portOpen, Date() < (probeSawOpen ? deadline : probeDeadline) {
                 try await Task.sleep(for: ctx.env.probeInterval)
                 continue
             }

@@ -89,10 +89,14 @@ public struct AzureDevOpsAgent: Decodable, Sendable, Equatable {
 
     public var busy: Bool { assignedRequest != nil }
 
-    /// Whether the agent advertises a capability of this name (either kind; names compare case-insensitively).
-    func hasCapability(_ name: String) -> Bool {
+    /// Whether the agent advertises a capability of this name (either kind; names compare
+    /// case-insensitively), and, when `value` is given, with that value (an `-equals` demand).
+    func hasCapability(_ name: String, value: String? = nil) -> Bool {
         [userCapabilities, systemCapabilities].contains { capabilities in
-            capabilities?.keys.contains { $0.caseInsensitiveCompare(name) == .orderedSame } == true
+            capabilities?.contains { entry in
+                entry.key.caseInsensitiveCompare(name) == .orderedSame
+                    && (value.map { entry.value.caseInsensitiveCompare($0) == .orderedSame } ?? true)
+            } == true
         }
     }
 
