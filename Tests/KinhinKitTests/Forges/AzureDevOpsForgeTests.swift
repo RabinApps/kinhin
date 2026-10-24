@@ -246,6 +246,11 @@ final class AzureDevOpsForgeTests: XCTestCase {
             "an agent without the label's capability does not satisfy the demand")
         XCTAssertNil(AzureDevOpsForge.emptyPoolAdvice(agents: [bare, anchor], labels: ["kinhin"], pool: "p"))
 
+        // A disabled agent is never given a job, so it does not satisfy the demand either.
+        let disabled = AzureDevOpsAgent(
+            id: 5, name: "off", status: "offline", userCapabilities: ["kinhin": "true"], enabled: false)
+        XCTAssertNotNil(AzureDevOpsForge.emptyPoolAdvice(agents: [disabled], labels: ["kinhin"], pool: "p"))
+
         // A `name=value` label needs that value: xcode=15 cannot satisfy an `-equals 16` demand.
         let xcode15 = AzureDevOpsAgent(
             id: 3, name: "x15", status: "offline", userCapabilities: ["xcode": "15"])

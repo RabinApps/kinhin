@@ -89,7 +89,7 @@ struct AzureDevOpsForge: Forge {
     /// none that carries the account's labels it fails the run at once ("No
     /// agent found in pool … which satisfies the specified demands"), so a
     /// scale-to-zero pool never shows kinhin any demand to scale from. nil when
-    /// some agent advertises every label as a capability.
+    /// some enabled agent advertises every label as a capability.
     static func emptyPoolAdvice(agents: [AzureDevOpsAgent], labels: [String], pool: String) -> String? {
         // A bare label is an existence demand; `name=value` demands that value (`-equals`).
         let needs = labels.compactMap { label -> (name: String, value: String?)? in
@@ -97,7 +97,9 @@ struct AzureDevOpsForge: Forge {
             guard let name = capabilityName(parts[0].trimmingCharacters(in: .whitespaces)) else { return nil }
             return (name, parts.count == 2 ? parts[1] : nil)
         }
-        if agents.contains(where: { agent in needs.allSatisfy { agent.hasCapability($0.name, value: $0.value) } }) {
+        if agents.contains(where: { agent in
+            agent.enabled != false && needs.allSatisfy { agent.hasCapability($0.name, value: $0.value) }
+        }) {
             return nil
         }
         let why = agents.isEmpty ? "has no agents" : "has no agent carrying the account's labels as capabilities"
