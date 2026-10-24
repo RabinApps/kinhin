@@ -148,9 +148,10 @@ extension RunnerBootstrap {
             set -euo pipefail
             # Containers run as root, which the runner refuses unless allowed.
             export RUNNER_ALLOW_RUNASROOT=1
+            # The bracket keeps the pattern from matching this script's own command line.
             # An agent left from an earlier registration (this container is being registered again) would hold
             # the runner's session and make the new one fail to connect.
-            pkill -f '/bin/Runner.Listener' 2>/dev/null && sleep 1 || true
+            pkill -f '/bin/[R]unner.Listener' 2>/dev/null && sleep 1 || true
 
             \(blocks)
             """
@@ -190,8 +191,9 @@ extension RunnerBootstrap {
         }
         return """
             set -euo pipefail
-            # A daemon left from an earlier registration would keep running beside the new one.
-            pkill -f 'gitea-runner daemon' 2>/dev/null && sleep 1 || true
+            # A daemon left from an earlier registration would keep running beside the new one. The bracket keeps the
+            # pattern from matching this script's own command line (a VM may receive it as `bash -c`).
+            pkill -f '[g]itea-runner daemon' 2>/dev/null && sleep 1 || true
 
             \(blocks)
             """

@@ -26,21 +26,19 @@ extension FleetEngine {
     /// with no runner on the forge. Such a record is checked like an unregistered one. Ephemeral and scale-set
     /// runners are left out: their exit watch already deletes an instance whose runner is gone, and registering
     /// again would reuse a container that may have run its one job.
-    func needsForgeCheck(_ record: VMRecord) -> Bool {
+    func checksForgeOnRecovery(_ record: VMRecord) -> Bool {
         if Self.needsForgeCheck(record) { return true }
         guard record.phase == .ready, record.runtimeID == .appleContainer || record.runtimeID == .docker,
-            !config.vm.ephemeral,
             let forge = forgeState.withLock({ $0.byPlatform[record.platform ?? ForgeID.github.rawValue] })
         else { return false }
-        if case .jitConfig = forge.registration { return false }
-        return true
+        return !watchesRunnerExit(on: forge)
     }
 
     /// Reads each attached forge that holds a recovered instance, once. An account whose forge fails to answer has no
     /// entry, so its instances are held rather than guessed at.
     func adoptionListings(for records: [VMRecord]) async -> [String: AdoptionListing] {
         var listings: [String: AdoptionListing] = [:]
-        let accounts = Set(records.filter(needsForgeCheck).map { $0.platform ?? ForgeID.github.rawValue })
+        let accounts = Set(records.filter(checksForgeOnRecovery).map { $0.platform ?? ForgeID.github.rawValue })
         for account in accounts.sorted() {
             guard let forge = forgeState.withLock({ $0.byPlatform[account] }) else { continue }
             do {
@@ -61,7 +59,7 @@ extension FleetEngine {
     /// replaying it on a VM that is mid-job fails that job. A runner the forge already has is watched instead, busy or
     /// idle. A forge that cannot answer holds the instance (see `holdAdoption`) rather than guess.
     func resumeAdopted(_ record: VMRecord, listings: [String: AdoptionListing]) async {
-        guard needsForgeCheck(record) else {
+        guard checksForgeOnRecovery(record) else {
             resumeLifecycle(for: record)
             return
         }
@@ -88,11 +86,13 @@ extension FleetEngine {
             // No runner list: the forge cannot say whether this VM's runner registered. With nothing running in the
             // scope, registering disrupts nothing. With a job running, watch the scope instead; the watch removes the
             // VM once the scope goes quiet.
-            if running == 0 {
+            // A ready classic runner (`checksForgeOnRecovery`) is registered only when the forge can list its runners:
+            // here nothing says it is gone, and registering a live one again would duplicate it.
+            if running == 0, Self.needsForgeCheck(record) {
                 Log.info(id, "no job is running on \(forge.name): registering it")
                 spawnLifecycle(for: record)
             } else {
-                watchAdopted(record, busy: true, forgeName: forge.name)
+                watchAdopted(record, busy: running > 0, forgeName: forge.name)
             }
             return
         }

@@ -53,10 +53,7 @@ extension FleetEngine {
             spawnLifecycle(for: record)
             return
         }
-        let watchesExit =
-            config.vm.ephemeral
-            || { if case .jitConfig = forge.registration { return true } else { return false } }()
-        guard watchesExit else {
+        guard watchesRunnerExit(on: forge) else {
             // A classic persistent runner is not tracked after registration, so nothing would ever move a busy
             // phase back. Scale-down confirms idleness against the forge before it removes one, so `ready` is safe.
             updateRecord(record.id) { $0.phase = .ready }
@@ -74,6 +71,14 @@ extension FleetEngine {
                 Log.error(id, "exit watch failed: \(error.localizedDescription)")
             }
         }
+    }
+
+    /// Whether a registered runner on `forge` is watched until it exits: ephemeral runners and scale-set (JIT) runners
+    /// are; a classic persistent runner is not tracked after registration.
+    func watchesRunnerExit(on forge: Forge) -> Bool {
+        if config.vm.ephemeral { return true }
+        if case .jitConfig = forge.registration { return true }
+        return false
     }
 
     /// Start `body` as the lifecycle task for `id` (no-op when one is already

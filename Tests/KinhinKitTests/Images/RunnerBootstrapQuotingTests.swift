@@ -52,6 +52,19 @@ final class RunnerBootstrapQuotingTests: XCTestCase {
         }
     }
 
+    /// Registering again first stops a leftover agent, and the bracketed pattern cannot match the script's own
+    /// command line (a VM may receive the script as `bash -c`).
+    func testLinuxRegistrationStopsALeftoverAgentWithoutMatchingItself() {
+        let github = RunnerBootstrap.linuxGitHubRegistrationScript(
+            configureURL: "https://github.com/acme/r", token: "t", labels: ["x"], ephemeral: false, name: "vm")
+        let gitea = RunnerBootstrap.linuxGiteaRegistrationScript(
+            instance: "https://gitea.example", token: "t", labels: ["x"], name: "vm")
+        XCTAssertTrue(github.contains("pkill -f '/bin/[R]unner.Listener'"), github)
+        XCTAssertTrue(gitea.contains("pkill -f '[g]itea-runner daemon'"), gitea)
+        XCTAssertFalse(github.contains("pkill -f '/bin/Runner.Listener'"))
+        XCTAssertFalse(gitea.contains("pkill -f 'gitea-runner daemon'"))
+    }
+
     /// A quoted `~` is never expanded: the template copy for runners 2..N must
     /// name `"$HOME"/…`, or the copy fails and every extra runner re-downloads.
     func testJitTemplateCopyExpandsHome() {

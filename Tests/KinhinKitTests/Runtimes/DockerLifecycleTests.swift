@@ -142,11 +142,32 @@ final class DockerLifecycleTests: XCTestCase {
         let (engine, store) = makeClassicEngine(shell: shell, github: github)
 
         await engine.recoverIfNeeded()
-        try await Task.sleep(for: .milliseconds(500))
+        try await Task.sleep(for: .seconds(1))
 
         XCTAssertFalse(shell.argvSnapshot().contains { $0.contains("exec") }, "a live runner is not registered again")
         XCTAssertEqual(store.all.first { $0.id == "kinhin-t1" }?.phase, .ready)
         await engine.detachKeepingInstances()
+    }
+
+    /// Which recovered records are checked against the forge: an idle classic runner on either Linux container
+    /// runtime, but not an ephemeral one, a busy one or one on another runtime.
+    func testOnlyAnIdleClassicContainerRunnerIsCheckedOnRecovery() {
+        func checks(_ phase: VMPhase, _ runtime: RuntimeID, ephemeral: Bool) -> Bool {
+            var config = makeTestConfig()
+            config.docker = .init(image: "ghcr.io/acme/kinhin-ci-linux", cpus: 2, memoryGB: 4)
+            config.vm.ephemeral = ephemeral
+            let engine = FleetEngine(
+                config: config, github: FakeGitHub(), tart: FakeTart(), store: makeTestStore(), ssh: FakeSSH(),
+                host: testHost, containerShell: DockerFakingShell(), dependencies: .init())
+            var record = VMRecord(id: "kinhin-t1", phase: phase)
+            record.runtimeID = runtime
+            return engine.checksForgeOnRecovery(record)
+        }
+        XCTAssertTrue(checks(.ready, .appleContainer, ephemeral: false))
+        XCTAssertTrue(checks(.ready, .docker, ephemeral: false))
+        XCTAssertFalse(checks(.ready, .docker, ephemeral: true), "an ephemeral runner's exit watch removes it")
+        XCTAssertFalse(checks(.busy, .docker, ephemeral: false))
+        XCTAssertFalse(checks(.ready, .tart, ephemeral: false))
     }
 
     private func makeClassicEngine(shell: DockerFakingShell, github: FakeGitHub) -> (FleetEngine, FleetStore) {
