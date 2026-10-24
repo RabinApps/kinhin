@@ -161,6 +161,8 @@ $LOCALIZATIONS_PLIST    </array>
     <string>15.0</string>
     <key>NSHighResolutionCapable</key>
     <true/>
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>kinhin connects to the virtual machines it starts on this Mac to register them as CI runners.</string>
     <key>NSHumanReadableCopyright</key>
     <string>Copyright © 2026 Rabin Apps, LLC — Apache License 2.0</string>
 </dict>

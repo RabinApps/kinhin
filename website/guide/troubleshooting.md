@@ -29,6 +29,18 @@ fixes waiting for your approval, and says what only you can do.
   job normally lands on the replacement, so an isolated occurrence is harmless. If it repeats:
   raise `vm_boot_timeout` (e.g. `600`) for slow images, keep the host quiet during boot storms,
   and re-prepare the image if the guest agent is flaky on every boot.
+- **Every cold start takes about 15 seconds longer than the VM needs, with the log line `port 22 probe saw nothing …; trying ssh anyway`** —
+  kinhin watches a new VM's port 22 with a TCP probe before it runs ssh. On macOS, **Local Network privacy**
+  can block that probe (system log: `unsatisfied (Local network prohibited)`; check with
+  `log stream --predicate 'eventMessage CONTAINS "Local network prohibited"'`) while `/usr/bin/ssh` still
+  reaches the guest, so the probe never succeeds. kinhin gives the probe 15 seconds, then tries ssh
+  regardless; registration still works, you only lose the grace period. Older releases waited the whole
+  `vm_boot_timeout` (about five minutes) before the first ssh. The 15-second fallback is the fix that
+  matters. Release builds of the app also declare `NSLocalNetworkUsageDescription`, which may let macOS ask
+  for Local Network access for the app process; this is unverified, and a daemon started from the CLI or a
+  LaunchAgent has no app bundle for macOS to ask about. If **System Settings → Privacy & Security → Local
+  Network** lists kinhin, make sure it is on. Do not edit the privacy database or turn off the firewall to work
+  around it.
 - **Tart: `Error Domain=VZErrorDomain Code=-9 "The virtual machine encountered a security error."`** (with
   `Failed to create new HostKey`; `tart ip` then says `no IP address found, is your VM running?`) — the
   macOS login keychain's password often differs from your account password. Check it with

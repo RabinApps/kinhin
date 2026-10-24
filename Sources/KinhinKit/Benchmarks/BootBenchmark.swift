@@ -81,10 +81,14 @@ enum BootBenchmark {
 
     /// Waits for sshd to accept connections, then for one command to exit 0.
     private static func awaitSSH(_ ctx: BenchmarkContext, vm: String, ip: String) async throws {
-        let deadline = Date().addingTimeInterval(max(ctx.bootTimeout, 30))
+        let started = Date()
+        let deadline = started.addingTimeInterval(max(ctx.bootTimeout, 30))
+        // As in registration, a probe blocked by Local Network privacy must not
+        // gate ssh past a short grace.
+        let probeDeadline = min(deadline, started.addingTimeInterval(TartRuntime.defaultSSHProbeGrace))
         while true {
             try Task.checkCancellation()
-            if !(await ctx.env.ssh.isSSHPortOpen(ip: ip)), Date() < deadline {
+            if !(await ctx.env.ssh.isSSHPortOpen(ip: ip)), Date() < probeDeadline {
                 try await Task.sleep(for: ctx.env.probeInterval)
                 continue
             }
