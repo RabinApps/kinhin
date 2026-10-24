@@ -112,6 +112,58 @@ final class DockerLifecycleTests: XCTestCase {
         )
     }
 
+    /// A classic runner's agent dies with a stopped container, and nothing watches it afterwards: a `ready` record
+    /// whose runner the forge no longer has must be registered again, not watched forever.
+    func testReadyContainerWithNoRunnerOnTheForgeIsRegisteredAgain() async throws {
+        let shell = DockerFakingShell()
+        shell.seedContainer(named: "kinhin-t1")
+        let (engine, _) = makeClassicEngine(shell: shell, github: FakeGitHub())
+
+        await engine.recoverIfNeeded()
+        try await waitUntil(timeout: 10) { shell.argvSnapshot().contains { $0.contains("exec") } }
+
+        let argvs = shell.argvSnapshot()
+        XCTAssertTrue(
+            argvs.contains { $0.contains("start") && $0.contains("kinhin-t1") },
+            "the existing container is started: \(argvs)")
+        let execCall = try XCTUnwrap(argvs.first { $0.contains("exec") && $0.contains("/bin/bash") })
+        let stdinIndex = try XCTUnwrap(execCall.firstIndex(of: "<stdin>"))
+        XCTAssertTrue(
+            execCall[stdinIndex + 1].contains("config.sh --url"), "the runner is registered over exec: \(execCall)")
+        await engine.detachKeepingInstances()
+    }
+
+    /// The same record with its runner still on the forge is only watched.
+    func testReadyContainerWithARunnerOnTheForgeIsNotRegisteredAgain() async throws {
+        let shell = DockerFakingShell()
+        shell.seedContainer(named: "kinhin-t1")
+        let github = FakeGitHub()
+        github.register(name: "kinhin-t1", busy: false)
+        let (engine, store) = makeClassicEngine(shell: shell, github: github)
+
+        await engine.recoverIfNeeded()
+        try await Task.sleep(for: .milliseconds(500))
+
+        XCTAssertFalse(shell.argvSnapshot().contains { $0.contains("exec") }, "a live runner is not registered again")
+        XCTAssertEqual(store.all.first { $0.id == "kinhin-t1" }?.phase, .ready)
+        await engine.detachKeepingInstances()
+    }
+
+    private func makeClassicEngine(shell: DockerFakingShell, github: FakeGitHub) -> (FleetEngine, FleetStore) {
+        var config = makeTestConfig()
+        config.docker = .init(image: "ghcr.io/acme/kinhin-ci-linux", cpus: 2, memoryGB: 4)
+        config.vm.ephemeral = false
+        let store = makeTestStore()
+        var record = VMRecord(id: "kinhin-t1", phase: .ready)
+        record.runtimeID = .docker
+        store.upsert(record)
+        let engine = FleetEngine(
+            config: config, github: github, tart: FakeTart(), store: store, ssh: FakeSSH(), host: testHost,
+            containerShell: shell,
+            dependencies: .init(tokenLoader: { _, _ in "test-token" }, lifecycleDrainTimeout: .milliseconds(200)))
+        return (engine, store)
+    }
+
     func testRecoveryReusesAStrayContainerAndRegistersIt() async throws {
         let shell = DockerFakingShell()
         var config = makeTestConfig()

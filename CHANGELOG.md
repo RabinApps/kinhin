@@ -26,6 +26,7 @@
 
 **Fixed**
 
+- A classic (non-ephemeral) runner in an Apple container or Docker container is registered again after a restart when the forge no longer has it. Stopping the container (host reboot, `container system stop`) kills the agent inside, and kinhin used to watch the instance as `ready` with no runner until you deleted it. Registration also stops an agent left from an earlier registration first.
 - A restart no longer registers a VM again while its runner is still on the forge, which could fail a job running on it. A runner the forge still has is watched; a VM with no runner is registered as normal. A VM whose forge cannot be asked is held, shown by an `adoption` alert, and removed after one hour; a VM whose account was removed from the config is released at once. Forges with no runner list, and partly registered VMs, have their own rules. See [docs/scaling.md](docs/scaling.md#restarts).
 
 **Changed**
