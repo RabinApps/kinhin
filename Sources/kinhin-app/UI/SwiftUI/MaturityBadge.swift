@@ -1,8 +1,8 @@
 import KinhinKit
 import SwiftUI
 
-/// A small "untested" tag for a forge or runtime that has not been run against
-/// the real service (see `MaturityTable`). Draws nothing for a live-tested one.
+/// A small "untested" or "experimental" tag for a forge or runtime that is not
+/// live-tested (see `MaturityTable`). Draws nothing for a live-tested one.
 struct MaturityBadge: View {
     let maturity: Maturity
 
@@ -13,7 +13,7 @@ struct MaturityBadge: View {
     @State private var showingWarning = false
 
     var body: some View {
-        if maturity.isUntested {
+        if maturity != .liveTested {
             Button {
                 showingWarning.toggle()
             } label: {
@@ -25,15 +25,23 @@ struct MaturityBadge: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .help("Untested. Click for details.")
-            .accessibilityLabel("untested")
+            .help(
+                maturity.isExperimental
+                    ? Text("Experimental. Click for details.") : Text("Untested. Click for details.")
+            )
+            .accessibilityLabel(maturity.isExperimental ? Text("experimental") : Text("untested"))
             .popover(isPresented: $showingWarning, arrowEdge: .bottom) {
                 VStack(alignment: .leading, spacing: 8) {
-                    Label("Untested", systemImage: "exclamationmark.triangle.fill")
-                        .font(.headline)
-                        .foregroundStyle(StatusStyle.warn.color)
+                    Label(
+                        maturity.isExperimental ? "Experimental" : "Untested",
+                        systemImage: "exclamationmark.triangle.fill"
+                    )
+                    .font(.headline)
+                    .foregroundStyle(StatusStyle.warn.color)
                     Text(
-                        "Implemented and unit-tested, but not yet run against the real service. Please report errors on GitHub to help us improve support for this forge."
+                        maturity.isExperimental
+                            ? "Has run real jobs for a user, but not yet in kinhin's own end-to-end tests. Please report errors on GitHub to help us improve support for this forge."
+                            : "Implemented and unit-tested, but not yet run against the real service. Please report errors on GitHub to help us improve support for this forge."
                     )
                     .font(.system(size: 12))
                     .fixedSize(horizontal: false, vertical: true)
@@ -48,12 +56,21 @@ struct MaturityBadge: View {
 extension Maturity {
     /// Plain-text suffix for menu pickers, which can't draw a badge.
     var pickerSuffix: String {
-        isUntested
-            ? String(
+        switch self {
+        case .liveTested:
+            return ""
+        case .untested:
+            return String(
                 localized: " (untested)", bundle: .l10n,
                 comment:
                     "Suffix appended to a forge/runtime name in a menu picker when it hasn't been tested against the real service"
             )
-            : ""
+        case .experimental:
+            return String(
+                localized: " (experimental)", bundle: .l10n,
+                comment:
+                    "Suffix appended to a forge/runtime name in a menu picker when it has run real jobs for a user but is not in kinhin's own end-to-end tests"
+            )
+        }
     }
 }

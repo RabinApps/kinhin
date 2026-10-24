@@ -95,6 +95,17 @@ public struct AuthStatusReport: Codable, Equatable, Sendable {
     enum CodingKeys: String, CodingKey {
         case forges, accounts, allGood
     }
+
+    /// The report for one account only: its `accounts` entry, or the classic
+    /// forge row an account named like the forge (`github`, `gitea`,
+    /// `forgejo`) drives. `allGood` then reflects just that account.
+    public func narrowed(toAccount name: String) -> AuthStatusReport {
+        let forges = forges.filter { $0.id == name }
+        let accounts = accounts.filter { $0.name == name }
+        // The same verdict as the full report: an account needs its token and a usable scope.
+        let good = !accounts.isEmpty && accounts.allSatisfy { $0.stored && !$0.scope.isEmpty }
+        return AuthStatusReport(forges: forges, allGood: good, accounts: accounts)
+    }
 }
 
 /// Builds AuthStatusReport from injected state. `load` stands in for the

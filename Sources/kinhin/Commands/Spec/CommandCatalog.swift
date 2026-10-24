@@ -107,7 +107,8 @@ enum CommandCatalog {
                 CommandSpec(
                     name: "list",
                     command: .auth,
-                    summary: "List accounts and whether their tokens are stored"),
+                    summary: "List accounts and whether their tokens are stored",
+                    flags: [jsonFlag]),
                 CommandSpec(
                     name: "remove",
                     command: .auth,
@@ -119,8 +120,8 @@ enum CommandCatalog {
                     summary: "Check that stored tokens exist and work",
                     flags: forgeFlags() + [accountFlag, jsonFlag, quietFlag],
                     details: [
-                        "With --json: the static report for every forge (no network probe). "
-                            + "Exits 0 when every account has a token, 1 until then."
+                        "With --json: the static report for every forge (no network probe), or just the one "
+                            + "account with --account. Exits 0 when every reported account has a token, 1 until then."
                     ]),
                 CommandSpec(
                     name: "clear",

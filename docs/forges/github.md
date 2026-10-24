@@ -47,9 +47,9 @@ GitHub supports each version for 24 months after the next one ships, signals ret
 | DELETE | `{actionsBase}/runners/{id}`                                                                   | Remove a runner                                                | `GitHubClient.swift:344`          |
 | GET    | `/repos/{repo}/actions/runs?status=queued\|in_progress&per_page=100&page=N`                    | Demand and running jobs (repo scope; org scope per repository) | `GitHubClient+Runs.swift`         |
 | GET    | `/orgs/{org}/actions/runs`                                                                     | Not used (undocumented)                                        | none                              |
-| GET    | `/repos/{repo}/actions/runs/{id}/jobs?per_page=100` (org mode: `{actionsBase}/runs/{id}/jobs`) | Job labels for matching                                        | `GitHubClient+Runs.swift:139-141` |
+| GET    | `/repos/{repo}/actions/runs/{id}/jobs?per_page=100` (org mode: `{actionsBase}/runs/{id}/jobs`) | Job labels for matching                                        | `GitHubClient+Runs.swift:139,141` |
 | GET    | `/user/repos?affiliation=owner,collaborator,organization_member`                               | Repository picker                                              | `GitHubClient.swift:270`          |
-| GET    | `/orgs/{org}/repos`, `/users/{owner}/repos`                                                    | Repository picker, org and user                                | `GitHubClient.swift:272-274`      |
+| GET    | `/orgs/{org}/repos`, `/users/{owner}/repos`                                                    | Repository picker, org and user                                | `GitHubClient.swift:272,274`      |
 
 ## Enterprise instance
 
@@ -234,7 +234,7 @@ Step output is sliced from `GET /repos/{repo}/actions/jobs/{id}/logs` (a redirec
 
 - Registration mode `sharedShortLived`, exit semantics `deregisters` (`GitHubForge.swift`).
 - Token lifetime: about one hour, cached per account by `RegistrationTokenCache` (`Fleet/FleetEngine+Accounts.swift`, `token_ttl` in config).
-- The runner starts with `config.sh --url --token --labels --unattended --ephemeral`, then `run.sh` (`Images/RunnerBootstrap/RunnerBootstrap+Linux.swift:184-206`).
+- The runner starts with `config.sh --url --token --labels --unattended --ephemeral`, then `run.sh` (`Images/RunnerBootstrap/RunnerBootstrap+Linux.swift:127,185`).
 - The classic path does **not** use JIT runner configuration; [scale-set mode](#scale-set-mode-in-kinhin) does. GitHub also documents `POST /{orgs|repos}/.../actions/runners/generate-jitconfig` (body: `name`, `runner_group_id`, `labels`), present in every API version and in GHES; using it on the classic path would remove the shared token from the VM.
 
 ## Demand and label matching

@@ -17,10 +17,10 @@ Forge IDs recognized by the config and the CLI (`ForgeID`): `github`, `gitlab`, 
 | Forgejo | [gitea.md](gitea.md) | By server release | Yes (`instance`) | Supported |
 | GitLab CE | [gitlab.md](gitlab.md) | `/api/v4`, features by server release | Yes (`instance`) | Supported |
 | Buildkite | [buildkite.md](buildkite.md) | `/v2` | n/a (SaaS control plane) | Planned |
-| Azure DevOps | [azuredevops.md](azuredevops.md) | `api-version` query parameter (kinhin sends `7.0`) | Yes (Server) | Planned |
+| Azure DevOps | [azuredevops.md](azuredevops.md) | `api-version` query parameter (kinhin sends `7.0`) | Yes (Server) | Experimental |
 | Bitbucket Cloud | [bitbucket.md](bitbucket.md) | `/2.0` | Cloud only | Planned |
 
-The pages for planned forges describe implementation work in progress; those forges are not supported yet.
+The pages for planned forges describe implementation work in progress; those forges are not supported yet. Azure DevOps is experimental: one user has run real jobs against Azure DevOps Services, but the project's own live lane has not passed.
 
 ## How each forge is used
 

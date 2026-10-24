@@ -63,11 +63,49 @@ struct AzureDevOpsForge: Forge {
     ) async throws -> AzureDevOpsForge {
         let client = AzureDevOpsClient(credentials: credentials, session: session)
         let pool = try await client.resolvePool()
+        // Advice only: a failed listing here is not worth failing start-up over.
+        if let agents = try? await client.listAgentsWithCapabilities(pool: pool),
+            let advice = emptyPoolAdvice(agents: agents, labels: labels, pool: pool.name),
+            firstWarning(for: "\(credentials.instance ?? "")|\(pool.id)|\(labels.sorted())")
+        {
+            Log.warn(account, advice)
+        }
         return AzureDevOpsForge(
             credentials: ForgeCredentials(
                 forge: .azuredevops, token: credentials.token, scope: credentials.scope,
                 instance: credentials.instance),
             labels: labels, client: client, pool: pool, account: account)
+    }
+
+    private static let warnedPools = Mutex(Set<String>())
+
+    /// True the first time a pool/labels combination is seen in this process, so rebuilding the forge
+    /// (an account reload) does not repeat the warning.
+    static func firstWarning(for key: String) -> Bool {
+        warnedPools.withLock { $0.insert(key).inserted }
+    }
+
+    /// Azure queues a job only when some agent in the pool could run it; with
+    /// none that carries the account's labels it fails the run at once ("No
+    /// agent found in pool … which satisfies the specified demands"), so a
+    /// scale-to-zero pool never shows kinhin any demand to scale from. nil when
+    /// some enabled agent advertises every label as a capability.
+    static func emptyPoolAdvice(agents: [AzureDevOpsAgent], labels: [String], pool: String) -> String? {
+        // A bare label is an existence demand; `name=value` demands that value (`-equals`).
+        let needs = labels.compactMap { label -> (name: String, value: String?)? in
+            let parts = label.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false).map(String.init)
+            guard let name = capabilityName(parts[0].trimmingCharacters(in: .whitespaces)) else { return nil }
+            return (name, parts.count == 2 ? parts[1] : nil)
+        }
+        if agents.contains(where: { agent in
+            agent.enabled != false && needs.allSatisfy { agent.hasCapability($0.name, value: $0.value) }
+        }) {
+            return nil
+        }
+        let why = agents.isEmpty ? "has no agents" : "has no agent carrying the account's labels as capabilities"
+        return "pool '\(pool)' \(why), so Azure will reject labelled jobs instead of queueing them "
+            + "and kinhin can never scale up from zero. Register one permanently offline placeholder agent "
+            + "carrying the account's labels as capabilities; see docs/forges/azuredevops.md (Empty pools)."
     }
 
     /// Pipelines across the organization's projects share one pool.

@@ -199,6 +199,10 @@ struct TartRuntime: Runtime {
     let sshRetryInterval: Duration
     /// Pause between TCP probes of the guest's port 22 before ssh is tried.
     let sshProbeInterval: Duration
+    /// How long the TCP probe may gate ssh before one is tried regardless (a
+    /// probe blocked by macOS Local Network privacy never turns true).
+    let sshProbeGrace: TimeInterval
+    static let defaultSSHProbeGrace: TimeInterval = 15
     /// How long to keep asking the guest agent for a fresh SSH host key before
     /// connecting without host key verification, and the pause between asks.
     let hostKeyWindow: TimeInterval
@@ -215,6 +219,7 @@ struct TartRuntime: Runtime {
         healthShell: ShellRunning = Shell(),
         ssh: SSHExecuting = SSHExecutor(), sshReadyWindow: TimeInterval = 120,
         sshRetryInterval: Duration = .seconds(1), sshProbeInterval: Duration = .milliseconds(500),
+        sshProbeGrace: TimeInterval = TartRuntime.defaultSSHProbeGrace,
         hostKeyWindow: TimeInterval = 30, hostKeyInterval: Duration = .seconds(2)
     ) {
         self.tart = tart
@@ -225,6 +230,7 @@ struct TartRuntime: Runtime {
         self.sshReadyWindow = sshReadyWindow
         self.sshRetryInterval = sshRetryInterval
         self.sshProbeInterval = sshProbeInterval
+        self.sshProbeGrace = sshProbeGrace
         self.hostKeyWindow = hostKeyWindow
         self.hostKeyInterval = hostKeyInterval
     }
@@ -286,11 +292,31 @@ struct TartRuntime: Runtime {
         // big image's first boot can leave sshd slow to answer for minutes
         // (seen live: a fresh xcode-image clone timed out at 120s while its
         // replacement registered 2 seconds after boot).
-        let deadline = Date().addingTimeInterval(max(sshReadyWindow, TimeInterval(bootTimeout())))
+        //
+        // A probe that has never seen port 22 open stops gating ssh after
+        // `sshProbeGrace`: macOS Local Network privacy can block this process's
+        // in-process connect to the guest forever while the `/usr/bin/ssh`
+        // subprocess (below) reaches it fine, and trusting such a probe would
+        // burn the whole `vm_boot_timeout` on every cold start. A probe that
+        // has worked keeps gating, so a slow sshd costs no process per retry.
+        let started = Date()
+        let deadline = started.addingTimeInterval(max(sshReadyWindow, TimeInterval(bootTimeout())))
+        let probeDeadline = min(deadline, started.addingTimeInterval(sshProbeGrace))
+        var probeBypassed = false
+        var probeSawOpen = false
         while true {
-            if !(await ssh.isSSHPortOpen(ip: ip)), Date() < deadline {
+            let portOpen = await ssh.isSSHPortOpen(ip: ip)
+            if portOpen { probeSawOpen = true }
+            if !portOpen, Date() < (probeSawOpen ? deadline : probeDeadline) {
                 try await Task.sleep(for: sshProbeInterval)
                 continue
+            }
+            if !portOpen, !probeSawOpen, !probeBypassed, Date() < deadline {
+                probeBypassed = true
+                Log.warn(
+                    id,
+                    "port 22 probe saw nothing for \(Int(sshProbeGrace))s; trying ssh anyway "
+                        + "(macOS Local Network privacy can block the probe: see the troubleshooting guide)")
             }
             let result = try await ssh.exec(vm: id, user: "admin", ip: ip, script: script, timeout: timeout)
             if result.succeeded || !Self.sshNotListeningYet(result.stderr) || Date() >= deadline {
