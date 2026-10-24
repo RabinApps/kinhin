@@ -228,9 +228,10 @@ generates `kinhin help`, each `kinhin <command> --help` page and the skills-lint
 
 ## Localization (menu bar app)
 
-English is the only shipped language, but the app is built so that adding a language is translation work, not code
-work. All user-facing text lives in one String Catalog, `Sources/kinhin-app/Resources/Localizable.xcstrings` (source
-language `en`). SwiftPM compiles it into the app's resource bundle, and `scripts/build-app.sh` hoists the resulting
+The app ships in English (the source language), Spanish, Japanese, German, Hebrew, Arabic, Italian and French; the
+Hebrew and Arabic layouts mirror right-to-left through SwiftUI. The non-English copy is a first draft that needs review
+by native speakers. Adding a language is translation work, not code work. All user-facing text lives in one String Catalog,
+`Sources/kinhin-app/Resources/Localizable.xcstrings` (source language `en`). SwiftPM compiles it into the app's resource bundle, and `scripts/build-app.sh` hoists the resulting
 `<lang>.lproj` folders into `kinhin.app/Contents/Resources` (and lists them in `CFBundleLocalizations`), so SwiftUI
 and AppKit resolve them through `Bundle.main`. `scripts/dev-run.sh` copies them next to the debug binary for the same
 reason.
@@ -282,7 +283,8 @@ app takes the same flags: `open dist/kinhin.app --args -NSDoubleLocalizedStrings
 
 **Adding a language** (once the strings are final): nothing changes in `Package.swift` (`defaultLocalization` is `en`).
 Open the catalog in Xcode (or add `localizations.<lang>` entries by hand), translate every key including the plural
-forms, and run `scripts/build-app.sh`: the new `<lang>.lproj` is bundled and registered automatically.
+forms (every CLDR category of that language: Arabic has six), and run `scripts/build-app.sh`: the new `<lang>.lproj`
+is bundled and registered automatically.
 `testTranslationsKeepThePlaceholdersOfTheirKey` guards the placeholders.
 
 **Not covered yet.** Text that originates in `KinhinKit` (the fleet status line, `LocalizedError.errorDescription`s,

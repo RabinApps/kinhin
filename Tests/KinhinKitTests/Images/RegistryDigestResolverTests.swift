@@ -48,6 +48,30 @@ final class RegistryDigestResolverTests: XCTestCase {
             authHeaders.withLock { $0 }, ["Bearer anon-123"], "the anonymous token authorizes the manifest HEAD")
     }
 
+    /// The token request names the reference's own registry as its `service`, not a fixed ghcr.io.
+    func testTokenRequestNamesTheReferencesRegistryAsService() async throws {
+        let tokenQueries = Locked<[String]>([])
+        let manifestHosts = Locked<[String]>([])
+        StubProtocol.handler = { request in
+            let path = request.url?.path ?? ""
+            if path == "/token" {
+                tokenQueries.withLock { $0.append(request.url?.query ?? "") }
+                return (200, Data(#"{"token":"anon"}"#.utf8), [:])
+            }
+            if path.hasPrefix("/v2/") {
+                manifestHosts.withLock { $0.append(request.url?.host ?? "") }
+                return (200, Data(), ["Docker-Content-Digest": Self.digest])
+            }
+            return (404, Data(), [:])
+        }
+        let digest = try await makeResolver().resolveDigest("registry.example.com/team/app:1.0")
+        XCTAssertEqual(digest, Self.digest)
+        XCTAssertEqual(manifestHosts.withLock { $0 }, ["registry.example.com"])
+        let query = try XCTUnwrap(tokenQueries.withLock { $0 }.first)
+        XCTAssertTrue(query.contains("service=registry.example.com"), query)
+        XCTAssertTrue(query.contains("scope=repository:team/app:pull"), query)
+    }
+
     /// Cirrus macOS images are plain OCI image manifests. A registry answers
     /// 404 unless the Accept header names that type, which an index-only
     /// header did not (the live "HTTP 404" for macos-sequoia-base:latest).
