@@ -33,32 +33,44 @@ extension RunnerBootstrap {
             ]).joined(separator: "\n")
     }
 
-    /// Stops any process whose command line matches `pattern` (a grep regex) and fails the script if one survives
-    /// five seconds. It reads `/proc` instead of calling `pkill`, which minimal images lack, and does nothing where
-    /// there is no `/proc` (a macOS guest is a fresh clone). Write the pattern with one character in brackets
-    /// (`[g]itea`): the script's own command line, which may carry this text under `bash -c`, then cannot match it.
-    static func stopLeftoverAgentScript(pattern: String) -> String {
+    /// Stops any process that runs `executable` (matched on the first word's base name, as a fixed string) with
+    /// `arguments` as its leading arguments, and fails the script if one survives five seconds. Nothing else is
+    /// matched: text in another process's arguments, or in this script's own `bash -c` command line, never is. It
+    /// reads `/proc` instead of calling `pkill`, which minimal images lack, and does nothing where there is no
+    /// `/proc` (a macOS guest is a fresh clone).
+    static func stopLeftoverAgentScript(executable: String, arguments: [String] = []) -> String {
         """
         stop_agent() {
           [ -d /proc/self ] || return 0
+          wanted="$1"
+          shift
+          wanted_args="$*"
           for attempt in 1 2 3 4 5 6; do
             found=""
             for dir in /proc/[0-9]*; do
               pid="${dir#/proc/}"
               [ "$pid" != "$$" ] || continue
-              if tr '\\0' ' ' < "$dir/cmdline" 2>/dev/null | grep -q -e "$1"; then
-                found=1
-                kill "$pid" 2>/dev/null || true
+              line=$(tr '\\0' ' ' < "$dir/cmdline" 2>/dev/null) || continue
+              first="${line%% *}"
+              [ "${first##*/}" = "$wanted" ] || continue
+              rest="${line#"$first"}"
+              if [ -n "$wanted_args" ]; then
+                case "$rest" in
+                  " $wanted_args"|" $wanted_args "*) ;;
+                  *) continue ;;
+                esac
               fi
+              found=1
+              kill "$pid" 2>/dev/null || true
             done
             [ -n "$found" ] || return 0
             # The sixth pass is a last scan after the fifth wait, so an agent that exits in it is not reported.
             [ "$attempt" = 6 ] || sleep 1
           done
-          echo "an earlier agent matching $1 is still running" >&2
+          echo "an earlier $wanted $wanted_args is still running" >&2
           return 1
         }
-        stop_agent \(shellQuote(pattern))
+        stop_agent \(([executable] + arguments).map(shellQuote).joined(separator: " "))
         """
     }
 
@@ -179,7 +191,7 @@ extension RunnerBootstrap {
             export RUNNER_ALLOW_RUNASROOT=1
             # An agent left from an earlier registration (this container is being registered again) would hold
             # the runner's session and make the new one fail to connect.
-            \(stopLeftoverAgentScript(pattern: "/bin/[R]unner.Listener"))
+            \(stopLeftoverAgentScript(executable: "Runner.Listener"))
 
             \(blocks)
             """
@@ -220,7 +232,7 @@ extension RunnerBootstrap {
         return """
             set -euo pipefail
             # A daemon left from an earlier registration would keep running beside the new one.
-            \(stopLeftoverAgentScript(pattern: "[g]itea-runner daemon"))
+            \(stopLeftoverAgentScript(executable: "gitea-runner", arguments: ["daemon"]))
 
             \(blocks)
             """

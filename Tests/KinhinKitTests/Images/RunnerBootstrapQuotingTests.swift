@@ -52,28 +52,48 @@ final class RunnerBootstrapQuotingTests: XCTestCase {
         }
     }
 
-    /// Registering again first stops a leftover agent, and the bracketed pattern cannot match the script's own
-    /// command line (a VM may receive the script as `bash -c`).
+    /// Registering again first stops a leftover agent, matched by executable and arguments, never by text anywhere
+    /// in a command line (which would also match the script's own `bash -c` line).
     func testLinuxRegistrationStopsALeftoverAgentWithoutMatchingItself() {
         let github = RunnerBootstrap.linuxGitHubRegistrationScript(
             configureURL: "https://github.com/acme/r", token: "t", labels: ["x"], ephemeral: false, name: "vm")
         let gitea = RunnerBootstrap.linuxGiteaRegistrationScript(
             instance: "https://gitea.example", token: "t", labels: ["x"], name: "vm")
-        XCTAssertTrue(github.contains("stop_agent '/bin/[R]unner.Listener'"), github)
-        XCTAssertTrue(gitea.contains("stop_agent '[g]itea-runner daemon'"), gitea)
+        XCTAssertTrue(github.contains("stop_agent 'Runner.Listener'"), github)
+        XCTAssertTrue(gitea.contains("stop_agent 'gitea-runner' 'daemon'"), gitea)
         XCTAssertFalse(github.contains("pkill"))
         XCTAssertFalse(gitea.contains("pkill"))
     }
 
     /// The helper is valid bash and succeeds when no process matches.
     func testStopLeftoverAgentSucceedsWhenNothingMatches() throws {
-        let script = RunnerBootstrap.stopLeftoverAgentScript(pattern: "[n]o-such-agent-\(UUID().uuidString)")
+        let script = RunnerBootstrap.stopLeftoverAgentScript(executable: "no-such-agent-\(UUID().uuidString)")
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
         process.arguments = ["-c", "set -euo pipefail\n" + script]
         try process.run()
         process.waitUntilExit()
         XCTAssertEqual(process.terminationStatus, 0)
+    }
+
+    /// A process that runs the executable with other arguments is left alone. Needs `/proc`, so Linux only.
+    func testStopLeftoverAgentLeavesAProcessWithOtherArguments() throws {
+        try XCTSkipUnless(FileManager.default.fileExists(atPath: "/proc/self"), "needs /proc")
+        let child = Process()
+        child.executableURL = URL(fileURLWithPath: "/bin/sleep")
+        child.arguments = [String(Int.random(in: 100_000_000...999_999_999))]
+        try child.run()
+        defer { if child.isRunning { child.terminate() } }
+
+        let script = RunnerBootstrap.stopLeftoverAgentScript(executable: "sleep", arguments: ["not-its-argument"])
+        let helper = Process()
+        helper.executableURL = URL(fileURLWithPath: "/bin/bash")
+        helper.arguments = ["-c", "set -euo pipefail\n" + script]
+        try helper.run()
+        helper.waitUntilExit()
+
+        XCTAssertEqual(helper.terminationStatus, 0)
+        XCTAssertTrue(child.isRunning, "a different invocation of the same executable is not stopped")
     }
 
     /// The helper terminates a process whose command line matches. Needs `/proc`, so it runs on Linux only.
@@ -86,7 +106,7 @@ final class RunnerBootstrapQuotingTests: XCTestCase {
         try child.run()
         defer { if child.isRunning { child.terminate() } }
 
-        let script = RunnerBootstrap.stopLeftoverAgentScript(pattern: "[s]leep \(marker)")
+        let script = RunnerBootstrap.stopLeftoverAgentScript(executable: "sleep", arguments: [marker])
         let helper = Process()
         helper.executableURL = URL(fileURLWithPath: "/bin/bash")
         helper.arguments = ["-c", "set -euo pipefail\n" + script]
