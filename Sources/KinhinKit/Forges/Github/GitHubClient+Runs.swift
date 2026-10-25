@@ -168,7 +168,8 @@ extension GitHubClient {
             return PipelineJob(
                 id: String(job.id), name: job.name,
                 state: PipelineParsing.state(status: job.status, conclusion: job.conclusion),
-                startedAt: PipelineParsing.date(job.startedAt), url: job.htmlURL, steps: steps,
+                startedAt: PipelineParsing.date(job.startedAt), finishedAt: PipelineParsing.date(job.completedAt),
+                url: job.htmlURL, steps: steps,
                 isCurrent: job.runnerName == runnerName, logRef: repository.map { "\($0)|\(job.id)" })
         }
         let first = jobs.first

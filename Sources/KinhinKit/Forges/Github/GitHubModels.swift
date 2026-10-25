@@ -29,6 +29,7 @@ public struct GHJob: Codable, Sendable, Equatable {
     let conclusion: String?
     let htmlURL: String?
     let startedAt: String?
+    let completedAt: String?
     let workflowName: String?
     let steps: [GHStep]?
 
@@ -38,6 +39,7 @@ public struct GHJob: Codable, Sendable, Equatable {
         case runnerName = "runner_name"
         case htmlURL = "html_url"
         case startedAt = "started_at"
+        case completedAt = "completed_at"
         case workflowName = "workflow_name"
     }
 }

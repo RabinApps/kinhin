@@ -77,4 +77,13 @@ final class PipelineFormatterTimingTests: XCTestCase {
             "30s · finished 1m ago")
         XCTAssertNil(PipelineFormatter.timing(state: .pending, startedAt: nil, finishedAt: nil))
     }
+
+    func testFinishedWithoutAFinishTimeDoesNotTick() {
+        for state in [PipelineStepState.succeeded, .failed, .cancelled, .skipped] {
+            XCTAssertNil(
+                PipelineFormatter.timing(state: state, startedAt: t0, finishedAt: nil, now: t0.addingTimeInterval(10)))
+            XCTAssertNil(
+                PipelineFormatter.timing(state: state, startedAt: t0, finishedAt: nil, now: t0.addingTimeInterval(70)))
+        }
+    }
 }
