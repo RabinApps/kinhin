@@ -120,8 +120,8 @@ running on each runtime before it starts anything new.
   - a VM with no runner on the forge is registered as normal;
   - a VM whose forge cannot be asked is **held** and not registered until it can be (shown by the `adoption` status alert).
 
-  Beta 2 registers every re-adopted VM again, which can fail a running job (see the known issue in
-  [GitHub forge notes](forges/github.md)). The fix ships in beta 3; on beta 2, restart only when no jobs are running.
+  Beta 2 registered every re-adopted VM again, which could fail a running job (see the known issue in
+  [GitHub forge notes](forges/github.md)). The fix shipped in beta 3; on beta 2, restart only when no jobs are running.
 - **Unlisted runtime.** If a runtime can't be listed (Tart wedged, a daemon down), its records are kept, and nothing is removed
   on a failed listing.
 - **Orphan sweep.** Only an instance with no record, under a name kinhin generates, is removed, and only after it stays

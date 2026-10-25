@@ -4,6 +4,8 @@
 
 <!-- changelog: entries for the next release go here -->
 
+## v0.0.1-beta-3
+
 **Added**
 
 - The healing agent can use [Ollama](https://ollama.com) with your own models: `healing: {ai: ollama, ollama: {model: …}}`.
@@ -23,6 +25,13 @@
   temporary per-scene encodes are faster, and every build prints how long each step took. `kinhin video build --scene app,outro`
   builds only those scenes as a quick preview, and `--watch` rebuilds when your video files change. See
   [docs/videos-for-your-project.md](docs/videos-for-your-project.md#faster-rebuilds).
+- `kinhin video record --pointer` writes where the pointer was and where it clicked beside the clip, and a `device` scene's
+  `autoZoom` turns those clicks into camera moves. The picture still never shows the pointer. `captions.burn` can be a list of
+  formats (`["9:16", "1:1"]`); kinhin's own adapter now burns captions in the vertical and square cuts and leaves 16:9 clean,
+  while other projects keep burning them in every format.
+- The menu bar app is translated into Spanish, Japanese, German, Hebrew, Arabic, Italian and French, and follows the macOS
+  language. The translations are first drafts awaiting native-speaker review, so please report wrong or awkward wording. The
+  CLI, its output and the docs stay English. Disclosure arrows now mirror in right-to-left languages.
 
 **Fixed**
 
@@ -32,7 +41,7 @@
 - `kinhin doctor` no longer calls Command Line Tools outdated when they only trail macOS by a patch release (CLT 27.0.0 on macOS 27.0.1).
 - `kinhin auth list --json` now exists, and `kinhin auth status --account NAME --json` reports only that account instead of every forge.
 - Azure DevOps: kinhin warns at start-up when the agent pool has no agents, because Azure then rejects labelled jobs instead of queueing them. The Azure DevOps page documents the offline placeholder agent that fixes it. Azure is now described as experimental rather than planned; it has had live smoke runs, not real application builds.
-- A restart no longer registers a VM again while its runner is still on the forge, which could fail a job running on it. A runner the forge still has is watched; a VM with no runner is registered as normal. A VM whose forge cannot be asked is held, shown by an `adoption` alert, and removed after one hour; a VM whose account was removed from the config is released at once. Forges with no runner list, and partly registered VMs, have their own rules. See [docs/scaling.md](docs/scaling.md#restarts).
+- A restart no longer registers a VM again while its runner is still on the forge, which could fail a job running on it. A runner the forge still has is watched; a VM with no runner is registered as normal. A VM whose forge cannot be asked is held, shown by an `adoption` alert, until it can be; a VM whose account has no forge attached is held the same way and removed after one hour; a VM whose account was removed from the config is released at once. Forges with no runner list, and partly registered VMs, have their own rules. See [docs/scaling.md](docs/scaling.md#restarts).
 
 **Changed**
 

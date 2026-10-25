@@ -11,13 +11,13 @@ const heading = computed(() =>
   <div class="home-banners vp-doc">
     <div class="warning custom-block">
 <!-- docs-sync:begin release-title -->
-      <p class="custom-block-title">Beta (v0.0.1-beta-2)</p>
+      <p class="custom-block-title">Beta (v0.0.1-beta-3)</p>
 <!-- docs-sync:end release-title -->
       <p>
         Supports <strong>GitHub, Gitea, Forgejo and GitLab CE</strong>. See
         <a href="/guide/forges#what-has-been-tested">what has been tested</a>, the
         <a href="/guide/beta-roadmap">roadmap to v0.1.0</a> and the
-        <a href="/blog/beta-2">beta announcement</a>.
+        <a href="/blog/beta-3">beta announcement</a>.
         <a href="https://github.com/RabinApps/kinhin/issues/new/choose">Report what you find</a>.
       </p>
     </div>

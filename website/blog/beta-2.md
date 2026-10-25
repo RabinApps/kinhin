@@ -86,7 +86,7 @@ run of your own has passed.
   instead of being replaced. kinhin starts empty, and the app and `kinhin status` name the kept copy.
   > **Correction:** "starts empty" was unclear and understated the risk. kinhin starts with no VM records, but on beta 2 it re-attaches
   > the VMs still running and then runs runner registration on them again, which can disrupt a job already running on one.
-  > On beta 2, restart only when no jobs are running. The fix ships in beta 3, and
+  > On beta 2, restart only when no jobs are running. The fix shipped in [beta 3](/blog/beta-3), and
   > [Restarts](https://github.com/RabinApps/kinhin/blob/main/docs/scaling.md#restarts) explains how recovery works. Sorry for the confusion.
 - "Reset everything" reports what it left behind, and `kinhin reset` exits 1 in that case.
 - A large `images:` image is checked against its own size before a Tart clone, not the base VM's.
