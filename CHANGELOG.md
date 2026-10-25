@@ -4,6 +4,55 @@
 
 <!-- changelog: entries for the next release go here -->
 
+## v0.0.1-beta-3
+
+**Added**
+
+- The healing agent can use [Ollama](https://ollama.com) with your own models: `healing: {ai: ollama, ollama: {model: …}}`.
+  An optional `fast_model` (for example `clef-flash` or `nimble`, Ollama's decision models) is asked first, and the LLM
+  answers when it is not confident. Traffic goes to `healing.ollama.host`, which is this Mac by default; any other host
+  must be `https`, and it then receives the redacted problem and log lines. See [docs/healing.md](docs/healing.md#the-ollama-advisor).
+- Videos can move a camera over a recording: a `device` or `terminal` scene's `camera` zooms and pans, `focus` spotlights part of the
+  screen and `cursor` adds a pointer with click rings, all from positions in the recording. A new `karaoke` caption style lights each
+  word as it is spoken, and `transition` (`dissolve`, `push`, `slide`, `wipe` or `circle`, per project or per scene) replaces the
+  fade between scenes without moving the voice. Nothing changes for a video that does not use them. See [docs/video-config.md](docs/video-config.md#camera-on-recordings).
+- An adapter can name regions of its clips (`targets`), and the camera, spotlight and cursor can point at a name instead of
+  coordinates, so a redesigned screen is fixed once. `speed` can be a list of segments with eased changes (speed ramps) and works in every
+  frame. A new `split` scene plays two recordings side by side, or one above the other in a vertical frame, each with its own camera,
+  speed and a `delay`. See [docs/video-config.md](docs/video-config.md#speed-ramps).
+- Video builds reuse more. The voice of each sentence and each framed recording are kept in `.kinhin/videos/.cache/` and used again
+  while nothing that shapes them has changed, so a one-line edit no longer speaks and frames the whole video again. The WebM and the
+  temporary per-scene encodes are faster, and every build prints how long each step took. `kinhin video build --scene app,outro`
+  builds only those scenes as a quick preview, and `--watch` rebuilds when your video files change. See
+  [docs/videos-for-your-project.md](docs/videos-for-your-project.md#faster-rebuilds).
+- `kinhin video record --pointer` writes where the pointer was and where it clicked beside the clip, and a `device` scene's
+  `autoZoom` turns those clicks into camera moves. The picture still never shows the pointer. `captions.burn` can be a list of
+  formats (`["9:16", "1:1"]`); kinhin's own adapter now burns captions in the vertical and square cuts and leaves 16:9 clean,
+  while other projects keep burning them in every format.
+- The menu bar app is translated into Spanish, Japanese, German, Hebrew, Arabic, Italian and French, and follows the macOS
+  language. The translations are first drafts awaiting native-speaker review, so please report wrong or awkward wording. The
+  CLI, its output and the docs stay English. Disclosure arrows now mirror in right-to-left languages.
+
+**Fixed**
+
+- A classic (non-ephemeral) runner in an Apple container or Docker container is registered again after a restart when the forge no longer has it. Stopping the container (host reboot, `container system stop`) kills the agent inside, and kinhin used to watch the instance as `ready` with no runner until you deleted it. Registration also stops an agent left from an earlier registration first.
+- `kinhin image digest` and the app's Pin button no longer fail with `registry answered HTTP 404` for Cirrus Labs images such as `macos-sequoia-base:latest`. The registry request now names every manifest type, not only image indexes.
+- A new VM no longer waits the whole `vm_boot_timeout` (about five minutes) before kinhin tries SSH when macOS Local Network privacy blocks its port 22 probe. After 15 seconds kinhin tries SSH anyway and logs why. The app now declares a Local Network usage description. See [Troubleshooting](website/guide/troubleshooting.md).
+- `kinhin doctor` no longer calls Command Line Tools outdated when they only trail macOS by a patch release (CLT 27.0.0 on macOS 27.0.1).
+- `kinhin auth list --json` now exists, and `kinhin auth status --account NAME --json` reports only that account instead of every forge.
+- Azure DevOps: kinhin warns at start-up when the agent pool has no agents, because Azure then rejects labelled jobs instead of queueing them. The Azure DevOps page documents the offline placeholder agent that fixes it. Azure is now described as experimental rather than planned; it has had live smoke runs, not real application builds.
+- A restart no longer registers a VM again while its runner is still on the forge, which could fail a job running on it. A runner the forge still has is watched; a VM with no runner is registered as normal. A VM whose forge cannot be asked is held, shown by an `adoption` alert, until it can be; a VM whose account has no forge attached is held the same way and removed after one hour; a VM whose account was removed from the config is released at once. Forges with no runner list, and partly registered VMs, have their own rules. See [docs/scaling.md](docs/scaling.md#restarts).
+
+**Changed**
+
+- The in-app updater now installs updates itself. It uses [Sparkle](https://sparkle-project.org): kinhin downloads the new release, checks its EdDSA signature, replaces the running app and relaunches. Before, it only opened the DMG for a manual drag into Applications. See [Updates and installs](docs/install.md#how-updates-and-installs-are-verified).
+- Update checks run once a day through Sparkle, and the hourly check is gone. Settings → App shows **Install Update…** when a release is waiting.
+- After an upgrade, the app restarts a daemon that is still running the previous build, so the daemon runs the new binary. This interrupts any jobs that daemon is running.
+
+**Upgrading**
+
+- Builds before this release still open the DMG, so update once by hand. Updates after that install automatically.
+
 ## v0.0.1-beta-2
 
 **Added**

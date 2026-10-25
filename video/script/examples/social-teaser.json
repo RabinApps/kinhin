@@ -52,5 +52,11 @@
       "narration": "Try it."
     }
   ],
-  "overrides": {}
+  "overrides": {},
+  "captions": {
+    "burn": true,
+    "scenes": "all",
+    "style": "karaoke"
+  },
+  "transition": "push"
 }

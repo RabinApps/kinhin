@@ -12,25 +12,6 @@
             candidates: [Remediation(.retryForgeAttach, subject: "gitea")],
             context: "warn engine: queue fetch failed for gitea: HTTP 503\nwarn engine: holding scale-down")
 
-        func testThePromptFitsItsBudgetAndKeepsTheNewestLines() {
-            let long = HealingAdviceRequest(
-                signal: request.signal, candidates: request.candidates,
-                context: String(repeating: "old line\n", count: 2000) + "newest line")
-            let prompt = FoundationModelsHealingAdvisor.prompt(for: long, budget: 1200)
-            XCTAssertLessThanOrEqual(prompt.count, 1200)
-            XCTAssertTrue(prompt.hasSuffix("newest line"))
-            XCTAssertTrue(prompt.contains("HTTP 503 from gitea.local"))
-            XCTAssertTrue(prompt.contains("re-attach account gitea"))
-        }
-
-        func testThePromptIsRedacted() {
-            let leaky = HealingAdviceRequest(
-                signal: request.signal, candidates: request.candidates,
-                context: "auth with ghp_abcdefghijklmnopqrstuvwxyz0123456789 failed")
-            let prompt = FoundationModelsHealingAdvisor.prompt(for: leaky, budget: 4000)
-            XCTAssertFalse(prompt.contains("ghp_abcdefghijklmnopqrstuvwxyz0123456789"))
-        }
-
         func testTheSchemaBuilds() throws {
             guard #available(macOS 26, *) else { throw XCTSkip("Foundation Models needs macOS 26") }
             XCTAssertNoThrow(try FoundationModelsHealingAdvisor.schema(for: request.candidates))

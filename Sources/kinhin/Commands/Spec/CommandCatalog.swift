@@ -107,7 +107,8 @@ enum CommandCatalog {
                 CommandSpec(
                     name: "list",
                     command: .auth,
-                    summary: "List accounts and whether their tokens are stored"),
+                    summary: "List accounts and whether their tokens are stored",
+                    flags: [jsonFlag]),
                 CommandSpec(
                     name: "remove",
                     command: .auth,
@@ -119,8 +120,8 @@ enum CommandCatalog {
                     summary: "Check that stored tokens exist and work",
                     flags: forgeFlags() + [accountFlag, jsonFlag, quietFlag],
                     details: [
-                        "With --json: the static report for every forge (no network probe). "
-                            + "Exits 0 when every account has a token, 1 until then."
+                        "With --json: the static report for every forge (no network probe), or just the one "
+                            + "account with --account. Exits 0 when every reported account has a token, 1 until then."
                     ]),
                 CommandSpec(
                     name: "clear",
@@ -590,9 +591,11 @@ enum CommandCatalog {
                         .value("--theme", "NAME", "paper, clean, midnight, blueprint, chalk or your own"),
                         .value("--format", "RATIO", "16:9, 9:16, 4:5 or 1:1"),
                         .value("--captions", "on|off|all", "Burn captions into the picture"),
-                        .value("--caption-style", "STYLE", "outline, box, shadow, bold or minimal"),
+                        .value("--caption-style", "STYLE", "outline, box, shadow, bold, minimal or karaoke"),
                         .value("--music", "TRACK", "A catalog track, a file in the repository, or off"),
                         .bool("--fast", "A preview: quicker encode, no WebM"),
+                        .value("--scene", "IDS", "Build only these scenes (comma-separated ids) as a quick preview"),
+                        .bool("--watch", "Rebuild whenever the video's files change (Ctrl-C to stop)"),
                         .value("--quality", "draft|standard|high", "Encode quality (draft is --fast; high is slower)"),
                         .value("--fps", "24|30|60", "Frames per second (default 30)"),
                         .value("--runtime", "container|docker", "Which container runtime builds it"),
@@ -661,6 +664,9 @@ enum CommandCatalog {
                         .value("--seconds", "N", "How long to record (default 10, at most 600)"),
                         .value(
                             "--out", "PATH", "Where to write the .mov (default: the app's name in the current folder)"),
+                        .value(
+                            "--pointer", "PATH",
+                            "Also write where the pointer was and where it clicked, as JSON, for a video's autoZoom"),
                         .bool("--list-windows", "List the windows that can be recorded, with their ids"),
                         jsonFlag,
                     ],

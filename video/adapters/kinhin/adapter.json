@@ -2,7 +2,7 @@
   "name": "kinhin",
   "description": "kinhin's menu bar app on its scripted demo fleet, and its CLI. The recorders need a Mac; the committed clips in reference/ let anyone build the video without one.",
   "captions": {
-    "burn": false
+    "burn": ["9:16", "1:1"]
   },
   "music": {
     "track": "first-light-particles"
@@ -11,7 +11,21 @@
     "app": {
       "kind": "app",
       "record": "record-app.sh",
-      "recordInVm": "record-app-in-tart.sh"
+      "recordInVm": "record-app-in-tart.sh",
+      "targets": {
+        "runtimes": [
+          0.17,
+          0.2,
+          0.83,
+          0.68
+        ],
+        "fleet": [
+          0.17,
+          0.69,
+          0.83,
+          0.94
+        ]
+      }
     },
     "install": {
       "kind": "terminal",

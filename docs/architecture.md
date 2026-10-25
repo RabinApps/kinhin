@@ -134,11 +134,10 @@ Inside the targets, code is organized by domain:
 | `KinhinKit/Setup/`         | Setup checklist computer, doctor report builder, CLT/tart health probes, host agent installer                                                                                                                                                                                                                               |
 | `KinhinKit/Cache/`         | Managed-toolchain cache pruning (auto-expiry)                                                                                                                                                                                                                                                                               |
 | `KinhinKit/Benchmarks/`    | `kinhin bench`: the runner, suites and report (see [Benchmarks](benchmarks.md))                                                                                                                                                                                                                                             |
-| `KinhinKit/Update/`        | GitHub-release update check + DMG download                                                                                                                                                                                                                                                                                  |
 | `kinhin/KinhinCLI.swift`   | @main entry: arg parsing + dispatch only                                                                                                                                                                                                                                                                                    |
 | `kinhin/Commands/`         | One file per command group (auth, doctor, image, run, runtimes, setup) + the CLICommand routing table; shared exit/output/flags helpers                                                                                                                                                                                     |
 | `kinhin-app/AppMain.swift` | @main entry: AppKit bootstrap, synchronous run loop                                                                                                                                                                                                                                                                         |
-| `kinhin-app/AppState/`     | `FleetController` (status, 3s poll, pending start/stop, debounced config push; talks to a `FleetServing` backend) and `UpdateController` (update check/download state) — `@MainActor @Observable`, the single source of truth                                                                                               |
+| `kinhin-app/AppState/`     | `FleetController` (status, 3s poll, pending start/stop, debounced config push; talks to a `FleetServing` backend) and `UpdateController` (wraps Sparkle's `SPUStandardUpdaterController`, mirrors its check state; `UpdateCycleRelay` forwards Sparkle's callbacks) — `@MainActor @Observable`, the single source of truth                                                                                               |
 | `kinhin-app/AppDelegate/`  | Lifecycle and composition root: builds the controllers, installs the status item and menus, and re-renders them from controller state through one `withObservationTracking` observer                                                                                                                                        |
 | `kinhin-app/Intents/`      | App Intents (Shortcuts): fleet start/stop/pause, status, delete VM, diagnose, auto-resume; the testable `FleetIntentBridge`                                                                                                                                                                                                 |
 | `kinhin-app/UI/`           | `MainTabsWindowController` (an `NSWindow` shell that hosts `MainTabsView` and forwards window events), `AlertKit`, and shared AppKit plumbing                                                                                                                                                                               |
@@ -195,7 +194,7 @@ The CLI and the app talk to the daemon over `RPCMethod` (`Sources/KinhinKit/Flee
   - `Runtimes`: Tart + Apple-container + Docker semantics, routing pools, health probes, cache mounts
   - `Images`: image pipeline (tart + container), runner bootstrap scripts, toolchain selection and helper scripts, digest pinning
   - `Fleet`: engine lifecycle, autoscaler, queue attribution (queued and running, per repo), GitHub Scale Set listener and engine integration, token replacement (Keychain upsert, live engine swap, daemon RPC), multi-account engines, recovery
-  - `Setup` / `Update` / `Cache`: setup-checklist parity, doctor report, update check, cache pruner
+  - `Setup` / `Cache`: setup-checklist parity, doctor report, cache pruner
   - `Benchmarks`: runner over fake tart/ssh/shell, suites, toolchain coverage invariants, report store, registry and RPC
 - **`KinhinCLITests`**: command routing table, starter-config auto-create policy, flag parsing,
   status rendering, the `config init` matrix, help text, auth command flows, exit-code classification.
@@ -231,7 +230,7 @@ The script is `swift test --sanitize thread` in debug, run serially, with the fu
 
 ### Why it is serial
 
-Never add `--parallel`. Under ThreadSanitizer the parallel worker bundles collide on the tests' fixed temp paths (for example `UpdateCheckTests`' version-named DMG), so suites fail at random, and the default target can exit 0 while other bundles are still running.
+Never add `--parallel`. Under ThreadSanitizer the parallel worker bundles collide on the tests' fixed temp paths (for example two suites writing the same fixed temp path), so suites fail at random, and the default target can exit 0 while other bundles are still running.
 
 ### Reading the result
 

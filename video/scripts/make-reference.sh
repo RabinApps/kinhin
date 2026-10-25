@@ -32,6 +32,13 @@ while read -r clip kind; do
     ffmpeg -nostdin -y -loglevel error -ss "$START" -t "$KEEP" -i "$RAW/$clip.mov" \
       -vf "scale=1280:-2,fps=30" -c:v libx264 -crf 29 -preset slow -pix_fmt yuv420p -an -movflags +faststart "$REF/$clip.mp4"
     echo '{"demoStartsAt": 0}' > "$REF/$clip.json"
+    # The pointer log (record-app.sh --pointer) is cut the same way: its times now count from the story's start.
+    if [ -f "$RAW/$clip-pointer.json" ]; then
+      node scripts/pointer-log.mjs "$RAW/$clip-pointer.json" "$REF/$clip-pointer.json" "$START" "$KEEP"
+    else
+      # No log for this take: drop the last one's, or its clicks would zoom the new clip.
+      rm -f "$REF/$clip-pointer.json"
+    fi
   elif [ "$kind" = browser ] && [ "$TERMINAL_ONLY" = 0 ]; then
     [ -f "$RAW/$clip.webm" ] || { echo "no $RAW/$clip.webm: record it first"; continue; }
     ffmpeg -nostdin -y -loglevel error -t "$KEEP" -i "$RAW/$clip.webm" \

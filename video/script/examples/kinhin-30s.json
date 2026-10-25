@@ -27,7 +27,45 @@
       "props": {
         "clip": "app",
         "frame": "macbook",
-        "speed": 2.2
+        "speed": [
+          {
+            "until": 6,
+            "speed": 3
+          },
+          {
+            "until": 14,
+            "speed": 1.5
+          },
+          {
+            "speed": 2.5
+          }
+        ],
+        "camera": [
+          {
+            "at": 1.2,
+            "target": "runtimes"
+          },
+          {
+            "at": 5.6,
+            "target": "fleet"
+          },
+          {
+            "at": 9.4,
+            "zoom": 1
+          }
+        ],
+        "focus": [
+          {
+            "from": 1.6,
+            "to": 5.2,
+            "box": "runtimes"
+          },
+          {
+            "from": 6.0,
+            "to": 9.0,
+            "box": "fleet"
+          }
+        ]
       },
       "cues": [
         {
@@ -39,7 +77,8 @@
           "text": "Each job gets a clean instance, deleted when it's done."
         }
       ],
-      "minLength": 11
+      "minLength": 11,
+      "transition": "push"
     },
     {
       "id": "outro",
@@ -57,5 +96,6 @@
       "narration": "One job. One VM. Gone when it's done."
     }
   ],
-  "overrides": {}
+  "overrides": {},
+  "transition": "dissolve"
 }

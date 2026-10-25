@@ -47,9 +47,9 @@ GitHub supports each version for 24 months after the next one ships, signals ret
 | DELETE | `{actionsBase}/runners/{id}`                                                                   | Remove a runner                                                | `GitHubClient.swift:344`          |
 | GET    | `/repos/{repo}/actions/runs?status=queued\|in_progress&per_page=100&page=N`                    | Demand and running jobs (repo scope; org scope per repository) | `GitHubClient+Runs.swift`         |
 | GET    | `/orgs/{org}/actions/runs`                                                                     | Not used (undocumented)                                        | none                              |
-| GET    | `/repos/{repo}/actions/runs/{id}/jobs?per_page=100` (org mode: `{actionsBase}/runs/{id}/jobs`) | Job labels for matching                                        | `GitHubClient+Runs.swift:139-141` |
+| GET    | `/repos/{repo}/actions/runs/{id}/jobs?per_page=100` (org mode: `{actionsBase}/runs/{id}/jobs`) | Job labels for matching                                        | `GitHubClient+Runs.swift:139,141` |
 | GET    | `/user/repos?affiliation=owner,collaborator,organization_member`                               | Repository picker                                              | `GitHubClient.swift:270`          |
-| GET    | `/orgs/{org}/repos`, `/users/{owner}/repos`                                                    | Repository picker, org and user                                | `GitHubClient.swift:272-274`      |
+| GET    | `/orgs/{org}/repos`, `/users/{owner}/repos`                                                    | Repository picker, org and user                                | `GitHubClient.swift:272,274`      |
 
 ## Enterprise instance
 
@@ -207,9 +207,12 @@ finish first; see the known issue below.
 The listener logs every job event as `[scaleset] message <id>: <Event>#<request id>`, which is how to tell this case
 apart from a label mismatch (no events at all for the job).
 
-**Known issue: restarting while a job runs.** After a daemon restart, a recovered VM whose runner is busy can be
-deleted with `runners never registered on github` (GitHub then answers `422 … is currently running a job`), which fails
-that job. Restart or reconfigure when no jobs are running.
+**Known issue: restarting while a job runs (beta 2).** On beta 2, a restart re-runs runner registration on each VM it re-adopts, which can
+disrupt a job already running on one. With a scale set, the VM can be deleted with `runners never registered on github`
+(GitHub then answers `422 … is currently running a job`), which fails that job. A corrupt `fleet.json` causes the same
+re-registration (see [Restarts](../scaling.md#restarts)). From beta 3, kinhin checks the forge first: a runner that is still
+registered is watched and not registered again, and a VM with no runner is registered as normal. On beta 2, restart or
+reconfigure only when no jobs are running.
 
 **`session conflict` after a restart.** GitHub allows one live message session per scale set. If kinhin exits without
 cleaning up (force quit, crash), GitHub keeps the old session until its lease lapses and answers `409` to the next one.
@@ -231,7 +234,7 @@ Step output is sliced from `GET /repos/{repo}/actions/jobs/{id}/logs` (a redirec
 
 - Registration mode `sharedShortLived`, exit semantics `deregisters` (`GitHubForge.swift`).
 - Token lifetime: about one hour, cached per account by `RegistrationTokenCache` (`Fleet/FleetEngine+Accounts.swift`, `token_ttl` in config).
-- The runner starts with `config.sh --url --token --labels --unattended --ephemeral`, then `run.sh` (`Images/RunnerBootstrap/RunnerBootstrap+Linux.swift:184-206`).
+- The runner starts with `config.sh --url --token --labels --unattended --ephemeral`, then `run.sh` (`Images/RunnerBootstrap/RunnerBootstrap+Linux.swift:127,185`).
 - The classic path does **not** use JIT runner configuration; [scale-set mode](#scale-set-mode-in-kinhin) does. GitHub also documents `POST /{orgs|repos}/.../actions/runners/generate-jitconfig` (body: `name`, `runner_group_id`, `labels`), present in every API version and in GHES; using it on the classic path would remove the shared token from the VM.
 
 ## Demand and label matching

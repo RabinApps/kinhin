@@ -56,11 +56,11 @@ Output is `GET /2.0/repositories/{repo}/pipelines/{uuid}/steps/{step}/log`.
 
 ## Registration flow
 
-- Registration mode `perRunner`, exit semantics `idleGrace` (`BitbucketForge.swift:51-52`): the Bitbucket runner has no single-job mode, so it idles out.
+- Registration mode `perRunner`, exit semantics `idleGrace` (`BitbucketForge.swift:40-41`): the Bitbucket runner has no single-job mode, so it idles out.
 - Each runner is created with labels `["self.hosted", "linux.shell" | "macos"] + account labels + pool labels`, de-duplicated case-insensitively; a label naming the other platform is dropped, so a runner never advertises both `macos` and `linux.shell` (`BitbucketForge.runnerLabels`).
 - The platform label is `linux.shell` when the pool's or account's labels carry `kinhin-container`, `kinhin-docker`, `linux` or `linux.shell`, otherwise `macos`. The guest OS is not known when the runners are created, so a **Tart Linux VM needs a `linux` label on its pool or image**: the registration script compares the guest with the label the runners were created with and, on a mismatch, fails with a message naming that label instead of idling under labels no step matches.
 - If a create call returns no OAuth secret, or a later runner of the same call fails, the half-created runner records are deleted again; records left under the same name by an earlier crashed run are deleted first.
-- The credential bundle `workspaceUUID|repoUUID|runnerUUID|clientId|secret` is stored as the runner token (`BitbucketForge.swift:~118`). The agent starts with `--accountUuid --runnerUuid ...` (`RunnerBootstrap+Bitbucket.swift`), plus `--repositoryUuid` when the bundle carries one. The registration script waits 5 s and fails, with each dead runner's log tail, when a runner process has already exited.
+- The credential bundle `workspaceUUID|repoUUID|runnerUUID|clientId|secret` is stored as the runner token (`BitbucketForge.swift:129`). The agent starts with `--accountUuid --runnerUuid ...` (`RunnerBootstrap+Bitbucket.swift`), plus `--repositoryUuid` when the bundle carries one. The registration script waits 5 s and fails, with each dead runner's log tail, when a runner process has already exited.
 
 ## Demand and label matching
 
@@ -73,7 +73,7 @@ Output is `GET /2.0/repositories/{repo}/pipelines/{uuid}/steps/{step}/log`.
 
 ## Pagination, rate limits, retries
 
-`pagelen=100` and the `next` URL in the response body, up to 20 pages (`BitbucketClient.swift:18,173-177`); some calls take one page only. Next links are checked against a trusted host. `withTransientRetry` on network errors, 429 and 5xx.
+`pagelen=100` and the `next` URL in the response body, up to 20 pages (`BitbucketClient.swift:18,173,177`); some calls take one page only. Next links are checked against a trusted host. `withTransientRetry` on network errors, 429 and 5xx.
 
 ## Self-hosted notes and minimum versions
 

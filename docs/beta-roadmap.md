@@ -4,8 +4,12 @@ What is supported today, and the milestones between the current beta and the **v
 
 [← Back to README](../README.md) · [Forge support](forges.md#what-has-been-tested)
 
-kinhin is in beta (`v0.0.1-beta-1`). The beta supports **GitHub, Gitea, Forgejo and GitLab CE**; Buildkite, Azure
-Pipelines and Bitbucket Pipelines follow in later betas. Milestones are ordered by what has to be true, not by date.
+<!-- docs-sync:begin release-line -->
+kinhin is in beta (`v0.0.1-beta-3`).
+<!-- docs-sync:end release-line -->
+
+The beta supports **GitHub, Gitea, Forgejo and GitLab CE**; Buildkite, Azure Pipelines and Bitbucket Pipelines follow in
+later betas. Milestones are ordered by what has to be true, not by date.
 
 ## Where we are
 
@@ -17,12 +21,12 @@ Pipelines and Bitbucket Pipelines follow in later betas. Milestones are ordered 
 | Buildkite, Azure Pipelines, Bitbucket Pipelines | Planned (implemented and unit-tested, not supported yet) |
 | ThreadSanitizer | Clean (`scripts/tsan.sh`) |
 | Long-running soak test | Not done |
-| In-app updater | Not yet exercised against a published release |
+| In-app updater | Ships in beta-3; not yet exercised by a published release updating itself (needs the next release) |
 | Telemetry | None |
 
 ## Milestones
 
-### beta-1: first public beta (current)
+### beta-1: first public beta
 
 - GitHub, Gitea, Forgejo and GitLab CE supported. Gitea, Forgejo and GitLab CE live-tested on every runtime; GitHub on
   Tart macOS VMs and apple/container.
@@ -38,11 +42,19 @@ Pipelines and Bitbucket Pipelines follow in later betas. Milestones are ordered 
 
 **Exit:** no open bugs that lose a job or leak a runner on a supported forge.
 
-### beta-3: more forges
+### beta-3: updater, restart safety and localization (current)
+
+- The in-app updater installs updates itself (Sparkle, EdDSA-signed feed).
+- A restart no longer registers a VM again while its runner is still on the forge.
+- Ollama as a healing advisor, camera and karaoke captions for videos, and the app in seven more languages.
+- Azure Pipelines labeled experimental.
+
+### beta-4: more forges
 
 - Buildkite, Azure Pipelines and Bitbucket Pipelines run against real accounts in the end-to-end suite, and become
   supported one by one as they pass.
 - Multi-account and mixed-forge fleets on one shared pool.
+- Register the dedicated `kinhin-e2e` Mac, run the GitHub lane, and turn on the nightly end-to-end run.
 
 **Exit:** every forge the docs call supported is live-tested; the rest are clearly labeled planned.
 

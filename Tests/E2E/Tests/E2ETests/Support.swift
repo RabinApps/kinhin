@@ -44,14 +44,17 @@ struct LifecycleCase: Sendable, CustomTestStringConvertible {
     /// joins the matrix by existing; `CoverageTests` fails if kinhin gains a runtime with no `RuntimeKind`).
     /// `KINHIN_E2E_FORGES` / `KINHIN_E2E_RUNTIMES` narrow it. GitLab CE is heavy (GBs, minutes to boot), so it runs
     /// only when asked for by name or with `KINHIN_E2E_HEAVY=1`. GitHub runs only when `KINHIN_E2E_GITHUB_TOKEN` and
-    /// `KINHIN_E2E_GITHUB_REPO` are set. Tart and host lanes are opt-in (see `RuntimeKind.isAvailable`).
+    /// `KINHIN_E2E_GITHUB_REPO` are set, Buildkite only when `KINHIN_E2E_BUILDKITE_TOKEN` and
+    /// `KINHIN_E2E_BUILDKITE_SCOPE` are, Bitbucket only when `KINHIN_E2E_BITBUCKET_TOKEN` and
+    /// `KINHIN_E2E_BITBUCKET_SCOPE` are, Azure DevOps only when `KINHIN_E2E_AZURE_TOKEN`, `_ORG`, `_PROJECT` and
+    /// `_POOL` are. Tart and host lanes are opt-in (see `RuntimeKind.isAvailable`).
     static let all: [LifecycleCase] = {
         let heavy = E2E.flag("KINHIN_E2E_HEAVY") != nil
         var cases: [LifecycleCase] = []
         for forge in ForgeKind.allCases {
             guard E2E.selected("KINHIN_E2E_FORGES", forge.rawValue) else { continue }
             if forge == .gitlab, !heavy, E2E.flag("KINHIN_E2E_FORGES") == nil { continue }
-            if forge == .github, !GitHubFixture.isConfigured { continue }
+            if !forge.isConfigured { continue }
             for runtime in RuntimeKind.allCases {
                 guard runtime.isAvailable, E2E.selected("KINHIN_E2E_RUNTIMES", runtime.rawValue) else { continue }
                 cases.append(LifecycleCase(forge: forge, runtime: runtime))

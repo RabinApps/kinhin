@@ -12,4 +12,15 @@ const project = 'titles';
 
 export default defineConfig({
   plugins: [motionCanvas({project: `./src/${project}.ts`}), ffmpeg()],
+  // Vite 6 finds these late on a cold start and re-bundles them, leaving the editor with two copies of
+  // @motion-canvas/core ("useApplication() is null", no Render button). Listing them bundles them in one pass.
+  optimizeDeps: {
+    include: [
+      '@motion-canvas/core',
+      '@motion-canvas/2d',
+      '@motion-canvas/2d/lib/jsx-dev-runtime',
+      '@motion-canvas/ffmpeg/lib/client',
+      '@motion-canvas/ui',
+    ],
+  },
 });

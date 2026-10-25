@@ -92,6 +92,16 @@ final class DevToolsTests: XCTestCase {
         XCTAssertTrue(state.detail.contains("Homebrew will refuse"))
     }
 
+    /// Apple ships CLT per macOS release line, not per patch: CLT 27.0.0 is
+    /// current for macOS 27.0.1 (seen live), so doctor must not call it outdated.
+    func testPatchOnlyGapBehindMacOSIsStillOK() async throws {
+        let state = try await makeProbe(receipt: receipt("27.0.0.0.1234"), productVersion: "27.0.1").check()
+        XCTAssertEqual(state, .ok(version: "27.0.0"))
+        let minor = try await makeProbe(receipt: receipt("27.0.0.0.1234"), productVersion: "27.1").check()
+        XCTAssertEqual(minor, .outdated(version: "27.0.0", macOSVersion: "27.1"), "a minor gap still blocks")
+        XCTAssertEqual(CLTProbe.releaseLine("27.0.1"), "27.0")
+    }
+
     func testMissingReceiptMeansMissing() async throws {
         let state = try await makeProbe(
             receipt: ShellResult(exitCode: 1, stdout: "", stderr: "No receipt for com.apple.pkg.CLTools_Executables")

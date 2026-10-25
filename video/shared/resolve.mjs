@@ -24,7 +24,27 @@ export const SCENE_TYPES = {
   compare: {kind: 'canvas', minLength: 6, designWidth: 1560},
   device: {kind: 'clip', minLength: 0},
   terminal: {kind: 'clip', minLength: 0},
+  split: {kind: 'clip', minLength: 0},
 };
+
+/**
+ * The scene types whose narration is burned in together, each group in the placement that suits it: the laptop scenes, the window
+ * scenes, and every drawn scene (a new scene type is a drawn one unless it says `kind: 'clip'`, so it is never left out).
+ */
+export const CAPTION_GROUPS = [['device'], ['terminal', 'split'], Object.keys(SCENE_TYPES).filter((t) => SCENE_TYPES[t].kind === 'canvas')];
+
+// How one scene hands over to the next. `fade` (the default) dips through the backdrop colour; the others are ffmpeg `xfade`
+// transitions centred on the cut, so the scenes and the voice keep their places. A project's `transition` is the default
+// for every cut; a scene's own `transition` is how it comes in from the scene before it.
+export const TRANSITIONS = {
+  fade: {xfade: null, description: 'dip through the backdrop colour (the default)'},
+  dissolve: {xfade: 'dissolve', description: 'cross-dissolve'},
+  push: {xfade: 'slideleft', description: 'the next scene pushes the last one out to the left'},
+  slide: {xfade: 'slideup', description: 'the next scene slides up over the last one'},
+  wipe: {xfade: 'wipeleft', description: 'a hard-edged wipe from the right'},
+  circle: {xfade: 'circleopen', description: 'the next scene opens from the middle in a circle'},
+};
+export const TRANSITION_LENGTH = 0.5;
 
 // The most characters each on-screen text of a scene may have (a list prop counts each item; `facts` counts the joined row).
 // The scene wraps and shrinks what it is given (src/stage.ts fitText), but a text this long stops being readable on one
@@ -174,6 +194,7 @@ export const CAPTION_STYLES = {
   shadow: {border: 'shadow', description: 'text with a soft drop shadow, no outline'},
   bold: {border: 'outline', bold: true, size: 1.25, description: 'larger, bold text with an outline'},
   minimal: {border: 'none', size: 0.85, description: 'small, plain text'},
+  karaoke: {border: 'outline', bold: true, size: 1.15, karaoke: true, description: 'bold outlined text whose words light up as they are spoken'},
 };
 export const CAPTION_POSITIONS = ['auto', 'bottom', 'top', 'middle'];
 const HEX = /^#[0-9a-f]{6}([0-9a-f]{2})?$/i;
@@ -183,13 +204,14 @@ export function validateCaptions(cfg) {
   const problems = [];
   if (cfg === undefined) return problems;
   if (typeof cfg !== 'object' || cfg === null || Array.isArray(cfg)) return ['"captions" must be an object'];
-  if ('burn' in cfg && typeof cfg.burn !== 'boolean') problems.push('captions.burn must be true or false');
+  const formatList = Array.isArray(cfg.burn) && cfg.burn.every((f) => typeof f === 'string' && f in FORMATS);
+  if ('burn' in cfg && typeof cfg.burn !== 'boolean' && !formatList) problems.push(`captions.burn must be true or false, or the formats to burn them in, such as ["9:16", "1:1"] (${Object.keys(FORMATS).join(', ')})`);
   if ('sidecar' in cfg && typeof cfg.sidecar !== 'boolean') problems.push('captions.sidecar must be true or false');
   if ('style' in cfg && !(cfg.style in CAPTION_STYLES)) problems.push(`captions.style "${cfg.style}" is not one of ${Object.keys(CAPTION_STYLES).join(', ')}`);
   if ('position' in cfg && !CAPTION_POSITIONS.includes(cfg.position)) problems.push(`captions.position "${cfg.position}" is not one of ${CAPTION_POSITIONS.join(', ')}`);
   if ('scenes' in cfg && !(cfg.scenes === 'clips' || cfg.scenes === 'all' || (Array.isArray(cfg.scenes) && cfg.scenes.every((x) => typeof x === 'string')))) problems.push('captions.scenes must be "clips", "all" or a list of scene ids');
   if ('size' in cfg && !(typeof cfg.size === 'number' && cfg.size > 0 && cfg.size <= 3)) problems.push('captions.size must be a number above 0 and up to 3 (a multiplier)');
-  for (const k of ['color', 'outlineColor', 'boxColor']) if (k in cfg && !HEX.test(cfg[k])) problems.push(`captions.${k} must be a hex colour like #ffffff (or #000000b3 with opacity)`);
+  for (const k of ['color', 'outlineColor', 'boxColor', 'highlightColor']) if (k in cfg && !HEX.test(cfg[k])) problems.push(`captions.${k} must be a hex colour like #ffffff (or #000000b3 with opacity)`);
   return problems;
 }
 
@@ -205,12 +227,14 @@ export function assColor(hex) {
  * The caption settings a build uses. Later wins: the theme's caption look, the adapter's "captions", the project's
  * "captions", then the environment (VIDEO_CAPTIONS=on|off|all, VIDEO_CAPTION_STYLE, CAPTION_SCENES, and the older
  * NO_CAPTIONS). `burn: false` leaves the picture clean; the caption file for a player (out/<name>.srt) is written either way.
+ * `burn` may also be a list of formats (`["9:16", "1:1"]`): burned in those formats, clean in the others. `format` is the
+ * output format's name, 16:9 by default.
  */
-export function resolveCaptions({theme, project = {}, adapter = {}, env = {}}) {
+export function resolveCaptions({theme, project = {}, adapter = {}, env = {}, format = '16:9'}) {
   const cfg = deepMerge(deepMerge({}, adapter.captions ?? {}), project.captions ?? {});
   const problems = [...validateCaptions(adapter.captions), ...validateCaptions(project.captions)];
   if (problems.length) throw new Error(problems.join('; '));
-  let burn = cfg.burn ?? true;
+  let burn = Array.isArray(cfg.burn) ? cfg.burn.includes(format) : cfg.burn ?? true;
   let scenes = cfg.scenes ?? 'clips';
   const mode = (env.VIDEO_CAPTIONS || '').toLowerCase();
   if (mode && !['on', 'off', 'all'].includes(mode)) throw new Error(`VIDEO_CAPTIONS must be on, off or all, not "${env.VIDEO_CAPTIONS}"`);
@@ -236,6 +260,8 @@ export function resolveCaptions({theme, project = {}, adapter = {}, env = {}}) {
     text: cfg.color ?? theme.caption.text,
     outline: cfg.outlineColor ?? theme.caption.outline,
     box: cfg.boxColor ?? theme.caption.boxColor ?? '#000000b3',
+    karaoke: preset.karaoke ?? false,
+    highlight: cfg.highlightColor ?? cfg.color ?? theme.caption.text, // spoken words; the unspoken ones are this text colour, dimmed
     sidecar: cfg.sidecar !== false,
   };
 }
@@ -295,11 +321,136 @@ export function resolveMusic({project = {}, adapter = {}, env = {}}) {
 /** True for portrait and square frames, which get their own layouts. */
 export const isNarrow = (format) => format.width / format.height < 1.2;
 
+const isUnit = (v) => typeof v === 'number' && v >= 0 && v <= 1;
+const point = (v) => Array.isArray(v) && v.length === 2 && v.every(isUnit);
+// A point or a box may be the name of one of the clip's `targets` in its adapter (checked when the video is validated and built).
+const isName = (v) => typeof v === 'string' && v.length > 0;
+const isObject = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);
+
+/** What is wrong with a clip scene's `camera`, `focus`, `cursor` and `autoZoom` props, in words ("" for the place if the scene is fine). */
+export function validateCamera(props, where) {
+  const problems = [];
+  const {camera, focus, cursor, autoZoom} = props ?? {};
+  if (autoZoom !== undefined) {
+    if (camera !== undefined) problems.push(`${where}: "autoZoom" and "camera" both move the camera; keep one`);
+    if (autoZoom !== true && !isObject(autoZoom)) problems.push(`${where}: "autoZoom" must be true, or { zoom, lead, hold, gap, reach }`);
+    else if (isObject(autoZoom)) {
+      if ('zoom' in autoZoom && !(typeof autoZoom.zoom === 'number' && autoZoom.zoom >= 1 && autoZoom.zoom <= 4)) problems.push(`${where}: autoZoom.zoom must be a number from 1 to 4`);
+      for (const key of ['lead', 'hold', 'gap', 'reach']) {
+        if (key in autoZoom && !(typeof autoZoom[key] === 'number' && autoZoom[key] >= 0)) problems.push(`${where}: autoZoom.${key} must be seconds (or a fraction of the picture, for reach), 0 or more`);
+      }
+      // Only these settings are read; anything else (such as move, which is the camera's own) is named rather than passed on.
+      const known = ['zoom', 'lead', 'hold', 'gap', 'reach'];
+      for (const key of Object.keys(autoZoom).filter((k) => !known.includes(k))) problems.push(`${where}: autoZoom.${key} is not a setting; use ${known.join(', ')}`);
+    }
+  }
+  const times = (list, name) => {
+    let last = -1;
+    for (const [i, k] of list.entries()) {
+      if (!isObject(k)) continue; // reported by the caller, with what the entry should look like
+      if (!(typeof k.at === 'number' && k.at >= 0)) problems.push(`${where}: ${name}[${i}].at must be seconds into the scene, 0 or more`);
+      else if (k.at <= last) problems.push(`${where}: ${name}[${i}].at must be later than the one before it`);
+      else last = k.at;
+    }
+  };
+  if (camera !== undefined) {
+    if (!Array.isArray(camera) || camera.length === 0) problems.push(`${where}: "camera" must be a list of keyframes: { at, zoom, to }`);
+    else {
+      times(camera, 'camera');
+      for (const [i, k] of camera.entries()) {
+        if (!isObject(k)) { problems.push(`${where}: camera[${i}] must be a keyframe: { at, zoom, to }`); continue; }
+        if ('zoom' in k && !(typeof k.zoom === 'number' && k.zoom >= 1 && k.zoom <= 4)) problems.push(`${where}: camera[${i}].zoom must be a number from 1 to 4`);
+        if ('to' in k && !point(k.to) && !isName(k.to)) problems.push(`${where}: camera[${i}].to must be [x, y], each from 0 to 1 (a point on the recording), or the name of a target`);
+        if ('target' in k && !isName(k.target)) problems.push(`${where}: camera[${i}].target must be the name of a target of the clip`);
+        if ('target' in k && 'to' in k) problems.push(`${where}: camera[${i}] has both "target" and "to"; give one`);
+        if ('move' in k && !(typeof k.move === 'number' && k.move > 0 && k.move <= 5)) problems.push(`${where}: camera[${i}].move must be seconds above 0 and up to 5`);
+      }
+    }
+  }
+  if (focus !== undefined) {
+    const list = Array.isArray(focus) ? focus : [focus];
+    for (const [i, f] of list.entries()) {
+      const name = Array.isArray(focus) ? `focus[${i}]` : 'focus';
+      if (!isObject(f)) { problems.push(`${where}: ${name} must be { from, to, box }`); continue; }
+      const box = f.box;
+      if (!(typeof f?.from === 'number' && typeof f?.to === 'number' && f.from >= 0 && f.to > f.from)) problems.push(`${where}: ${name} needs "from" and "to" seconds, with "to" after "from"`);
+      if (!isName(box) && !(Array.isArray(box) && box.length === 4 && box.every(isUnit) && box[2] > box[0] && box[3] > box[1])) problems.push(`${where}: ${name}.box must be [x0, y0, x1, y1], each from 0 to 1, with x1 > x0 and y1 > y0, or the name of a target`);
+      if ('dim' in f && !(typeof f.dim === 'number' && f.dim > 0 && f.dim <= 0.9)) problems.push(`${where}: ${name}.dim must be a number above 0 and up to 0.9`);
+    }
+  }
+  if (cursor !== undefined) {
+    if (!Array.isArray(cursor) || cursor.length === 0) problems.push(`${where}: "cursor" must be a list of points: { at, to, click }`);
+    else {
+      times(cursor, 'cursor');
+      for (const [i, k] of cursor.entries()) {
+        if (!isObject(k)) { problems.push(`${where}: cursor[${i}] must be a point: { at, to, click }`); continue; }
+        if (!point(k.to) && !isName(k.to)) problems.push(`${where}: cursor[${i}].to must be [x, y], each from 0 to 1 (a point on the recording), or the name of a target`);
+        if ('click' in k && typeof k.click !== 'boolean') problems.push(`${where}: cursor[${i}].click must be true or false`);
+      }
+    }
+  }
+  return problems;
+}
+
+/** What is wrong with a clip's `speed`: a positive number, or a list of {until, speed} segments (source seconds from where the story starts; each speed 0.1 to 30). */
+export function validateSpeed(props, where) {
+  const problems = [];
+  const {speed, ramp} = props ?? {};
+  const rate = (v) => typeof v === 'number' && v >= 0.1 && v <= 30;
+  // A constant speed has always been any positive number (a long time-lapse may be 60x); the limits are for a segment's speed.
+  if (speed !== undefined && !Array.isArray(speed) && !(typeof speed === 'number' && speed > 0 && Number.isFinite(speed))) problems.push(`${where}: speed must be a positive number, or a list of { until, speed } segments`);
+  if (Array.isArray(speed)) {
+    if (speed.length === 0) problems.push(`${where}: "speed" must not be an empty list`);
+    let last = 0;
+    for (const [i, seg] of speed.entries()) {
+      if (!isObject(seg)) { problems.push(`${where}: speed[${i}] must be a segment: { until, speed }`); continue; }
+      if (!rate(seg.speed)) problems.push(`${where}: speed[${i}].speed must be a number from 0.1 to 30`);
+      if (i === speed.length - 1) {
+        if ('until' in seg) problems.push(`${where}: the last speed segment has no "until"; it runs to the end of the scene`);
+      } else if (!(typeof seg.until === 'number' && seg.until > last)) problems.push(`${where}: speed[${i}].until must be source seconds, later than the segment before it`);
+      else last = seg.until;
+    }
+  }
+  if (ramp !== undefined && !(typeof ramp === 'number' && ramp >= 0 && ramp <= 2)) problems.push(`${where}: ramp must be seconds from 0 to 2`);
+  if (ramp !== undefined && !Array.isArray(speed)) problems.push(`${where}: ramp only applies when speed is a list of segments`);
+  return problems;
+}
+
+/**
+ * Everything a recording's props can say about how it plays: the camera work and the speed, and for a panel of a split scene
+ * (`panel`) a `delay` before it starts.
+ */
+export function validateClipSpec(props, where, {panel = false} = {}) {
+  const problems = [...validateCamera(props, where), ...validateSpeed(props, where)];
+  const delay = props?.delay;
+  if (delay !== undefined && !panel) problems.push(`${where}: "delay" works on the panels of a split scene only`);
+  else if (delay !== undefined && !(typeof delay === 'number' && delay >= 0 && delay <= 30)) problems.push(`${where}: delay must be seconds from 0 to 30`);
+  return problems;
+}
+
+/** What is wrong with a `transition` value (a name from TRANSITIONS), in words. */
+export function validateTransition(value, where) {
+  return value === undefined || value in TRANSITIONS ? [] : [`${where}: transition "${value}" is not one of ${Object.keys(TRANSITIONS).join(', ')}`];
+}
+
+/**
+ * The scenes named in `ids` (comma-separated, or a list), in the project's own order; all of them when `ids` is empty. Builds one or
+ * two scenes for a quick preview (`--scene`); an id the project does not have is an error that lists the ones it has.
+ */
+export function selectScenes(scenes, ids) {
+  const wanted = (Array.isArray(ids) ? ids : String(ids ?? '').split(',')).map((id) => String(id).trim()).filter(Boolean);
+  if (!wanted.length) return scenes;
+  const known = scenes.map((s) => s.id);
+  const unknown = wanted.filter((id) => !known.includes(id));
+  if (unknown.length) throw new Error(`no scene ${unknown.map((id) => `"${id}"`).join(', ')} in this video (its scenes: ${known.join(', ')})`);
+  return scenes.filter((s) => wanted.includes(s.id));
+}
+
 /** Checks a project file and says what is wrong in words. */
 export function validateProject(project) {
   const problems = [];
   if (!Array.isArray(project.scenes) || project.scenes.length === 0) problems.push('a project needs a "scenes" list');
-  problems.push(...validateCaptions(project.captions), ...validateMusic(project.music));
+  problems.push(...validateCaptions(project.captions), ...validateMusic(project.music), ...validateTransition(project.transition, 'the project'));
   const ids = new Set();
   for (const [i, scene] of (project.scenes ?? []).entries()) {
     const where = `scene ${i + 1}${scene.id ? ` ("${scene.id}")` : ''}`;
@@ -308,6 +459,15 @@ export function validateProject(project) {
     ids.add(scene.id);
     if (!(scene.type in SCENE_TYPES)) problems.push(`${where}: unknown type "${scene.type}" (${Object.keys(SCENE_TYPES).join(', ')})`);
     if (!scene.narration && !scene.cues) problems.push(`${where} has neither "narration" nor "cues"`);
+    problems.push(...validateTransition(scene.transition, where));
+    if (scene.type === 'split') {
+      for (const side of ['left', 'right']) {
+        if (typeof scene.props?.[side] !== 'object' || scene.props[side] === null || Array.isArray(scene.props[side])) problems.push(`${where}: a split scene needs "${side}": { clip, ... }`);
+        else problems.push(...validateClipSpec(scene.props[side], `${where}: ${side}`, {panel: true}));
+      }
+      if ('ratio' in (scene.props ?? {}) && !(typeof scene.props.ratio === 'number' && scene.props.ratio >= 0.3 && scene.props.ratio <= 0.7)) problems.push(`${where}: ratio must be a number from 0.3 to 0.7 (the left or top panel's share)`);
+    } else if (SCENE_TYPES[scene.type]?.kind === 'clip') problems.push(...validateClipSpec(scene.props, where));
+    else if (['camera', 'focus', 'cursor', 'autoZoom', 'ramp'].some((k) => k in (scene.props ?? {}))) problems.push(`${where}: "camera", "focus", "cursor" and "autoZoom" work on device, terminal and split scenes only`);
     for (const [key, max] of Object.entries(TEXT_LIMITS[scene.type] ?? {})) {
       // A key may name a nested prop with dots, such as "left.items".
       const value = key.split('.').reduce((node, part) => node?.[part], scene.props);

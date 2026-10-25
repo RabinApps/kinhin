@@ -66,6 +66,13 @@ public struct AzureDevOpsClient: Sendable {
             [URLQueryItem(name: "includeAssignedRequest", value: "true")], what: "agents")
     }
 
+    /// The pool's agents with their capabilities (a larger answer; used for the start-up check only).
+    func listAgentsWithCapabilities(pool: AzureDevOpsPool) async throws -> [AzureDevOpsAgent] {
+        try await list(
+            "/_apis/distributedtask/pools/\(pool.id)/agents",
+            [URLQueryItem(name: "includeCapabilities", value: "true")], what: "agents")
+    }
+
     /// Deletes an agent. One that is already gone (404) is what deleting
     /// wanted.
     func deleteAgent(pool: AzureDevOpsPool, id: Int) async throws {

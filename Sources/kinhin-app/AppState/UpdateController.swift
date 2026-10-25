@@ -1,142 +1,98 @@
-import AppKit
 import KinhinKit
 import Observation
+import Sparkle
 
-/// What `UpdateController` needs from the updater; `UpdateChecker` is the
-/// production conformance, tests substitute a fake (no network).
-protocol UpdateChecking: Sendable {
-    func check() async throws -> UpdateCheckResult
-    func downloadDMG(_ info: UpdateInfo, progress: (@Sendable (Double) -> Void)?) async throws -> URL
-}
-
-extension UpdateChecker: UpdateChecking {}
-
-/// Update checking and download state: what the Settings → App update card
-/// shows and whether the status-bar menu offers a newer release. The app
-/// delegate re-renders the menu from this object; the card binds to it.
+/// Self-update state for Settings → App and the status-bar menu. Sparkle does
+/// the work: scheduled checks, the update prompt, EdDSA verification, the
+/// in-place install and the relaunch. This object mirrors what Sparkle reports
+/// so the card and the menu can say where things stand.
 @MainActor
 @Observable
 final class UpdateController {
     /// Drives the Settings → App update card.
     var updateCardState: UpdateCardState
-    var pendingUpdate: UpdateInfo?
-    private(set) var lastUpdateCheck: Date?
+    /// The release Sparkle found and has not installed yet; the menu offers it.
+    var pendingVersion: String?
 
-    @ObservationIgnored private var checkTask: Task<Void, Never>?
-    @ObservationIgnored private var downloadTask: Task<Void, Never>?
-    @ObservationIgnored private var scheduleTask: Task<Void, Never>?
-    @ObservationIgnored var makeChecker: () -> any UpdateChecking = { UpdateChecker(repo: UpdatePreferences.repo) }
-    /// Where the 24h throttle stamp lives (tests inject a scratch suite).
-    @ObservationIgnored let defaults: UserDefaults
+    @ObservationIgnored private let updaterController: SPUStandardUpdaterController
+    /// Sparkle holds its delegate weakly, so the controller keeps the relay alive.
+    @ObservationIgnored private let relay: UpdateCycleRelay
+    @ObservationIgnored private var scheduledChecksStarted = false
+    /// Whether Sparkle can take a check now; tests replace it to simulate a rejected check.
+    @ObservationIgnored var canStartCheck: () -> Bool
 
-    init(defaults: UserDefaults = .standard) {
-        self.defaults = defaults
-        updateCardState = .idle(lastChecked: UpdatePreferences.lastCheck(in: defaults))
+    /// Builds the updater without starting it, so tests never reach the network;
+    /// the app calls `startScheduledChecks()` once at launch.
+    init() {
+        let relay = UpdateCycleRelay()
+        relay.feedOverride = UpdatePreferences.feedOverride(fromEnvironment: ProcessInfo.processInfo.environment)
+        let controller = SPUStandardUpdaterController(
+            startingUpdater: false, updaterDelegate: relay, userDriverDelegate: nil)
+        self.relay = relay
+        updaterController = controller
+        canStartCheck = { controller.updater.canCheckForUpdates }
+        updateCardState = .idle(lastChecked: controller.updater.lastUpdateCheckDate)
+
+        relay.onFoundUpdate = { [weak self] version in self?.handleFoundUpdate(version: version) }
+        relay.onNoUpdate = { [weak self] in self?.handleNoUpdate() }
+        relay.onCycleFinished = { [weak self] error in self?.handleCycleFinished(error: error) }
     }
-    @ObservationIgnored var open: (URL) -> Bool = { NSWorkspace.shared.open($0) }
 
     // MARK: - Scheduling
 
-    /// Checks at launch (at most once a day), then hourly (same throttle).
+    /// Starts Sparkle's background checks, which follow `SUScheduledCheckInterval`
+    /// (24h) in Info.plist. Idempotent.
     func startScheduledChecks() {
-        guard scheduleTask == nil else { return }
-        if Date().timeIntervalSince(UpdatePreferences.lastCheck(in: defaults)) >= UpdatePreferences.interval {
-            checkForUpdates()
-        }
-        scheduleTask = Task { [weak self] in
-            while !Task.isCancelled {
-                do {
-                    try await Task.sleep(for: .seconds(3600))
-                } catch {
-                    return
-                }
-                self?.checkForUpdates()
-            }
-        }
-    }
-
-    func cancelAll() {
-        scheduleTask?.cancel()
-        checkTask?.cancel()
-        downloadTask?.cancel()
-        scheduleTask = nil
+        guard !scheduledChecksStarted else { return }
+        guard let publicKey = Bundle.main.object(forInfoDictionaryKey: "SUPublicEDKey") as? String,
+            !publicKey.isEmpty
+        else { return }
+        scheduledChecksStarted = true
+        updaterController.startUpdater()
     }
 
     // MARK: - Checking
 
+    /// The Settings button and the menu item. Sparkle shows its own prompt for
+    /// a found release, with the install and relaunch option.
     func checkForUpdates() {
-        guard checkTask == nil else { return }  // one at a time
+        // Sparkle ignores a check it cannot start (e.g. while a background download runs) and sends no cycle
+        // callback for it, so `.checking` would never settle.
+        guard canStartCheck() else { return }
         updateCardState = .checking
-        checkTask = Task { [weak self] in
-            await self?.runCheck()
-        }
+        updaterController.checkForUpdates(nil)
     }
 
-    /// The card/menu button: download when a release is waiting, otherwise check.
-    func checkOrDownload() {
-        guard let info = pendingUpdate else {
-            checkForUpdates()
+    // MARK: - Sparkle callbacks
+
+    func handleFoundUpdate(version: String) {
+        pendingVersion = version
+    }
+
+    func handleNoUpdate() {
+        pendingVersion = nil
+    }
+
+    /// Settles the card once a check (manual or scheduled) is over. Sparkle
+    /// reports "no update" and a cancelled install as errors; neither is a failure.
+    func handleCycleFinished(error: Error?) {
+        if let error, !Self.isBenign(error) {
+            Log.error("app", "update check failed: \(error.localizedDescription)")
+            updateCardState = .failed(error.localizedDescription)
             return
         }
-        // Download the release DMG (checksum- and signature-verified by the
-        // updater) and open it so the user lands in Finder, ready to install.
-        guard downloadTask == nil else { return }
-        downloadTask = Task { [weak self] in
-            await self?.downloadAndPresent(info)
+        if let pendingVersion {
+            updateCardState = .available(version: pendingVersion)
+        } else {
+            updateCardState = .upToDate(lastChecked: updaterController.updater.lastUpdateCheckDate)
         }
     }
 
-    private func runCheck() async {
-        defer { checkTask = nil }
-        do {
-            let result = try await makeChecker().check()
-            let now = Date()
-            lastUpdateCheck = now
-            UpdatePreferences.setLastCheck(now, in: defaults)
-            switch result {
-            case .upToDate:
-                updateCardState = .upToDate(lastChecked: now)
-                if pendingUpdate != nil {
-                    Log.info("app", "update superseded; installed version is current again")
-                }
-                pendingUpdate = nil
-                Log.info("app", "update check: up to date (v\(kinhinVersion.current))")
-            case .available(let info):
-                if pendingUpdate?.tag != info.tag {
-                    Log.info("app", "update available: \(info.tag) (running v\(kinhinVersion.current))")
-                }
-                pendingUpdate = info
-                updateCardState = .available(version: info.version)
-            }
-        } catch is CancellationError {
-            // shutting down or superseded; stay quiet
-            updateCardState = .idle(lastChecked: lastUpdateCheck)
-        } catch {
-            Log.info("app", "update check skipped: \(error.localizedDescription)")
-            updateCardState = .failed(error.localizedDescription)
-        }
-    }
-
-    private func downloadAndPresent(_ info: UpdateInfo) async {
-        defer { downloadTask = nil }
-        do {
-            updateCardState = .downloading(name: info.dmgName)
-            let url = try await makeChecker().downloadDMG(info, progress: nil)
-            Log.info("app", "update downloaded to \(url.path)")
-            guard open(url) else {
-                Log.error("app", "could not open the downloaded update at \(url.path)")
-                updateCardState = .failed(
-                    String(
-                        localized: "Downloaded the update but couldn't open it — find it at \(url.path)", bundle: .l10n,
-                        comment: "Update card error; %@ is a file path"))
-                return
-            }
-            updateCardState = .available(version: info.version)
-        } catch is CancellationError {
-            updateCardState = .available(version: info.version)
-        } catch {
-            Log.error("app", "update download failed: \(error.localizedDescription)")
-            updateCardState = .failed(error.localizedDescription)
-        }
+    /// Sparkle's error codes in `SUSparkleErrorDomain` (see SUErrors.h):
+    /// `SUNoUpdateError` (1001) and `SUInstallationCanceledError` (4007).
+    static func isBenign(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        guard nsError.domain == SUSparkleErrorDomain else { return false }
+        return nsError.code == 1001 || nsError.code == 4007
     }
 }

@@ -32,7 +32,7 @@ requests off kinhin matters more than any setting below.
 - **Config values can't inject shell.** Toolchain entries are limited to a strict character set and quoted again where they enter a script.
 - **The daemon socket and local files are private.** The socket is `0600` in a `0700` directory and only your user can connect. The support directory, logs and state are owner-only.
 - **Host mode is repo-scoped.** A config with a `runtime: host` route is refused unless every account is scoped to a single repository (`owner/name`).
-- **Updates are verified.** The updater requires the same Developer ID signer as the running app and a Gatekeeper check; see [Updates and installs](install.md#how-updates-and-installs-are-verified).
+- **Updates are verified.** The updater (Sparkle) installs only archives signed with the release's EdDSA key, and a Developer ID build also needs a Gatekeeper-accepted signature; see [Updates and installs](install.md#how-updates-and-installs-are-verified).
 - **The shared cache is pruned safely.** A symlink planted by a job can't redirect a delete outside the cache.
 
 ## Per-project toolchains
@@ -71,6 +71,9 @@ The [healing agent](healing.md) fixes fleet problems on its own, so its limits a
 - **On-device model.** The optional advisor is Apple Intelligence on this Mac (Foundation Models): no account, no
   network call. It sees the redacted problem, the allowed fixes and a few dozen redacted log lines, and kinhin checks its pick
   again before acting.
+- **Ollama advisor.** With `healing.ai: ollama`, the same redacted problem and log lines go to the Ollama server named by
+  `healing.ollama.host`. On this Mac (`localhost`, `127.0.0.1`, `::1`) nothing leaves the machine. Any other host must be
+  `https`, and it then receives those lines. Only point `host` at a server you trust with your fleet's logs.
 - **Test switches stay out of releases.** `KINHIN_HEALING_TIMINGS` and `KINHIN_HEALING_ADVISOR`, which the e2e suite
   uses to speed the agent up and fix the advisor's answer, are read only by debug builds; release builds never read
   them.
@@ -78,7 +81,8 @@ The [healing agent](healing.md) fixes fleet problems on its own, so its limits a
 ## Telemetry and network calls
 
 kinhin sends no telemetry and has no analytics. It talks only to the forges you configure (and their runner
-download hosts), and to GitHub Releases for the once-a-day update check. A runtime install you approve in
+download hosts), to kinhin.dev for Sparkle's once-a-day appcast check, and to GitHub Releases for update downloads.
+A runtime install you approve in
 `kinhin heal` downloads like `kinhin setup repair` does; the healing advisor makes no network calls.
 
 ## Known limits

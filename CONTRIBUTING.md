@@ -37,6 +37,9 @@ swift build
 swift test                        # ~3100 XCTest tests, ~5 min with --parallel; no VMs or network needed
 scripts/tsan.sh                   # ThreadSanitizer run (serial); recipe below
 scripts/e2e.sh                    # end-to-end suite against real forges and runners; see docs/e2e-testing.md
+scripts/e2e-forges-setup.sh all   # create the Buildkite, Bitbucket and Azure DevOps e2e fixtures and their CI secrets; see docs/e2e-hosted-forges.md
+scripts/e2e-token-expiry.sh        # open an issue for any hosted-lane e2e token expiring soon; runs weekly in CI with the repo's
+                                  # KINHIN_E2E_*_TOKEN_EXPIRES variables. Locally, export them first and add --dry-run, or run the workflow
 scripts/l10n-lint.sh              # String Catalog vs. the app's sources; --sync adds/drops entries
 scripts/dev-run.sh                # debug app, signed with a stable identity so Keychain "Always Allow" survives rebuilds
 swift package --disable-sandbox dev   # same, as a SwiftPM command plugin (Plugins/Dev)
@@ -76,7 +79,7 @@ Run `scripts/tsan.sh` when touching shared state, actors/locks, or anything `non
 The script is `swift test --sanitize thread` (debug, ~5–10 min) and never `--parallel`:
 
 - **Serial only.** Under TSan, `--parallel` makes the worker bundles collide on the tests' fixed
-  temp paths (e.g. `UpdateCheckTests`' version-named DMG in a shared temp dir): suites fail at
+  temp paths (e.g. two suites writing the same file in a shared temp dir): suites fail at
   random, and the default target can exit 0 while other bundles are still mid-run. Serial is the
   only stable mode.
 - **Exit code ≠ test result.** TSan aborts the run at exit the moment it holds a report, so a
@@ -204,7 +207,7 @@ generates `kinhin help`, each `kinhin <command> --help` page and the skills-lint
     `BitbucketError` for each forge's non-HTTP problems (bad instance URL or scope, missing token scopes, unknown pool).
   - Fleet: `EngineError` (also the app's fleet-access errors), `RPCError`, `Daemon.DaemonError` (nested in `Daemon`,
     declared in `Daemon+Error.swift`), `BenchmarkError`.
-  - Core: `ShellError`, `KeychainTokenStore.TokenError` (`Core/TokenStore.swift`), `UpdateCheckError`.
+  - Core: `ShellError`, `KeychainTokenStore.TokenError` (`Core/TokenStore.swift`).
   - Workflows: `WorkflowError`, `WorkflowRouteEditor.EditError`.
   - Video and mobile: `VideoError`, `MusicError`, `MobileScaffoldError`.
   - CLI (`Sources/kinhin`): `CLIError` (a failure with its exit code); the usage and route errors
@@ -225,9 +228,10 @@ generates `kinhin help`, each `kinhin <command> --help` page and the skills-lint
 
 ## Localization (menu bar app)
 
-English is the only shipped language, but the app is built so that adding a language is translation work, not code
-work. All user-facing text lives in one String Catalog, `Sources/kinhin-app/Resources/Localizable.xcstrings` (source
-language `en`). SwiftPM compiles it into the app's resource bundle, and `scripts/build-app.sh` hoists the resulting
+The app ships in English (the source language), Spanish, Japanese, German, Hebrew, Arabic, Italian and French; the
+Hebrew and Arabic layouts mirror right-to-left through SwiftUI. The non-English copy is a first draft that needs review
+by native speakers. Adding a language is translation work, not code work. All user-facing text lives in one String Catalog,
+`Sources/kinhin-app/Resources/Localizable.xcstrings` (source language `en`). SwiftPM compiles it into the app's resource bundle, and `scripts/build-app.sh` hoists the resulting
 `<lang>.lproj` folders into `kinhin.app/Contents/Resources` (and lists them in `CFBundleLocalizations`), so SwiftUI
 and AppKit resolve them through `Bundle.main`. `scripts/dev-run.sh` copies them next to the debug binary for the same
 reason.
@@ -279,7 +283,8 @@ app takes the same flags: `open dist/kinhin.app --args -NSDoubleLocalizedStrings
 
 **Adding a language** (once the strings are final): nothing changes in `Package.swift` (`defaultLocalization` is `en`).
 Open the catalog in Xcode (or add `localizations.<lang>` entries by hand), translate every key including the plural
-forms, and run `scripts/build-app.sh`: the new `<lang>.lproj` is bundled and registered automatically.
+forms (every CLDR category of that language: Arabic has six), and run `scripts/build-app.sh`: the new `<lang>.lproj`
+is bundled and registered automatically.
 `testTranslationsKeepThePlaceholdersOfTheirKey` guards the placeholders.
 
 **Not covered yet.** Text that originates in `KinhinKit` (the fleet status line, `LocalizedError.errorDescription`s,
@@ -314,7 +319,7 @@ User-visible changes go under `## Unreleased` in `CHANGELOG.md` in the same PR (
 
 ## Generated doc blocks
 
-Some docs are derived from code, so they are generated instead of hand-copied: the forge IDs (`docs/forges/README.md`), the daemon RPC methods (`docs/architecture.md`), and the CLI exit codes and `kinhin help` screen (`website/cli/commands.md`). Each sits between `<!-- docs-sync:begin NAME -->` and `<!-- docs-sync:end NAME -->` markers. Never edit between the markers; change the Swift source (`ForgeID`, `RPCMethod`, `CLIExit`, `CommandCatalog`; for the help screen also refresh `scripts/golden/cli-help.txt`, see "CLI commands"), then run:
+Some docs are derived from code, so they are generated instead of hand-copied: the forge IDs (`docs/forges/README.md`), the daemon RPC methods (`docs/architecture.md`), and the CLI exit codes and `kinhin help` screen (`website/cli/commands.md`), and the current release named in the README banner, the roadmap and the home banner (`website/.vitepress/theme/HomeBanners.vue`), which all follow `Version.swift`. Each sits between `<!-- docs-sync:begin NAME -->` and `<!-- docs-sync:end NAME -->` markers. Never edit between the markers; change the Swift source (`ForgeID`, `RPCMethod`, `CLIExit`, `CommandCatalog`, `Version.swift`; for the help screen also refresh `scripts/golden/cli-help.txt`, see "CLI commands"), then run:
 
 ```sh
 scripts/docs-sync.sh           # rewrite stale blocks in place
@@ -331,6 +336,7 @@ Running kinhin in your project or company? See [docs/used-by.md](docs/used-by.md
 ## Docs versions
 
 The site at `/` is built from `main`. A release is snapshotted under `/<tag>/` (with a version picker in the nav):
-after tagging a release, add its tag (for example `"v0.1.0"`) to the top of `website/versions.json` and push. The docs
+after tagging a release, add its tag (for example `"v0.1.0"`) to the top of `website/versions.json` and push. Only list a tag
+that exists: the docs workflow runs `git worktree add` on each listed tag and fails on a missing one. The docs
 workflow builds each listed tag from its own `docs/` and `website/` with `DOCS_VERSION=<tag>`, so a snapshot never
 changes when `main` does.

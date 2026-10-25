@@ -11,6 +11,9 @@ News and notes from kinhin, the mindful CI.
 
 ## Posts
 
+- **October 24, 2026: [Beta 3: updates that install themselves, restarts that leave your jobs alone, and seven new languages](/blog/beta-3)**
+  The third public beta. What is new in beta 3, what has been run, what has not, and where I need your help.
+
 - **October 16, 2026: [Beta 2: a fleet that heals itself, warm pools per image, and videos from your repo](/blog/beta-2)**
   The second public beta. What is new in beta 2, what has been run, what has not, and where I need your help.
 

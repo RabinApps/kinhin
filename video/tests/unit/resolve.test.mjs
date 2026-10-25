@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
-import {FORMATS, SCENE_TYPES, deepMerge, fitScale, isNarrow, buildThemes, resolveFormat, resolveMusic, resolveTheme, validateMusic, validateProject, validateTheme} from '../../shared/resolve.mjs';
+import {FORMATS, SCENE_TYPES, deepMerge, fitScale, isNarrow, buildThemes, resolveFormat, resolveMusic, resolveTheme, validateMusic, validateProject, validateTheme, TRANSITIONS, validateCamera, validateClipSpec, validateSpeed, validateTransition, selectScenes, CAPTION_GROUPS} from '../../shared/resolve.mjs';
 import {readJson, root, themeNames} from '../helpers.mjs';
 import {join} from 'node:path';
 
@@ -112,8 +112,8 @@ test('captions default to burned in on the clip scenes, outlined, positioned aut
   assert.equal(c.text, theme.caption.text);
 });
 
-test('every style preset resolves, and the five documented styles exist', () => {
-  assert.deepEqual(Object.keys(CAPTION_STYLES).sort(), ['bold', 'box', 'minimal', 'outline', 'shadow']);
+test('every style preset resolves, and the six documented styles exist', () => {
+  assert.deepEqual(Object.keys(CAPTION_STYLES).sort(), ['bold', 'box', 'karaoke', 'minimal', 'outline', 'shadow']);
   for (const style of Object.keys(CAPTION_STYLES)) assert.equal(caps({project: {captions: {style}}}).style, style);
   assert.equal(caps({project: {captions: {style: 'box'}}}).border, 'box');
   assert.equal(caps({project: {captions: {style: 'minimal'}}}).border, 'none');
@@ -163,6 +163,121 @@ test('assColor converts to libass order and inverts opacity', () => {
   assert.equal(assColor('#102030'), '&H00302010&', 'blue, green, red');
   assert.equal(assColor('#000000b3'), '&H4C000000&', 'b3 = 70% opaque = 0x4C transparent');
   assert.equal(assColor('#ff000000'), '&HFF0000FF&', 'fully transparent red');
+});
+
+test('the karaoke style is bold and outlined, lights words in the caption colour unless told otherwise', () => {
+  const k = caps({project: {captions: {style: 'karaoke'}}});
+  assert.equal(k.karaoke, true);
+  assert.equal(k.border, 'outline');
+  assert.ok(k.bold);
+  assert.equal(k.highlight, theme.caption.text, 'the spoken words keep the caption colour; the unspoken ones are dimmed from it');
+  assert.equal(caps({project: {captions: {style: 'karaoke', highlightColor: '#ffd166'}}}).highlight, '#ffd166');
+  assert.equal(caps({project: {captions: {style: 'karaoke', color: '#eeeeee'}}}).highlight, '#eeeeee');
+  assert.equal(caps({}).karaoke, false, 'no other style is word by word');
+  assert.match(validateCaptions({highlightColor: 'gold'}).join(), /captions.highlightColor must be a hex/);
+});
+
+// ---- transitions and camera --------------------------------------------------------------------------------------------
+
+test('transitions are named, default to the fade, and are checked on the project and on each scene', () => {
+  assert.equal(TRANSITIONS.fade.xfade, null, 'the fade is the current behaviour, not an xfade');
+  for (const [name, t] of Object.entries(TRANSITIONS)) assert.ok(name === 'fade' || t.xfade, `${name} names an ffmpeg xfade`);
+  assert.deepEqual(validateTransition(undefined, 's'), []);
+  assert.deepEqual(validateTransition('push', 's'), []);
+  assert.match(validateTransition('spin', 'scene 2').join(), /scene 2: transition "spin" is not one of fade, dissolve, push/);
+  const scenes = [{id: 'a', type: 'title', narration: 'x'}, {id: 'b', type: 'title', narration: 'x', transition: 'push'}];
+  assert.deepEqual(validateProject({transition: 'wipe', scenes}), []);
+  assert.match(validateProject({transition: 'spin', scenes}).join(), /the project: transition "spin"/);
+  assert.match(validateProject({scenes: [{...scenes[0], transition: 'spin'}]}).join(), /scene 1 \("a"\): transition "spin"/);
+});
+
+test('camera, focus and cursor are checked on clip scenes and refused on drawn ones', () => {
+  const good = {camera: [{at: 1, zoom: 2, to: [0.5, 0.5], move: 1}, {at: 4, zoom: 1}], focus: {from: 1, to: 3, box: [0.1, 0.1, 0.5, 0.5], dim: 0.5}, cursor: [{at: 1, to: [0.2, 0.2]}, {at: 2, to: [0.3, 0.3], click: true}]};
+  assert.deepEqual(validateCamera(good, 's'), []);
+  assert.deepEqual(validateCamera({}, 's'), [], 'all three are optional');
+  const text = (props) => validateCamera(props, 's').join('\n');
+  assert.match(text({camera: []}), /"camera" must be a list/);
+  assert.match(text({camera: [{at: 2}, {at: 1}]}), /camera\[1\].at must be later than the one before it/);
+  assert.match(text({camera: [{at: 1, zoom: 9}]}), /zoom must be a number from 1 to 4/);
+  assert.match(text({camera: [{at: 1, to: [2, 0]}]}), /camera\[0\].to must be \[x, y\]/);
+  assert.match(text({camera: [{at: 1, move: 0}]}), /move must be seconds above 0/);
+  assert.match(text({focus: {from: 3, to: 2, box: [0, 0, 1, 1]}}), /needs "from" and "to"/);
+  assert.match(text({focus: [{from: 1, to: 2, box: [0.5, 0.5, 0.4, 0.9]}]}), /focus\[0\].box must be \[x0, y0, x1, y1\]/);
+  assert.match(text({focus: {from: 1, to: 2, box: [0, 0, 1, 1], dim: 1}}), /dim must be/);
+  assert.match(text({cursor: [{at: 1}]}), /cursor\[0\].to must be \[x, y\]/);
+  assert.match(text({cursor: [{at: 1, to: [0, 0], click: 'yes'}]}), /click must be true or false/);
+  const device = {id: 'a', type: 'device', narration: 'x', props: {clip: 'app', camera: [{at: 1, zoom: 9}]}};
+  assert.match(validateProject({scenes: [device]}).join(), /scene 1 \("a"\): camera\[0\].zoom/);
+  assert.match(validateProject({scenes: [{id: 'a', type: 'title', narration: 'x', props: {title: 'T', camera: [{at: 1}]}}]}).join(), /work on device, terminal and split scenes only/);
+});
+
+test('a camera position may be the name of a target', () => {
+  assert.deepEqual(validateCamera({camera: [{at: 1, target: 'fleet'}, {at: 3, to: 'list', zoom: 2}], focus: {from: 1, to: 2, box: 'fleet'}, cursor: [{at: 1, to: 'list'}]}, 's'), []);
+  assert.match(validateCamera({camera: [{at: 1, target: 'a', to: [0.5, 0.5]}]}, 's').join(), /has both "target" and "to"/);
+  assert.match(validateCamera({camera: [{at: 1, target: 3}]}, 's').join(), /camera\[0\].target must be the name of a target/);
+  assert.match(validateCamera({cursor: [{at: 1, to: 3}]}, 's').join(), /cursor\[0\].to must be \[x, y\].*or the name of a target/);
+});
+
+test('an empty or bare entry in a camera, focus, cursor or speed list is a problem, not a crash', () => {
+  const text = (props) => validateClipSpec(props, 's').join('\n');
+  for (const entry of [null, 2, 'x', [1]]) {
+    assert.match(text({camera: [entry]}), /camera\[0\] must be a keyframe/, String(entry));
+    assert.match(text({focus: [entry]}), /focus\[0\] must be \{ from, to, box \}/, String(entry));
+    assert.match(text({cursor: [entry]}), /cursor\[0\] must be a point/, String(entry));
+    assert.match(text({speed: [entry, {speed: 1}]}), /speed\[0\] must be a segment/, String(entry));
+  }
+  assert.match(text({focus: null}), /focus must be/, 'a bare `focus:` in the file');
+  assert.match(text({camera: [{at: 1, zoom: 2}, null, {at: 5}]}), /camera\[1\] must be a keyframe/, 'the rest of the list is still checked');
+  assert.doesNotMatch(text({camera: [null]}), /at must be seconds/, 'one problem per entry');
+});
+
+test('speed is a number or a list of segments, each with `until` but the last', () => {
+  const text = (props) => validateSpeed(props, 's').join('\n');
+  assert.deepEqual(validateSpeed({speed: 2}, 's'), []);
+  assert.deepEqual(validateSpeed({}, 's'), []);
+  assert.deepEqual(validateSpeed({speed: 60}, 's'), [], 'a constant speed is any positive number, as it always was (a time-lapse may be 60x)');
+  assert.deepEqual(validateSpeed({speed: 0.05}, 's'), []);
+  assert.deepEqual(validateSpeed({speed: [{until: 20, speed: 8}, {until: 30, speed: 1}, {speed: 4}], ramp: 0.5}, 's'), []);
+  for (const bad of [0, -2, '2', NaN, Infinity, null]) assert.match(text({speed: bad}), /speed must be a positive number, or a list/, String(bad));
+  assert.match(text({speed: [{until: 5, speed: 99}, {speed: 1}]}), /speed\[0\].speed must be a number from 0.1 to 30/, 'the limits are for the speeds of a list');
+  assert.match(text({speed: []}), /must not be an empty list/);
+  assert.match(text({speed: [{speed: 2}, {speed: 1}]}), /speed\[0\].until must be source seconds/);
+  assert.match(text({speed: [{until: 5, speed: 2}, {until: 4, speed: 1}, {speed: 1}]}), /speed\[1\].until must be source seconds, later than/);
+  assert.match(text({speed: [{until: 5, speed: 2}, {until: 9, speed: 1}]}), /the last speed segment has no "until"/);
+  assert.match(text({speed: [{until: 5, speed: 0}, {speed: 1}]}), /speed\[0\].speed must be a number/);
+  assert.match(text({speed: [{until: 5, speed: 2}, {speed: 1}], ramp: 3}), /ramp must be seconds from 0 to 2/);
+  assert.match(text({speed: 2, ramp: 0.5}), /ramp only applies when speed is a list/);
+});
+
+test('a split scene needs two clips; delay and ratio are checked, and delay is for panels only', () => {
+  const split = (props) => validateProject({scenes: [{id: 's', type: 'split', narration: 'x', props}]}).join('\n');
+  assert.equal(split({left: {clip: 'a'}, right: {clip: 'b', delay: 1.5, speed: [{until: 3, speed: 2}, {speed: 1}], camera: [{at: 1, target: 'x'}]}, ratio: 0.4}), '');
+  assert.match(split({left: {clip: 'a'}}), /a split scene needs "right"/);
+  assert.match(split({}), /needs "left".*needs "right"/s);
+  assert.match(split({left: {clip: 'a'}, right: {clip: 'b'}, ratio: 0.9}), /ratio must be a number from 0.3 to 0.7/);
+  assert.match(split({left: {clip: 'a'}, right: {clip: 'b', delay: 99}}), /scene 1 \("s"\): right: delay must be seconds from 0 to 30/);
+  assert.match(split({left: {clip: 'a', camera: [{at: 1, zoom: 9}]}, right: {clip: 'b'}}), /left: camera\[0\].zoom/);
+  assert.match(validateClipSpec({clip: 'a', delay: 2}, 'scene 2').join(), /"delay" works on the panels of a split scene only/);
+  assert.deepEqual(validateClipSpec({clip: 'a', delay: 2}, 'p', {panel: true}), []);
+  assert.ok('split' in SCENE_TYPES && SCENE_TYPES.split.kind === 'clip');
+  assert.match(validateProject({scenes: [{id: 'a', type: 'title', narration: 'x', props: {title: 'T', ramp: 1}}]}).join(), /work on device, terminal and split scenes only/);
+});
+
+test('selectScenes picks scenes by id, in the video\'s own order, and says which ids it has', () => {
+  const scenes = [{id: 'intro'}, {id: 'app'}, {id: 'outro'}];
+  assert.equal(selectScenes(scenes, undefined), scenes);
+  assert.equal(selectScenes(scenes, ''), scenes, 'no ids is every scene');
+  assert.deepEqual(selectScenes(scenes, 'outro,app').map((s) => s.id), ['app', 'outro'], 'the video\'s order, not the order asked for');
+  assert.deepEqual(selectScenes(scenes, ' app , ').map((s) => s.id), ['app'], 'spaces and empty entries are ignored');
+  assert.deepEqual(selectScenes(scenes, ['intro']).map((s) => s.id), ['intro'], 'a list works too');
+  assert.throws(() => selectScenes(scenes, 'app,nope,zip'), /no scene "nope", "zip" in this video \(its scenes: intro, app, outro\)/);
+});
+
+test('every scene type has its captions burned somewhere: each is in exactly one caption group', () => {
+  for (const type of Object.keys(SCENE_TYPES)) assert.equal(CAPTION_GROUPS.filter((g) => g.includes(type)).length, 1, `${type} is in one group`);
+  const drawn = CAPTION_GROUPS[2];
+  for (const type of ['title', 'statement', 'queue', 'parallel', 'map', 'outro', 'stats', 'steps', 'code', 'compare']) assert.ok(drawn.includes(type), `${type} is a drawn scene`);
+  assert.deepEqual(CAPTION_GROUPS.slice(0, 2), [['device'], ['terminal', 'split']]);
 });
 
 // ---- music ------------------------------------------------------------------------------------------------------------

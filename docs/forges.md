@@ -4,6 +4,8 @@ Which CI platforms kinhin serves, how to connect each one, and how to serve many
 
 [← Back to README](../README.md) · [Per-forge API notes](forges/README.md) (endpoints, versions)
 
+Step-by-step guides per forge: [GitHub Actions](https://kinhin.dev/how-to-run-github-actions-on-a-self-hosted-mac) · [GitLab CI](https://kinhin.dev/how-to-run-gitlab-ci-jobs-on-a-mac) · [Gitea and Forgejo Actions](https://kinhin.dev/how-to-run-gitea-or-forgejo-actions-on-a-mac)
+
 A **forge** is a CI platform. kinhin speaks one protocol to all of them (get a registration token, list and remove
 runners, report queued demand), and each platform implements it behind that interface. One fleet can serve **several
 at once**: each VM is assigned to whichever forge has the most pending work, registers there, and is deleted when
@@ -16,7 +18,7 @@ its job finishes.
 | Forgejo Actions     | ✅ supported | gitea-runner   | `owner/name` repo or org, any instance                 |
 | GitLab CE           | ✅ supported | gitlab-runner  | project or group path (`group/sub/proj`)               |
 | Buildkite           | 🔜 planned   | —              | —                                                      |
-| Azure Pipelines     | 🔜 planned   | —              | —                                                      |
+| Azure Pipelines     | 🧪 experimental | azure agent  | agent pool name, `instance` is the organization URL    |
 | Bitbucket Pipelines | 🔜 planned   | —              | —                                                      |
 
 ## What has been tested
@@ -98,7 +100,14 @@ runs one job, and deletes it. A pending job counts as demand when every tag it a
 deletes itself after one job. Only the tagged jobs of projects the token can read count; a single project the token
 cannot read is an error, not an empty queue.
 
-### Planned: Buildkite, Azure Pipelines, Bitbucket Pipelines
+### Experimental: Azure Pipelines
+
+One user has run real jobs against Azure DevOps Services: smoke jobs, two concurrent VMs, scale from zero and
+automatic cleanup. Real application builds, several Macs and Azure DevOps Server are unverified. A pool with no
+agents makes Azure reject labelled jobs instead of queueing them, so scale-to-zero needs a permanently offline
+placeholder agent; see [Azure DevOps](forges/azuredevops.md#empty-pools).
+
+### Planned: Buildkite, Bitbucket Pipelines
 
 Support for these is planned for a later release and is not part of the beta. Follow the
 [roadmap](beta-roadmap.md) for progress.

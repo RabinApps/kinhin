@@ -48,8 +48,13 @@ flowchart TB
     assemble --> out["out/project/project.mp4 and siblings"]
 ```
 
-Scene renders are cached under `.kinhin/videos/.cache`, so a second build after a one-line edit only re-renders the
-scenes that changed. The `out/.work/` folder is scratch and is removed by the container build.
+Three steps are cached under `.kinhin/videos/.cache` (the `raw/` folder of the build), each by a hash of everything that shapes
+its result, so a second build after a one-line edit redoes only what that line touches: the voice of each sentence
+(`voice-cache/`, `scripts/voice.mjs`), the drawn scenes (`scenes/`, `scripts/render-titles.mjs`) and the framed recordings
+(`frames/`, `scripts/frames.mjs`: the clip's bytes, the scene's props and length, the look and the framing scripts). The
+`out/.work/` folder is scratch and is removed by the container build. `build.sh` prints how long each step took and
+`assemble.mjs` how long each part of the final cut did. `--scene` (`VIDEO_SCENES`) builds a subset of the scenes for a quick
+preview, and `kinhin video build --watch` repeats the build when the repository's video files change.
 
 ## Scene types
 

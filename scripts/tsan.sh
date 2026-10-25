@@ -3,7 +3,7 @@
 # suite SERIALLY. Usage: scripts/tsan.sh [-- <extra swift test args>]
 #
 # Why serial: under TSan, `--parallel` collides the worker bundles on the
-# tests' fixed temp paths (UpdateCheckTests' version-named DMG, scratch
+# tests' fixed temp paths (scratch
 # configs), which fails suites at random — and the default target can exit 0
 # mid-run while other bundles are still going. Do not add --parallel here.
 #

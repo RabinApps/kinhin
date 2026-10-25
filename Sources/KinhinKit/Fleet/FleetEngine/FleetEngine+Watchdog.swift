@@ -25,12 +25,15 @@ public struct Watchdog: Sendable {
     /// unchanged before a missing or stopped instance counts as vanished: a
     /// spawn writes its record a moment before its lifecycle task exists.
     public var unwatchedGrace: Duration
+    /// How long a recovered instance may wait for its account's forge to attach before it is torn down
+    /// (see `FleetAdoption.swift`).
+    public var adoptionHoldLimit: Duration
 
     public init(
         livenessInterval: Duration = .seconds(15), livenessMisses: Int = 3,
         orphanSweepInterval: Duration = .seconds(120), orphanGrace: Duration = .seconds(600),
         registrationGrace: Duration = .seconds(120), idleGrace: Duration = .seconds(30),
-        unwatchedGrace: Duration = .seconds(30)
+        unwatchedGrace: Duration = .seconds(30), adoptionHoldLimit: Duration = .seconds(3600)
     ) {
         self.livenessInterval = livenessInterval
         self.livenessMisses = livenessMisses
@@ -39,6 +42,7 @@ public struct Watchdog: Sendable {
         self.registrationGrace = registrationGrace
         self.idleGrace = idleGrace
         self.unwatchedGrace = unwatchedGrace
+        self.adoptionHoldLimit = adoptionHoldLimit
     }
 }
 

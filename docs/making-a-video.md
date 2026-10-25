@@ -119,8 +119,9 @@ video/scripts/build.sh --project examples/kinhin-30s --container   # the 30-seco
 ```
 
 `launch` and `examples/kinhin-30s` use the `kinhin` adapter (`video/adapters/kinhin/adapter.json`), which sets two things
-for every kinhin video: burned-in captions are **off** (a clean picture; the `.srt` is still written) and the music is
-**First Light Particles**. A project can override either (`"captions": {"burn": true}`, `"music": false`). How the build
+for every kinhin video: burned-in captions are on in the 9:16 and 1:1 formats and **off** in 16:9 (a clean picture; the `.srt` is
+still written), and the music is **First Light Particles**. A project can override either (`"captions": {"burn": true}`,
+`"music": false`). How the build
 works, and every setting, is in [Video config reference](video-config.md#build-flags).
 
 `build.sh` is the developer path: it builds from this working tree, in a container (`--container`) or on this machine. What
@@ -148,7 +149,9 @@ videos, and do not commit tracks under licences that forbid redistributing the f
 ## Recording the app
 
 kinhin's `record-app.sh` starts the demo at a known moment (`KINHIN_DEMO_ORIGIN`) and writes `app.json`; the `device` scene
-starts the shot there. The recorder leaves the pointer out of the clip, so the mouse can move during a take. After recording,
+starts the shot there. The recorder leaves the pointer out of the clip, so the mouse can move during a take. It also writes
+`app-pointer.json` (where the pointer was and where it clicked), which a video's `autoZoom` follows: click where the camera should go
+while the take runs, since a take with no clicks gives no zoom. After recording,
 `scripts/make-reference.sh --adapter <name>` refreshes the adapter's `reference/` clips (`--terminal` for just the terminal
 ones).
 
@@ -166,8 +169,8 @@ For the curious: these are the steps `kinhin video build` runs inside the image.
    `out/<project>/<project>.mp4`, `.webm`, `-poster.png`, `-hero.gif` and `.srt`. Burned-in captions follow the project's
    `captions` block.
 
-A scene is re-rendered only when something that shapes it changes, so the render cache at `.kinhin/videos/.cache` makes a second
-build after a one-line edit fast.
+A scene is re-rendered only when something that shapes it changes, and so are its voice and its framed recording, so the cache at
+`.kinhin/videos/.cache` makes a second build after a one-line edit fast (see [Faster rebuilds](videos-for-your-project.md#faster-rebuilds)).
 
 Building the image on Apple's `container`: before 1.5.0, `container build` copies no files from a directory when the build path
 passes through a symlink, such as `/tmp` or `/var/folders` ([apple/container#2285](https://github.com/apple/container/issues/2285)).

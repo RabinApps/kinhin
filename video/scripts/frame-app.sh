@@ -9,6 +9,7 @@
 #   defaults: out/app-framed.mp4, start 2, length 14. scripts/frames.mjs passes everything for each device scene.
 # Env:   SPEED  playback speed of the demo (default 1)
 #        SLIDE  seconds for the slide-in (default 2.5)   TILT  starting yaw in radians (default 0.5)
+#        COVER  0 to leave the window's toolbar buttons as recorded (the camera pass of frames.mjs has covered them already)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 [ -d /opt/homebrew/opt/ffmpeg-full/bin ] && export PATH="/opt/homebrew/opt/ffmpeg-full/bin:$PATH"
@@ -20,6 +21,8 @@ LEN="${4:-14}"
 SPEED="${SPEED:-1}"
 SLIDE="${SLIDE:-2.5}"; TILT="${TILT:-0.5}"
 mkdir -p "$(dirname "$OUT")"
+COVER_FILTER="drawbox=x=14:y=6:w=130:h=48:color=${BAR_COLOR}:t=fill,"
+[ "${COVER:-1}" = 1 ] || COVER_FILTER=""
 
 W="$VIDEO_W"; H="$VIDEO_H"
 sc() { python3 -c "print(max(1, round($1 * $VIDEO_FIT)))"; }   # a 1920x1080 design size, scaled to this format
@@ -63,7 +66,7 @@ ffmpeg -nostdin -y -loglevel error -ss "$SS" -t "$SRC_LEN" -i "$IN" \
   -f lavfi -i "color=c=$LID_COLOR:s=$(sc 170)x$(sc 50):r=30:d=$LEN" \
   -f lavfi -i "color=c=black@0:s=${W}x${H}:r=30:d=$LEN,format=rgba" \
   -filter_complex "
-    [0:v]setpts=PTS/${SPEED},fps=30,drawbox=x=14:y=6:w=130:h=48:color=${BAR_COLOR}:t=fill,scale=${WW}:${WH},format=rgba,$(GEQ "$(ALLR "$(sc 34)")")[win];
+    [0:v]setpts=PTS/${SPEED},fps=30,${COVER_FILTER}scale=${WW}:${WH},format=rgba,$(GEQ "$(ALLR "$(sc 34)")")[win];
     [win]split[w1][w2];
     [w2]alphaextract,pad=$((WW + 2 * M)):$((WH + 2 * M)):$M:$M:color=black,boxblur=lr=$(sc 16):lp=4,lutyuv=y='val*0.5'[wsa];
     color=c=black:s=$((WW + 2 * M))x$((WH + 2 * M)):r=30:d=$LEN,format=rgba[wsc];
@@ -86,5 +89,5 @@ ffmpeg -nostdin -y -loglevel error -ss "$SS" -t "$SRC_LEN" -i "$IN" \
     [1:v]format=yuv420p[bg];
     [bg][shadow]overlay=0:$(sc 46):format=auto[b1];
     [b1][fg]overlay=0:0:format=auto,format=yuv420p[v]" \
-  -map "[v]" -an -c:v libx264 -crf 18 "$OUT"
+  -map "[v]" -an -c:v libx264 -crf 12 "$OUT"
 echo "wrote $OUT"

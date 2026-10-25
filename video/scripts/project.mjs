@@ -8,11 +8,12 @@
 //      VIDEO_SOURCE  your repository: projects are read from <it>/.kinhin/videos/<name>.yml|.yaml|.json first, adapters from
 //        <it>/.kinhin/videos/adapters/<name>/adapter.yml|.json, themes from <it>/.kinhin/videos/themes/, and local music files relative to it
 //      VIDEO_CAPTIONS (on|off|all) / VIDEO_CAPTION_STYLE  override its captions
+//      VIDEO_SCENES  comma-separated scene ids: build only those scenes (a preview; the output name gets -scene-<ids>)
 import {existsSync, readFileSync, readdirSync} from 'node:fs';
 import {dirname, join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createRequire} from 'node:module';
-import {SCENE_TYPES, buildThemes, fitScale, isNarrow, resolveCaptions, resolveFormat, resolveMusic, resolveTheme, validateProject} from '../shared/resolve.mjs';
+import {SCENE_TYPES, buildThemes, fitScale, isNarrow, resolveCaptions, resolveFormat, resolveMusic, resolveTheme, selectScenes, validateProject} from '../shared/resolve.mjs';
 
 export const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -116,17 +117,20 @@ export function loadProject(name = process.env.VIDEO_PROJECT || 'launch') {
   const formatName = process.env.VIDEO_FORMAT || project.format || '16:9';
   const theme = resolveTheme(loadThemes(), themeName, project.overrides);
   const format = resolveFormat(formatName);
-  const scenes = project.scenes.map((s) => ({...s, ...SCENE_TYPES[s.type], props: s.props ?? {}, minLength: s.minLength ?? SCENE_TYPES[s.type].minLength}));
+  // VIDEO_SCENES (`--scene a,b`) builds only those scenes: the whole video was checked above, the build gets the part.
+  const chosen = selectScenes(project.scenes, process.env.VIDEO_SCENES);
+  const scenes = chosen.map((s) => ({...s, ...SCENE_TYPES[s.type], props: s.props ?? {}, minLength: s.minLength ?? SCENE_TYPES[s.type].minLength}));
   // The project's name relative to video/script/ ("launch", "examples/scene-types"); `slug` is safe in file names.
   const base = [join(root, 'script'), videosDir()].find((d) => d && file.startsWith(d + '/'));
   const stem = (base ? file.slice(base.length + 1) : file.replace(/^.*\//, '')).replace(/\.(json|ya?ml)$/, '');
   const slug = stem.replace(/\//g, '-');
   // out/<stem>.mp4 for the project's own look; a theme or format chosen on the command line is added to the name.
-  const outName = [slug, process.env.VIDEO_PLATFORM, process.env.VIDEO_THEME, process.env.VIDEO_FORMAT?.replace(':', 'x')].filter(Boolean).join('-');
+  const only = process.env.VIDEO_SCENES ? `scene-${chosen.map((s) => s.id).join('+').replace(/[^\w+-]/g, '_')}` : '';
+  const outName = [slug, process.env.VIDEO_PLATFORM, process.env.VIDEO_THEME, process.env.VIDEO_FORMAT?.replace(':', 'x'), only].filter(Boolean).join('-');
   const adapter = process.env.VIDEO_ADAPTER || project.adapter || null;
   const manifestFile = adapter && adapterFile(adapter);
   const adapterManifest = manifestFile ? readConfig(manifestFile) : {};
-  const captions = resolveCaptions({theme, project, adapter: adapterManifest, env: process.env});
+  const captions = resolveCaptions({theme, project, adapter: adapterManifest, env: process.env, format: formatName});
   const music = resolveMusic({project, adapter: adapterManifest, env: process.env});
   return {name: project.name ?? stem, stem, slug, outName, adapter, captions, music, file, project, scenes, theme, format, fit: fitScale(format)};
 }

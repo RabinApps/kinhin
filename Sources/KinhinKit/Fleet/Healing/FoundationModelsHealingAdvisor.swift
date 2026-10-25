@@ -29,9 +29,9 @@
         func advise(_ request: HealingAdviceRequest) async throws -> HealingAdvice? {
             guard #available(macOS 26, *), !request.candidates.isEmpty else { return nil }
             let schema = try Self.schema(for: request.candidates)
-            let prompt = Self.prompt(for: request, budget: Self.promptBudget())
+            let prompt = HealingPrompt.prompt(for: request, budget: Self.promptBudget())
             return try await Self.withDeadline(timeout) {
-                let session = LanguageModelSession(model: .default, instructions: Self.instructions)
+                let session = LanguageModelSession(model: .default, instructions: HealingPrompt.instructions)
                 let response = try await session.respond(
                     to: prompt, schema: schema,
                     options: GenerationOptions(temperature: 0, maximumResponseTokens: 200))
@@ -39,34 +39,28 @@
                 let pick = try content.value(String.self, forProperty: "remediation")
                 let explanation = try content.value(String.self, forProperty: "explanation")
                 return HealingAdvice(
-                    remediation: pick == Self.none ? nil : pick,
+                    remediation: pick == HealingPrompt.none ? nil : pick,
                     confident: try content.value(Bool.self, forProperty: "confident"),
-                    explanation: LogRedactor.redact(explanation.trimmingCharacters(in: .whitespacesAndNewlines)))
+                    explanation: LogRedactor.redact(explanation.trimmingCharacters(in: .whitespacesAndNewlines)),
+                    selfReported: true)
             }
         }
 
         // MARK: - Schema and prompt
 
-        static let none = "none"
-
-        static let instructions = """
-            You choose a fix for a problem in a self-hosted CI runner fleet on a Mac. Pick only from the fixes \
-            listed, or none when no listed fix addresses the problem. Use only facts stated in the problem and \
-            the log lines; do not guess a cause they do not name.
-            """
-
         /// The answer's shape: one candidate (or none), whether the model is
         /// sure, and one sentence for the user, generated in that order.
         @available(macOS 26, *)
         static func schema(for candidates: [Remediation]) throws -> GenerationSchema {
-            let ids = candidates.map(\.kind.rawValue) + [none]
+            let ids = candidates.map(\.kind.rawValue) + [HealingPrompt.none]
             let list = candidates.map { "\($0.kind.rawValue) (\($0.summary))" }.joined(separator: "; ")
             let root = DynamicGenerationSchema(
                 name: "HealingAdvice", description: "The fix to apply for one fleet problem.",
                 properties: [
                     DynamicGenerationSchema.Property(
                         name: "remediation",
-                        description: "The one fix that addresses the cause, from: \(list); or \(none) when none does",
+                        description:
+                            "The one fix that addresses the cause, from: \(list); or \(HealingPrompt.none) when none does",
                         schema: DynamicGenerationSchema(name: "Remediation", anyOf: ids)),
                     DynamicGenerationSchema.Property(
                         name: "confident",
@@ -80,29 +74,14 @@
             return try GenerationSchema(root: root, dependencies: [])
         }
 
-        /// The problem, its candidates and the recent log lines, trimmed to
-        /// `budget` characters (the context is cut first, from the oldest end).
-        static func prompt(for request: HealingAdviceRequest, budget: Int) -> String {
-            let subject = request.signal.subject.map { ", \($0)" } ?? ""
-            let head = """
-                Problem (\(request.signal.kind.rawValue)\(subject)): \(request.signal.detail)
-                Fixes kinhin may apply: \(request.candidates.map(\.summary).joined(separator: "; ")).
-                Recent log lines:
-
-                """
-            let room = max(0, budget - head.count)
-            return LogRedactor.redact(head + String(request.context.suffix(room)))
-        }
-
-        /// Characters of prompt the model's window leaves room for: about four
-        /// characters a token, half the window for the prompt (the instructions,
-        /// the schema and the answer need the rest). 4,096 tokens on macOS 26.
+        /// Characters of prompt the model's window leaves room for (see
+        /// `HealingPrompt.budget`). 4,096 tokens on macOS 26 when the size is unknown.
         static func promptBudget() -> Int {
             guard #available(macOS 26, *), case .available = SystemLanguageModel.default.availability else {
-                return 4096 * 4 / 2
+                return HealingPrompt.budget(contextTokens: 4096)
             }
             let size = SystemLanguageModel.default.contextSize
-            return (size > 0 ? size : 4096) * 4 / 2
+            return HealingPrompt.budget(contextTokens: size > 0 ? size : 4096)
         }
 
         /// `operation`'s result, or `EngineError.healingFailed` after `seconds`.

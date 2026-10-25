@@ -109,7 +109,7 @@ extension Infra {
         @Test(
             "with no floor, the instance that picked up a job is not scaled down under it",
             // Every self-hosted forge whose Docker lane is on (GitLab's queue also lists only waiting jobs).
-            arguments: LifecycleCase.all.filter { $0.runtime == .docker && $0.forge != .github }.map(\.forge))
+            arguments: LifecycleCase.all.filter { $0.runtime == .docker && !$0.forge.isHosted }.map(\.forge))
         func pickedUpJobIsNotScaledDown(_ forge: ForgeKind) async throws {
             var options = Lane.Options()
             options.minRunners = 0

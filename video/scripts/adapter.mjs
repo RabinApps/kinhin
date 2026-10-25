@@ -12,6 +12,8 @@
 //     "kind": "terminal"  a VHS tape ("tape") recorded by scripts/record-terminal.sh in four variants (light or dark,
 //                         landscape or portrait); "hideFromLine": the output line to mask from, when the tail of the
 //                         output should not show (an optional nicety).
+//   Any clip may have "targets": { <name>: [x0, y0, x1, y1] }, named boxes of its picture (0 to 1 across it). A scene's camera,
+//                  focus and cursor can point at a name instead of coordinates, so a changed layout is fixed here, once.
 //   reference/     small committed clips (<clip>.mp4 and <clip>.json, install-dark-portrait.mp4, ...) so the video
 //                  builds without recording anything; scripts/make-reference.sh makes them from raw/<adapter>/.
 //

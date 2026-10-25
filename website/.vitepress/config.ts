@@ -58,6 +58,8 @@ export default defineConfig({
     "website/guide/:page.md": "guide/:page.md",
     "website/cli/:page.md": "cli/:page.md",
     "website/blog/:page.md": "blog/:page.md",
+    // Search-intent pages publish at the site root, so each URL is the query it answers.
+    "website/search/:page.md": ":page.md",
     "docs/why.md": "guide/why-kinhin.md",
     "docs/forges/README.md": "guide/forges/index.md",
     "docs/forges/:page.md": "guide/forges/:page.md",
@@ -215,7 +217,7 @@ export default defineConfig({
               { text: "Gitea & Forgejo", link: "/guide/forges/gitea" },
               { text: "GitLab", link: "/guide/forges/gitlab" },
               { text: "Buildkite (planned)", link: "/guide/forges/buildkite" },
-              { text: "Azure DevOps (planned)", link: "/guide/forges/azuredevops" },
+              { text: "Azure DevOps (experimental)", link: "/guide/forges/azuredevops" },
               { text: "Bitbucket (planned)", link: "/guide/forges/bitbucket" },
             ],
           },
@@ -227,6 +229,7 @@ export default defineConfig({
         items: [
           { text: "Contributing", link: "/guide/contributing" },
           { text: "End-to-end testing", link: "/guide/e2e-testing" },
+          { text: "Setting up the hosted e2e lanes", link: "/guide/e2e-hosted-forges" },
           { text: "Making kinhin's demo video", link: "/guide/making-a-video" },
           { text: "Debugging races (TSan)", link: "/guide/debugging-races" },
           { text: "Cutting a release", link: "/guide/releasing" },

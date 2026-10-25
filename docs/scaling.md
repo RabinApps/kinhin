@@ -89,7 +89,7 @@ This differs from `min_runners`, which keeps *registered* idle runners on the fo
 ## Healing
 
 The scaling loop recovers from most failures by itself: the spawn backoff above, teardown retries, forge re-attach
-backoff, and an orphan sweep for instances kinhin started but no longer has a record of. The [healing agent](healing.md) runs in its
+backoff, and an orphan sweep for instances kinhin started but has no record of (see [Restarts](#restarts)). The [healing agent](healing.md) runs in its
 own loop beside it and covers what those do not, without ever delaying a scaling pass:
 
 - **Warm VMs.** A warm VM waits with nothing driving it, so no liveness watch sees it die. The engine's orphan sweep
@@ -103,6 +103,39 @@ own loop beside it and covers what those do not, without ever delaying a scaling
   backoff; a rejected token is shown to you.
 
 With `healing.enabled: false` all of the engine's own retries still run. `kinhin heal` shows what the agent did.
+
+## Restarts
+
+When the daemon or app restarts, kinhin reads its saved state (`fleet.json` in the state directory) and checks what is still
+running on each runtime before it starts anything new.
+
+- **Intact `fleet.json`.** Records are reloaded. A runner that was registered (idle or busy) is watched, not registered again,
+  so its job is not disturbed. The exception is an idle classic (non-ephemeral) runner in an Apple container or Docker
+  container: the agent dies with a stopped container, so when the forge lists runners and has none for it, it is registered
+  again. A warm VM returns to the warm pool.
+- **Unreadable `fleet.json`.** kinhin moves the file aside to `fleet.json.corrupt-<timestamp>` (it is never overwritten), and
+  the status alert and `kinhin status` name the kept copy. The engine starts with no VM records, so job and repo attribution
+  is lost. It then re-adopts each VM it finds and checks that VM's runner with the forge, asking each account once:
+  - a runner the forge still has (busy or idle) is **watched, not registered again**, so a running job is not disturbed;
+  - a VM with no runner on the forge is registered as normal;
+  - a VM whose forge cannot be asked is **held** and not registered until it can be (shown by the `adoption` status alert).
+
+  Beta 2 registered every re-adopted VM again, which could fail a running job (see the known issue in
+  [GitHub forge notes](forges/github.md)). The fix shipped in beta 3; on beta 2, restart only when no jobs are running.
+- **Unlisted runtime.** If a runtime can't be listed (Tart wedged, a daemon down), its records are kept, and nothing is removed
+  on a failed listing.
+- **Orphan sweep.** Only an instance with no record, under a name kinhin generates, is removed, and only after it stays
+  unclaimed for ten minutes (`orphanGrace`). An instance the restart re-adopted has a record, so the sweep does not remove it.
+- **Warm VMs after an unreadable `fleet.json`.** The pool flag is lost, so a re-adopted warm VM comes back as an ordinary runner.
+  It counts against `max_runners` until scale-down removes it.
+- **Forges with no runner list.** Some servers (Gitea before 1.24, Forgejo, Bitbucket) cannot say which runner belongs to which
+  VM. With nothing running in the account's scope, a re-adopted VM is registered. With a job running, it is watched as busy, and
+  it is removed once the scope goes quiet.
+- **Partly registered VMs.** With `runners_per_vm` above 1, a VM can have only some of its runners on the forge. If none of them
+  is busy, the set is registered again. If one is busy, the VM is watched. The missing runner never appears, so the VM is removed
+  only at the watch deadline (up to 6 hours). This is a known limit.
+- **Accounts without a forge.** A VM whose account is still configured but has no forge attached is held, with the `adoption`
+  status alert, and removed after one hour. A VM whose account was removed from the config is released at once.
 
 ## Pausing and auto-resume
 

@@ -67,7 +67,7 @@ public enum VideoFleet {
                     required: false
                     type: string
                   caption_style:
-                    description: "outline, box, shadow, bold or minimal (empty: the video's own)"
+                    description: "outline, box, shadow, bold, minimal or karaoke (empty: the video's own)"
                     required: false
                     type: string
                   music:
