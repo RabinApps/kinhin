@@ -268,16 +268,18 @@ final class PipelineModel {
     /// Live timing ("1m 06s · started 1m ago"); the view passes its ticking clock.
     func timing(of step: PipelineStep, now: Date = Date()) -> String? {
         PipelineFormatter.timing(
-            state: step.state, startedAt: step.startedAt, finishedAt: step.finishedAt, now: clock(now))
+            state: step.state, startedAt: step.startedAt, finishedAt: step.finishedAt, now: clock(now, for: step.state))
     }
 
     func timing(of job: PipelineJob, now: Date = Date()) -> String? {
         PipelineFormatter.timing(
-            state: job.state, startedAt: job.startedAt, finishedAt: job.finishedAt, now: clock(now))
+            state: job.state, startedAt: job.startedAt, finishedAt: job.finishedAt, now: clock(now, for: job.state))
     }
 
-    /// Once the pipeline has ended the snapshot is frozen at its last state, so its clock stops there too.
-    private func clock(_ now: Date) -> Date {
-        endedAt.map { min($0, now) } ?? now
+    /// Once the pipeline has ended, items still "running" in the frozen snapshot stop their clock there;
+    /// finished items keep the live clock so "finished … ago" keeps aging.
+    private func clock(_ now: Date, for state: PipelineStepState) -> Date {
+        guard !state.isFinished, let endedAt else { return now }
+        return min(endedAt, now)
     }
 }
