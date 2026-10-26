@@ -240,6 +240,22 @@ final class GitLabClientTests: XCTestCase {
         XCTAssertEqual(jobs.map(\.fromMergeRequest), [true, false, true])
     }
 
+    func testProjectJobsReadPastAFullPage() async throws {
+        let pages = LockedPages()
+        StubProtocol.handler = { request in
+            let page =
+                URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?
+                .queryItems?.first { $0.name == "page" }?.value ?? "?"
+            pages.append(page)
+            let range = page == "1" ? 0..<100 : 100..<130
+            let rows = range.map { #"{"id":\#($0),"name":"j\#($0)","tag_list":["macos"]}"# }
+            return (200, Data("[\(rows.joined(separator: ","))]".utf8), [:])
+        }
+        let jobs = try await makeClient().jobs(.pending, in: .project(id: 7, path: "acme/api"))
+        XCTAssertEqual(jobs.count, 130)
+        XCTAssertEqual(pages.values, ["1", "2"])
+    }
+
     func testRateLimitHeadersAreRecorded() async throws {
         let client = makeClient()
         XCTAssertNil(client.rateLimit)
@@ -310,4 +326,12 @@ extension URLRequest {
         }
         return data
     }
+}
+
+/// The page numbers a `@Sendable` stub handler saw, shared with its test.
+private final class LockedPages: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: [String] = []
+    func append(_ page: String) { lock.withLock { stored.append(page) } }
+    var values: [String] { lock.withLock { stored } }
 }

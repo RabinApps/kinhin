@@ -18,6 +18,9 @@ public struct GitLabClient: Sendable {
     let transport: ForgeTransport
     /// Projects polled per read of a group's jobs.
     let maxProjectsPerPoll = 50
+    static let jobsPerPage = 100
+    /// Bounds one project's walk: 500 jobs in a single state is far past any fleet's demand.
+    static let maxJobPages = 5
     /// Concurrent per-project job reads.
     let maxConcurrentReads = 8
     /// How long a group's project list is reused.
@@ -203,10 +206,20 @@ public struct GitLabClient: Sendable {
             struct Runner: Decodable { let description: String? }
             struct Commit: Decodable { let id: String? }
         }
-        let (data, _) = try await send(
-            "GET", "/projects/\(project.id)/jobs",
-            [URLQueryItem(name: "scope[]", value: status.rawValue), URLQueryItem(name: "per_page", value: "100")])
-        let jobs: [Job] = try decode(data, "jobs")
+        // A project with more than a page of jobs in one state (a busy shared project) keeps the rest on later pages.
+        var jobs: [Job] = []
+        for page in 1...Self.maxJobPages {
+            let (data, _) = try await send(
+                "GET", "/projects/\(project.id)/jobs",
+                [
+                    URLQueryItem(name: "scope[]", value: status.rawValue),
+                    URLQueryItem(name: "per_page", value: "\(Self.jobsPerPage)"),
+                    URLQueryItem(name: "page", value: "\(page)"),
+                ])
+            let batch: [Job] = try decode(data, "jobs")
+            jobs.append(contentsOf: batch)
+            if batch.count < Self.jobsPerPage { break }
+        }
         return jobs.map {
             GitLabJob(
                 id: $0.id, name: $0.name, tags: $0.tag_list ?? [], project: project.path,
