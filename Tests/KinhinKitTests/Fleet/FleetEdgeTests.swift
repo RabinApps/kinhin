@@ -205,6 +205,30 @@ final class FleetEdgeTests: XCTestCase {
         XCTAssertEqual(status.records.first?.job, "build", "a busy VM is attributed even with no stamp yet")
     }
 
+    func testPausedWithAutoResumeAttributesAJobOnAPersistentRunnerThatStaysReady() async throws {
+        let github = FakeGitHub()
+        github.queueDepth = 1
+        var cfg = makeTestConfig(repo: "acme")
+        cfg.autoResume = true
+        cfg.vm.ephemeral = false
+        let engine = makeEngine(config: cfg, tart: FakeTart(), github: github, ssh: FakeSSH())
+        try await engine.reconcileOnce()
+        try await waitUntil(timeout: 10) {
+            let status = await engine.status()
+            return status.records.first?.phase == .ready
+        }
+        let vmID = await engine.status().records.first!.id
+
+        // A persistent runner takes a job without its record ever leaving `.ready`.
+        github.running = [RunningJob(name: "build", runnerName: vmID, repository: "acme/api")]
+        await engine.setPaused(true)
+        try await engine.reconcileOnce()
+
+        let record = await engine.status().records.first!
+        XCTAssertEqual(record.phase, .ready)
+        XCTAssertEqual(record.job, "build")
+    }
+
     func testAutoResumeNeverReleasesOnAForgeOutage() async throws {
         let tart = FakeTart()
         let github = FakeGitHub()

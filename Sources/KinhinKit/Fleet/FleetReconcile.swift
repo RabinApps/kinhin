@@ -312,8 +312,12 @@ extension FleetEngine {
             if answeredQueue { await statusBox.modify { $0.queuePolledAt = Date() } }
             // Jobs keep running on the VMs while the pause holds back new ones: refresh Current jobs while some VM
             // shows a job or is busy (a job that started since the last attribution), so it appears and a finished
-            // one clears. Idle fleets skip the running-jobs fan-out.
-            if store.all.contains(where: { $0.job != nil || $0.runningJobs != nil || $0.phase == .busy }) {
+            // one clears. A persistent runner's VM stays `.ready` while it works, so with those every live VM counts.
+            // Idle ephemeral fleets skip the running-jobs fan-out.
+            let persistent = !config.vm.ephemeral
+            if store.all.contains(where: {
+                $0.job != nil || $0.runningJobs != nil || $0.phase == .busy || (persistent && $0.phase == .ready)
+            }) {
                 await attributeRunningJobs(attached)
             }
             return Demand()
