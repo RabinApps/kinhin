@@ -112,6 +112,38 @@ final class QueueAttributionTests: XCTestCase {
         XCTAssertEqual(jobs[0].repository, "acme/ios-app")
     }
 
+    func testRunningJobsReadsEveryPageOfALargeRun() async throws {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [StubProtocol.self]
+        let client = GitHubClient(
+            credentials: GitHubCredentials(token: "t", scope: "acme/api"),
+            session: URLSession(configuration: config)
+        )
+        @Sendable func job(_ id: Int) -> String {
+            #"{"id":\#(id),"run_id":9,"name":"m\#(id)","status":"in_progress","labels":["self-hosted"],"runner_name":"r\#(id)"}"#
+        }
+        let pagesRequested = Locked<[String]>([])
+        StubProtocol.handler = { request in
+            let path = request.url?.path ?? ""
+            let query = request.url?.query ?? ""
+            if path == "/repos/acme/api/actions/runs" {
+                return (200, Data(#"{"total_count":1,"workflow_runs":[{"id":9}]}"#.utf8), [:])
+            }
+            if path == "/repos/acme/api/actions/runs/9/jobs" {
+                pagesRequested.withLock { $0.append(query) }
+                let ids = query.contains("page=2") ? Array(101...150) : Array(1...100)
+                return (200, Data("{\"jobs\":[\(ids.map(job).joined(separator: ","))]}".utf8), [:])
+            }
+            XCTFail("unexpected path: \(path)")
+            return (404, Data(), [:])
+        }
+        defer { StubProtocol.handler = nil }
+
+        let jobs = try await client.runningJobs(matching: ["self-hosted"])
+        XCTAssertEqual(jobs.count, 150)
+        XCTAssertEqual(pagesRequested.withLock { $0.count }, 2, "a short second page ends the walk")
+    }
+
     func testRunningJobsRequestFiltersByInProgress() async throws {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [StubProtocol.self]
