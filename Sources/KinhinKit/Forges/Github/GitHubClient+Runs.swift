@@ -126,6 +126,7 @@ extension GitHubClient {
             repository.map { "/repos/\($0)/actions/runs/\(runID)/jobs" }
             ?? "\(credentials.actionsBase)/runs/\(runID)/jobs"
         var jobs: [GHJob] = []
+        var seen = Set<Int>()
         for page in 1...Self.maxJobPages {
             let req = try request(method: "GET", path: "\(jobsPath)?per_page=\(Self.jobsPerPage)&page=\(page)")
             let (data, _) = try await send(req)
@@ -135,7 +136,8 @@ extension GitHubClient {
             } catch {
                 throw GitHubError.decoding("jobs: \(error.localizedDescription)")
             }
-            jobs.append(contentsOf: batch)
+            // Pages shift while jobs change state: a job can show up on two of them.
+            jobs.append(contentsOf: batch.filter { seen.insert($0.id).inserted })
             if batch.count < Self.jobsPerPage { break }
         }
         return jobs
