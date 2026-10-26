@@ -268,6 +268,48 @@ final class QueueAttributionTests: XCTestCase {
         XCTAssertEqual(status.runningByRepo, ["acme/api": 1])
     }
 
+    func testEveryRunnerOfAMultiRunnerVMKeepsItsJob() async throws {
+        let github = FakeGitHub()
+        var cfg = makeTestConfig(repo: "acme")
+        cfg.runnersPerVM = 3
+        let engine = FleetEngine(
+            config: cfg, github: github, tart: FakeTart(),
+            store: makeTestStore(), ssh: FakeSSH(), host: testHost
+        )
+        github.queueDepth = 1
+        try await engine.reconcileOnce()
+        try await waitUntil(timeout: 10) {
+            let status = await engine.status()
+            return status.records.first?.phase == .ready
+        }
+        let vmID = await engine.status().records.first!.id
+
+        github.running = [
+            RunningJob(name: "lint", runnerName: "\(vmID)-r3", repository: "acme/api"),
+            RunningJob(name: "build", runnerName: "\(vmID)-r1", repository: "acme/api"),
+            RunningJob(name: "test", runnerName: "\(vmID)-r2", repository: "acme/web"),
+        ]
+        try await engine.reconcileOnce()
+
+        let record = await engine.status().records.first!
+        XCTAssertEqual(
+            record.runningJobs,
+            [
+                RunningJobStamp(runner: "\(vmID)-r1", job: "build", repo: "acme/api"),
+                RunningJobStamp(runner: "\(vmID)-r2", job: "test", repo: "acme/web"),
+                RunningJobStamp(runner: "\(vmID)-r3", job: "lint", repo: "acme/api"),
+            ])
+        XCTAssertEqual(record.job, "build")
+        XCTAssertEqual(record.repos, ["acme/api", "acme/web"], "repos are deduplicated")
+        XCTAssertEqual(FleetStatusFormatter.runningJobs(of: record).count, 3)
+
+        github.running = []
+        try await engine.reconcileOnce()
+        let cleared = await engine.status().records.first!
+        XCTAssertNil(cleared.runningJobs)
+        XCTAssertNil(cleared.job)
+    }
+
     func testRunningAttributionClearsWhenJobFinishes() async throws {
         let github = FakeGitHub()
         let engine = makeEngine(scope: "acme", github: github)

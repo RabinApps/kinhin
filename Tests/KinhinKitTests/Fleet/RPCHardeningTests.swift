@@ -49,15 +49,14 @@ final class RPCHardeningTests: XCTestCase {
 
     func testRunnerNamesMapToTheirVM() {
         let ids: Set<String> = ["kinhin-1-aaaa", "kinhin-2-bbbb"]
-        func vm(_ name: String, rpv: Int = 2) -> String? {
-            FleetEngine.vmID(forRunnerName: name, among: ids, runnersPerVM: rpv)
+        func vm(_ name: String) -> String? {
+            FleetEngine.vmID(forRunnerName: name, among: ids)
         }
         XCTAssertEqual(vm("kinhin-1-aaaa"), "kinhin-1-aaaa")
         XCTAssertEqual(vm("kinhin-2-bbbb-r2"), "kinhin-2-bbbb")
-        XCTAssertNil(vm("kinhin-2-bbbb-r3"), "index beyond runners_per_vm")
+        XCTAssertEqual(vm("kinhin-2-bbbb-r3"), "kinhin-2-bbbb", "runners outlive a lowered runners_per_vm")
         XCTAssertNil(vm("kinhin-2-bbbb-r0"))
         XCTAssertNil(vm("kinhin-9-zzzz-r1"), "unknown VM")
         XCTAssertNil(vm("someone-elses-runner"))
-        XCTAssertEqual(vm("kinhin-1-aaaa-r1", rpv: 1), "kinhin-1-aaaa", "at least one runner index is always valid")
     }
 }

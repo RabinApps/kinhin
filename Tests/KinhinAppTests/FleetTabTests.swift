@@ -49,8 +49,28 @@ final class FleetTabTests: MainWindowTestCase {
         XCTAssertTrue(instances[0].title.contains("kinhin-vm-test — busy"))
         XCTAssertTrue(instances[0].detail.contains("2 repos"))
         // Current-jobs section: only the record carrying a job, with repo.
-        XCTAssertEqual(model.working.map(\.id), ["kinhin-vm-test"])
-        XCTAssertTrue(model.jobLine(for: busy).contains("build — alpha/one, beta/two"))
+        XCTAssertEqual(model.working.map(\.id), ["kinhin-vm-test#kinhin-vm-test"])
+        XCTAssertTrue(model.jobLine(for: model.working[0]).contains("build — alpha/one, beta/two"))
+    }
+
+    func testCurrentJobsListsEveryRunnerOfAMultiRunnerVM() {
+        var status = FleetStatus()
+        var busy = VMRecord(id: "kinhin-vm-test", phase: .busy)
+        busy.createdAt = Date()
+        busy.job = "build"
+        busy.repos = ["alpha/one"]
+        busy.runningJobs = [
+            RunningJobStamp(runner: "kinhin-vm-test-r1", job: "build", repo: "alpha/one"),
+            RunningJobStamp(runner: "kinhin-vm-test-r2", job: "test", repo: "alpha/one"),
+        ]
+        status.records = [busy]
+        fleet.status = status
+
+        let rows = models.fleetModel.working
+        XCTAssertEqual(rows.map(\.id), ["kinhin-vm-test#kinhin-vm-test-r1", "kinhin-vm-test#kinhin-vm-test-r2"])
+        XCTAssertTrue(models.fleetModel.jobLine(for: rows[1]).contains("test — alpha/one  (kinhin-vm-test-r2, busy)"))
+        let detail = models.fleetModel.diagram.lanes.flatMap(\.instances)[0].detail
+        XCTAssertTrue(detail.contains("2 jobs: build, test"))
     }
 
     func testRenderIdleFleetShowsNoVMsAndNoJobs() {

@@ -32,6 +32,21 @@ public enum InstanceNaming {
     static let generatedNamePattern = #"^\#(prefix)\d{9,11}-[0-9a-f]{4,8}$"#
 }
 
+/// One job executing on one of a VM's runners. A multi-runner VM can carry several at once.
+public struct RunningJobStamp: Codable, Sendable, Equatable {
+    /// The forge-side runner name: the VM id, or `<vmid>-r<N>` on a multi-runner VM.
+    public var runner: String
+    public var job: String
+    /// Set in org scope only (repo scope stamps the job alone).
+    public var repo: String?
+
+    public init(runner: String, job: String, repo: String? = nil) {
+        self.runner = runner
+        self.job = job
+        self.repo = repo
+    }
+}
+
 /// Tracked state for one VM. Persisted as JSON for crash recovery.
 public struct VMRecord: Codable, Sendable, Identifiable, Equatable {
     public let id: String  // tart VM name, e.g. "kinhin-1717000000-a1b2"
@@ -62,6 +77,9 @@ public struct VMRecord: Codable, Sendable, Identifiable, Equatable {
     /// attribution, stamped by the reconcile loop from in-progress jobs;
     /// nil when nothing is running or the scope is a single repo).
     public var repos: [String]?
+    /// Every job currently executing on this VM, one per busy runner, ordered by runner name. `job` is the first
+    /// one's name, kept for surfaces and daemons that predate this field. Nil when nothing is running.
+    public var runningJobs: [RunningJobStamp]?
     /// Live CPU/RAM, stamped onto status reads only (never persisted). Nil
     /// when not measurable or from a daemon predating the field.
     public var usage: ResourceUsage?

@@ -58,7 +58,8 @@ extension FleetEngine {
     /// Stamp VM records with the repositories whose jobs are currently
     /// executing on them (via runner_name → VM mapping), and aggregate the
     /// same data into `FleetStatus.runningByRepo`. Also fills the per-VM
-    /// `job` label (first running job name) for the status surfaces.
+    /// `runningJobs` (one stamp per busy runner) and the `job` label (the
+    /// first stamp's name) for the status surfaces.
     /// Repo scope stamps the job name only — the repo breakdown would carry
     /// no information there (mirrors `queueByRepo` suppression).
     func applyRunningAttribution(_ running: [RunningJob]) async {
@@ -67,17 +68,18 @@ extension FleetEngine {
         // Map runner name → VM id. Single-runner VMs register under the VM
         // id itself; multi-runner VMs register as "<vmid>-r1…rN".
         var reposByVM: [String: [String]] = [:]
-        var jobByVM: [String: String] = [:]
+        var jobsByVM: [String: [RunningJobStamp]] = [:]
         let records = store.all
         let ids = Set(records.map(\.id))
         for job in running {
             guard let runnerName = job.runnerName,
-                let vmID = Self.vmID(forRunnerName: runnerName, among: ids, runnersPerVM: config.runnersPerVM)
+                let vmID = Self.vmID(forRunnerName: runnerName, among: ids)
             else { continue }
             if isOrgScope, let repo = job.repository {
                 reposByVM[vmID, default: []].append(repo)
             }
-            if jobByVM[vmID] == nil { jobByVM[vmID] = job.name }
+            jobsByVM[vmID, default: []].append(
+                RunningJobStamp(runner: runnerName, job: job.name, repo: isOrgScope ? job.repository : nil))
         }
 
         await statusBox.modify {
@@ -86,25 +88,28 @@ extension FleetEngine {
 
         // Stamp VMs that exist; clear the stamp on VMs whose jobs finished.
         for record in records {
-            let repos = reposByVM[record.id]?.sorted()
-            let job = jobByVM[record.id]
-            if record.repos != repos || record.job != job {
+            let repos = reposByVM[record.id].map { Array(Set($0)).sorted() }
+            let stamps = jobsByVM[record.id].map { $0.sorted { ($0.runner, $0.job) < ($1.runner, $1.job) } }
+            let job = stamps?.first?.job
+            if record.repos != repos || record.job != job || record.runningJobs != stamps {
                 updateRecord(record.id) {
                     $0.repos = repos
                     $0.job = job
+                    $0.runningJobs = stamps
                 }
             }
         }
     }
 
     /// The VM id owning a runner name, among the tracked VM `ids`: the id
-    /// itself, or `<id>-r<N>` for N in 1...runnersPerVM. One set lookup per
-    /// name instead of a scan (and copy) of the whole store.
-    static func vmID(forRunnerName runnerName: String, among ids: Set<String>, runnersPerVM: Int) -> String? {
+    /// itself, or `<id>-r<N>`. N is not bounded by the current `runnersPerVM`:
+    /// a reload that lowers it must not orphan runners of VMs spawned under the
+    /// old count. One set lookup per name instead of a scan (and copy) of the
+    /// whole store.
+    static func vmID(forRunnerName runnerName: String, among ids: Set<String>) -> String? {
         if ids.contains(runnerName) { return runnerName }
         guard let marker = runnerName.range(of: "-r", options: .backwards),
-            let index = Int(runnerName[marker.upperBound...]),
-            (1...max(1, runnersPerVM)).contains(index)
+            let index = Int(runnerName[marker.upperBound...]), index >= 1
         else { return nil }
         let base = String(runnerName[..<marker.lowerBound])
         return ids.contains(base) ? base : nil
@@ -113,10 +118,11 @@ extension FleetEngine {
     /// Drop the attribution stamp from every record (pause path).
     func clearRunningAttribution() async {
         for record in store.all {
-            if record.repos != nil || record.job != nil {
+            if record.repos != nil || record.job != nil || record.runningJobs != nil {
                 updateRecord(record.id) {
                     $0.repos = nil
                     $0.job = nil
+                    $0.runningJobs = nil
                 }
             }
         }
