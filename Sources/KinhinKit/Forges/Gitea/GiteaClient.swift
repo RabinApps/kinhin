@@ -262,13 +262,17 @@ public struct GiteaClient: Sendable {
         // ever had, finished ones included, so the filter is applied here too. An entry with no status of its own
         // (the older shapes) is kept.
         //
-        // A full page may have more behind it, so the walk continues while pages come back full, up to
-        // `maxTaskPages` (the bound for a server that ignores `status` and answers history).
+        // A full page may have more behind it, so the walk continues while pages come back full of matches, up to
+        // `maxTaskPages`. A page holding anything the filter dropped means the server ignores `status` and has
+        // reached history, so the walk stops there instead of paging through finished tasks.
         var matched: [GiteaTask] = []
+        var seen = Set<Int>()
         for page in 1...Self.maxTaskPages {
             let batch = try await taskPage(status: status, page: page)
-            matched.append(contentsOf: batch.tasks.filter { $0.status == nil || $0.status == status })
-            if batch.rawCount < Self.pageSize { break }
+            let mine = batch.tasks.filter { $0.status == nil || $0.status == status }
+            // Pages shift while running tasks are touched: a task can show up on two of them.
+            matched.append(contentsOf: mine.filter { $0.id.map { seen.insert($0).inserted } ?? true })
+            if batch.rawCount < Self.pageSize || mine.count < batch.rawCount { break }
         }
         return matched
     }

@@ -208,6 +208,7 @@ public struct GitLabClient: Sendable {
         }
         // A project with more than a page of jobs in one state (a busy shared project) keeps the rest on later pages.
         var jobs: [Job] = []
+        var seen = Set<Int>()
         for page in 1...Self.maxJobPages {
             let (data, _) = try await send(
                 "GET", "/projects/\(project.id)/jobs",
@@ -217,7 +218,8 @@ public struct GitLabClient: Sendable {
                     URLQueryItem(name: "page", value: "\(page)"),
                 ])
             let batch: [Job] = try decode(data, "jobs")
-            jobs.append(contentsOf: batch)
+            // Pages shift while jobs change state: a job can show up on two of them.
+            jobs.append(contentsOf: batch.filter { seen.insert($0.id).inserted })
             if batch.count < Self.jobsPerPage { break }
         }
         return jobs.map {

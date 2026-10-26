@@ -172,12 +172,14 @@ final class FleetEdgeTests: XCTestCase {
         let vmID = await engine.status().records.first!.id
 
         github.running = [RunningJob(name: "build", runnerName: vmID, repository: "acme/api")]
+        try await engine.reconcileOnce()
         await engine.setPaused(true)
+        github.running = [RunningJob(name: "deploy", runnerName: vmID, repository: "acme/api")]
         try await engine.reconcileOnce()
 
         let status = await engine.status()
         XCTAssertTrue(status.paused, "demand remains: the pause holds")
-        XCTAssertEqual(status.records.first?.job, "build", "the job still running on the VM stays listed")
+        XCTAssertEqual(status.records.first?.job, "deploy", "a VM still showing a job keeps refreshing while paused")
     }
 
     func testAutoResumeNeverReleasesOnAForgeOutage() async throws {

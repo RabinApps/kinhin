@@ -67,7 +67,6 @@ extension FleetEngine {
 
         // Map runner name → VM id. Single-runner VMs register under the VM
         // id itself; multi-runner VMs register as "<vmid>-r1…rN".
-        var reposByVM: [String: [String]] = [:]
         var jobsByVM: [String: [RunningJobStamp]] = [:]
         let records = store.all
         let ids = Set(records.map(\.id))
@@ -75,9 +74,6 @@ extension FleetEngine {
             guard let runnerName = job.runnerName,
                 let vmID = Self.vmID(forRunnerName: runnerName, among: ids)
             else { continue }
-            if isOrgScope, let repo = job.repository {
-                reposByVM[vmID, default: []].append(repo)
-            }
             jobsByVM[vmID, default: []].append(
                 RunningJobStamp(runner: runnerName, job: job.name, repo: isOrgScope ? job.repository : nil))
         }
@@ -88,8 +84,15 @@ extension FleetEngine {
 
         // Stamp VMs that exist; clear the stamp on VMs whose jobs finished.
         for record in records {
-            let repos = reposByVM[record.id].map { Array(Set($0)).sorted() }
-            let stamps = jobsByVM[record.id].map { $0.sorted { ($0.runner, $0.job) < ($1.runner, $1.job) } }
+            let stamps = jobsByVM[record.id].map {
+                $0.sorted {
+                    (Self.runnerIndex($0.runner), $0.runner, $0.job) < (Self.runnerIndex($1.runner), $1.runner, $1.job)
+                }
+            }
+            let repos = stamps.flatMap { stamps -> [String]? in
+                let repos = Set(stamps.compactMap(\.repo))
+                return repos.isEmpty ? nil : repos.sorted()
+            }
             let job = stamps?.first?.job
             if record.repos != repos || record.job != job || record.runningJobs != stamps {
                 updateRecord(record.id) {
@@ -99,6 +102,11 @@ extension FleetEngine {
                 }
             }
         }
+    }
+
+    /// The `N` of a `<id>-r<N>` runner name, 0 for a single-runner VM's bare id: numeric, so `-r2` sorts before `-r10`.
+    static func runnerIndex(_ runnerName: String) -> Int {
+        runnerName.range(of: "-r", options: .backwards).flatMap { Int(runnerName[$0.upperBound...]) } ?? 0
     }
 
     /// The VM id owning a runner name, among the tracked VM `ids`: the id

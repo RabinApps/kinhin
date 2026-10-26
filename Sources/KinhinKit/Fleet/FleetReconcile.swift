@@ -310,8 +310,11 @@ extension FleetEngine {
             // observation was real: stamp its freshness. An outage leaves
             // the old timestamp, so the age truthfully shows staleness.
             if answeredQueue { await statusBox.modify { $0.queuePolledAt = Date() } }
-            // Jobs keep running on the VMs while the pause holds back new ones: keep Current jobs live.
-            await attributeRunningJobs(attached)
+            // Jobs keep running on the VMs while the pause holds back new ones: refresh Current jobs while some VM
+            // still shows one, so a finished job clears. Idle fleets skip the running-jobs fan-out.
+            if store.all.contains(where: { $0.job != nil || $0.runningJobs != nil }) {
+                await attributeRunningJobs(attached)
+            }
             return Demand()
         }
         let byRepo = ForgeDemand.mergeQueueByRepo(perForgeJobs)

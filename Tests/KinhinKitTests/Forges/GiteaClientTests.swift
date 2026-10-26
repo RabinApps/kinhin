@@ -184,7 +184,10 @@ final class GiteaClientTests: XCTestCase {
                 .queryItems?.first { $0.name == "page" }?.value ?? "?"
             requested.value.append(page)
             let count = page == "1" ? 50 : 3
-            let items = (0..<count).map { "{\"id\":\($0),\"status\":\"running\",\"runner_name\":\"r\(page)-\($0)\"}" }
+            let first = page == "1" ? 0 : 50
+            let items = (first..<first + count).map {
+                "{\"id\":\($0),\"status\":\"running\",\"runner_name\":\"r\($0)\"}"
+            }
             return (200, Data("{\"workflow_runs\":[\(items.joined(separator: ","))],\"total_count\":53}".utf8), [:])
         }
         defer { StubProtocol.handler = nil }
