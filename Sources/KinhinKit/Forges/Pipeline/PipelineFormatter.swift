@@ -52,12 +52,14 @@ public enum PipelineFormatter {
         state: PipelineStepState, startedAt: Date?, finishedAt: Date?, now: Date = Date()
     ) -> String? {
         guard state != .pending, let startedAt else { return nil }
-        let took = duration(from: startedAt, to: state.isFinished ? finishedAt : nil, now: now)
         if state.isFinished {
-            guard let finishedAt else { return took }
-            return [took, "finished \(ago(finishedAt, now: now))"].compactMap { $0 }.joined(separator: " · ")
+            // Without a finish time the duration is unknown; measuring to `now` would keep counting.
+            guard let finishedAt else { return nil }
+            return [duration(from: startedAt, to: finishedAt, now: now), "finished \(ago(finishedAt, now: now))"]
+                .compactMap { $0 }.joined(separator: " · ")
         }
-        return [took, "started \(ago(startedAt, now: now))"].compactMap { $0 }.joined(separator: " · ")
+        return [duration(from: startedAt, to: nil, now: now), "started \(ago(startedAt, now: now))"]
+            .compactMap { $0 }.joined(separator: " · ")
     }
 
     /// Why a job shows no steps (nil when it has some).

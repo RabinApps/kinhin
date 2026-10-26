@@ -19,6 +19,8 @@ final class PipelineModel {
     private(set) var loaded = false
     /// The latest refresh found no running job after one had been seen.
     private(set) var ended = false
+    /// When `ended` was first seen; the timing clock stops here.
+    private var endedAt: Date?
     /// The job whose steps are shown; nil shows the job list.
     private(set) var selectedJobID: String?
 
@@ -52,8 +54,10 @@ final class PipelineModel {
             if let latest {
                 detail = latest
                 ended = false
+                endedAt = nil
             } else if detail != nil {
                 ended = true
+                if endedAt == nil { endedAt = Date() }
             }
             error = nil
         } catch is CancellationError {
@@ -263,10 +267,19 @@ final class PipelineModel {
 
     /// Live timing ("1m 06s · started 1m ago"); the view passes its ticking clock.
     func timing(of step: PipelineStep, now: Date = Date()) -> String? {
-        PipelineFormatter.timing(state: step.state, startedAt: step.startedAt, finishedAt: step.finishedAt, now: now)
+        PipelineFormatter.timing(
+            state: step.state, startedAt: step.startedAt, finishedAt: step.finishedAt, now: clock(now, for: step.state))
     }
 
     func timing(of job: PipelineJob, now: Date = Date()) -> String? {
-        PipelineFormatter.timing(state: job.state, startedAt: job.startedAt, finishedAt: job.finishedAt, now: now)
+        PipelineFormatter.timing(
+            state: job.state, startedAt: job.startedAt, finishedAt: job.finishedAt, now: clock(now, for: job.state))
+    }
+
+    /// Once the pipeline has ended, items still "running" in the frozen snapshot stop their clock there;
+    /// finished items keep the live clock so "finished … ago" keeps aging.
+    private func clock(_ now: Date, for state: PipelineStepState) -> Date {
+        guard !state.isFinished, let endedAt else { return now }
+        return min(endedAt, now)
     }
 }

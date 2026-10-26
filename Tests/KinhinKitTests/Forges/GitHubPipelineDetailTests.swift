@@ -41,7 +41,7 @@ final class GitHubPipelineDetailTests: XCTestCase {
                            {"name":"Test","status":"in_progress","conclusion":null,"number":2,
                             "started_at":"2026-10-02T10:00:06Z","completed_at":null}]},
                  {"id":12,"run_id":5,"name":"lint","status":"completed","conclusion":"failure","runner_name":"other",
-                  "steps":[]}
+                  "started_at":"2026-10-02T09:59:00Z","completed_at":"2026-10-02T09:59:40Z","steps":[]}
                 ]}
                 """#)
         }
@@ -56,6 +56,9 @@ final class GitHubPipelineDetailTests: XCTestCase {
         XCTAssertEqual(found.currentJob?.steps.map(\.name), ["Checkout", "Test"])
         XCTAssertEqual(found.jobs[0].steps.map(\.state), [.succeeded, .running])
         XCTAssertEqual(found.jobs[1].state, .failed)
+        XCTAssertNil(found.jobs[0].finishedAt)
+        let lint = found.jobs[1]
+        XCTAssertEqual(try XCTUnwrap(lint.finishedAt).timeIntervalSince(try XCTUnwrap(lint.startedAt)), 40)
         XCTAssertEqual(found.state, .running)
     }
 
