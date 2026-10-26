@@ -202,7 +202,12 @@ struct FleetDiagramModel {
         }
         var parts: [String] = []
         if let repos = FleetStatusFormatter.repos(of: record) { parts.append(repos) }
-        if let job = record.job { parts.append(job) }
+        let stamps = FleetStatusFormatter.runningJobs(of: record)
+        if stamps.count > 1 {
+            parts.append("\(stamps.count) jobs: " + stamps.map(\.job).joined(separator: ", "))
+        } else if let job = stamps.first?.job {
+            parts.append(job)
+        }
         if let usage = FleetStatusFormatter.usage(of: record) { parts.append(usage) }
         if let error = record.error { parts.append("⚠︎ \(error)") }
         return Instance(

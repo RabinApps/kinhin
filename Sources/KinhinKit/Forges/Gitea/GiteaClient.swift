@@ -261,7 +261,20 @@ public struct GiteaClient: Sendable {
         // Servers that ignore `status` (Forgejo 11 through 14, Gitea 1.23 to 1.24) answer every task the scope has
         // ever had, finished ones included, so the filter is applied here too. An entry with no status of its own
         // (the older shapes) is kept.
-        try await taskPage(status: status, page: 1).tasks.filter { $0.status == nil || $0.status == status }
+        //
+        // A full page may have more behind it, so the walk continues while pages come back full of matches, up to
+        // `maxTaskPages`. A page holding anything the filter dropped means the server ignores `status` and has
+        // reached history, so the walk stops there instead of paging through finished tasks.
+        var matched: [GiteaTask] = []
+        var seen = Set<Int>()
+        for page in 1...Self.maxTaskPages {
+            let batch = try await taskPage(status: status, page: page)
+            let mine = batch.tasks.filter { $0.status == nil || $0.status == status }
+            // Pages shift while running tasks are touched: a task can show up on two of them.
+            matched.append(contentsOf: mine.filter { $0.id.map { seen.insert($0).inserted } ?? true })
+            if batch.rawCount < Self.pageSize || mine.count < batch.rawCount { break }
+        }
+        return matched
     }
 
     /// Whether any task of the scope is not finished: dispatched to a runner and still going. Used where the server
@@ -284,6 +297,7 @@ public struct GiteaClient: Sendable {
     /// Terminal task states Gitea and Forgejo report (`unknown` is a task that never ran).
     private static let finishedStatuses: Set<String> = ["success", "failure", "cancelled", "skipped", "unknown"]
     private static let pageSize = 50
+    private static let maxTaskPages = 4
 
     private func taskPage(status: String, page: Int) async throws -> (tasks: [GiteaTask], rawCount: Int) {
         let (data, _) = try await send(

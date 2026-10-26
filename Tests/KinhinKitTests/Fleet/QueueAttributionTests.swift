@@ -112,6 +112,38 @@ final class QueueAttributionTests: XCTestCase {
         XCTAssertEqual(jobs[0].repository, "acme/ios-app")
     }
 
+    func testRunningJobsReadsEveryPageOfALargeRun() async throws {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [StubProtocol.self]
+        let client = GitHubClient(
+            credentials: GitHubCredentials(token: "t", scope: "acme/api"),
+            session: URLSession(configuration: config)
+        )
+        @Sendable func job(_ id: Int) -> String {
+            #"{"id":\#(id),"run_id":9,"name":"m\#(id)","status":"in_progress","labels":["self-hosted"],"runner_name":"r\#(id)"}"#
+        }
+        let pagesRequested = Locked<[String]>([])
+        StubProtocol.handler = { request in
+            let path = request.url?.path ?? ""
+            let query = request.url?.query ?? ""
+            if path == "/repos/acme/api/actions/runs" {
+                return (200, Data(#"{"total_count":1,"workflow_runs":[{"id":9}]}"#.utf8), [:])
+            }
+            if path == "/repos/acme/api/actions/runs/9/jobs" {
+                pagesRequested.withLock { $0.append(query) }
+                let ids = query.contains("page=2") ? Array(101...150) : Array(1...100)
+                return (200, Data("{\"jobs\":[\(ids.map(job).joined(separator: ","))]}".utf8), [:])
+            }
+            XCTFail("unexpected path: \(path)")
+            return (404, Data(), [:])
+        }
+        defer { StubProtocol.handler = nil }
+
+        let jobs = try await client.runningJobs(matching: ["self-hosted"])
+        XCTAssertEqual(jobs.count, 150)
+        XCTAssertEqual(pagesRequested.withLock { $0.count }, 2, "a short second page ends the walk")
+    }
+
     func testRunningJobsRequestFiltersByInProgress() async throws {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [StubProtocol.self]
@@ -266,6 +298,48 @@ final class QueueAttributionTests: XCTestCase {
         let status = await denseEngine.status()
         XCTAssertEqual(status.records.first?.repos, ["acme/api"])
         XCTAssertEqual(status.runningByRepo, ["acme/api": 1])
+    }
+
+    func testEveryRunnerOfAMultiRunnerVMKeepsItsJob() async throws {
+        let github = FakeGitHub()
+        var cfg = makeTestConfig(repo: "acme")
+        cfg.runnersPerVM = 3
+        let engine = FleetEngine(
+            config: cfg, github: github, tart: FakeTart(),
+            store: makeTestStore(), ssh: FakeSSH(), host: testHost
+        )
+        github.queueDepth = 1
+        try await engine.reconcileOnce()
+        try await waitUntil(timeout: 10) {
+            let status = await engine.status()
+            return status.records.first?.phase == .ready
+        }
+        let vmID = await engine.status().records.first!.id
+
+        github.running = [
+            RunningJob(name: "lint", runnerName: "\(vmID)-r3", repository: "acme/api"),
+            RunningJob(name: "build", runnerName: "\(vmID)-r1", repository: "acme/api"),
+            RunningJob(name: "test", runnerName: "\(vmID)-r2", repository: "acme/web"),
+        ]
+        try await engine.reconcileOnce()
+
+        let record = await engine.status().records.first!
+        XCTAssertEqual(
+            record.runningJobs,
+            [
+                RunningJobStamp(runner: "\(vmID)-r1", job: "build", repo: "acme/api"),
+                RunningJobStamp(runner: "\(vmID)-r2", job: "test", repo: "acme/web"),
+                RunningJobStamp(runner: "\(vmID)-r3", job: "lint", repo: "acme/api"),
+            ])
+        XCTAssertEqual(record.job, "build")
+        XCTAssertEqual(record.repos, ["acme/api", "acme/web"], "repos are deduplicated")
+        XCTAssertEqual(FleetStatusFormatter.runningJobs(of: record).count, 3)
+
+        github.running = []
+        try await engine.reconcileOnce()
+        let cleared = await engine.status().records.first!
+        XCTAssertNil(cleared.runningJobs)
+        XCTAssertNil(cleared.job)
     }
 
     func testRunningAttributionClearsWhenJobFinishes() async throws {

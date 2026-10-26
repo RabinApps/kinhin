@@ -137,8 +137,28 @@ final class FleetModel {
     /// A short, at-a-glance fleet mode label for the Fleet tab header badge.
     /// Nil when no backend is attached (setup unfinished, or before the first poll).
     var fleetModeBadge: String? { controller.fleetMode }
-    /// The VMs currently running a workflow.
-    var working: [VMRecord] { records.filter { $0.job != nil } }
+    /// One running job on a VM: a multi-runner VM contributes a row per busy runner.
+    struct JobRow: Identifiable, Equatable {
+        let vmID: String
+        let runner: String
+        let job: String
+        let repo: String?
+        let phase: VMPhase
+        let showsRunner: Bool
+        var id: String { "\(vmID)#\(runner)" }
+    }
+
+    /// The jobs currently running, one row per busy runner.
+    var working: [JobRow] {
+        records.flatMap { record in
+            let stamps = FleetStatusFormatter.runningJobs(of: record)
+            return stamps.map {
+                JobRow(
+                    vmID: record.id, runner: $0.runner, job: $0.job, repo: $0.repo, phase: record.phase,
+                    showsRunner: $0.runner != record.id)
+            }
+        }
+    }
 
     /// Button entry points. A second click while busy is a no-op (the
     /// buttons disable too — this is the state-level backstop).
@@ -182,10 +202,11 @@ final class FleetModel {
 
     // MARK: - Row text
 
-    func jobLine(for record: VMRecord) -> String {
-        let repoText = record.repos?.joined(separator: ", ") ?? ""
+    func jobLine(for row: JobRow) -> String {
+        let repoText = row.repo ?? ""
+        let location = row.showsRunner ? row.runner : row.vmID
         return String(
-            localized: "▸ \(record.job ?? "") — \(repoText)  (\(record.id), \(record.phase.rawValue))", bundle: .l10n,
-            comment: "Fleet tab job row: job, repositories, then VM id and phase")
+            localized: "▸ \(row.job) — \(repoText)  (\(location), \(row.phase.rawValue))", bundle: .l10n,
+            comment: "Fleet tab job row: job, repository, then runner (or VM id) and phase")
     }
 }

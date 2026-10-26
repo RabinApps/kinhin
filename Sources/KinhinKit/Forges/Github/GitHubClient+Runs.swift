@@ -119,20 +119,33 @@ extension GitHubClient {
         return names
     }
 
-    /// All jobs of one workflow run. In org scope the run's scoped
-    /// repository supplies the repo-scoped jobs path.
+    /// All jobs of one workflow run, following pagination (a large matrix has more than one page). In org scope the
+    /// run's scoped repository supplies the repo-scoped jobs path.
     func fetchJobs(runID: Int, repository: String?) async throws -> [GHJob] {
         let jobsPath =
             repository.map { "/repos/\($0)/actions/runs/\(runID)/jobs" }
             ?? "\(credentials.actionsBase)/runs/\(runID)/jobs"
-        let req = try request(method: "GET", path: "\(jobsPath)?per_page=100")
-        let (data, _) = try await send(req)
-        do {
-            return try JSONDecoder().decode(JobsResponse.self, from: data).jobs
-        } catch {
-            throw GitHubError.decoding("jobs: \(error.localizedDescription)")
+        var jobs: [GHJob] = []
+        var seen = Set<Int>()
+        for page in 1...Self.maxJobPages {
+            let req = try request(method: "GET", path: "\(jobsPath)?per_page=\(Self.jobsPerPage)&page=\(page)")
+            let (data, _) = try await send(req)
+            let batch: [GHJob]
+            do {
+                batch = try JSONDecoder().decode(JobsResponse.self, from: data).jobs
+            } catch {
+                throw GitHubError.decoding("jobs: \(error.localizedDescription)")
+            }
+            // Pages shift while jobs change state: a job can show up on two of them.
+            jobs.append(contentsOf: batch.filter { seen.insert($0.id).inserted })
+            if batch.count < Self.jobsPerPage { break }
         }
+        return jobs
     }
+
+    static var jobsPerPage: Int { 100 }
+    /// Bounds a runaway run: 1,000 jobs is past GitHub's own matrix limit.
+    static var maxJobPages: Int { 10 }
 
     /// The run `runnerName`'s in-progress job belongs to, with all of the
     /// run's jobs and their steps. The jobs payload already carries
