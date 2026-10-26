@@ -182,6 +182,29 @@ final class FleetEdgeTests: XCTestCase {
         XCTAssertEqual(status.records.first?.job, "deploy", "a VM still showing a job keeps refreshing while paused")
     }
 
+    func testPausedWithAutoResumeAttributesAJobThatStartedAfterTheLastPass() async throws {
+        let github = FakeGitHub()
+        github.queueDepth = 1
+        var cfg = makeTestConfig(repo: "acme")
+        cfg.autoResume = true
+        let engine = makeEngine(config: cfg, tart: FakeTart(), github: github, ssh: FakeSSH())
+        try await engine.reconcileOnce()
+        try await waitUntil(timeout: 10) {
+            let status = await engine.status()
+            return status.records.first?.phase == .ready
+        }
+        let vmID = await engine.status().records.first!.id
+
+        // The VM went busy after the last attribution pass, then the fleet was paused.
+        await engine.updateRecord(vmID) { $0.phase = .busy }
+        github.running = [RunningJob(name: "build", runnerName: vmID, repository: "acme/api")]
+        await engine.setPaused(true)
+        try await engine.reconcileOnce()
+
+        let status = await engine.status()
+        XCTAssertEqual(status.records.first?.job, "build", "a busy VM is attributed even with no stamp yet")
+    }
+
     func testAutoResumeNeverReleasesOnAForgeOutage() async throws {
         let tart = FakeTart()
         let github = FakeGitHub()

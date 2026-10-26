@@ -311,8 +311,9 @@ extension FleetEngine {
             // the old timestamp, so the age truthfully shows staleness.
             if answeredQueue { await statusBox.modify { $0.queuePolledAt = Date() } }
             // Jobs keep running on the VMs while the pause holds back new ones: refresh Current jobs while some VM
-            // still shows one, so a finished job clears. Idle fleets skip the running-jobs fan-out.
-            if store.all.contains(where: { $0.job != nil || $0.runningJobs != nil }) {
+            // shows a job or is busy (a job that started since the last attribution), so it appears and a finished
+            // one clears. Idle fleets skip the running-jobs fan-out.
+            if store.all.contains(where: { $0.job != nil || $0.runningJobs != nil || $0.phase == .busy }) {
                 await attributeRunningJobs(attached)
             }
             return Demand()
