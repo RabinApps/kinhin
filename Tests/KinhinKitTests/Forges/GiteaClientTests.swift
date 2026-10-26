@@ -176,6 +176,23 @@ final class GiteaClientTests: XCTestCase {
         XCTAssertEqual(unknown, 1)
     }
 
+    func testRunningTasksReadsPastAFullPage() async throws {
+        let requested = LockedBox<[String]>([])
+        StubProtocol.handler = { request in
+            let page =
+                URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?
+                .queryItems?.first { $0.name == "page" }?.value ?? "?"
+            requested.value.append(page)
+            let count = page == "1" ? 50 : 3
+            let items = (0..<count).map { "{\"id\":\($0),\"status\":\"running\",\"runner_name\":\"r\(page)-\($0)\"}" }
+            return (200, Data("{\"workflow_runs\":[\(items.joined(separator: ","))],\"total_count\":53}".utf8), [:])
+        }
+        defer { StubProtocol.handler = nil }
+        let tasks = try await makeClient(scope: "e2e/demo").runningTasks()
+        XCTAssertEqual(tasks.count, 53)
+        XCTAssertEqual(requested.value, ["1", "2"])
+    }
+
     func testActiveTaskCountPagesPastAFullPageOfFinishedTasks() async throws {
         let requested = LockedBox<[String]>([])
         StubProtocol.handler = { request in
