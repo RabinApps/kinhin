@@ -158,6 +158,28 @@ final class FleetEdgeTests: XCTestCase {
         XCTAssertFalse(status.paused, "empty queue releases the fleet")
     }
 
+    func testPausedWithAutoResumeStillShowsRunningJobs() async throws {
+        let github = FakeGitHub()
+        github.queueDepth = 1
+        var cfg = makeTestConfig(repo: "acme")
+        cfg.autoResume = true
+        let engine = makeEngine(config: cfg, tart: FakeTart(), github: github, ssh: FakeSSH())
+        try await engine.reconcileOnce()
+        try await waitUntil(timeout: 10) {
+            let status = await engine.status()
+            return status.records.first?.phase == .ready
+        }
+        let vmID = await engine.status().records.first!.id
+
+        github.running = [RunningJob(name: "build", runnerName: vmID, repository: "acme/api")]
+        await engine.setPaused(true)
+        try await engine.reconcileOnce()
+
+        let status = await engine.status()
+        XCTAssertTrue(status.paused, "demand remains: the pause holds")
+        XCTAssertEqual(status.records.first?.job, "build", "the job still running on the VM stays listed")
+    }
+
     func testAutoResumeNeverReleasesOnAForgeOutage() async throws {
         let tart = FakeTart()
         let github = FakeGitHub()
