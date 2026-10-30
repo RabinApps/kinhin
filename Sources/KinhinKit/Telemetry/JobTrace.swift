@@ -54,6 +54,47 @@ public struct JobOutcome: Sendable, Equatable {
         self.steps = steps
     }
 
+    /// Maps a GitLab job status (and, for `failed`, its failure reason); jobs that have not finished or are waiting
+    /// on a person (`manual`) stay unknown.
+    static func result(gitLabStatus status: String?, failureReason: String? = nil) -> Result? {
+        switch status {
+        case "success": return .success
+        case "failed":
+            return failureReason == "job_execution_timeout" || failureReason == "stuck_or_timeout_failure"
+                ? .timeout : .failure
+        case "canceled", "canceling": return .cancellation
+        case "skipped": return .skip
+        default: return nil
+        }
+    }
+
+    /// Maps a Buildkite job state (REST API). A `finished` job's verdict is its exit status; one with no exit status
+    /// stays unknown rather than being read as a pass.
+    static func result(buildkiteState state: String?, exitStatus: Int?) -> Result? {
+        switch state {
+        case "passed": return .success
+        case "failed": return .failure
+        case "finished":
+            guard let exitStatus else { return nil }
+            return exitStatus == 0 ? .success : .failure
+        case "timed_out", "expired": return .timeout
+        case "canceled", "canceling": return .cancellation
+        case "skipped", "broken": return .skip
+        default: return nil
+        }
+    }
+
+    /// Whether a Buildkite job state means the job is over.
+    static func isFinished(buildkiteState state: String?) -> Bool {
+        ["passed", "failed", "finished", "timed_out", "expired", "canceled", "skipped", "broken"]
+            .contains(state ?? "")
+    }
+
+    /// Whether a GitLab job status means the job is over.
+    static func isFinished(gitLabStatus status: String?) -> Bool {
+        ["success", "failed", "canceled", "skipped"].contains(status ?? "")
+    }
+
     /// Maps a GitHub job conclusion; unrecognised values (`neutral`, `action_required`) stay unknown.
     static func result(gitHubConclusion conclusion: String?) -> Result? {
         switch conclusion {

@@ -106,6 +106,23 @@ final class TelemetryOutcomeTests: XCTestCase {
         }
     }
 
+    func testAPickupAsksForAnImmediateRunningJobsRead() async throws {
+        let recorder = RecordingTelemetryBackend()
+        let github = FakeGitHub()
+        let engine = makeEngine(recorder, github: github)
+        let vm = try await readyVM(engine, github: github)
+        engine.runState.withLock { $0.pollNow = false }
+        engine.noteJobPickedUp(id: vm, observed: false)
+        XCTAssertFalse(engine.runState.withLock { $0.pollNow }, "a job known only from its end has nothing to catch")
+        engine.noteJobPickedUp(id: vm)
+        XCTAssertFalse(engine.runState.withLock { $0.pollNow }, "counted once per instance already")
+        let other = makeEngine(RecordingTelemetryBackend(), github: github)
+        let second = try await readyVM(other, github: github)
+        other.runState.withLock { $0.pollNow = false }
+        other.noteJobPickedUp(id: second)
+        XCTAssertTrue(other.runState.withLock { $0.pollNow })
+    }
+
     func testGitHubConclusionsMapToSemconvResults() {
         typealias R = JobOutcome.Result
         XCTAssertEqual(JobOutcome.result(gitHubConclusion: "success"), R.success)

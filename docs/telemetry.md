@@ -68,6 +68,7 @@ exists (`cicd.worker.*`, `cicd.pipeline.*`, `cicd.system.*`, `error.type`) and a
 | --- | --- | --- |
 | `cicd.worker.count` | gauge | `kinhin.pool`, `kinhin.image`, `kinhin.runner.labels` (sorted), `cicd.worker.state` (the lifecycle phase) |
 | `kinhin.queue.depth` | gauge | `kinhin.account` |
+| `kinhin.queue.pool.depth` | gauge | `kinhin.pool` |
 | `kinhin.queue.age` | gauge | none. The oldest queued job; only while the forge reports when jobs were queued |
 | `kinhin.fleet.desired`, `.active`, `.paused`, `.running` | gauge | none |
 | `kinhin.pool.capacity` | gauge | `kinhin.pool` |
@@ -87,16 +88,26 @@ exists (`cicd.worker.*`, `cicd.pipeline.*`, `cicd.system.*`, `error.type`) and a
 | `kinhin.forge.rate_limit.remaining`, `.limit` | gauge | `kinhin.forge`, `kinhin.account` |
 | `kinhin.healing.actions` | counter | `kinhin.healing.result` (`succeeded`, `failed`) |
 | `kinhin.healing.awaiting_approval` | gauge | none |
+| `kinhin.build.info` | gauge | `service.version` (value 1) |
+| `kinhin.daemon.uptime` | gauge | none (seconds since the engine started) |
+| `kinhin.reconcile.duration` | histogram | none (one control-loop pass) |
+| `kinhin.reconcile.last_success` | gauge | none (Unix time of the last completed pass; alert on `time()` minus it) |
+| `kinhin.reconcile.errors` | counter | none |
+| `kinhin.spawn.failures` | counter | `kinhin.pool` |
+| `kinhin.spawn.held` | gauge | `kinhin.pool`, `kinhin.spawn.hold_reason` (`backoff`, `disk_pressure`); absent when nothing is held |
+| `kinhin.telemetry.export.failures` | counter | none |
 | `cicd.system.errors` | counter | `error.type`, `cicd.system.component` (`lifecycle`, `forge`) |
 
 `error.type` is one of `clone_failed`, `boot_timeout`, `ssh_unreachable`, `registration_failed`, `runner_not_registered`, `instance_lost`,
 `forge_api`, `rate_limited`, `teardown_failed`, `unknown`. Never the error text.
 
-**The job result is the forge's, or `unknown`.** When a job ends kinhin asks the forge, once, what happened: GitHub answers with the
-job's conclusion, its own start and end times and its steps. `cicd.pipeline.result` is then `success`, `failure`, `cancellation`, `timeout`
-or `skip`, the run duration uses GitHub's times, and the trace gets one span per step. A forge that cannot say (today, everything but GitHub),
-or a job GitHub has not marked finished after a few short retries, reads `unknown`. kinhin never guesses a verdict. The read happens while
-the instance is torn down, so it adds no delay. `kinhin.errors` counts kinhin's own failures, not failing workflows.
+**The job result is the forge's, or `unknown`.** When a job ends kinhin asks the forge, once, what happened. GitHub, GitLab and
+Buildkite answer with the job's verdict and its own start and end times (GitHub also with its steps): `cicd.pipeline.result` is then
+`success`, `failure`, `cancellation`, `timeout` or `skip`, the run duration uses the forge's times, and on GitHub the trace gets one span per
+step. The other forges, a job the forge has not yet marked finished after a few short retries, and a job kinhin never saw running read
+`unknown`. kinhin never guesses a verdict. The read happens while the instance is torn down, so it adds no delay. To learn which job a runner
+took, kinhin asks the forge for the running jobs as soon as the runner turns busy; a job that finishes in about a second can still outrun
+that and read `unknown`. `kinhin.errors` counts kinhin's own failures, not failing workflows.
 
 **Unavailable is not zero.** When a runtime or forge cannot supply a value, that series is absent. Today that means: per-runner disk use (no
 runtime exposes it), `kinhin.queue.age` and the queue-wait histogram on forges that do not report queue timestamps (GitHub does, through
@@ -239,7 +250,8 @@ and Ctrl-C; the app exports on its interval and does not flush on quit, so its l
   are complete without it.
 - Job metrics (`picked_up`, `completed`, the run duration and the `run` span) need ephemeral or scale-set runners, the ones kinhin watches
   until their job ends. A classic persistent runner (`vm.ephemeral: false`) has lifecycle timings but no job counters.
-- Job identifiers and provider timestamps come from GitHub Actions. Other forges get the lifecycle spans and timings kinhin measures itself.
+- Job identifiers, queue times and a verdict come from GitHub Actions, GitLab and Buildkite. Other forges get the lifecycle spans and
+  timings kinhin measures itself, and a result of `unknown`. Step spans exist for GitHub only (the others have no step list).
 - Metrics and logs in the upstream SDK are still in development; pin and test before relying on them.
 - Prometheus histogram buckets come out of the upstream text writer as per-bucket counts rather than cumulative `le` counts; use the OTLP
   path where `histogram_quantile` accuracy matters.

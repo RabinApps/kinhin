@@ -11,9 +11,10 @@
   and capacity, the warm pool, provisioning, boot and registration timings, jobs picked up and completed, runner, host and daemon resource
   use, forge request counts and rate limits, and classified errors, with no VM, job or run IDs as metric labels. Each instance gets one
   trace, with GitHub run, attempt and job identifiers and queue timestamps when GitHub supplies them. `log_format: json` writes structured
-  local logs. The job's result, run duration and step spans come from the forge when it can say (GitHub), and read `unknown` otherwise. Metric names and attributes follow the OpenTelemetry CI/CD conventions, and `job_attributes` opts in to repository and workflow dimensions. Standard `OTEL_*` variables take precedence. Off by default: nothing starts and no port opens until `enabled: true`.
+  local logs. The job's result, run duration and step spans come from the forge when it can say (GitHub, GitLab and Buildkite; step spans on GitHub), and read `unknown` otherwise. Metric names and attributes follow the OpenTelemetry CI/CD conventions, and `job_attributes` opts in to repository and workflow dimensions. Standard `OTEL_*` variables take precedence. Off by default: nothing starts and no port opens until `enabled: true`.
   Passing trace context into workflow steps is not part of this release. See [docs/telemetry.md](docs/telemetry.md).
 - `kinhin telemetry status` shows what the daemon's telemetry pipeline sends where and whether exports are failing (the SDK never throws them, so kinhin logs each distinct problem once a minute, counts `kinhin.telemetry.export.failures` and reports it). A ready Grafana Alloy snippet, dashboard and alert rules are in [docs/telemetry.md](docs/telemetry.md).
+- Telemetry also reports the daemon's own health: build info, uptime, reconcile pass duration and last-success time (alert on a stuck loop), spawn failures and holds (backoff, disk pressure), and queue depth per pool.
 - `kinhin config reload` checks the config and makes the running daemon re-read it (telemetry and routing changes apply in
   place; an invalid file is refused with exit 3 and never reaches the daemon).
 

@@ -163,7 +163,7 @@ struct BuildkiteForge: Forge {
         try await jobs().filter { $0.isQueued && isOurs($0) }.map {
             ForgeJob(
                 name: $0.name, runnerName: nil, repository: $0.pipeline,
-                labels: Self.routingLabels(rules: $0.agentQueryRules))
+                labels: Self.routingLabels(rules: $0.agentQueryRules), correlation: $0.correlation)
         }
     }
 
@@ -171,8 +171,21 @@ struct BuildkiteForge: Forge {
         try await jobs().filter { $0.isRunning && $0.agentName != nil && isOurs($0) }.map {
             ForgeJob(
                 name: $0.name, runnerName: $0.agentName, repository: $0.pipeline,
-                labels: Self.routingLabels(rules: $0.agentQueryRules))
+                labels: Self.routingLabels(rules: $0.agentQueryRules), correlation: $0.correlation)
         }
+    }
+
+    /// The finished job's verdict and times, read from its build. Buildkite exposes jobs, not steps within a job.
+    func jobOutcome(for correlation: JobCorrelation) async throws -> JobOutcome? {
+        guard let jobID = correlation.jobID, let pipeline = correlation.repository,
+            let number = correlation.runID.flatMap(Int.init)
+        else { return nil }
+        let build = try await client.build(pipeline: pipeline, number: number)
+        guard let job = build.jobs.first(where: { $0.id == jobID }) else { return nil }
+        guard JobOutcome.isFinished(buildkiteState: job.state) else { return JobOutcome() }
+        return JobOutcome(
+            result: JobOutcome.result(buildkiteState: job.state, exitStatus: job.exitStatus),
+            startedAt: PipelineParsing.date(job.startedAt), completedAt: PipelineParsing.date(job.finishedAt))
     }
 
     /// The build whose job `runnerName`'s agent is running, with every script

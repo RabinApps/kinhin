@@ -132,8 +132,18 @@ struct GitLabForge: Forge {
         try await client.jobs(.pending, in: gitlabScope).filter(isOurs).map {
             ForgeJob(
                 name: $0.name, runnerName: nil, repository: $0.project, labels: $0.tags, ref: $0.ref, sha: $0.sha,
-                isFork: $0.fromMergeRequest, forkKnown: true)
+                isFork: $0.fromMergeRequest, forkKnown: true, correlation: $0.correlation)
         }
+    }
+
+    /// The finished job's verdict and times; GitLab has no step list below the job.
+    func jobOutcome(for correlation: JobCorrelation) async throws -> JobOutcome? {
+        guard let jobID = correlation.jobID.flatMap(Int.init), let project = correlation.repository else { return nil }
+        let detail = try await client.jobDetail(project: project, jobID: jobID)
+        guard JobOutcome.isFinished(gitLabStatus: detail.status) else { return JobOutcome() }
+        return JobOutcome(
+            result: JobOutcome.result(gitLabStatus: detail.status, failureReason: detail.failureReason),
+            startedAt: PipelineParsing.date(detail.startedAt), completedAt: PipelineParsing.date(detail.finishedAt))
     }
 
     func projectFile(repository: String, ref: String?) async throws -> Data? {
@@ -149,7 +159,7 @@ struct GitLabForge: Forge {
         return jobs.filter(isOurs).map {
             ForgeJob(
                 name: $0.name, runnerName: $0.runnerDescription, repository: $0.project, labels: $0.tags,
-                isFork: $0.fromMergeRequest, forkKnown: true)
+                isFork: $0.fromMergeRequest, forkKnown: true, correlation: $0.correlation)
         }
     }
 

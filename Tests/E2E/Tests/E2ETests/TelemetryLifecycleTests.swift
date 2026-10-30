@@ -65,8 +65,8 @@ extension Infra {
                 }
                 #expect((Self.sample(body, "kinhin_runner_teardown_duration_count") ?? 0) >= 1)
                 #expect(body.contains("cicd_pipeline_run_duration"), "the job's run time is a histogram")
-                // The verdict is the forge's: GitHub says success; a forge that cannot say reads `unknown`, never a guess.
-                let verdict = cell.forge == .github ? "success" : "unknown"
+                // The verdict is the forge's: GitHub, GitLab and Buildkite say success; a forge that cannot say reads `unknown`, never a guess.
+                let verdict = [.github, .gitlab, .buildkite].contains(cell.forge) ? "success" : "unknown"
                 #expect(body.contains("cicd_pipeline_result=\"\(verdict)\""), "\(body.prefix(2000))")
 
                 // Cardinality: instance names, runner names and job identifiers never become labels.
@@ -134,8 +134,8 @@ extension Infra {
                 // `result` says the job ended, not that it passed: kinhin cannot see the workflow's verdict.
                 #expect(
                     !body.contains("cicd_pipeline_result=\"success\""), "kinhin must not claim a failed job succeeded")
-                if cell.forge == .github {
-                    #expect(body.contains("cicd_pipeline_result=\"failure\""), "GitHub's verdict is the result")
+                if [.github, .gitlab, .buildkite].contains(cell.forge) {
+                    #expect(body.contains("cicd_pipeline_result=\"failure\""), "the forge's verdict is the result")
                 }
                 // A workflow that fails is the user's failure, not a kinhin error.
                 #expect(

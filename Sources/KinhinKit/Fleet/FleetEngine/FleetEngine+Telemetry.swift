@@ -94,6 +94,9 @@ extension FleetEngine {
             return
         }
         telemetry.add(.jobsPickedUp, 1, metricAttributes(of: id))
+        // The forge names the job (id, workflow, queue time) only on the next running-jobs read, which a short job can
+        // outrun: ask for that read now, once per job, so the verdict and the trace carry the job's identity.
+        if observed { pollSoon() }
     }
 
     /// The opt-in per-job dimensions (`telemetry.job_attributes`), where the forge supplied the value.
@@ -260,6 +263,8 @@ extension FleetEngine {
         telemetry.publish(.runnerMemoryUsage, memory.map { series(Double($0.value) * 1_048_576, attributes($0.key)) })
         telemetry.publish(.runnerMemoryLimit, limitMB.map { series(Double($0.value) * 1_048_576, attributes($0.key)) })
 
+        publishServiceHealth()
+
         // Host and daemon process.
         if let host = usage.host {
             telemetry.publish(.hostCPU, host.cpuPercent.map { [series($0 / 100)] } ?? [])
@@ -274,12 +279,36 @@ extension FleetEngine {
 
     /// Per-forge queue depth and the age of the oldest queued job, from one pass's demand read. The age
     /// is reported only for jobs whose forge supplied a queue timestamp; with none it is absent.
-    func publishQueueTelemetry(byForge: [String: Int], oldestEnqueuedAt: Date?, now: Date = Date()) {
+    func publishQueueTelemetry(
+        byForge: [String: Int], byPool: [RuntimeID: Int] = [:], oldestEnqueuedAt: Date?, now: Date = Date()
+    ) {
         guard telemetry.isEnabled else { return }
+        telemetry.publish(.queueDepth, byForge.map { series(Double($0.value), [Metric.Attr.account: $0.key]) })
         telemetry.publish(
-            .queueDepth, byForge.map { series(Double($0.value), [Metric.Attr.account: $0.key]) })
+            .queueDepthByPool, byPool.map { series(Double($0.value), [Metric.Attr.pool: $0.key.rawValue]) })
         telemetry.publish(
             .queueAge, oldestEnqueuedAt.map { [series(max(0, now.timeIntervalSince($0)))] } ?? [])
+    }
+
+    /// One completed reconcile pass: its duration and when it finished (a stuck loop shows as a growing gap).
+    func recordReconcilePass(seconds: Double, now: Date = Date()) {
+        lastReconcileSuccess.withLock { $0 = now }
+        telemetry.record(.reconcileDuration, seconds: seconds)
+    }
+
+    /// Daemon identity and health gauges, and spawn holds, published with the rest each pass.
+    func publishServiceHealth(now: Date = Date()) {
+        telemetry.publish(.buildInfo, [series(1, [Metric.Attr.version: kinhinVersion.current])])
+        telemetry.publish(.daemonUptime, [series(max(0, now.timeIntervalSince(startedAt)))])
+        telemetry.publish(
+            .reconcileLastSuccess,
+            lastReconcileSuccess.withLock { $0 }.map { [series($0.timeIntervalSince1970)] } ?? [])
+        // What is holding new instances back: a runtime in spawn backoff, or disk pressure (value 1 each).
+        var holds: [GaugeSeries] = spawnBackoff.withLock { $0.blocked(now: now) }.map {
+            series(1, [Metric.Attr.pool: $0.rawValue, Metric.Attr.holdReason: "backoff"])
+        }
+        if diskHold.withLock({ $0 }) { holds.append(series(1, [Metric.Attr.holdReason: "disk_pressure"])) }
+        telemetry.publish(.spawnHeld, holds)
     }
 
     /// Healing: awaiting-approval count as a gauge, finished fixes as a counter (once per event).
