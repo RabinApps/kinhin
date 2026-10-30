@@ -177,7 +177,7 @@ final class OTelBackend: TelemetryBackend, @unchecked Sendable {
     /// Renders the Prometheus text for one scrape from a fresh collection.
     private func scrape(exporter: PrometheusExporter) -> String {
         _ = prometheusReader?.forceFlush()
-        return PrometheusExporterExtensions.writeMetricsCollection(exporter: exporter)
+        return PrometheusText.render(exporter.getMetrics())
     }
 
     /// One gRPC channel to the collector's host and port (TLS for an https endpoint).

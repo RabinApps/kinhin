@@ -111,16 +111,16 @@ exists (`cicd.worker.*`, `cicd.pipeline.*`, `cicd.system.*`, `error.type`) and a
 | `kinhin.fleet.desired`, `.active`, `.paused`, `.running` | gauge | none |
 | `kinhin.pool.capacity` | gauge | `kinhin.pool` |
 | `kinhin.warm_pool.size` | gauge | `kinhin.pool`, `kinhin.image` |
-| `kinhin.warm_pool.claims`, `.evictions` | counter | `kinhin.pool`, `kinhin.image`, `kinhin.forge` |
-| `kinhin.jobs.picked_up` | counter | `kinhin.pool`, `kinhin.image`, `kinhin.forge` |
+| `kinhin.warm_pool.claims`, `.evictions` | counter | `kinhin.pool`, `kinhin.image`, `kinhin.runner.labels`, `kinhin.forge` |
+| `kinhin.jobs.picked_up` | counter | `kinhin.pool`, `kinhin.image`, `kinhin.runner.labels`, `kinhin.forge` |
 | `kinhin.jobs.completed` | counter | the same, plus `cicd.pipeline.result` (+ `job_attributes`) |
 | `cicd.pipeline.run.active` | gauge | none |
-| `cicd.pipeline.run.duration` | histogram | `kinhin.pool`, `kinhin.image`, `kinhin.forge`, `cicd.pipeline.result` (+ `job_attributes`) |
-| `kinhin.job.queue_wait.duration` | histogram | `kinhin.pool`, `kinhin.image`, `kinhin.forge` (+ `job_attributes`). Only with provider timestamps |
+| `cicd.pipeline.run.duration` | histogram | `kinhin.pool`, `kinhin.image`, `kinhin.runner.labels`, `kinhin.forge`, `cicd.pipeline.result` (+ `job_attributes`) |
+| `kinhin.job.queue_wait.duration` | histogram | `kinhin.pool`, `kinhin.image`, `kinhin.runner.labels`, `kinhin.forge` (+ `job_attributes`). Only with provider timestamps |
 | `kinhin.runner.provision.duration` | histogram | the pool attributes plus `kinhin.runner.phase` (`clone`, `boot`, `register`) |
-| `kinhin.runner.teardown.duration` | histogram | `kinhin.pool`, `kinhin.image`, `kinhin.forge` |
-| `kinhin.runner.cpu.utilization`, `.memory.usage`, `.memory.limit` | gauge | `kinhin.pool`, `kinhin.image`. Aggregated over runners |
-| `kinhin.runner.disk.usage` | gauge | `kinhin.pool`, `kinhin.image`. Host disk the runner VMs occupy, summed over runners (tart reports whole GB); tart only |
+| `kinhin.runner.teardown.duration` | histogram | `kinhin.pool`, `kinhin.image`, `kinhin.runner.labels`, `kinhin.forge` |
+| `kinhin.runner.cpu.utilization`, `.memory.usage`, `.memory.limit` | gauge | `kinhin.pool`, `kinhin.image`, `kinhin.runner.labels`. Aggregated over runners |
+| `kinhin.runner.disk.usage` | gauge | `kinhin.pool`, `kinhin.image`, `kinhin.runner.labels`. Host disk the runner VMs occupy, summed over runners (tart reports whole GB); tart only |
 | `kinhin.image.bake.duration` | histogram | `kinhin.image`, `kinhin.result` (`success`, `failure`). Derived per-project image bakes run by the daemon |
 | `kinhin.image.bakes` | counter | the same |
 | `kinhin.cache.size` | gauge | `kinhin.cache` (`toolchain`). Sampled at the daily cache sweep, so it can be up to a day old; absent until the first sweep |
@@ -150,7 +150,7 @@ Buildkite, Gitea, Forgejo and Azure DevOps answer with the job's verdict and its
 step. Bitbucket (its API does not say which runner took a step, so a step cannot be tied to a VM), a job the forge has not yet marked finished after a few short retries, and a job kinhin never saw running read
 `unknown`. kinhin never guesses a verdict. The read happens while the instance is torn down, so it adds no delay. To learn which job a runner
 took, kinhin asks the forge for the running jobs as soon as the runner turns busy; a job that finishes in about a second can still outrun
-that and read `unknown`. `kinhin.errors` counts kinhin's own failures, not failing workflows.
+that and read `unknown`. `cicd.system.errors` counts kinhin's own failures, not failing workflows.
 
 **Unavailable is not zero.** When a runtime or forge cannot supply a value, that series is absent. Today that means: per-runner disk use on
 runtimes other than tart, and for a VM where tart reports no on-disk size, `kinhin.cache.size` before the first daily sweep or when
@@ -305,5 +305,3 @@ Everything else (endpoint, signals, headers) stays in the file and the environme
   the lifecycle spans and timings kinhin measures itself, and a result of `unknown`. On Gitea and Forgejo the job's end time is the task's
   last update, and the task is found in the newest 100 tasks; Azure DevOps has no separate `timeout` result. Step spans exist for GitHub only (the others have no step list).
 - Metrics and logs in the upstream SDK are still in development; pin and test before relying on them.
-- Prometheus histogram buckets come out of the upstream text writer as per-bucket counts rather than cumulative `le` counts; use the OTLP
-  path where `histogram_quantile` accuracy matters.

@@ -48,6 +48,39 @@ final class TelemetryExportTests: XCTestCase {
         XCTAssertFalse(after.contains("cicd_worker_state=\"ready\""), after)
     }
 
+    /// Buckets are cumulative `le` counts under `_bucket`, each series keeps its whole label set, and `+Inf` equals
+    /// `_count`, so `histogram_quantile` gets what it needs.
+    func testHistogramsAreCumulativeWithTheirFullLabelSet() async throws {
+        let backend = try OTelBackend(settings: settings(prometheusPort: 0))
+        defer { Task { await backend.shutdown() } }
+        let port = backend.prometheusPort
+        let labels = [Metric.Attr.pool: "tart", Metric.Attr.phase: "clone"]
+        for seconds in [0.5, 2.5, 2.5, 40.0, 5000.0] {
+            backend.record(histogram: Metric.Histogram.phaseDuration.rawValue, seconds: seconds, attributes: labels)
+        }
+
+        let (_, body) = try await get("/metrics", port: port)
+        let name = "kinhin_runner_provision_duration"
+        XCTAssertTrue(body.contains("# TYPE \(name) histogram"), body)
+        let buckets = body.split(separator: "\n").filter { $0.hasPrefix("\(name)_bucket{") }
+        XCTAssertFalse(buckets.isEmpty, body)
+        var previous = -1.0
+        for line in buckets {
+            XCTAssertTrue(
+                line.contains("kinhin_pool=\"tart\"") && line.contains("kinhin_runner_phase=\"clone\""), "\(line)")
+            let value = try XCTUnwrap(Double(line.split(separator: " ").last ?? ""), "\(line)")
+            XCTAssertGreaterThanOrEqual(value, previous, "bucket counts must not decrease: \(line)")
+            previous = value
+        }
+        let inf = try XCTUnwrap(buckets.last, body)
+        XCTAssertTrue(inf.contains("le=\"+Inf\""), "\(inf)")
+        XCTAssertTrue(inf.hasSuffix(" 5"), "\(inf)")
+        XCTAssertTrue(body.contains("\(name)_count{"), body)
+        XCTAssertTrue(body.contains(" 5\n"), body)
+        let sum = try XCTUnwrap(body.split(separator: "\n").first { $0.hasPrefix("\(name)_sum{") }, body)
+        XCTAssertEqual(Double(sum.split(separator: " ").last ?? "") ?? 0, 5045.5, accuracy: 0.001)
+    }
+
     func testOnlyMetricsIsServed() async throws {
         let backend = try OTelBackend(settings: settings(prometheusPort: 0))
         defer { Task { await backend.shutdown() } }
