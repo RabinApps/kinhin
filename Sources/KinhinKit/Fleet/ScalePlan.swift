@@ -85,23 +85,36 @@ struct ScalePlan: Equatable {
         // Warm instances serve no demand by themselves (they have no account and are not
         // registered) and are evictable, so every demand figure below counts only live ones.
         let all = input.records.filter { $0.phase.isActive }
-        let active = all.filter { $0.phase != .warm }
+        // A pooled instance that is still cloning or booting is not yet a warm instance the
+        // pool can claim and serve, but it already occupies one of its image's pool targets:
+        // counting it either way is wrong, so it sits outside both groups. Otherwise one
+        // pool pass sees nothing on its side and tops the pool up again, doubling clones.
+        let pooledInFlight = all.filter { $0.pooled == true && $0.phase != .warm }
+        let pooling = Set(pooledInFlight.map(\.id))
+        let active = all.filter { $0.phase != .warm && !pooling.contains($0.id) }
         let warm = all.filter { $0.phase == .warm }.sorted { $0.createdAt < $1.createdAt }
         let unmet = unmetByPool(records: active, input: input)
 
         // A pool at its cap, backing off, or without a runtime cannot take
         // more instances, so its unmet demand must not inflate the target.
+        // An in-flight pooled clone cannot be evicted to make room, so it is
+        // reserved from both the per-pool and the global cap before any slot
+        // is created (counting an evictable warm instance as free room here
+        // would risk exceeding the cap; one extra spawn pass is the safe side).
+        var reservedByPool: [RuntimeID: Int] = [:]
+        for record in pooledInFlight { reservedByPool[Self.pool(of: record, input: input), default: 0] += 1 }
         var spawnable = 0
         for (pool, count) in unmet {
-            spawnable += min(count, headroom(pool, records: active, input: input))
+            spawnable += min(count, headroom(pool, records: active, input: input, reserved: reservedByPool[pool] ?? 0))
         }
-        let target = min(cap, max(desired, active.count + spawnable))
+        let reserved = reservedByPool.values.reduce(0, +)
+        let target = min(cap - reserved, max(desired, active.count + spawnable))
 
         var plan = ScalePlan(
             desired: desired, target: target, active: active.count, unmetByPool: unmet, slots: [], scaleDown: [],
             scaleDownHeld: false)
-        plan.slots = slots(count: target - active.count, active: active, input: input)
-        applyWarm(warm, to: &plan, live: active.count, cap: cap, input: input)
+        plan.slots = slots(count: target - active.count, active: active, input: input, reserved: reservedByPool)
+        applyWarm(warm, to: &plan, live: active.count, inFlight: pooledInFlight, cap: cap, input: input)
 
         if active.count > desired {
             if input.failedForges.isEmpty {
@@ -116,8 +129,12 @@ struct ScalePlan: Equatable {
     // MARK: - Warm pool
 
     /// Claims warm instances for the Tart slots, evicts the stale and the overflow, and tops the
-    /// pool up when nothing else needs the slots.
-    private static func applyWarm(_ warm: [VMRecord], to plan: inout ScalePlan, live: Int, cap: Int, input: Input) {
+    /// pool up when nothing else needs the slots. `inFlight` are pooled instances still cloning or
+    /// booting for their image: they hold their pool target until they reach `.warm`, so the top-up
+    /// leaves those targets alone (and reserves their room under the cap) instead of double-spawning.
+    private static func applyWarm(
+        _ warm: [VMRecord], to plan: inout ScalePlan, live: Int, inFlight: [VMRecord], cap: Int, input: Input
+    ) {
         // A warm VM whose pool is off or was removed (its images: entry dropped or renamed) serves
         // nothing and holds a slot, so it is recycled now rather than at `warmMaxAge`.
         let stale = Set(
@@ -139,7 +156,8 @@ struct ScalePlan: Equatable {
 
         // Warm instances left after the claims still occupy slots: drop the surplus the cap cannot hold.
         let unclaimed = fresh.filter { !claimed.contains($0.id) }
-        let overflow = live + plan.slots.count + unclaimed.count - cap
+        // The in-flight pooled clones still booting toward `.warm` occupy a slot when they land, so they count here too.
+        let overflow = live + plan.slots.count + unclaimed.count + inFlight.count - cap
         var dropped = Set<String>()
         if overflow > 0 {
             dropped = Set(unclaimed.prefix(overflow).map(\.id))
@@ -154,14 +172,17 @@ struct ScalePlan: Equatable {
         // Warm instances that survive, per image: each pool tops up from its own count.
         var kept: [String: Int] = [:]
         for record in unclaimed where !dropped.contains(record.id) { kept[record.image ?? "", default: 0] += 1 }
+        var incoming: [String: Int] = [:]
+        for record in inFlight { incoming[record.image ?? "", default: 0] += 1 }
+        let inFlightCount = inFlight.count
         let tartRunning = input.records.count { $0.phase.isActive && ($0.runtimeID ?? input.defaultRuntime) == tart }
         var room = min(
-            cap - max(plan.target, live) - kept.values.reduce(0, +),
+            cap - max(plan.target, live) - kept.values.reduce(0, +) - inFlightCount,
             (input.poolCaps[tart] ?? Int.max) - tartRunning)
         // The base image first (its key sorts first), then named images in name order.
         for image in input.warmPool.keys.sorted() {
             let want = input.warmPool[image] ?? 0
-            let spawn = max(0, min(want - (kept[image] ?? 0), room))
+            let spawn = max(0, min(want - (kept[image] ?? 0) - (incoming[image] ?? 0), room))
             if spawn > 0 {
                 plan.warmSpawn[image] = spawn
                 room -= spawn
@@ -172,11 +193,19 @@ struct ScalePlan: Equatable {
     /// The image a new Tart instance clones: the named or derived image with the most unmet queued
     /// jobs, else the base image (nil). Ties go to a derived image. `active` counts the instances
     /// that serve demand per image ("" = the base image).
+    /// The empty key is never a candidate image — the synthesized default entry (from `image_labels:`
+    /// or a Linux base) is base demand, not a cloneable name; its records already count under "",
+    /// and a "" clone source would break `tart clone` and queue the job forever.
     static func chooseImage(queuedTart: Int, byImage: [String: Int], active: [String: Int]) -> String? {
         guard !byImage.isEmpty else { return nil }
-        let derivedTotal = byImage.values.reduce(0, +)
-        var best: (image: String?, unmet: Int) = (nil, (queuedTart - derivedTotal) - (active[""] ?? 0))
-        for (image, count) in byImage.sorted(by: { $0.key < $1.key }) {
+        let derived = byImage.filter { !$0.key.isEmpty }
+        let derivedTotal = derived.values.reduce(0, +)
+        // Base demand: jobs on tart not matched to a named image, but never
+        // fewer than what the synthesized default entry counted (it is a
+        // subset of the same jobs, so the larger value is the honest one).
+        let baseDemand = max(queuedTart - derivedTotal, byImage[""] ?? 0)
+        var best: (image: String?, unmet: Int) = (nil, baseDemand - (active[""] ?? 0))
+        for (image, count) in derived.sorted(by: { $0.key < $1.key }) {
             let unmet = count - (active[image] ?? 0)
             if unmet > 0, unmet >= best.unmet { best = (image, unmet) }
         }
@@ -223,16 +252,19 @@ struct ScalePlan: Equatable {
         return result
     }
 
-    /// How many more instances `pool` may take.
-    private static func headroom(_ pool: RuntimeID, records: [VMRecord], input: Input) -> Int {
+    /// How many more instances `pool` may take: the pool's cap minus the
+    /// instances serving demand (`records`) and the reserved room (`reserved`)
+    /// that in-flight pooled clones already hold.
+    private static func headroom(_ pool: RuntimeID, records: [VMRecord], input: Input, reserved: Int = 0) -> Int {
         guard input.existingPools.contains(pool), !input.heldRuntimes.contains(pool) else { return 0 }
         let running = records.count { Self.pool(of: $0, input: input) == pool }
-        return max(0, (input.poolCaps[pool] ?? Int.max) - running)
+        return max(0, (input.poolCaps[pool] ?? Int.max) - running - reserved)
     }
 
     // MARK: - Spawn
 
-    private static func slots(count: Int, active: [VMRecord], input: Input) -> [Slot] {
+    private static func slots(count: Int, active: [VMRecord], input: Input, reserved: [RuntimeID: Int] = [:]) -> [Slot]
+    {
         guard count > 0 else { return [] }
         let totals = input.demand.mapValues { $0.values.reduce(0, +) }
         let queuedTart = input.demand.values.reduce(0) { $0 + ($1[.tart] ?? 0) }
@@ -253,9 +285,13 @@ struct ScalePlan: Equatable {
             for held in input.heldRuntimes { caps[held] = 0 }
             var running: [RuntimeID: Int] = [:]
             for record in sim { running[pool(of: record, input: input), default: 0] += 1 }
-            let chosen = selectRuntime(
-                unmet: unmet, active: running, caps: caps, fallback: input.defaultRuntime,
-                poolExists: input.existingPools.contains)
+            // The in-flight pooled clones already hold a slot in their pool.
+            for (pool, count) in reserved { running[pool, default: 0] += count }
+            guard
+                let chosen = selectRuntime(
+                    unmet: unmet, active: running, caps: caps, fallback: input.defaultRuntime,
+                    poolExists: input.existingPools.contains)
+            else { break }  // unmet demand but no pool may take another instance
             if input.heldRuntimes.contains(chosen) { break }  // every pool with demand is backing off
 
             // The image for a Tart slot, counting only instances that serve demand (warm ones do not).
@@ -281,11 +317,15 @@ struct ScalePlan: Equatable {
     /// The runtime for a new instance: among pools with unmet demand the one
     /// with the most, never beyond its capacity partition. Ties break
     /// alphabetically by runtime id; with no unmet demand anywhere, `fallback`
-    /// wins (uncapped within the global target).
+    /// wins (uncapped within the global target — the minRunners top-up).
+    /// When pools carry unmet demand but none can take an instance (full,
+    /// backing off, or administratively held), the result is nil: a fallback
+    /// slot would be pure surplus beyond the queue, and the spawn path does
+    /// not recheck a partition cap, so it must not start on a filled runtime.
     static func selectRuntime(
         unmet: [RuntimeID: Int], active: [RuntimeID: Int], caps: [RuntimeID: Int], fallback: RuntimeID,
         poolExists: (RuntimeID) -> Bool
-    ) -> RuntimeID {
+    ) -> RuntimeID? {
         var best: RuntimeID = fallback
         var bestUnmet = -1
         for (id, count) in unmet.sorted(by: { $0.key.rawValue < $1.key.rawValue }) {
@@ -299,7 +339,8 @@ struct ScalePlan: Equatable {
                 best = id
             }
         }
-        return best
+        if unmet.isEmpty || bestUnmet >= 0 { return best }
+        return nil
     }
 
     // MARK: - Scale down

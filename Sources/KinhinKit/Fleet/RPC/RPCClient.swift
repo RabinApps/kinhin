@@ -123,6 +123,17 @@ public struct RPCClient: Sendable {
         }
     }
 
+    /// What the daemon's telemetry pipeline is doing. A daemon that predates the method says so.
+    public func telemetryStatus() throws -> TelemetryStatus {
+        do {
+            let response = try command(.telemetryStatus)
+            guard let payload = response.payload else { throw RPCError.rejected("daemon returned no telemetry status") }
+            return try JSONDecoder().decode(TelemetryStatus.self, from: payload)
+        } catch RPCError.rejected("undecodable request") {
+            throw RPCError.rejected("this daemon predates telemetry status — restart it after updating kinhin")
+        }
+    }
+
     /// Approves (`approve: true`) or dismisses a healing event.
     public func healingDecide(id: String, approve: Bool) throws {
         do {

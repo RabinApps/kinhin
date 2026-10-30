@@ -113,7 +113,8 @@ For agents that shell out instead of speaking MCP:
 - **Ask before `kinhin cleanup --yes`, `kinhin image delete --yes`, `kinhin image prune --yes`, `kinhin stop` or
   `kinhin daemon uninstall`** on a fleet that may be serving jobs; `kinhin cleanup --json` and
   `kinhin image list --json` are the safe ways to show a human what would go first (plain `kinhin image prune` is the
-  same report without the deletion).
+  same report without the deletion). `kinhin stop` reaches the daemon install only — when the menu bar app runs the
+  fleet in-process, stopping the fleet means asking the human to stop it in the app.
 - **Ask before `kinhin bench`** on a fleet that may be serving jobs: it pauses the fleet while it measures and creates
   temporary VMs. Pass `--yes` only once the user has agreed to that; never pass `--include-host` unasked.
 - **Host routes are unisolated** — `runtimes route add <pattern> host` requires `--consent` and runs repo code

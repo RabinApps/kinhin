@@ -153,40 +153,61 @@ public struct ImageDeletePlan: Sendable, Equatable {
     /// Deletes every target. A stale derived record only loses its index
     /// entry (there is no image left to delete); a derived image that is
     /// deleted on disk also loses its record, so the index never goes stale
-    /// behind the user's back. The first failure stops the run.
+    /// behind the user's back. All targets are attempted; failures are
+    /// reported together at the end.
     public func execute(
         tart: (any TartControlling)?,
         container: AppleContainerRuntime?,
         docker: DockerRuntime?,
         store: ProjectImageStore = ProjectImageStore()
     ) async throws {
+        var failures: [String] = []
         for target in targets {
-            if target.present {
-                switch target.runtime {
-                case .tart:
-                    guard let tart else {
-                        throw ImageError.runtimeUnavailable(
-                            "tart is not installed — install it first: \(TartHealthProbe.installCommand)")
+            var failed = false
+            do {
+                if target.present {
+                    switch target.runtime {
+                    case .tart:
+                        guard let tart else {
+                            throw ImageError.runtimeUnavailable(
+                                "tart is not installed — install it first: \(TartHealthProbe.installCommand)")
+                        }
+                        try await tart.delete(name: target.name)
+                    case .container:
+                        guard let container else {
+                            throw ImageError.runtimeUnavailable(
+                                "the container CLI is not available — brew install container && container system start --enable-kernel-install"
+                            )
+                        }
+                        try await container.deleteImage(named: target.name)
+                    case .docker:
+                        guard let docker else {
+                            throw ImageError.runtimeUnavailable(
+                                "docker is not available — install Docker Desktop or: brew install colima && colima start"
+                            )
+                        }
+                        try await docker.deleteImage(named: target.name)
                     }
-                    try await tart.delete(name: target.name)
-                case .container:
-                    guard let container else {
-                        throw ImageError.runtimeUnavailable(
-                            "the container CLI is not available — brew install container && container system start --enable-kernel-install"
-                        )
-                    }
-                    try await container.deleteImage(named: target.name)
-                case .docker:
-                    guard let docker else {
-                        throw ImageError.runtimeUnavailable(
-                            "docker is not available — install Docker Desktop or: brew install colima && colima start")
-                    }
-                    try await docker.deleteImage(named: target.name)
                 }
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch let error as TartError where target.runtime == .tart && Self.tartImageIsGone(error) {
+                // A tag/digest alias or concurrent cleanup may already have removed it.
+            } catch {
+                failures.append(target.runtime.rawValue + "/" + target.name + ": " + error.localizedDescription)
+                failed = true
             }
-            if target.role == .derived {
+            // A failed deletion leaves the image behind: keep its derived index
+            // record so `image list` still shows it and a retry can find it.
+            if target.role == .derived, !failed {
                 store.remove(name: target.name)
             }
         }
+        if !failures.isEmpty { throw ImageError.deletionFailed(failures) }
+    }
+
+    private static func tartImageIsGone(_ error: TartError) -> Bool {
+        guard case .commandFailed(_, let stderr) = error else { return false }
+        return TartController.vmIsGone(stderr: stderr)
     }
 }

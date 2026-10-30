@@ -35,6 +35,7 @@ struct ConfigSchema {
                 .init(
                     PartialConfig.PartialHealing.CodingKeys.self,
                     ["ollama": .object(.init(PartialConfig.PartialHealing.PartialOllama.CodingKeys.self))])),
+            "telemetry": .object(.init(PartialConfig.PartialTelemetry.CodingKeys.self)),
             "container": .object(.init(PartialConfig.PartialContainer.CodingKeys.self)),
             "docker": .object(.init(PartialConfig.PartialDocker.CodingKeys.self)),
             "toolchain_cache": .object(.init(PartialConfig.PartialCachePolicy.CodingKeys.self)),

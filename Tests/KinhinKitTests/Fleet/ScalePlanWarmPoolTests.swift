@@ -154,11 +154,78 @@ final class ScalePlanWarmPoolTests: XCTestCase {
         XCTAssertEqual(plan.warmSpawn, ["": 1])
     }
 
+    // MARK: - In-flight pooled instances
+
+    private func pooled(_ id: String, _ phase: VMPhase, image: String = "") -> VMRecord {
+        // Real pooled records have no account until they are claimed for a job.
+        var record = imageRecord(id, phase, image: image.isEmpty ? nil : image)
+        record.platform = nil
+        record.pooled = true
+        return record
+    }
+
+    func testAnInFlightPooledInstanceCountsTowardItsPoolTarget() {
+        // Pool of 1 with one instance still cloning: a second spawn would be why `warm_pool: 1` keeps 2 VMs.
+        let plan = ScalePlan.make(input(records: [pooled("p1", .cloning)], warmPool: 1))
+        XCTAssertEqual(plan.warmTotal, 0, "the in-flight instance holds its pool target")
+        XCTAssertTrue(plan.slots.isEmpty)
+        XCTAssertTrue(plan.evict.isEmpty, "an in-flight instance is not evicted while it should still arrive")
+    }
+
+    func testInFlightPooledInstancesCountPerImage() {
+        var i = input(records: [pooled("p1", .cloning, image: "xcode")], maxRunners: 4)
+        i.warmPool = ["": 1, "xcode": 2]
+        XCTAssertEqual(ScalePlan.make(i).warmSpawn, ["": 1, "xcode": 1], "only the base pool is short")
+    }
+
+    func testInFlightPooledInstancesDoNotScaleTheFleet() {
+        let plan = ScalePlan.make(input(records: [pooled("p1", .cloning)], warmPool: 1))
+        XCTAssertEqual(plan.active, 0, "a pooled instance serves no demand")
+        XCTAssertEqual(plan.target, 0)
+    }
+
+    func testInFlightPooledInstancesReserveRoomUnderTheCap() {
+        // Two busy VMs under a cap of 3 with one in-flight pooled clone: the top-up must not
+        // plan new instances as if the in-flight clone would not also need a slot.
+        let records = [record("b1", .busy), record("b2", .busy), pooled("p1", .booting)]
+        let plan = ScalePlan.make(input(records: records, warmPool: 2, maxRunners: 3))
+        XCTAssertEqual(plan.warmSpawn, [:], "the cap already holds the two busy VMs and the clone")
+    }
+
+    func testAQueuedJobBesideAnInFlightPooledCloneDoesNotPassTheCap() {
+        // One busy VM and one pooled clone still booting, cap 3, one queued job:
+        // the eager clone is not evictable supply, so only one demand slot may
+        // spawn (busy + slot + clone = 3). Two slots would exceed the cap.
+        let records = [record("b1", .busy), pooled("p1", .cloning)]
+        let plan = ScalePlan.make(input(records: records, queued: 1, warmPool: 1, maxRunners: 3))
+        XCTAssertEqual(plan.slots.count, 1, "the in-flight clone reserves its slot under the cap")
+        XCTAssertEqual(plan.warmTotal, 0)
+    }
+
+    func testAFullPartitionDoesNotTakeTheFallbackDemandSlots() {
+        // Tart cap 1, one in-flight pooled clone (which fills it) and two
+        // queued Tart jobs with a global cap of 3: `desired` raises the target
+        // above the empty active set, but Tart's partition is exhausted, so no
+        // slot is admissible — a fallback spawn would just second Tart.
+        var planInput = input(records: [pooled("p1", .cloning)], queued: 2, warmPool: 0, maxRunners: 3)
+        planInput.poolCaps = [.tart: 1]
+        let plan = ScalePlan.make(planInput)
+        XCTAssertTrue(
+            plan.slots.isEmpty,
+            "a full partition must not take slots raised by `desired`: \(plan.slots)")
+    }
+
     func testChooseImagePrefersTheImageWithUnmetDemand() {
         XCTAssertEqual(ScalePlan.chooseImage(queuedTart: 1, byImage: ["xcode": 1], active: [:]), "xcode")
         XCTAssertNil(
             ScalePlan.chooseImage(queuedTart: 3, byImage: ["xcode": 1], active: [:]), "base has the most unmet")
         XCTAssertNil(ScalePlan.chooseImage(queuedTart: 1, byImage: ["xcode": 1], active: ["xcode": 1]))
+        // The synthesized default entry keys base demand as "": that is not a
+        // clone source. The job keeps its base demand and the slot gets nil, so
+        // the spawn path clones `config.image` instead of the empty string.
+        XCTAssertNil(ScalePlan.chooseImage(queuedTart: 1, byImage: ["": 1], active: [:]))
+        // It still counts as base demand: a base instance at the cap absorbs it.
+        XCTAssertNil(ScalePlan.chooseImage(queuedTart: 1, byImage: ["": 1], active: ["": 1]))
     }
 }
 

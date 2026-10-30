@@ -46,6 +46,28 @@ public enum Log {
             return "\(ts) [\(level)] [\(component)] \(message)"
         }
 
+        /// One JSON object, keys sorted: `ts`, `level`, `component`, `message`, plus `vm`, `job`,
+        /// `trace_id` and `span_id` when known.
+        func json(_ fields: Fields) -> String {
+            var object: [String: String] = [
+                "ts": timestamp.ISO8601Format(.iso8601(timeZone: .gmt, includingFractionalSeconds: true)) + "Z",
+                "level": level, "component": component,
+                "message": message,
+            ]
+            if let vm = fields.vm { object["vm"] = vm }
+            if let job = fields.job { object["job"] = job }
+            if let jobID = fields.jobID { object["job_id"] = jobID }
+            if let trace = fields.trace {
+                object["trace_id"] = trace.traceID
+                object["span_id"] = trace.spanID
+            }
+            // A line that cannot be encoded falls back to the plain-text form below.
+            guard let data = try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]),
+                let text = String(data: data, encoding: .utf8)
+            else { return formatted }
+            return text
+        }
+
         static let formatter: DateFormatter = {
             let f = DateFormatter()
             f.dateFormat = "yyyy-MM-dd HH:mm:ss"
@@ -79,6 +101,71 @@ public enum Log {
     static var echoToStderr: Bool {
         get { _echoToStderr.withLock { $0 } }
         set { _echoToStderr.withLock { flag in flag = newValue } }
+    }
+
+    /// The local file/stderr line format; `json` writes one structured object per line.
+    private static let _format = Mutex(KinhinConfig.TelemetryConfig.LogFormat.text)
+    static var format: KinhinConfig.TelemetryConfig.LogFormat {
+        get { _format.withLock { $0 } }
+        set { _format.withLock { $0 = newValue } }
+    }
+    /// The telemetry handle log lines are mirrored to as OTLP log records (nil = not exporting logs).
+    private static let _telemetry = Mutex<Telemetry?>(nil)
+    static var telemetry: Telemetry? {
+        get { _telemetry.withLock { $0 } }
+        set { _telemetry.withLock { $0 = newValue } }
+    }
+
+    /// Where a log call happens: the instance and job it belongs to and the trace it is part of.
+    /// Set around an instance's lifecycle; read by `emit`, so existing call sites carry no extra arguments.
+    final class Context: Sendable {
+        let vm: String
+        let trace: TelemetrySpanContext?
+        private let jobBox = Mutex<String?>(nil)
+        private let jobIDBox = Mutex<String?>(nil)
+
+        init(vm: String, trace: TelemetrySpanContext?) {
+            self.vm = vm
+            self.trace = trace
+        }
+
+        var job: String? {
+            get { jobBox.withLock { $0 } }
+            set { jobBox.withLock { $0 = newValue } }
+        }
+
+        /// The forge's job id, when it supplied one.
+        var jobID: String? {
+            get { jobIDBox.withLock { $0 } }
+            set { jobIDBox.withLock { $0 = newValue } }
+        }
+    }
+
+    @TaskLocal static var context: Context?
+
+    /// The structured fields of one log call. The VM is the component when that names one of
+    /// our instances, else the task's context. Everything is masked like the message.
+    struct Fields {
+        var vm: String?
+        var job: String?
+        var jobID: String?
+        var trace: TelemetrySpanContext?
+
+        init(component: String, context: Context?) {
+            vm = InstanceNaming.isOurs(component) ? component : context?.vm
+            job = context?.job.map { LogRedactor.redact($0) }
+            jobID = context?.jobID
+            trace = context?.trace
+        }
+
+        /// Attributes for the OTLP record (and JSON line): identifiers only, never metric labels.
+        var attributes: [String: String] {
+            var out: [String: String] = [:]
+            if let vm { out["kinhin.vm.id"] = vm }
+            if let job { out["kinhin.job.name"] = job }
+            if let jobID { out["kinhin.job.id"] = jobID }
+            return out
+        }
     }
 
     /// In-memory ring buffer of recent entries (also mirrored to disk).
@@ -145,11 +232,28 @@ public enum Log {
     }
 
     private static func emit(_ level: Level, _ component: String, _ message: String) {
-        guard level >= minLevel else { return }
+        // The local log (stderr, ring, file) and the OTLP pipeline have separate thresholds: `minLevel` and
+        // `telemetry.log_level`. A record below one still reaches the other.
+        let local = level >= minLevel
+        // Export problems stay local: forwarding one would queue the record whose delivery just failed.
+        let remote: Telemetry? = telemetry.flatMap {
+            component != TelemetryHealth.logComponent && $0.forwardsLogs(at: level) ? $0 : nil
+        }
+        guard local || remote != nil else { return }
         let entry = Entry.make(level: level.rawValue, component: component, message: LogRedactor.redact(message))
+        let fields = Fields(component: component, context: context)
+
+        if let remote {
+            remote.emit(
+                log: TelemetryLogRecord(
+                    timestamp: entry.timestamp, level: level, component: component, message: entry.message,
+                    attributes: fields.attributes, trace: fields.trace))
+        }
+        guard local else { return }
 
         // Formatted once: the timestamp formatting is the costly part.
-        let line = Data(entry.formatted.appending("\n").utf8)
+        let text = format == .json ? entry.json(fields) : entry.formatted
+        let line = Data(text.appending("\n").utf8)
         if echoToStderr {
             FileHandle.standardError.write(line)
         }

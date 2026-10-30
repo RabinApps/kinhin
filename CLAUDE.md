@@ -22,3 +22,5 @@ exactly; do not duplicate its rules here.
 - `skills/` is shipped product surface (agent skills for *using* kinhin), not contributor docs — see "Skills" in
   CONTRIBUTING.md before editing it; `scripts/skills-lint.sh` gates it.
 - Don't commit or push unless asked.
+- Never burn captions into kinhin's own videos (launch, examples, any `kinhin` adapter build): leave `captions.burn` false and
+  don't pass `--captions on|all`; the `.srt` is still written. See docs/making-a-video.md.

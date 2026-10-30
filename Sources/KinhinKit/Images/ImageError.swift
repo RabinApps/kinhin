@@ -22,6 +22,8 @@ public enum ImageError: LocalizedError {
     /// An image operation needs a runtime (tart, container, docker) whose
     /// binary or service is not there. The message is the whole remedy.
     case runtimeUnavailable(String)
+    /// One or more requested image deletions failed after all targets were attempted.
+    case deletionFailed([String])
 
     public var errorDescription: String? {
         switch self {
@@ -38,6 +40,8 @@ public enum ImageError: LocalizedError {
             return "no image named '\(name)': it must be the image: value or an images: entry in the config"
         case .runtimeUnavailable(let why):
             return why
+        case .deletionFailed(let failures):
+            return "image deletion failed for \(failures.count) target(s): " + failures.joined(separator: "; ")
         }
     }
 }

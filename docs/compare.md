@@ -213,7 +213,7 @@ An honest summary, with the roadmap for what is planned:
 - **A capacity cap computed from your Mac,** with host headroom reserved ([How scaling works](scaling.md)).
 - **A menu bar app, CLI and daemon** that share one config and one fleet.
 - **Toolchain baking, pinning and a shared cache** ([Toolchains](toolchains.md)).
-- **No telemetry,** and tokens in the Keychain.
+- **Telemetry is opt-in (your own OpenTelemetry server),** and tokens in the Keychain.
 
 ## Which should I choose?
 

@@ -80,7 +80,7 @@ The [healing agent](healing.md) fixes fleet problems on its own, so its limits a
 
 ## Telemetry and network calls
 
-kinhin sends no telemetry and has no analytics. It talks only to the forges you configure (and their runner
+kinhin sends no telemetry unless you opt in: the `telemetry:` section is off by default, and when you turn it on it exports only to the OpenTelemetry server you point it at ([Telemetry](telemetry.md)). There are no analytics. Otherwise it talks only to the forges you configure (and their runner
 download hosts), to kinhin.dev for Sparkle's once-a-day appcast check, and to GitHub Releases for update downloads.
 A runtime install you approve in
 `kinhin heal` downloads like `kinhin setup repair` does; the healing advisor makes no network calls.

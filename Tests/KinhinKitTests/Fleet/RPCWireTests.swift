@@ -43,6 +43,7 @@ final class RPCWireTests: XCTestCase {
         case .benchStatus: return "bench_status"
         case .benchCancel: return "bench_cancel"
         case .healingStatus: return "healing_status"
+        case .telemetryStatus: return "telemetry_status"
         case .healingApprove: return "healing_approve"
         case .healingDismiss: return "healing_dismiss"
         }

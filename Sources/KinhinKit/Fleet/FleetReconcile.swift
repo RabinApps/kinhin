@@ -106,7 +106,10 @@ extension FleetEngine {
         while !Task.isCancelled {
             var idle = false
             do {
+                let passStart = ContinuousClock.now
                 idle = try await reconcileOnce().idle
+                recordReconcilePass(seconds: (ContinuousClock.now - passStart) / .seconds(1))
+                await publishTelemetry()
                 await sweepOrphansIfDue()
                 await statusBox.modify { $0.setAlert("reconcile", nil) }
             } catch is CancellationError {
@@ -114,6 +117,7 @@ extension FleetEngine {
             } catch {
                 let message = (error as? LocalizedError)?.errorDescription ?? "\(error)"
                 Log.error("engine", "reconcile failed: \(message)")
+                telemetry.add(.reconcileErrors)
                 await statusBox.modify { $0.setAlert("reconcile", message) }
             }
             let paused = runState.withLock { $0.paused }
@@ -233,6 +237,8 @@ extension FleetEngine {
         /// not "no jobs": while any forge is unreadable the demand is
         /// incomplete, so the pass must not scale idle instances down on it.
         var failedForges: Set<String> = []
+        /// The oldest queue timestamp any forge supplied (nil when none did: the age is then unavailable).
+        var oldestEnqueuedAt: Date?
     }
 
     /// Polls every attached forge's queue (and running work) into `Demand`
@@ -255,7 +261,7 @@ extension FleetEngine {
         // the demand is deterministic whatever finishes first.
         enum ForgeAnswer: Sendable {
             case answered(jobs: [ForgeJob], images: ProjectImageDemand)
-            case failed(message: String)
+            case failed(message: String, type: TelemetryErrorType)
         }
         // One routing snapshot for the whole pass: a reload landing mid-pass applies from the next one.
         let routerState = router.snapshot
@@ -271,7 +277,9 @@ extension FleetEngine {
                     // A cancelled pass is not a failed forge: no queue alert.
                     throw CancellationError()
                 } catch {
-                    return .failed(message: (error as? LocalizedError)?.errorDescription ?? "\(error)")
+                    return .failed(
+                        message: (error as? LocalizedError)?.errorDescription ?? "\(error)",
+                        type: TelemetryErrorType.classify(error, stage: nil))
                 }
             }
         for (forge, answer) in zip(ordered, answers) {
@@ -284,6 +292,9 @@ extension FleetEngine {
                 perForgeJobs[forge.account] = (forge.attributesByRepo, jobs)
                 demand.byForge[forge.account] = jobs.count
                 demand.queueDepth += jobs.count
+                if let oldest = jobs.compactMap({ $0.correlation?.enqueuedAt }).min() {
+                    demand.oldestEnqueuedAt = min(demand.oldestEnqueuedAt ?? oldest, oldest)
+                }
                 let pools = routerState.model.demandByPool(for: jobs, forgeID: forge.id)
                 demand.byForgePool[forge.account] = pools
                 if forge.queueIncludesRunning { demand.includesRunning.insert(forge.account) }
@@ -292,12 +303,15 @@ extension FleetEngine {
                 }
                 for (image, count) in projectDemand.byImage { demand.byImage[image, default: 0] += count }
                 demand.imageNotices.formUnion(projectDemand.notices)
-            case .failed(let message):
+            case .failed(let message, let type):
+                countError(type == .unknown ? .forgeAPIFailure : type, component: .forge)
                 Log.warn("engine", "could not fetch \(forge.name) queue: \(message)")
                 demand.failedForges.insert(forge.account)
                 await statusBox.modify { $0.setAlert("queue:\(forge.account)", message) }
             }
         }
+        publishQueueTelemetry(
+            byForge: demand.byForge, byPool: demand.byPool, oldestEnqueuedAt: demand.oldestEnqueuedAt)
         if paused {
             // Paused with auto-resume: hold while demand remains, release once
             // the queue is empty. A forge outage (every fetch failed) must NOT
@@ -310,6 +324,16 @@ extension FleetEngine {
             // observation was real: stamp its freshness. An outage leaves
             // the old timestamp, so the age truthfully shows staleness.
             if answeredQueue { await statusBox.modify { $0.queuePolledAt = Date() } }
+            // Jobs keep running on the VMs while the pause holds back new ones: refresh Current jobs while some VM
+            // shows a job or is busy (a job that started since the last attribution), so it appears and a finished
+            // one clears. A persistent runner's VM stays `.ready` while it works, so with those every live VM counts.
+            // Idle ephemeral fleets skip the running-jobs fan-out.
+            let persistent = !config.vm.ephemeral
+            if store.all.contains(where: {
+                $0.job != nil || $0.runningJobs != nil || $0.phase == .busy || (persistent && $0.phase == .ready)
+            }) {
+                await attributeRunningJobs(attached)
+            }
             return Demand()
         }
         let byRepo = ForgeDemand.mergeQueueByRepo(perForgeJobs)
@@ -376,6 +400,7 @@ extension FleetEngine {
         defer { publishSpawnBackoff() }
         var slots = plan.slots
         var diskPressureMessage: String?
+        diskHold.withLock { $0 = false }
         if slots.contains(where: { $0.runtime != .host && $0.claim == nil }) {
             let listed = slots.contains { $0.image != nil } ? await listedTartVMs() : []
             let admission = ScalePlan.admitByDisk(
@@ -383,6 +408,7 @@ extension FleetEngine {
                 diskPerInstanceGB: { diskPerInstanceGB($0, listed: listed) })
             slots = admission.admitted
             if let blocked = admission.blocked {
+                diskHold.withLock { $0 = true }
                 diskPressureMessage =
                     "disk pressure: \(blocked.availableGB) GB free, a new \(blocked.runtime.rawValue) instance needs \(blocked.neededGB - config.reserve.diskGB) GB + \(config.reserve.diskGB) GB reserve — holding spawns"
             }
@@ -390,7 +416,10 @@ extension FleetEngine {
         if !slots.isEmpty, spawnBackoff.withLock({ $0.blocked(now: Date()) }).isEmpty {
             Log.info("engine", "scaling up: \(plan.active) active, want \(plan.target) (queue \(demand.queueDepth))")
         }
-        for id in plan.evict { scheduleDelete(id: id, reason: "warm instance evicted") }
+        for id in plan.evict {
+            let attributes = metricAttributes(of: id)
+            if scheduleDelete(id: id, reason: "warm instance evicted") { telemetry.add(.warmEvictions, 1, attributes) }
+        }
         for slot in slots {
             // A claimed warm instance is bound to its slot; it is already on disk, so disk pressure never holds it.
             if let warmID = slot.claim {
@@ -525,6 +554,7 @@ extension FleetEngine {
 
     /// Counts a failed start against `runtime`'s spawn backoff.
     func noteSpawnFailure(runtime: RuntimeID, reason: String) {
+        telemetry.add(.spawnFailures, 1, [Metric.Attr.pool: runtime.rawValue])
         let delay = spawnBackoff.withLock { $0.recordFailure(runtime, reason: reason, now: Date()) }
         if delay > 0 {
             Log.warn(
@@ -581,7 +611,9 @@ extension FleetEngine {
                 answered = true
                 runningAll.append(
                     contentsOf: running.map {
-                        RunningJob(name: $0.name, runnerName: $0.runnerName, repository: $0.repository)
+                        RunningJob(
+                            name: $0.name, runnerName: $0.runnerName, repository: $0.repository,
+                            correlation: $0.correlation)
                     })
             } catch {
                 // Attribution is best-effort telemetry: never fail reconcile

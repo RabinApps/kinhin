@@ -52,6 +52,31 @@ final class WarmPoolEngineTests: XCTestCase {
         XCTAssertEqual(tart.runCalls.count, 1, "no second boot for the job")
     }
 
+    func testTwoReconcilePassesDoNotDoubleSpawnAnInFlightPoolInstance() async throws {
+        let tart = FakeTart()
+        let github = FakeGitHub()
+        let engine = makeEngine(tart: tart, github: github, ssh: FakeSSH(), warmPool: 1)
+        // Park the first clone with its call already recorded, so the instance stays in its
+        // in-flight pool phase across passes (on a real host this is the ~20s clone/boot window).
+        tart.parkClones = true
+
+        try await engine.reconcileOnce()
+        try await waitUntil(timeout: 10) { tart.cloneCalls.count == 1 }
+
+        // Passes while the first instance is still in flight must not top the pool up again:
+        // this is why `warm_pool: 1` kept 2 VMs on a real host.
+        try await engine.reconcileOnce()
+        XCTAssertEqual(tart.cloneCalls.count, 1, "the in-flight instance holds its pool target")
+        try await engine.reconcileOnce()
+        XCTAssertEqual(tart.cloneCalls.count, 1)
+
+        tart.parkClones = false
+        try await waitUntil(timeout: 10) {
+            await engine.status().records.first?.phase == .warm
+        }
+        XCTAssertEqual(tart.cloneCalls.count, 1, "the pool holds its target with one instance")
+    }
+
     func testAnImagesWarmPoolClonesFromThatImage() async throws {
         let tart = FakeTart()
         // The prepared `images:` entry: its VM exists, so the warm pool can clone it.

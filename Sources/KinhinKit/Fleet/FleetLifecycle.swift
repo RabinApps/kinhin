@@ -27,6 +27,7 @@ extension FleetEngine {
             claimed = record
         }
         guard claimed != nil else { return }
+        telemetry.add(.warmClaims, 1, metricAttributes(of: id))
         Log.info(id, "claimed warm instance for \(account)")
         spawnLifecycleTask(id: id) { [weak self] in
             await self?.runLifecycle(id: id, claimed: true)
@@ -106,7 +107,24 @@ extension FleetEngine {
         lifecycleTasks.withLock { $0[id] = nil }
     }
 
+    /// Runs one instance's lifecycle inside its trace and log context. The trace is the job's
+    /// root span (spawn to teardown); with telemetry off it is a no-op span.
     func runLifecycle(id: String, claimed: Bool = false) async {
+        // A warm instance keeps its trace from the pooled boot until a job claims it: one trace per instance.
+        let trace = jobTrace(for: id) ?? makeJobTrace(id: id)
+        jobTraces.withLock { $0[id] = trace }
+        await Log.$context.withValue(trace.logContext) { await runLifecycleBody(id: id, claimed: claimed) }
+        // A lifecycle that returned while the instance lives on (warm, or watching a classic runner)
+        // keeps its trace for the rest of the story; failures and cancellations end it here.
+        let phase = store.all.first { $0.id == id }?.phase
+        if phase == nil || phase == .failed || phase == .deleting {
+            endJobTrace(
+                id: id, result: phase == .failed ? "failed" : "deleted",
+                error: phase == .failed ? "lifecycle failed" : nil)
+        }
+    }
+
+    func runLifecycleBody(id: String, claimed: Bool = false) async {
         defer { finishLifecycle(id: id) }
         do {
             // Resolve this record's runtime and pool (mixed fleets: per-record).
@@ -126,17 +144,18 @@ extension FleetEngine {
                 // Phase: provisioning (clone+boot for VMs, container run for
                 // containers; idempotent for an existing id — recovery path).
                 updateRecord(id) { $0.phase = .cloning }
-                try await recordRuntime.provision(id: id, route: route(forRecord: id))
+                try await timed(.provision, id: id) {
+                    try await recordRuntime.provision(id: id, route: route(forRecord: id))
+                }
                 try Task.checkCancellation()
 
                 // Phase: booting. Runtimes return the address their registration
                 // transport dials (Tart: the VM's IP for SSH); exec transports
                 // (containers) return nil and register without one.
                 updateRecord(id) { $0.phase = .booting }
-                let bootedIP: String? = try await recordRuntime.awaitReady(
-                    id: id,
-                    timeout: TimeInterval(config.vmBootTimeout)
-                )
+                let bootedIP: String? = try await timed(.bootReady, id: id) {
+                    try await recordRuntime.awaitReady(id: id, timeout: TimeInterval(config.vmBootTimeout))
+                }
                 // After every awaited runtime/forge call: a detached engine's
                 // straggler must exit here, never write to the store.
                 try Task.checkCancellation()
@@ -222,7 +241,9 @@ extension FleetEngine {
                 runnerCount: runnerCount, route: route(forRecord: id),
                 labels: labels
             )
-            result = try await recordRuntime.execRegistration(id, ip: ip, script, timeout: 600)
+            result = try await timed(.registration, id: id) {
+                try await recordRuntime.execRegistration(id, ip: ip, script, timeout: 600)
+            }
             try Task.checkCancellation()
             guard result.succeeded else {
                 // Some bootstrap tools (the runner's config.sh) report errors on stdout.
@@ -256,6 +277,7 @@ extension FleetEngine {
         } catch {
             let message = (error as? LocalizedError)?.errorDescription ?? "\(error)"
             Log.error(id, "lifecycle failed: \(message)")
+            recordLifecycleFailure(id: id, error: error)
             updateRecord(id) {
                 $0.phase = .failed
                 $0.error = message
@@ -374,6 +396,7 @@ extension FleetEngine {
                 if mine.contains(where: \.busy) {
                     idleSince = nil
                     updateRecord(id) { $0.phase = .busy }
+                    noteJobPickedUp(id: id)
                 } else {
                     updateRecord(id) { $0.phase = .ready }
                     if let idleGrace, allSeen {
@@ -411,6 +434,7 @@ extension FleetEngine {
                 // reconcile pass could see it `.failed` and note the failure.
                 noteSpawnFailure(
                     runtime: recordedRuntime(of: id), reason: "runner did not register within timeout")
+                countError(.runnerNotRegistered, component: .lifecycle)
                 await deleteVMRecord(id: id, reason: "registration timeout")
                 return
             }
@@ -427,6 +451,7 @@ extension FleetEngine {
                             id,
                             "instance is \(state == .gone ? "gone" : "stopped") while its runner was \(phase); cleaning up"
                         )
+                        countError(.instanceLost, component: .lifecycle)
                         await deleteVMRecord(id: id, reason: "instance \(state == .gone ? "gone" : "stopped")")
                         return
                     }
@@ -504,11 +529,15 @@ extension FleetEngine {
                 }
             }
         }
+        // The forge is asked for the job's verdict while the instance is torn down (not before): the read can need
+        // a few retries, and it must not hold the instance's resources.
+        let finalize: Task<Void, Never>? =
+            reason == "jobs finished" ? Task { await noteJobFinished(id: id) } : nil
         // Runtime teardown (per-record: stop+delete the VM, or container rm).
         var probe = VMRecord(id: id, phase: .deleting)
         probe.runtime = store.all.first { $0.id == id }?.runtime
         do {
-            try await runtime(for: probe).teardown(id: id)
+            try await timed(.teardown, id: id) { try await runtime(for: probe).teardown(id: id) }
         } catch is CancellationError {
             // The instance may still exist: keep the record in `.deleting` so the
             // reconcile pass (or the next start) finishes the idempotent teardown.
@@ -522,6 +551,8 @@ extension FleetEngine {
             updateRecord(id) { $0.error = "teardown failed: \(message)" }
             return
         }
+        await finalize?.value
+        endJobTrace(id: id, result: Self.traceResult(forDeleteReason: reason), error: nil)
         store.remove(id: id)
         Log.info(id, "VM deleted")
     }

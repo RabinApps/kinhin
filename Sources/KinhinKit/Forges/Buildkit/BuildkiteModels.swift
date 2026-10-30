@@ -149,6 +149,10 @@ struct BuildkiteBuild: Decodable, Sendable, Equatable {
         let webURL: String?
         let startedAt: String?
         let finishedAt: String?
+        /// When the job became runnable (it waits for an agent from then), when it was created, and its exit code.
+        let runnableAt: String?
+        let createdAt: String?
+        let exitStatus: Int?
 
         struct Agent: Decodable, Sendable, Equatable {
             let name: String?
@@ -159,6 +163,9 @@ struct BuildkiteBuild: Decodable, Sendable, Equatable {
             case webURL = "web_url"
             case startedAt = "started_at"
             case finishedAt = "finished_at"
+            case runnableAt = "runnable_at"
+            case createdAt = "created_at"
+            case exitStatus = "exit_status"
             case agentQueryRules = "agent_query_rules"
             case clusterID = "cluster_id"
         }
@@ -177,6 +184,9 @@ struct BuildkiteBuild: Decodable, Sendable, Equatable {
             self.webURL = nil
             self.startedAt = nil
             self.finishedAt = nil
+            self.runnableAt = nil
+            self.createdAt = nil
+            self.exitStatus = nil
         }
 
         init(from decoder: Decoder) throws {
@@ -191,6 +201,9 @@ struct BuildkiteBuild: Decodable, Sendable, Equatable {
             webURL = try container.decodeIfPresent(String.self, forKey: .webURL)
             startedAt = try container.decodeIfPresent(String.self, forKey: .startedAt)
             finishedAt = try container.decodeIfPresent(String.self, forKey: .finishedAt)
+            runnableAt = try container.decodeIfPresent(String.self, forKey: .runnableAt)
+            createdAt = try container.decodeIfPresent(String.self, forKey: .createdAt)
+            exitStatus = try container.decodeIfPresent(Int.self, forKey: .exitStatus)
         }
     }
 }
@@ -208,11 +221,19 @@ public struct BuildkiteJob: Sendable, Equatable {
     /// The agent running the job (running jobs only).
     public let agentName: String?
     let clusterID: String?
+    /// The build the job belongs to, and when the job became runnable and started (telemetry only).
+    let buildNumber: Int?
+    let enqueuedAt: Date?
+    let startedAt: Date?
 
     init(
         id: String, name: String, state: String, agentQueryRules: [String], pipeline: String,
-        agentName: String?, clusterID: String? = nil
+        agentName: String?, clusterID: String? = nil, buildNumber: Int? = nil, enqueuedAt: Date? = nil,
+        startedAt: Date? = nil
     ) {
+        self.buildNumber = buildNumber
+        self.enqueuedAt = enqueuedAt
+        self.startedAt = startedAt
         self.id = id
         self.name = name
         self.state = state
@@ -257,5 +278,15 @@ enum BuildkiteError: LocalizedError, Equatable {
             return "the Buildkite token is missing scopes: \(missing.joined(separator: ", ")). "
                 + "It needs \(BuildkiteCredentials.requiredScopes.joined(separator: ", "))"
         }
+    }
+}
+
+extension BuildkiteJob {
+    /// The identifiers and provider timestamps of this job, for telemetry. The pipeline slug stands in for both the
+    /// repository and the workflow name (Buildkite has no repository dimension of its own at this level).
+    var correlation: JobCorrelation {
+        JobCorrelation(
+            runID: buildNumber.map(String.init), jobID: id, workflow: pipeline, jobName: name, repository: pipeline,
+            enqueuedAt: enqueuedAt, startedAt: startedAt)
     }
 }

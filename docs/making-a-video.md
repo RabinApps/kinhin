@@ -119,9 +119,11 @@ video/scripts/build.sh --project examples/kinhin-30s --container   # the 30-seco
 ```
 
 `launch` and `examples/kinhin-30s` use the `kinhin` adapter (`video/adapters/kinhin/adapter.json`), which sets two things
-for every kinhin video: burned-in captions are on in the 9:16 and 1:1 formats and **off** in 16:9 (a clean picture; the `.srt` is
-still written), and the music is **First Light Particles**. A project can override either (`"captions": {"burn": true}`,
-`"music": false`). How the build
+for every kinhin video: captions are **never burned into the picture**, in any format (the `.srt` is
+still written, for a player), and the music is **First Light Particles**. This is a rule for kinhin's own videos: do not set
+`"captions": {"burn": true}` in a kinhin project, do not pass `--captions on` or `--captions all` when building one, and do not
+publish a build made that way. Text that is part of a slide (a `caption` prop) is slide content, not a burned-in caption. A project can
+still override the music (`"music": false`). How the build
 works, and every setting, is in [Video config reference](video-config.md#build-flags).
 
 `build.sh` is the developer path: it builds from this working tree, in a container (`--container`) or on this machine. What

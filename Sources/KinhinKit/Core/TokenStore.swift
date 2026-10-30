@@ -327,3 +327,49 @@ extension KeychainTokenStore {
         static func forgetSessionTokens() {}
     #endif
 }
+
+// MARK: - Telemetry collector token
+
+extension KeychainTokenStore {
+    /// The Keychain account of a collector token (`telemetry.headers_keychain: NAME`).
+    public static func telemetryAccount(_ name: String) -> String { "telemetry:\(name)" }
+
+    /// The collector token stored under `account`, or nil when none is. In the debug environment mode
+    /// (`KINHIN_TOKEN_STORE=env`) it comes from `KINHIN_TOKEN_TELEMETRY_<NAME>`. Throws
+    /// `TokenError.unreadable` when the Keychain refuses; the token is registered with the log redactor.
+    static func loadTelemetryToken(account name: String) throws -> String? {
+        let token: String?
+        if mode == .environment {
+            token = environmentToken(name: "telemetry-\(name)")
+        } else {
+            token = try load(from: service, account: telemetryAccount(name))
+        }
+        if let token { LogRedactor.registerSecret(token) }
+        return token
+    }
+
+    /// Stores (or replaces) the collector token under `account`, like forge tokens: this-device-only.
+    public static func saveTelemetryToken(_ token: String, account name: String) throws {
+        LogRedactor.registerSecret(token)
+        if mode == .environment {
+            saveForSession(token, name: "telemetry-\(name)")
+            return
+        }
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: telemetryAccount(name),
+        ]
+        let attributes: [String: Any] = [
+            kSecValueData as String: Data(token.utf8),
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
+        ]
+        let update = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+        if update == errSecItemNotFound {
+            let status = SecItemAdd(query.merging(attributes) { $1 } as CFDictionary, nil)
+            guard status == errSecSuccess else { throw TokenError.unhandled(status) }
+        } else if update != errSecSuccess {
+            throw TokenError.unhandled(update)
+        }
+    }
+}

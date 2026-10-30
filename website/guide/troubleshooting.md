@@ -52,6 +52,15 @@ fixes waiting for your approval, and says what only you can do.
   steps: [Tart FAQ, Keychain password mismatch](https://tart.run/faq/#keychain-password-mismatch). Other
   errors such as `SecKeyCreateRandomKey_ios failed` can share this cause. Steps that did not help in the
   reported cases: reinstalling Tart, rebooting, stopping Multipass, updating the Command Line Tools.
+- **`image prepare` fails while provisioning the new VM with `No route to host`, `Operation timed out` or `Host is down`** (the log line is `agent provision/update failed … could not reach the guest VM`) —
+  the baked VM booted and got an IP, but the host can't open a connection to it. The usual cause is
+  **OrbStack or Docker Desktop running on the same host**: their VPN/interop networking can re-route the
+  virtual network interface tart uses between host and guest, so the host's `ssh` to the VM never lands.
+  Quit OrbStack/Docker for the length of the bake (they can be restarted afterwards) and re-run
+  `kinhin image prepare`; kinhin appends this hint to the failure message automatically. If it still fails
+  with no such app running, re-run with `--verbose` and check the host's routing table
+  (`netstat -rn | grep bridge`): a VPN client or firewall rewriting the VM network's interface is the
+  next suspect.
 - **Token rejected** — re-run `kinhin auth set`; the PAT needs `repo` scope and access to the
   repo.
 - **First launch blocked** — only applies to old releases or locally built copies (official

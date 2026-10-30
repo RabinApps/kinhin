@@ -19,20 +19,25 @@ extension FleetEngine {
     func poolLabels(for record: VMRecord) -> [String]? {
         guard let runtimeID = record.runtimeID else { return nil }
         let routerState = router.snapshot
-        let images = routerState.images
         let pool = routerState.model.pools[runtimeID]?.labels
         // A tart instance cloned from a named image also advertises that image's labels, so
-        // the jobs that ask for them (`runs-on: [..., xcode]`) can land on it.
-        guard runtimeID == .tart, let pool, let image = record.image,
-            let extra = images.first(where: { $0.name == image })?.labels
+        // the jobs that ask for them (`runs-on: [..., xcode]`) can land on it. The default
+        // image's `image_labels:` (and its Linux-base macOS strip) ride the snapshot's
+        // synthesized default entry — an unlabeled clone resolves to `image:`'s name.
+        guard runtimeID == .tart, let pool,
+            let entry = routerState.images.first(where: { $0.name == (record.image ?? config.image) })
         else { return pool }
         // A Linux Tart VM must not advertise macOS-only fleet labels — otherwise
         // it would attract macOS jobs it cannot run. Strip them when the image's
         // base is a curated Linux image; custom/local names can't be reliably
         // identified, so they keep the fleet labels as-is.
         let labels: [String]
-        if TartBaseImage.isLinux(images.first(where: { $0.name == image })?.baseImage) {
+        var extra = entry.labels ?? []
+        if TartBaseImage.isLinux(entry.baseImage) {
+            // The image's own labels are user config: they must not reintroduce
+            // the macOS-specific fleet labels the Linux base took off the pool.
             labels = pool.filter { !macosOnlyLabel($0) }
+            extra = extra.filter { !macosOnlyLabel($0) }
         } else {
             labels = pool
         }
@@ -58,7 +63,8 @@ extension FleetEngine {
     /// Stamp VM records with the repositories whose jobs are currently
     /// executing on them (via runner_name → VM mapping), and aggregate the
     /// same data into `FleetStatus.runningByRepo`. Also fills the per-VM
-    /// `job` label (first running job name) for the status surfaces.
+    /// `runningJobs` (one stamp per busy runner) and the `job` label (the
+    /// first stamp's name) for the status surfaces.
     /// Repo scope stamps the job name only — the repo breakdown would carry
     /// no information there (mirrors `queueByRepo` suppression).
     func applyRunningAttribution(_ running: [RunningJob]) async {
@@ -66,18 +72,20 @@ extension FleetEngine {
 
         // Map runner name → VM id. Single-runner VMs register under the VM
         // id itself; multi-runner VMs register as "<vmid>-r1…rN".
-        var reposByVM: [String: [String]] = [:]
-        var jobByVM: [String: String] = [:]
+        var jobsByVM: [String: [RunningJobStamp]] = [:]
         let records = store.all
         let ids = Set(records.map(\.id))
         for job in running {
             guard let runnerName = job.runnerName,
-                let vmID = Self.vmID(forRunnerName: runnerName, among: ids, runnersPerVM: config.runnersPerVM)
+                let vmID = Self.vmID(forRunnerName: runnerName, among: ids)
             else { continue }
-            if isOrgScope, let repo = job.repository {
-                reposByVM[vmID, default: []].append(repo)
+            if let correlation = job.correlation {
+                noteJobCorrelation(vm: vmID, correlation)
+            } else {
+                jobTrace(for: vmID)?.logContext.job = job.name
             }
-            if jobByVM[vmID] == nil { jobByVM[vmID] = job.name }
+            jobsByVM[vmID, default: []].append(
+                RunningJobStamp(runner: runnerName, job: job.name, repo: isOrgScope ? job.repository : nil))
         }
 
         await statusBox.modify {
@@ -86,25 +94,40 @@ extension FleetEngine {
 
         // Stamp VMs that exist; clear the stamp on VMs whose jobs finished.
         for record in records {
-            let repos = reposByVM[record.id]?.sorted()
-            let job = jobByVM[record.id]
-            if record.repos != repos || record.job != job {
+            let stamps = jobsByVM[record.id].map {
+                $0.sorted {
+                    (Self.runnerIndex($0.runner), $0.runner, $0.job) < (Self.runnerIndex($1.runner), $1.runner, $1.job)
+                }
+            }
+            let repos = stamps.flatMap { stamps -> [String]? in
+                let repos = Set(stamps.compactMap(\.repo))
+                return repos.isEmpty ? nil : repos.sorted()
+            }
+            let job = stamps?.first?.job
+            if record.repos != repos || record.job != job || record.runningJobs != stamps {
                 updateRecord(record.id) {
                     $0.repos = repos
                     $0.job = job
+                    $0.runningJobs = stamps
                 }
             }
         }
     }
 
+    /// The `N` of a `<id>-r<N>` runner name, 0 for a single-runner VM's bare id: numeric, so `-r2` sorts before `-r10`.
+    static func runnerIndex(_ runnerName: String) -> Int {
+        runnerName.range(of: "-r", options: .backwards).flatMap { Int(runnerName[$0.upperBound...]) } ?? 0
+    }
+
     /// The VM id owning a runner name, among the tracked VM `ids`: the id
-    /// itself, or `<id>-r<N>` for N in 1...runnersPerVM. One set lookup per
-    /// name instead of a scan (and copy) of the whole store.
-    static func vmID(forRunnerName runnerName: String, among ids: Set<String>, runnersPerVM: Int) -> String? {
+    /// itself, or `<id>-r<N>`. N is not bounded by the current `runnersPerVM`:
+    /// a reload that lowers it must not orphan runners of VMs spawned under the
+    /// old count. One set lookup per name instead of a scan (and copy) of the
+    /// whole store.
+    static func vmID(forRunnerName runnerName: String, among ids: Set<String>) -> String? {
         if ids.contains(runnerName) { return runnerName }
         guard let marker = runnerName.range(of: "-r", options: .backwards),
-            let index = Int(runnerName[marker.upperBound...]),
-            (1...max(1, runnersPerVM)).contains(index)
+            let index = Int(runnerName[marker.upperBound...]), index >= 1
         else { return nil }
         let base = String(runnerName[..<marker.lowerBound])
         return ids.contains(base) ? base : nil
@@ -113,10 +136,11 @@ extension FleetEngine {
     /// Drop the attribution stamp from every record (pause path).
     func clearRunningAttribution() async {
         for record in store.all {
-            if record.repos != nil || record.job != nil {
+            if record.repos != nil || record.job != nil || record.runningJobs != nil {
                 updateRecord(record.id) {
                     $0.repos = nil
                     $0.job = nil
+                    $0.runningJobs = nil
                 }
             }
         }

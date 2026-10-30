@@ -9,11 +9,17 @@ public struct ResourceUsage: Codable, Sendable, Equatable {
     public var memoryUsedMB: Int?
     /// The configured memory ceiling, when the source reports one.
     public var memoryLimitMB: Int?
+    /// Disk the VM occupies on the host, in whole GB as `tart list` reports it (its `SizeOnDisk`/`Size` field, not the
+    /// virtual `Disk` size). Nil for sources that do not report it; older encoded values decode without it.
+    public var diskUsedGB: Int?
 
-    public init(cpuPercent: Double? = nil, memoryUsedMB: Int? = nil, memoryLimitMB: Int? = nil) {
+    public init(
+        cpuPercent: Double? = nil, memoryUsedMB: Int? = nil, memoryLimitMB: Int? = nil, diskUsedGB: Int? = nil
+    ) {
         self.cpuPercent = cpuPercent
         self.memoryUsedMB = memoryUsedMB
         self.memoryLimitMB = memoryLimitMB
+        self.diskUsedGB = diskUsedGB
     }
 }
 

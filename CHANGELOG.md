@@ -4,6 +4,89 @@
 
 <!-- changelog: entries for the next release go here -->
 
+## v0.0.1-beta-4
+
+**Added**
+
+- The macOS 27 Golden Gate base images (`macos-golden-gate-base`, `-vanilla`, `-xcode`) join the curated base-image
+  picker, and any `ghcr.io/cirruslabs/macos-*` reference pinned by `@sha256:` digest is accepted too: the pin names
+  exact, immutable bits, so it stays servable even after its tag is retired. The base-image refusal now says what
+  is acceptable, including `kinhin image digest <reference>` for printing the pin, instead of only failing. A local
+  Tart VM name is no longer warned about as a mutable tag: without a registry there is nothing to drift. See
+  [docs/runtimes.md](docs/runtimes.md#choosing-the-base-image).
+- `kinhin config validate [FILE]` checks a named config file instead of this Mac's default one — useful before
+  pointing a fleet at the file, in CI, or for agent review of a proposed config. The command honors `--` before the
+  file name (so `kinhin config validate -- -broken.yaml` parses) and rejects extra operands.
+- Opt-in OpenTelemetry: a `telemetry:` section exports metrics, traces and logs over OTLP (HTTP/protobuf or gRPC) and can serve the
+  metrics on a local Prometheus `/metrics` endpoint. It covers workers by pool, image, labels and state, queue depth and age, fleet size
+  and capacity, the warm pool, provisioning, boot and registration timings, jobs picked up and completed, runner, host and daemon resource
+  use, forge request counts and rate limits, and classified errors, with no VM, job or run IDs as metric labels. Each instance gets one
+  trace, with GitHub run, attempt and job identifiers and queue timestamps when GitHub supplies them. `log_format: json` writes structured
+  local logs. The job's result, run duration and step spans come from the forge when it can say (GitHub, GitLab, Buildkite, Gitea, Forgejo and Azure DevOps; step spans on GitHub), and read `unknown` otherwise. Metric names and attributes follow the OpenTelemetry CI/CD conventions, and `job_attributes` opts in to repository and workflow dimensions. Standard `OTEL_*` variables take precedence. Off by default: nothing starts and no port opens until `enabled: true`.
+  Passing trace context into workflow steps is not part of this release. See [docs/telemetry.md](docs/telemetry.md).
+- `kinhin telemetry status` shows what the daemon's telemetry pipeline sends where and whether exports are failing (the SDK never throws them, so kinhin logs each distinct problem once a minute, counts `kinhin.telemetry.export.failures` and reports it). A ready Grafana Alloy snippet, dashboard and alert rules are in [docs/telemetry.md](docs/telemetry.md).
+- Telemetry also reports the daemon's own health: build info, uptime, reconcile pass duration and last-success time (alert on a stuck loop), spawn failures and holds (backoff, disk pressure), and queue depth per pool.
+- Telemetry also reports image bakes (duration and result), the toolchain cache (size and prune results) and, on Tart, runner disk size.
+- Collector security and resilience: `ca_file` (or `OTEL_EXPORTER_OTLP_CERTIFICATE`) for a private CA, `sampling_ratio` (or `OTEL_TRACES_SAMPLER`) for traces, `headers_keychain` to read a bearer token from the Keychain instead of the config or environment, `persist: true` to queue spans and logs on disk through collector downtime and restarts, and `log_level` to keep debug noise out of OTLP logs.
+- Menu bar app: a Telemetry card under Advanced → App shows OpenTelemetry export status (signals, redacted collector endpoints, Prometheus address, last export problem) and switches it on or off in config.yaml; the app also flushes pending telemetry when you quit.
+- `kinhin config reload` checks the config and makes the running daemon re-read it (telemetry and routing changes apply in
+  place; an invalid file is refused with exit 3 and never reaches the daemon).
+
+**Fixed**
+
+- A VM with several runners (`runners_per_vm > 1`) showed only its first running job in Current jobs, the diagram and the CLI
+  status. Every running job is listed now, and a run with more than 100 jobs no longer loses the extras from the queue (#63).
+- A finished GitHub job or step kept its timer running: the finish time was never read, so the duration grew until the
+  pipeline sheet was closed. The timer now stops at the job's finish (#59).
+- `kinhin daemon install` wrote the path it was found by into the daemon's LaunchAgent: a bare `kinhin` resolved
+  through PATH became `<cwd>/kinhin`, which launchd could not run at login. The path now comes from the running
+  binary itself (`Bundle.main`/`_NSGetExecutablePath`, symlinks resolved), and the install uses `launchctl
+  bootstrap` and verifies with `launchctl print` that the agent is actually running — a daemon that exits
+  immediately is reported as a failure instead of a silent success, and `launchctl print`'s annotated exit codes
+  (`78: EX_CONFIG`) read as the failure they are: a code that cannot be parsed is not called healthy. Re-run
+  `kinhin daemon install` on a Mac whose daemon does not start.
+- `warm_pool: 1` could keep two VMs of an image: while the first pooled VM was still cloning or booting the scale
+  plan could not see it, so the next reconcile pass started another. Pooled VMs in flight now count toward the
+  pool's target — and toward the fleet's global and per-runtime caps — so queued jobs wait for the clone to land
+  instead of the spawn going past the limit. See [docs/scaling.md](docs/scaling.md#warm-pool).
+- `vm.cpu` and `vm.memory_gb` were silently ignored on Tart runners: the clone never issued `tart set`. The vCPU
+  count and memory are now set on the clone before its first boot, for runner, warm-pool and named-image clones
+  alike, a failed `tart set` fails the spawn instead of booting an unconstrained VM, and a clone interrupted
+  before its first boot resumes with its sizing and a start instead of waiting for an IP until the boot timeout.
+- An image that could not be deleted aborted the whole `image delete` or `prune` run, including the digest twin hit
+  because its tag twin was just deleted. A missing image counts as deleted, the run continues past the failures,
+  every failure is reported together at the end, and an image whose deletion failed keeps its inventory record for
+  the next try instead of vanishing from the listing; the image store is cleaned up as normal.
+- The reachability hint after a failed image bake named the host's virtualization networking for any kind of
+  timeout. The hint appears only when the failure excerpt is an SSH connection failure; a guest script timing out
+  on an outside service no longer sends you re-checking the host.
+- The `kinhin runtimes` budget bar rounded percentages at the wrong step, printing only edge values. It rounds
+  after scaling now.
+
+**Changed**
+
+- Apple-container and Docker runners no longer advertise the fleet's `macos` label: their guests run Linux, and a macOS
+  job started there would never finish (each Linux runtime keeps `kinhin-container`/`kinhin-docker`, the architecture
+  label and — for containers — the `container.labels:` entries). A pool that must speak other fleet labels can drop the
+  inheritance with `fleet_labels: false` under `container:` or `docker:` (replace-not-add: the pool then registers with
+  the marker and that section's own labels alone — a Docker pool keeps the architecture label of the guest it
+  actually runs, so an amd64 Docker VM advertises `x64` rather than the inherited `arm64`, while a container pool
+  carries no architecture label at all). Configs whose workflows
+  targeted a Linux runtime with `runs-on: […, macos]` must switch to the marker label.
+- The default `image:` can carry runner labels via top-level `image_labels:` (same rules as a named `images:` entry's
+  `labels:`), and a Linux default base keeps macOS jobs off its runners by stripping `macos` — the behavior named
+  Linux images already had, extended to the default image, and the same rule reads the image's own labels: a
+  `macos` word in a Linux image's `labels:` is stripped too, so it cannot put the runner back into the macOS
+  pool.
+
+**Upgrading**
+
+- Apple-container and Docker runners no longer carry the `macos` label. A workflow that targeted a Linux runtime with
+  `runs-on: […, macos]` must switch to `kinhin-container` or `kinhin-docker`. A pool that needs the fleet's other labels
+  can opt out of the inheritance with `fleet_labels: false` under `container:` or `docker:`.
+- Re-run `kinhin daemon install` if the daemon does not start after the upgrade; it now writes the real binary path
+  into the LaunchAgent.
+
 ## v0.0.1-beta-3
 
 **Added**

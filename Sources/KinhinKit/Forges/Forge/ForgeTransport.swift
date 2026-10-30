@@ -209,10 +209,17 @@ struct ForgeTransport: Sendable {
             req.httpBody = body
             req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         }
-        let (data, response) = try await session.data(for: req)
+        let (data, response): (Data, URLResponse)
+        do {
+            (data, response) = try await session.data(for: req)
+        } catch {
+            ForgeRequestMetrics.record(forge: forge, status: nil)
+            throw error
+        }
         guard let http = response as? HTTPURLResponse else {
             return .retry(ForgeAPIError.nonHTTPResponse(forge: forge), after: nil)
         }
+        ForgeRequestMetrics.record(forge: forge, status: http.statusCode)
         if let classify, let error = classify(http, data) {
             throw error
         }

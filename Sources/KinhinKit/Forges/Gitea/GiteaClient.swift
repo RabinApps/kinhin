@@ -261,7 +261,20 @@ public struct GiteaClient: Sendable {
         // Servers that ignore `status` (Forgejo 11 through 14, Gitea 1.23 to 1.24) answer every task the scope has
         // ever had, finished ones included, so the filter is applied here too. An entry with no status of its own
         // (the older shapes) is kept.
-        try await taskPage(status: status, page: 1).tasks.filter { $0.status == nil || $0.status == status }
+        //
+        // A full page may have more behind it, so the walk continues while pages come back full of matches, up to
+        // `maxTaskPages`. A page holding anything the filter dropped means the server ignores `status` and has
+        // reached history, so the walk stops there instead of paging through finished tasks.
+        var matched: [GiteaTask] = []
+        var seen = Set<Int>()
+        for page in 1...Self.maxTaskPages {
+            let batch = try await taskPage(status: status, page: page)
+            let mine = batch.tasks.filter { $0.status == nil || $0.status == status }
+            // Pages shift while running tasks are touched: a task can show up on two of them.
+            matched.append(contentsOf: mine.filter { $0.id.map { seen.insert($0).inserted } ?? true })
+            if batch.rawCount < Self.pageSize || mine.count < batch.rawCount { break }
+        }
+        return matched
     }
 
     /// Whether any task of the scope is not finished: dispatched to a runner and still going. Used where the server
@@ -284,10 +297,24 @@ public struct GiteaClient: Sendable {
     /// Terminal task states Gitea and Forgejo report (`unknown` is a task that never ran).
     private static let finishedStatuses: Set<String> = ["success", "failure", "cancelled", "skipped", "unknown"]
     private static let pageSize = 50
+    private static let maxTaskPages = 4
 
-    private func taskPage(status: String, page: Int) async throws -> (tasks: [GiteaTask], rawCount: Int) {
+    /// One task by id, for telemetry. The task list is newest-updated first and has no by-id route, so the walk
+    /// reads the unfiltered list (finished tasks included) for at most two pages, which holds a task that ended a
+    /// moment ago. Nil when it is not there.
+    func task(id: Int) async throws -> GiteaTask? {
+        for page in 1...2 {
+            let batch = try await taskPage(status: nil, page: page)
+            if let found = batch.tasks.first(where: { $0.id == id }) { return found }
+            if batch.rawCount < Self.pageSize { break }
+        }
+        return nil
+    }
+
+    private func taskPage(status: String?, page: Int) async throws -> (tasks: [GiteaTask], rawCount: Int) {
+        let filter = status.map { "status=\($0)&" } ?? ""
         let (data, _) = try await send(
-            path: "\(credentials.actionsBase)/tasks?status=\(status)&page=\(page)&limit=\(Self.pageSize)")
+            path: "\(credentials.actionsBase)/tasks?\(filter)page=\(page)&limit=\(Self.pageSize)")
         do {
             let wrapper = try JSONDecoder().decode(TaskQueueWrapper.self, from: data)
             return (wrapper.tasks, wrapper.entries?.count ?? 0)
@@ -397,6 +424,8 @@ struct TaskQueueWrapper: Decodable {
         let display_title: String?
         let run_number: Int?
         let run_started_at: String?
+        let created_at: String?
+        let updated_at: String?
         // Nested attribution shape: {"repository":{"full_name":...}}.
         let repositoryObject: RepoObject?
 
@@ -420,6 +449,8 @@ struct TaskQueueWrapper: Decodable {
             display_title = try? c.decodeIfPresent(String.self, forKey: .display_title)  // lenient: see above
             run_number = try? c.decodeIfPresent(Int.self, forKey: .run_number)  // lenient: see above
             run_started_at = try? c.decodeIfPresent(String.self, forKey: .run_started_at)  // lenient: see above
+            created_at = try? c.decodeIfPresent(String.self, forKey: .created_at)  // lenient: see above
+            updated_at = try? c.decodeIfPresent(String.self, forKey: .updated_at)  // lenient: see above
             repository = try? c.decodeIfPresent(String.self, forKey: .repository)  // lenient: see above
             repositoryObject = try? c.decodeIfPresent(RepoObject.self, forKey: .repository)  // lenient: see above
         }
@@ -429,7 +460,7 @@ struct TaskQueueWrapper: Decodable {
             case repo_full_name = "repo_full_name"
             case repository
             case head_branch, head_sha
-            case url, display_title, run_number, run_started_at
+            case url, display_title, run_number, run_started_at, created_at, updated_at
         }
     }
 
@@ -452,7 +483,8 @@ struct TaskQueueWrapper: Decodable {
             return GiteaTask(
                 id: entry.id, name: name, repository: repository, status: entry.status,
                 runnerName: entry.runner_name, ref: entry.head_branch, sha: entry.head_sha, url: entry.url,
-                title: entry.display_title, runNumber: entry.run_number, startedAt: entry.run_started_at)
+                title: entry.display_title, runNumber: entry.run_number, startedAt: entry.run_started_at,
+                createdAt: entry.created_at, updatedAt: entry.updated_at)
         }
         // When entries are absent but the instance reports a count (older
         // shapes), fall back to count-only placeholders so demand survives.

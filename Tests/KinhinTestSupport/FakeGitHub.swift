@@ -41,6 +41,9 @@ final class FakeGitHub: GitHubServing, Sendable {
         var rateLimit: ForgeRateLimit?
         /// What `pipelineDetail` answers, and the runner names it was asked for.
         var pipeline: PipelineDetail?
+        /// What `jobOutcome` answers per job id (a job with no entry reads as unknown).
+        var jobOutcomes: [Int: JobOutcome] = [:]
+        var jobOutcomeCalls = 0
         var pipelineRunnerNames: [String] = []
         var jobLogs: [String: String] = [:]
         /// Branch/tag, sha and fork flag cycled through the queued jobs.
@@ -134,6 +137,19 @@ final class FakeGitHub: GitHubServing, Sendable {
     }
 
     var pipelineRunnerNames: [String] { state.withLock { $0.pipelineRunnerNames } }
+
+    var jobOutcomes: [Int: JobOutcome] {
+        get { state.withLock { $0.jobOutcomes } }
+        set { state.withLock { $0.jobOutcomes = newValue } }
+    }
+    var jobOutcomeCalls: Int { state.withLock { $0.jobOutcomeCalls } }
+
+    func jobOutcome(repository: String?, jobID: Int) async throws -> JobOutcome? {
+        state.withLock { state in
+            state.jobOutcomeCalls += 1
+            return state.jobOutcomes[jobID]
+        }
+    }
 
     func pipelineDetail(runnerName: String) async throws -> PipelineDetail? {
         state.withLock { state in

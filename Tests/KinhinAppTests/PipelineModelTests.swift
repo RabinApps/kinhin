@@ -89,6 +89,34 @@ final class PipelineModelTests: MainWindowTestCase {
         XCTAssertEqual(model.notice, "This job has finished; showing its last known state.")
     }
 
+    func testTimingStopsTickingOnceThePipelineEnded() async throws {
+        let start = Date().addingTimeInterval(-30)
+        let running = PipelineJob(id: "1", name: "build", state: .running, startedAt: start, isCurrent: true)
+        fake.pipeline = PipelineDetail(
+            forge: .github, title: "CI", state: .running, startedAt: start, jobs: [running], granularity: .step)
+        let model = models.makePipelineModel(vmID: "kinhin-vm-1")
+        await model.load()
+        fake.pipeline = nil
+        await model.load()
+        let soon = Date().addingTimeInterval(5)
+        let later = Date().addingTimeInterval(500)
+        XCTAssertEqual(model.timing(of: running, now: soon), model.timing(of: running, now: later))
+    }
+
+    func testFinishedItemsKeepAgingAfterThePipelineEnded() async throws {
+        let start = Date().addingTimeInterval(-600)
+        let done = PipelineJob(
+            id: "1", name: "lint", state: .succeeded, startedAt: start, finishedAt: start.addingTimeInterval(30))
+        fake.pipeline = PipelineDetail(
+            forge: .github, title: "CI", state: .running, startedAt: start, jobs: [done], granularity: .step)
+        let model = models.makePipelineModel(vmID: "kinhin-vm-1")
+        await model.load()
+        fake.pipeline = nil
+        await model.load()
+        let later = Date().addingTimeInterval(3_600)
+        XCTAssertEqual(model.timing(of: done, now: later), "30s · finished 1h ago")
+    }
+
     // MARK: - Drilling into one job
 
     func testSelectingAJobShowsOnlyItsStepsAndBackReturns() async throws {

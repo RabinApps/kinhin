@@ -59,6 +59,92 @@ final class RuntimeRoutingTests: XCTestCase {
         XCTAssertTrue(model.pools[.appleContainer]?.labels.contains("kinhin-container") ?? false)
     }
 
+    // MARK: - Linux guest pools never carry the fleet's macos label
+
+    func testLinuxGuestPoolsDropTheFleetMacosLabel() {
+        for runtime in [RuntimeID.appleContainer, .docker] {
+            let labels = RuntimePool.labelsFor(runtime, fleetLabels: fleetLabels)
+            XCTAssertFalse(
+                labels.contains { $0.lowercased() == "macos" },
+                "\(runtime) guests run Linux — a macos job would not run there")
+            XCTAssertTrue(
+                labels.contains { $0.lowercased() == LinuxPlatform.arm64.runnerLabel },
+                "the architecture label stays")
+        }
+        XCTAssertTrue(
+            RuntimePool.labelsFor(.tart, fleetLabels: fleetLabels).contains { $0.lowercased() == "macos" },
+            "tart guests are macOS")
+        XCTAssertTrue(
+            RuntimePool.labelsFor(.host, fleetLabels: fleetLabels).contains { $0.lowercased() == "macos" },
+            "host jobs run on macOS")
+    }
+
+    func testFleetLabelsReplaceDropsTheInheritedFleetLabels() {
+        XCTAssertEqual(
+            RuntimePool.labelsFor(
+                .appleContainer, fleetLabels: fleetLabels, containerExtra: ["ce"],
+                inheritingFleetLabels: false),
+            ["ce", "kinhin-container"], "replace-not-add: the pool's own labels plus the marker")
+        XCTAssertEqual(
+            RuntimePool.labelsFor(.docker, fleetLabels: fleetLabels, inheritingFleetLabels: false),
+            ["arm64", "kinhin-docker"],
+            "replace-not-add keeps the platform's architecture label alongside the marker")
+        // Replace-not-add keeps the platform label as the pool's base label
+        // (like the arm64 case above); x64 arrives with the base, before the
+        // marker — not via the inherit-mode swap, which appends it last.
+        XCTAssertEqual(
+            RuntimePool.labelsFor(
+                .docker, fleetLabels: fleetLabels, dockerPlatform: .amd64, inheritingFleetLabels: false),
+            ["x64", "kinhin-docker"])
+    }
+
+    func testPoolLabelsForReflectsTheFleetLabelsOverride() {
+        func config(containerFleetLabels: Bool? = nil, dockerFleetLabels: Bool? = nil) -> KinhinConfig {
+            var cfg = makeTestConfig()
+            // The apple-container pool must be configured to exist; a nil
+            // fleetLabels is exactly the default (inherit) case under test.
+            cfg.container = .init(image: "kinhin-ci-linux", fleetLabels: containerFleetLabels)
+            if let dockerFleetLabels {
+                cfg.docker = .init(image: "kinhin-ci-linux", fleetLabels: dockerFleetLabels)
+            }
+            cfg.runtimes = KinhinConfig.RuntimeConfig(
+                defaultRuntime: .tart, budget: ["tart": 0.6, "appleContainer": 0.4], routes: [])
+            return cfg
+        }
+        let replaced = RuntimeConfigModel.poolLabels(for: .appleContainer, config: config(containerFleetLabels: false))
+        XCTAssertEqual(replaced, ["kinhin-container"])
+        let inherited = RuntimeConfigModel.poolLabels(for: .appleContainer, config: config())
+        XCTAssertNotNil(inherited)
+        XCTAssertFalse(
+            inherited!.contains { $0.lowercased() == "macos" },
+            "the apple-container pool strips macos even when it inherits")
+        XCTAssertTrue(inherited!.contains("kinhin-container"))
+        let dockerReplaced = RuntimeConfigModel.poolLabels(for: .docker, config: config(dockerFleetLabels: false))
+        XCTAssertEqual(dockerReplaced, ["arm64", "kinhin-docker"])
+    }
+
+    func testRouterSnapshotCarriesTheLabeledDefaultImage() {
+        var cfg = makeTestConfig()
+        cfg.imageLabels = ["linux-arm"]
+        let snapshot = Router.Snapshot.make(config: cfg, host: testHost)
+        XCTAssertTrue(
+            snapshot.images.contains { $0.name == cfg.image && $0.labels == ["linux-arm"] },
+            "the synthesized default entry advertises image_labels")
+        XCTAssertTrue(
+            snapshot.servedLabels.contains("linux-arm"),
+            "forges need the default image's labels in the served set")
+
+        var plainCfg = makeTestConfig()
+        plainCfg.baseImage = "ghcr.io/cirruslabs/ubuntu:latest"  // Linux default, no labels
+        let plain = Router.Snapshot.make(config: plainCfg, host: testHost)
+        XCTAssertTrue(plain.images.contains { $0.name == plainCfg.image }, "the Linux default gets its entry too")
+
+        let macOSCfg = makeTestConfig()
+        XCTAssertEqual(
+            Router.Snapshot.make(config: macOSCfg, host: testHost).images, macOSCfg.images,
+            "a plain macOS default stays out of the image table")
+    }
+
     func testMixedPoolsWhenRoutingConfigPresent() {
         let model = RuntimeConfigModel(config: mixedConfig(), fleetLabels: fleetLabels, containerConfigured: true)
         XCTAssertEqual(Set(model.pools.keys), [.tart, .appleContainer])

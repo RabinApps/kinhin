@@ -11,9 +11,9 @@ narrated launch videos built from files in your repo.
 [Beta 3](https://kinhin.dev/blog/beta-3)
 
 <!-- docs-sync:begin release-banner -->
-> **Beta (`v0.0.1-beta-3`).** Supported: GitHub, Gitea, Forgejo and GitLab CE. See
+> **Beta (`v0.0.1-beta-4`).** Supported: GitHub, Gitea, Forgejo and GitLab CE. See
 > [what has been tested](docs/forges.md#what-has-been-tested) and the [roadmap](docs/beta-roadmap.md), and
-> [report what you find](https://github.com/RabinApps/kinhin/issues/new/choose). No telemetry.
+> [report what you find](https://github.com/RabinApps/kinhin/issues/new/choose). Telemetry is off unless you turn it on.
 <!-- docs-sync:end release-banner -->
 
 **Sponsored by [SupDesk](https://supdesk.app)**, the feedback and support console for solo founders, devs and small teams.
@@ -66,7 +66,7 @@ Prefer a GUI? Launch **kinhin** from Applications. Full walkthrough: [Quick star
 | | |
 | --- | --- |
 | **Get started** | [Why kinhin](docs/why.md) · [Install](docs/install.md) · [Configuration](website/guide/config.md) · [The app](docs/app.md) |
-| **Run your fleet** | [Runtimes](docs/runtimes.md) · [Scaling](docs/scaling.md) · [Toolchains](docs/toolchains.md) · [Healing](docs/healing.md) · [Hardware](docs/hardware.md) |
+| **Run your fleet** | [Runtimes](docs/runtimes.md) · [Scaling](docs/scaling.md) · [Toolchains](docs/toolchains.md) · [Healing](docs/healing.md) · [Telemetry](docs/telemetry.md) · [Hardware](docs/hardware.md) |
 | **Mobile releases** | [fastlane](docs/mobile-fastlane.md) · [Store screenshots](docs/mobile-screenshots.md) · [Credentials](docs/mobile-credentials.md) |
 | **Product videos** | [Add videos to your project](docs/videos-for-your-project.md) · [Video config](docs/video-config.md) · [Gallery](docs/video-gallery.md) |
 | **Reference** | [CLI commands](https://kinhin.dev/cli/commands) · [Forges](docs/forges.md) · [Agents & MCP](docs/agents.md) · [Architecture](docs/architecture.md) |

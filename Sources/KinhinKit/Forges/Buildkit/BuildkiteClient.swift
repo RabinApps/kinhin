@@ -146,7 +146,10 @@ public struct BuildkiteClient: Sendable {
             build.jobs.filter { $0.type == "script" }.map { job in
                 BuildkiteJob(
                     id: job.id, name: job.name ?? job.id, state: job.state ?? "", agentQueryRules: job.agentQueryRules,
-                    pipeline: build.pipeline.slug, agentName: job.agent?.name, clusterID: job.clusterID)
+                    pipeline: build.pipeline.slug, agentName: job.agent?.name, clusterID: job.clusterID,
+                    buildNumber: build.number,
+                    enqueuedAt: PipelineParsing.date(job.runnableAt) ?? PipelineParsing.date(job.createdAt),
+                    startedAt: PipelineParsing.date(job.startedAt))
             }
         }
     }
@@ -157,6 +160,13 @@ public struct BuildkiteClient: Sendable {
             "\(organizationPath)/builds",
             ["scheduled", "running", "failing"].map { URLQueryItem(name: "state[]", value: $0) },
             what: "builds")
+    }
+
+    /// One build with its jobs, for telemetry's one read of a finished job.
+    func build(pipeline: String, number: Int) async throws -> BuildkiteBuild {
+        let path = "\(organizationPath)/pipelines/\(Self.encodePathSegment(pipeline))/builds/\(number)"
+        let (data, _) = try await send("GET", path)
+        return try decode(data, "build")
     }
 
     /// A job's log so far (needs the token's `read_build_logs` scope).

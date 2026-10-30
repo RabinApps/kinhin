@@ -29,8 +29,12 @@ public struct GHJob: Codable, Sendable, Equatable {
     let conclusion: String?
     let htmlURL: String?
     let startedAt: String?
+    let completedAt: String?
     let workflowName: String?
     let steps: [GHStep]?
+    /// When GitHub queued the job, and which attempt of the run it belongs to.
+    let createdAt: String?
+    let runAttempt: Int?
 
     enum CodingKeys: String, CodingKey {
         case id, name, status, labels, conclusion, steps
@@ -38,7 +42,18 @@ public struct GHJob: Codable, Sendable, Equatable {
         case runnerName = "runner_name"
         case htmlURL = "html_url"
         case startedAt = "started_at"
+        case completedAt = "completed_at"
         case workflowName = "workflow_name"
+        case createdAt = "created_at"
+        case runAttempt = "run_attempt"
+    }
+
+    /// The identifiers and provider timestamps of this job.
+    func correlation(repository: String?) -> JobCorrelation {
+        return JobCorrelation(
+            runID: String(runID), runAttempt: runAttempt, jobID: String(id), workflow: workflowName, jobName: name,
+            repository: repository, enqueuedAt: PipelineParsing.date(createdAt),
+            startedAt: PipelineParsing.date(startedAt), completedAt: PipelineParsing.date(completedAt))
     }
 }
 
@@ -64,11 +79,14 @@ public struct RunningJob: Sendable, Equatable {
     public let name: String
     let runnerName: String?
     public let repository: String?
+    /// Identifiers and provider timestamps, when the forge supplies them.
+    let correlation: JobCorrelation?
 
-    public init(name: String, runnerName: String?, repository: String?) {
+    public init(name: String, runnerName: String?, repository: String?, correlation: JobCorrelation? = nil) {
         self.name = name
         self.runnerName = runnerName
         self.repository = repository
+        self.correlation = correlation
     }
 }
 
@@ -87,11 +105,14 @@ public struct QueuedJob: Sendable, Equatable {
     public let isFork: Bool
     /// The run payload named both repositories, so `isFork` is a fact.
     public let forkKnown: Bool
+    /// Identifiers and provider timestamps (`created_at` is when GitHub queued the job).
+    let correlation: JobCorrelation?
 
     public init(
         runID: Int, jobID: Int, name: String, labels: [String], repository: String? = nil, ref: String? = nil,
-        sha: String? = nil, isFork: Bool = false, forkKnown: Bool = false
+        sha: String? = nil, isFork: Bool = false, forkKnown: Bool = false, correlation: JobCorrelation? = nil
     ) {
+        self.correlation = correlation
         self.runID = runID
         self.jobID = jobID
         self.name = name

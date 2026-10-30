@@ -77,8 +77,14 @@ extension ConfigLoader {
         # A Linux image here turns the whole tart fleet into Tart Linux VMs —
         # when you use named images with distinct labels, Linux-named images
         # strip the fleet's `macos` label automatically (you do not need to
-        # remove it from `labels:`).
+        # remove it from `labels:`); `image_labels:` (below) labels the
+        # default image itself.
         # base_image: "ghcr.io/cirruslabs/macos-sequoia-base:latest"
+
+        # Optional: runner labels for the top-level `image:` itself — the
+        # named-image `labels:` rule applied to the default image, e.g. for a
+        # Linux default base that should answer a `linux` label.
+        # image_labels: [linux]
 
         # Extra named images beside image:, each baked on its own base (for
         # example one with full Xcode). Build one with
@@ -158,6 +164,29 @@ extension ConfigLoader {
         #     fast_model: clef-flash # optional System 1 decision model, asked first
         #     keep_alive: 30m        # how long Ollama keeps the models loaded (0 = unload at once)
 
+        # Optional: observability. Metrics, traces and logs over OTLP, plus an
+        # optional local Prometheus /metrics endpoint. Off by default: nothing
+        # is exported and no port opens until enabled. Standard OTEL_* variables
+        # override these keys. Credentials never go in this file: use
+        # OTEL_EXPORTER_OTLP_HEADERS or a Keychain item (headers_keychain).
+        # See docs/telemetry.md.
+        # telemetry:
+        #   enabled: false
+        #   endpoint: http://localhost:4318   # collector base URL (grpc default port is 4317)
+        #   protocol: http/protobuf           # or grpc
+        #   export_interval_seconds: 60       # seconds between metric pushes
+        #   signals: [metrics, traces, logs]  # any subset
+        #   resource_attributes:              # extra attributes; service.* is kinhin's own
+        #     deployment.environment: home-lab
+        #   prometheus_listen: 127.0.0.1:9464 # local scrape endpoint (a bare port binds loopback)
+        #   log_format: text                  # json = one structured JSON object per log line
+        #   job_attributes: []                # [repository, workflow] adds those to the job counters and histograms (cardinality!)
+        #   sampling_ratio: 1                 # 0-1: share of job traces recorded (1 = all)
+        #   log_level: info                   # debug|info|warn|error: lowest severity sent over OTLP (the local log is separate)
+        #   headers_keychain: grafana-cloud   # Keychain item holding a collector token, sent as "Authorization: Bearer"
+        #   ca_file: /etc/ssl/collector-ca.pem # PEM CA that signs the collector's https certificate
+        #   persist: false                    # true = queue spans and logs on disk while the collector is down
+
         # Optional: serve more forges from the same fleet. Every accounts:
         # entry above is one forge; VMs are assigned to whichever forge has
         # the most pending work at spawn time. Manage accounts with
@@ -171,6 +200,8 @@ extension ConfigLoader {
         # labels (see docs/runtimes.md for the comparison). Each runtime's
         # runners carry distinct labels, so a workflow overrides its repo's
         # route per job via `runs-on:` (e.g. runs-on: [kinhin-container]).
+        # Linux-guest runtimes (container, docker) never carry the fleet's
+        # `macos` label — macOS jobs only land where it runs.
         # runtimes:
         #   default: tart                # runtime for repos with no route
         #   budget: {tart: 0.6, appleContainer: 0.4}   # host-budget split
@@ -193,6 +224,8 @@ extension ConfigLoader {
         #   base_image: "ubuntu:24.04"   # optional: what the image is built on (Debian/Ubuntu-based)
         #   cpus: 4
         #   memory_gb: 8
+        #   labels: [docker, small]      # extra pool labels (optional)
+        #   fleet_labels: false          # replace-not-add: drop the fleet labels entirely
 
         # Optional: run Linux jobs in Docker containers inside your Docker
         # provider's shared Linux VM (Docker Desktop, OrbStack, or colima).
@@ -206,6 +239,7 @@ extension ConfigLoader {
         #   memory_gb: 4
         #   max_slots: 8   # hard cap on concurrent runner containers
         #   platform: "linux/arm64"   # native; "linux/amd64" runs x86_64 under emulation (slower, some gaps)
+        #   fleet_labels: false   # pool labels = kinhin-docker (+x64) without the fleet labels
         """
     }
 }

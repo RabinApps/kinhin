@@ -18,7 +18,9 @@ the same rule before the fleet reaches it: `WARNING: disk pressure` (the guard i
 Not sure how big a Mac you need? See [Hardware requirements & sizing](hardware.md).
 
 When several runtimes are configured, this budget is partitioned across their pools by the
-`runtimes.budget` weights (see [Runtimes](runtimes.md#per-repo-and-per-workflow-routing)).
+`runtimes.budget` weights — for CPU cores and for RAM separately, so a light-on-cores yet fat-in-memory runtime is
+bounded by its RAM share too (see [Runtimes](runtimes.md#per-repo-and-per-workflow-routing)). The default pool gets
+whatever share the others leave.
 
 ## The scaling loop
 
@@ -30,7 +32,7 @@ Every `poll_interval` seconds the engine:
    and buckets the demand per pool.
 4. Computes the desired instance count **per pool**:
    `desired = clamp(ceil(pool_queue / runners_per_vm), min_runners, pool_cap)`, where `pool_cap`
-   is that runtime's slice of the host budget (`budget` weights) when multiple runtimes are
+   is that runtime's slice of the host budget (`budget` weights, applied to cores and RAM alike) when multiple runtimes are
    configured, or the full [capacity cap](#capacity) for a single-pool fleet.
 5. Spawns instances up to `desired` (linked clone → boot → SSH → register `runners_per_vm`
    runners → `run.sh`) — Tart VMs for macOS pools and for Tart Linux VMs, apple containers or

@@ -81,10 +81,10 @@ final class DockerPlatformTests: XCTestCase {
         let fleet = ["self-hosted", "macos", "arm64"]
         XCTAssertEqual(
             RuntimePool.labelsFor(.docker, fleetLabels: fleet, dockerPlatform: .amd64),
-            ["self-hosted", "macos", "x64", "kinhin-docker"])
+            ["self-hosted", "kinhin-docker", "x64"])
         XCTAssertEqual(
             RuntimePool.labelsFor(.docker, fleetLabels: fleet),
-            ["self-hosted", "macos", "arm64", "kinhin-docker"], "arm64 default is unchanged")
+            ["self-hosted", "arm64", "kinhin-docker"], "arm64 default is unchanged")
         XCTAssertEqual(
             RuntimePool.labelsFor(.tart, fleetLabels: fleet, dockerPlatform: .amd64), fleet,
             "only Docker pools are affected")

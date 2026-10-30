@@ -66,6 +66,9 @@ extension FleetController {
             // Off the main actor: loading reads and parses the file.
             let url = environment.configURL
             let cfg = try await Task.detached { try ConfigLoader.load(from: url) }.value
+            // This app owns the exporters, and a telemetry edit never restarts the engine, so apply it here too
+            // (unchanged settings leave the running exporters alone).
+            await environment.applyTelemetry(cfg.telemetry)
             if FleetEngine.restartRequired(from: engine.activeConfig, to: cfg) {
                 try await rebuildInProcessEngine(from: engine, config: cfg)
             } else {

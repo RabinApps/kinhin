@@ -27,7 +27,7 @@ folder that holds them. A video uses it with `adapter: <name>`.
 # .kinhin/videos/adapters/acme/adapter.yml
 name: acme
 description: Acme's own recordings.
-captions: { burn: ["9:16", "1:1"] }   # optional: settings for every video that uses this adapter
+captions: { burn: ["9:16", "1:1"] }   # optional (kinhin's own adapter sets burn: false and never burns captions): settings for every video that uses this adapter
 clips:
   app:  { kind: app }           # a screen recording of the product      -> reference/app.mp4
   demo: { kind: terminal }      # a terminal session                     -> reference/demo.mp4

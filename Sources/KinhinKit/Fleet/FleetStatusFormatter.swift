@@ -26,6 +26,15 @@ public enum FleetStatusFormatter {
         return repos.count == 1 ? repos[0] : "\(repos.count) repos"
     }
 
+    /// The jobs running on a VM, one per busy runner. A record from a daemon that predates `runningJobs` yields at
+    /// most one stamp, from its `job` and `repos`.
+    public static func runningJobs(of record: VMRecord) -> [RunningJobStamp] {
+        if let stamps = record.runningJobs, !stamps.isEmpty { return stamps }
+        guard let job = record.job else { return [] }
+        let repos = record.repos?.joined(separator: ", ")
+        return [RunningJobStamp(runner: record.id, job: job, repo: repos?.isEmpty == false ? repos : nil)]
+    }
+
     /// The freshness note for the queue numbers (nil when never polled, or
     /// from an older daemon that predates the field).
     public static func queueAge(_ status: FleetStatus) -> String? {
@@ -129,7 +138,12 @@ public enum FleetStatusFormatter {
                 if let platform = record.platform, platform != "github" { line += " [\(platform)]" }
                 if let ip = record.ip { line += "  ip=\(ip)" }
                 line += "  up=\(Int(now.timeIntervalSince(record.createdAt)))s"
-                if let job = record.job { line += "  job=\(job)" }
+                let stamps = runningJobs(of: record)
+                if stamps.count > 1 {
+                    line += "  jobs=\(stamps.map { "\($0.runner):\($0.job)" }.joined(separator: ","))"
+                } else if let job = stamps.first?.job {
+                    line += "  job=\(job)"
+                }
                 if let repos = record.repos, !repos.isEmpty { line += "  repos=\(repos.joined(separator: ","))" }
                 if let usage = usage(of: record) { line += "  \(usage)" }
                 if let err = record.error { line += "  error=\(err.prefix(120))" }

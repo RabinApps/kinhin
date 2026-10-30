@@ -141,6 +141,13 @@ final class UsageSampler: Sendable {
             Log.warn("usage", "tart process stats unavailable: \(error.localizedDescription)")
             return [:]
         }
+        // On-disk size per VM from `tart list` (whole GB). A failed list leaves disk unavailable, never zero.
+        var diskGB: [String: Int] = [:]
+        do {
+            for vm in try await tart.list() { if let size = vm.sizeGB { diskGB[vm.name] = size } }
+        } catch {
+            Log.warn("usage", "tart disk sizes unavailable: \(error.localizedDescription)")
+        }
         let limit = tartMemoryMB()
         let cores = Double(max(1, tartCPUCount()))
         // The host process maps all guest RAM, so ask the guest for its real use.
@@ -166,7 +173,8 @@ final class UsageSampler: Sendable {
                 let hostMB = guestMB[name] ?? sample.rssMB
                 let usedMB = limit > 0 ? min(hostMB, limit) : hostMB
                 out[name] = ResourceUsage(
-                    cpuPercent: cpu, memoryUsedMB: usedMB, memoryLimitMB: limit > 0 ? limit : nil)
+                    cpuPercent: cpu, memoryUsedMB: usedMB, memoryLimitMB: limit > 0 ? limit : nil,
+                    diskUsedGB: diskGB[name])
             }
             state.processCPU = state.processCPU.filter { samples[$0.key] != nil }
             return out

@@ -7,16 +7,22 @@ public struct TartVM: Sendable, Equatable {
     public let status: String  // "running" | "suspended" | "stopped" | ...
     public let cpu: Int?
     let memoryMB: Int?
+    /// The VM's virtual disk size (`Disk` in `tart list`).
     public let diskGB: Int?
+    /// What the VM occupies on the host's disk, in whole GB (`SizeOnDisk`, else `Size`, in `tart list`); nil when tart omits it.
+    public let sizeGB: Int?
 
-    public init(name: String, source: String, status: String, cpu: Int? = nil, memoryMB: Int? = nil, diskGB: Int? = nil)
-    {
+    public init(
+        name: String, source: String, status: String, cpu: Int? = nil, memoryMB: Int? = nil, diskGB: Int? = nil,
+        sizeGB: Int? = nil
+    ) {
         self.name = name
         self.source = source
         self.status = status
         self.cpu = cpu
         self.memoryMB = memoryMB
         self.diskGB = diskGB
+        self.sizeGB = sizeGB
     }
 }
 
@@ -41,6 +47,9 @@ public enum TartError: LocalizedError {
 public protocol TartControlling: Sendable {
     func list() async throws -> [TartVM]
     func clone(source: String, to name: String) async throws
+    /// Configure a cloned VM before its first boot. Tart's memory value is MB.
+    /// The default is a no-op for stand-ins that do not model VM resources.
+    func set(name: String, cpu: Int, memoryMB: Int) async throws
     /// Boots the VM, optionally sharing host directories into the guest
     /// (`--dir name:hostpath` specs; macOS guests auto-mount under "/Volumes/My Shared Files").
     func run(name: String, mounts: [String]) async throws
@@ -82,6 +91,8 @@ public protocol TartControlling: Sendable {
 }
 
 public extension TartControlling {
+    func set(name: String, cpu: Int, memoryMB: Int) async throws {}
+
     func run(name: String) async throws {
         try await run(name: name, mounts: [])
     }
@@ -196,9 +207,14 @@ public struct TartController: TartControlling {
             let Source: String
             let State: String
             let Disk: Int?
+            let Size: Int?
+            let SizeOnDisk: Int?  // newer tart: the allocated size; older tart reports it as `Size`
         }
         let entries = try JSONDecoder().decode([Entry].self, from: Data(text.utf8))
-        return entries.map { TartVM(name: $0.Name, source: $0.Source, status: $0.State, diskGB: $0.Disk) }
+        return entries.map {
+            TartVM(
+                name: $0.Name, source: $0.Source, status: $0.State, diskGB: $0.Disk, sizeGB: $0.SizeOnDisk ?? $0.Size)
+        }
     }
 
     /// Parse `tart list --quiet` output: lines of "name \t source \t status".
@@ -223,6 +239,13 @@ public struct TartController: TartControlling {
     public func clone(source: String, to name: String) async throws {
         let res = try await exec(["clone", source, name], timeout: 300)
         guard res.succeeded else { throw TartError.commandFailed(what: "clone \(source) \(name)", stderr: res.stderr) }
+    }
+
+    public func set(name: String, cpu: Int, memoryMB: Int) async throws {
+        let res = try await exec(["set", name, "--cpu", "\(cpu)", "--memory", "\(memoryMB)"])
+        guard res.succeeded else {
+            throw TartError.commandFailed(what: "set \(name)", stderr: res.stderr)
+        }
     }
 
     public func run(name: String, mounts: [String]) async throws {
@@ -297,6 +320,11 @@ public struct TartController: TartControlling {
         throw lastError
     }
 
+    static func vmIsGone(stderr: String) -> Bool {
+        let text = stderr.lowercased()
+        return text.contains("does not exist") || text.contains("not found") || text.contains("no such")
+    }
+
     static func isValidIPv4(_ s: String) -> Bool {
         let parts = s.split(separator: ".")
         guard parts.count == 4 else { return false }
@@ -316,7 +344,9 @@ public struct TartController: TartControlling {
 
     public func delete(name: String) async throws {
         let res = try await exec(["delete", name], timeout: 120)
-        guard res.succeeded else { throw TartError.commandFailed(what: "delete \(name)", stderr: res.stderr) }
+        guard res.succeeded || Self.vmIsGone(stderr: res.stderr) else {
+            throw TartError.commandFailed(what: "delete \(name)", stderr: res.stderr)
+        }
     }
 
     public func pull(image: String) async throws {

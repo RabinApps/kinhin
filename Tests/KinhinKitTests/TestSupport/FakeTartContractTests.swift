@@ -91,12 +91,12 @@ final class FakeTartContractTests: XCTestCase {
                 whenContainsAll: ["list", "--format"],
                 ShellResult(
                     exitCode: 0,
-                    stdout: #"[{"Name":"tahoe-1","Source":"base/image","State":"stopped","Disk":30}]"#,
+                    stdout: #"[{"Name":"tahoe-1","Source":"base/image","State":"stopped","Disk":50,"Size":30}]"#,
                     stderr: ""))
         ]
         let real = try makeReal(realShell)
         let fake = FakeTart()
-        fake.vms = ["tahoe-1": TartVM(name: "tahoe-1", source: "base/image", status: "stopped", diskGB: 30)]
+        fake.vms = ["tahoe-1": TartVM(name: "tahoe-1", source: "base/image", status: "stopped", diskGB: 50, sizeGB: 30)]
 
         let realRows = try await real.list()
         let fakeRows = try await fake.list()
@@ -104,7 +104,9 @@ final class FakeTartContractTests: XCTestCase {
         XCTAssertEqual(
             fakeRows, realRows,
             "tests read name/source/status off list(); the fake reports them exactly like the parsed tart output")
-        XCTAssertEqual(realRows.first?.diskGB, 30)
+        // Disk is the virtual capacity, SizeOnDisk/Size the allocated storage.
+        XCTAssertEqual(realRows.first?.diskGB, 50)
+        XCTAssertEqual(realRows.first?.sizeGB, 30)
     }
 
     func testCloneAndDeleteKeepTheListInSyncLikeTartDoes() async throws {

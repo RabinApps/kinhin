@@ -44,8 +44,21 @@ enum CommandCatalog {
                     name: "validate",
                     command: .configInit,
                     summary: "Check the config without starting anything",
+                    positionals: "[FILE]",
                     flags: [jsonFlag],
-                    details: ["Exits 3 when the config is invalid."]),
+                    details: [
+                        "With FILE, validates that config instead of this Mac's default file.",
+                        "Exits 3 when the config is invalid.",
+                    ]),
+                CommandSpec(
+                    name: "reload",
+                    command: .configInit,
+                    summary: "Make the running daemon re-read the config",
+                    details: [
+                        "Validates the file first (exit 3 when invalid, so a bad edit never reaches the daemon). "
+                            + "Telemetry and routing changes apply in place; other changes rebuild the engine without "
+                            + "touching running instances. Exits 1 when no daemon is running."
+                    ]),
                 CommandSpec(
                     name: "migrate",
                     command: .configInit,
@@ -484,6 +497,17 @@ enum CommandCatalog {
                     + "waits on you, 1 when something does or no daemon runs."
             ],
             docs: "docs/healing.md"),
+        CommandSpec(
+            name: "telemetry",
+            command: .telemetry,
+            group: .running,
+            summary: "OpenTelemetry export: what runs and what fails",
+            flags: [jsonFlag, quietFlag],
+            details: [
+                "Asks the daemon, which owns the exporters. Never prints header values or URL credentials. Exits 0 when "
+                    + "telemetry is off or healthy, 1 when exports are failing or the config enables telemetry but no daemon runs."
+            ],
+            docs: "docs/telemetry.md"),
         CommandSpec(
             name: "cleanup",
             command: .cleanup,

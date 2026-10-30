@@ -49,6 +49,7 @@ export default defineConfig({
     "{Sources,Tests,Plugins,scripts,dist,shots,assets,video}/**",
     "**/node_modules/**",
     "docs/plans/**",
+    "website/blog/beta-4.md", // launch day: remove this entry (docs/plans/beta-4-launch-checklist.md)
     "docs/{app,adding-a-forge}.md",
     "skills/**",
     "examples/**",
@@ -152,6 +153,7 @@ export default defineConfig({
           { text: "Toolchains & shared cache", link: "/guide/toolchains" },
           { text: "Requeue and skip queued jobs", link: "/guide/requeue-skip" },
           { text: "The healing agent", link: "/guide/healing" },
+          { text: "Telemetry (OpenTelemetry)", link: "/guide/telemetry" },
           { text: "Test workflows locally", link: "/guide/workflow-testing" },
           { text: "Benchmarks", link: "/guide/benchmarks" },
         ],

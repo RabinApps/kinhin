@@ -119,20 +119,33 @@ extension GitHubClient {
         return names
     }
 
-    /// All jobs of one workflow run. In org scope the run's scoped
-    /// repository supplies the repo-scoped jobs path.
+    /// All jobs of one workflow run, following pagination (a large matrix has more than one page). In org scope the
+    /// run's scoped repository supplies the repo-scoped jobs path.
     func fetchJobs(runID: Int, repository: String?) async throws -> [GHJob] {
         let jobsPath =
             repository.map { "/repos/\($0)/actions/runs/\(runID)/jobs" }
             ?? "\(credentials.actionsBase)/runs/\(runID)/jobs"
-        let req = try request(method: "GET", path: "\(jobsPath)?per_page=100")
-        let (data, _) = try await send(req)
-        do {
-            return try JSONDecoder().decode(JobsResponse.self, from: data).jobs
-        } catch {
-            throw GitHubError.decoding("jobs: \(error.localizedDescription)")
+        var jobs: [GHJob] = []
+        var seen = Set<Int>()
+        for page in 1...Self.maxJobPages {
+            let req = try request(method: "GET", path: "\(jobsPath)?per_page=\(Self.jobsPerPage)&page=\(page)")
+            let (data, _) = try await send(req)
+            let batch: [GHJob]
+            do {
+                batch = try JSONDecoder().decode(JobsResponse.self, from: data).jobs
+            } catch {
+                throw GitHubError.decoding("jobs: \(error.localizedDescription)")
+            }
+            // Pages shift while jobs change state: a job can show up on two of them.
+            jobs.append(contentsOf: batch.filter { seen.insert($0.id).inserted })
+            if batch.count < Self.jobsPerPage { break }
         }
+        return jobs
     }
+
+    static var jobsPerPage: Int { 100 }
+    /// Bounds a runaway run: 1,000 jobs is past GitHub's own matrix limit.
+    static var maxJobPages: Int { 10 }
 
     /// The run `runnerName`'s in-progress job belongs to, with all of the
     /// run's jobs and their steps. The jobs payload already carries
@@ -168,7 +181,8 @@ extension GitHubClient {
             return PipelineJob(
                 id: String(job.id), name: job.name,
                 state: PipelineParsing.state(status: job.status, conclusion: job.conclusion),
-                startedAt: PipelineParsing.date(job.startedAt), url: job.htmlURL, steps: steps,
+                startedAt: PipelineParsing.date(job.startedAt), finishedAt: PipelineParsing.date(job.completedAt),
+                url: job.htmlURL, steps: steps,
                 isCurrent: job.runnerName == runnerName, logRef: repository.map { "\($0)|\(job.id)" })
         }
         let first = jobs.first
@@ -177,6 +191,30 @@ extension GitHubClient {
             repository: run.attributedRepository, ref: run.ref, sha: run.sha, url: first?.htmlURL,
             state: PipelineDetail.aggregate(mapped.map(\.state)),
             startedAt: mapped.compactMap(\.startedAt).min(), jobs: mapped, granularity: .step)
+    }
+
+    /// One job as GitHub reports it now: the conclusion, its times and its steps. A single read.
+    public func jobOutcome(repository: String?, jobID: Int) async throws -> JobOutcome? {
+        guard let repository = repository ?? (credentials.isOrgScope ? nil : credentials.scope) else { return nil }
+        let segments = repository.split(separator: "/")
+        guard segments.count == 2, segments.allSatisfy(Self.isValidScopeSegment) else { return nil }
+        let req = try request(method: "GET", path: "/repos/\(repository)/actions/jobs/\(jobID)")
+        let (data, _) = try await send(req)
+        let job: GHJob
+        do {
+            job = try JSONDecoder().decode(GHJob.self, from: data)
+        } catch {
+            throw GitHubError.decoding("job: \(error.localizedDescription)")
+        }
+        guard job.status == "completed" else { return JobOutcome() }
+        let steps = (job.steps ?? []).sorted { ($0.number ?? 0) < ($1.number ?? 0) }.map {
+            PipelineStep(
+                name: $0.name, state: PipelineParsing.state(status: $0.status, conclusion: $0.conclusion),
+                startedAt: PipelineParsing.date($0.startedAt), finishedAt: PipelineParsing.date($0.completedAt))
+        }
+        return JobOutcome(
+            result: JobOutcome.result(gitHubConclusion: job.conclusion), startedAt: PipelineParsing.date(job.startedAt),
+            completedAt: PipelineParsing.date(job.completedAt), steps: steps)
     }
 
     /// One job's log so far. The endpoint answers with a redirect to a signed

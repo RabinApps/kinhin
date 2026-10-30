@@ -83,6 +83,8 @@ struct KinhinCLI {
         case .configInit:
             if invocation.subcommand == "validate" {
                 try ConfigCommands.runValidate(rest)
+            } else if invocation.subcommand == "reload" {
+                try ConfigCommands.reload()
             } else if invocation.subcommand == "migrate" {
                 try ConfigCommands.migrate(rest)
             } else if invocation.subcommand == "export" {
@@ -185,6 +187,9 @@ struct KinhinCLI {
 
         case .heal:
             try await HealCommand.run(args, subcommand: invocation.subcommand)
+
+        case .telemetry:
+            try await TelemetryCommand.run(args, subcommand: invocation.subcommand)
 
         case .support:
             print(SupportLinks.summary())

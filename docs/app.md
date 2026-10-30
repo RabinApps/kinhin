@@ -42,7 +42,7 @@ Everything kinhin does happens in a single main window. A segmented control swit
 | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Fleet**    | The **Runtimes** diagram: a lane per execution runtime — 🍎 Tart VMs, 🐧 Apple containers, 🐳 Docker, 🖥 Host — holding one icon-led row per live instance — the phase-colored icon, that instance's VM-row detail, and its **Pipeline…**/**Delete** actions (a busy row opens its pipeline) — or the word *idle* when the runtime has nothing running; then live status, Start/Stop/Pause, Current jobs, Queued work, and buttons for Logs and Diagnostics. If the background daemon stops answering, the status line says "Fleet not responding" (with the reason) rather than sending you back to Setup.                                                         |
 | **Setup**    | Connect your forges (a grid of GitHub, GitLab, Gitea and Forgejo — select every one to serve; the planned forges carry an **untested** badge), pick each account's repo, org, project or group (its `scope` in `accounts:`), get this Mac ready. Toolchains are per repo (see Advanced → Toolchains). First run is a three-step wizard.                                                  |
-| **Advanced** | **Accounts** (forges), **Capacity** (this Mac's macOS and Linux runtimes, the reserve, the budget split between runtimes, VM counts and sizes, with Apply), **Routing** (pools, routes, the default pool, labels), **Containers** (containers and volumes), **Toolchains** (read-only: **Repos** with each project's source and derived images, **Available toolchains**, **Examples**), **App** (launch options, updates, config file).                           |
+| **Advanced** | **Accounts** (forges), **Capacity** (this Mac's macOS and Linux runtimes, the reserve, the budget split between runtimes, VM counts and sizes, with Apply), **Routing** (pools, routes, the default pool, labels), **Containers** (containers and volumes), **Toolchains** (read-only: **Repos** with each project's source and derived images, **Available toolchains**, **Examples**), **App** (launch options, updates, **Telemetry**, config file).                           |
 
 ### This Mac: macOS and Linux jobs
 
@@ -57,7 +57,8 @@ virtual machines. **Linux jobs** lists, in order, **Tart (Linux VM)**, **Apple c
   the macOS default. A tart fleet can serve macOS and Linux VMs at the same time when you use named images with
   distinct labels — each VM clones from its own image and advertises only that image's labels. A Linux-named image's
   runners strip the fleet's `macos` label automatically, so they do not attract macOS jobs; you do not need to remove
-  `macos` from your fleet `labels:`. See [Tart Linux VMs](runtimes.md#tart-linux-vms).
+  `macos` from your fleet `labels:` — the same applies to a Linux default image, and top-level `image_labels:`
+  labels the default image itself. See [Tart Linux VMs](runtimes.md#tart-linux-vms).
 - **Apple container** and **Docker** each have their own base-image picker (Docker also picks an architecture).
 
 Additional accounts (another org, a second server) are not part of first-run setup; add them under
@@ -144,7 +145,16 @@ the same journal as `kinhin heal`.
 ## Quitting
 
 With the in-process engine, quitting kinhin waits (up to 30 seconds) for the engine to stop and tear its VMs down
-before the app exits. When a background daemon runs the fleet, quitting the app leaves it running.
+before the app exits, then flushes pending telemetry (at most 5 more seconds, and only when telemetry is on). When a background
+daemon runs the fleet, quitting the app leaves it running, and the daemon keeps exporting.
+
+## Telemetry
+
+**Advanced → App → Telemetry** is the app's view of [OpenTelemetry export](telemetry.md). It shows whether telemetry is on, the
+signals, where each one goes, the Prometheus address and the last export problem, never a header value or credential. The data
+comes from whoever runs the exporters: this app when it runs the engine itself, the daemon when one runs the fleet (the app then
+starts no exporters). The **Send telemetry** switch and the **Prometheus address** field edit the `telemetry:` section of
+`config.yaml` and apply at once, without restarting the fleet; the collector address and signals stay in the file.
 
 ## Launch mode and login item
 
@@ -207,7 +217,9 @@ you can ask about the fleet without opening a window:
 | "Run kinhin diagnostics"                  | One-line result of the `kinhin doctor` checks                    |
 
 They also appear as actions in Shortcuts, so you can automate them (for example, pause the fleet when a call
-starts). Start, stop, pause and resume are idempotent and work with both the in-process engine and the background daemon.
+starts). Start, stop, pause and resume are idempotent and work with both the in-process engine and the background daemon —
+unlike the CLI's `kinhin stop`/`kinhin pause`/`kinhin resume`, which reach the daemon install only. So when the app runs
+the fleet in-process, stop or pause the fleet from the app or a Shortcuts action: the CLI answers `no daemon running`.
 
 ## Playbook: clear a stalled VM from Shortcuts
 
@@ -224,7 +236,8 @@ it should ask first.
 
 The menu bar app runs the engine in-process when no daemon is active, and attaches read/write to
 the daemon's unix socket when `kinhin daemon install` has been used. Either way there is exactly
-one fleet.
+one fleet, but the CLI's [control commands](agents.md#safety-rules-for-agents) (`kinhin stop`, `kinhin pause`,
+`kinhin resume`) drive only the daemon — an in-process engine is stopped from the menu bar itself.
 
 ## Troubleshooting: app keeps restarting
 

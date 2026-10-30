@@ -1,6 +1,6 @@
 # Support & sponsors
 
-kinhin is free, Apache-2.0, and built by one developer, with no ads and no telemetry. Donations and sponsors pay for CI,
+kinhin is free, Apache-2.0, and built by one developer, with no ads and no telemetry unless you opt in and point it at your own OpenTelemetry server ([Telemetry](telemetry.md)). Donations and sponsors pay for CI,
 code signing, test hardware and development time.
 
 [← Back to README](../README.md)

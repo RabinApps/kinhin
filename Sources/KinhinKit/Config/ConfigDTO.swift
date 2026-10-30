@@ -27,6 +27,7 @@ public struct PartialConfig: Decodable {
     /// local VM name); nil = the default macOS base.
     var baseImage: String?
     var images: [PartialImage]?
+    var imageLabels: [String]?
     var vmBootTimeout: Int?
     var diskGB: Int?
     var tartPath: String?
@@ -43,6 +44,7 @@ public struct PartialConfig: Decodable {
     var projects: [PartialProject]?
     var accounts: [PartialAccount]?
     var healing: PartialHealing?
+    var telemetry: PartialTelemetry?
 
     struct PartialAccount: Decodable {
         var name: String?
@@ -86,6 +88,7 @@ public struct PartialConfig: Decodable {
         var memoryGB: Int?
         var labels: [String]?
         var baseImage: String?
+        var fleetLabels: Bool?
         /// Only present so `container.platform` can be rejected with a clear message.
         var platform: String?
 
@@ -95,6 +98,7 @@ public struct PartialConfig: Decodable {
             case memoryGB = "memory_gb"
             case labels
             case baseImage = "base_image"
+            case fleetLabels = "fleet_labels"
             case platform
         }
     }
@@ -106,6 +110,7 @@ public struct PartialConfig: Decodable {
         var maxSlots: Int?
         var baseImage: String?
         var platform: String?
+        var fleetLabels: Bool?
 
         enum CodingKeys: String, CodingKey, CaseIterable {
             case image
@@ -114,6 +119,7 @@ public struct PartialConfig: Decodable {
             case maxSlots = "max_slots"
             case baseImage = "base_image"
             case platform
+            case fleetLabels = "fleet_labels"
         }
     }
 
@@ -190,6 +196,39 @@ public struct PartialConfig: Decodable {
         }
     }
 
+    struct PartialTelemetry: Decodable {
+        var enabled: Bool?
+        var endpoint: String?
+        var otlpProtocol: String?
+        var exportInterval: Int?
+        var exportIntervalAlias: Int?
+        var jobAttributes: [String]?
+        var signals: [String]?
+        var resourceAttributes: [String: String]?
+        var prometheusListen: String?
+        var logFormat: String?
+        var samplingRatio: Double?
+        var logLevel: String?
+        var headersKeychain: String?
+        var caFile: String?
+        var persist: Bool?
+
+        enum CodingKeys: String, CodingKey, CaseIterable {
+            case enabled, endpoint, signals, persist
+            case otlpProtocol = "protocol"
+            case exportInterval = "export_interval_seconds"
+            case exportIntervalAlias = "export_interval"
+            case jobAttributes = "job_attributes"
+            case resourceAttributes = "resource_attributes"
+            case prometheusListen = "prometheus_listen"
+            case logFormat = "log_format"
+            case samplingRatio = "sampling_ratio"
+            case logLevel = "log_level"
+            case headersKeychain = "headers_keychain"
+            case caFile = "ca_file"
+        }
+    }
+
     struct PartialReserve: Decodable {
         var cpu: Int?
         var memoryGB: Int?
@@ -253,6 +292,7 @@ public struct PartialConfig: Decodable {
         case vm
         case image
         case images
+        case imageLabels = "image_labels"
         case baseImage = "base_image"
         case vmBootTimeout = "vm_boot_timeout"
         case diskGB = "disk_gb"
@@ -271,6 +311,7 @@ public struct PartialConfig: Decodable {
         case projects
         case accounts
         case healing
+        case telemetry
     }
 
     /// forgejo is a stored property (decoded for the removed-key rejection);

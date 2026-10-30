@@ -11,7 +11,7 @@ const heading = computed(() =>
   <div class="home-banners vp-doc">
     <div class="warning custom-block">
 <!-- docs-sync:begin release-title -->
-      <p class="custom-block-title">Beta (v0.0.1-beta-3)</p>
+      <p class="custom-block-title">Beta (v0.0.1-beta-4)</p>
 <!-- docs-sync:end release-title -->
       <p>
         Supports <strong>GitHub, Gitea, Forgejo and GitLab CE</strong>. See

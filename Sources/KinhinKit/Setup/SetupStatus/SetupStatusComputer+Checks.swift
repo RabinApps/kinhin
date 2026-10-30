@@ -138,10 +138,14 @@ extension SetupStatusComputer {
             return ("local", true, nil)
         }
         // Not curated and not a local VM: prepare would fail mid-clone after
-        // (possibly) a long pull. The fix rewrites the key in config.yaml.
+        // (possibly) a long pull. The fix rewrites the key in config.yaml —
+        // and says what is acceptable, including the digest-pinned escape hatch
+        // for a Cirrus macOS image that is not in the picker.
         return (
             "unknown", false,
-            "not a pre-configured image and no local VM named '\(reference)' — set base_image to a pre-configured image, or a VM you created"
+            "not a pre-configured image and no local VM named '\(reference)' — set base_image to "
+                + "a pre-configured image (ghcr.io/cirruslabs/macos-…, ubuntu:…), a VM you created, "
+                + "or a digest-pinned ghcr.io/cirruslabs/macos-* reference (`kinhin image digest <reference>` prints the pin)"
         )
     }
     /// The reproducibility note for the configured reference, or nil when it

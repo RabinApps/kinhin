@@ -167,6 +167,9 @@ extension Daemon {
                     try await engine.dismissHealing(id: id)
                 }
                 return RPCResponse(id: request.id, ok: true)
+            case .telemetryStatus:
+                return RPCResponse(
+                    id: request.id, ok: true, payload: try encoder.encode(await TelemetryService.shared.status()))
             case .logs:
                 let entries = Log.snapshot(limit: 300)
                 return RPCResponse(id: request.id, ok: true, payload: try encoder.encode(entries))
@@ -193,6 +196,8 @@ extension Daemon {
         }
         do {
             let cfg = try ConfigLoader.load(from: configURL)
+            // Telemetry settings apply in place (no engine rebuild): unchanged settings leave the exporters alone.
+            await TelemetryService.shared.apply(cfg.telemetry)
             if FleetEngine.restartRequired(from: engine.activeConfig, to: cfg) {
                 let replacement = try (engineFactory ?? Self.buildEngine)(cfg)
                 switch await engine.handOver(to: replacement) {

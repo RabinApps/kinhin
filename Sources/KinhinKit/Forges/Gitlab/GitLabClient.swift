@@ -18,6 +18,9 @@ public struct GitLabClient: Sendable {
     let transport: ForgeTransport
     /// Projects polled per read of a group's jobs.
     let maxProjectsPerPoll = 50
+    static let jobsPerPage = 100
+    /// Bounds one project's walk: 500 jobs in a single state is far past any fleet's demand.
+    static let maxJobPages = 5
     /// Concurrent per-project job reads.
     let maxConcurrentReads = 8
     /// How long a group's project list is reused.
@@ -195,6 +198,8 @@ public struct GitLabClient: Sendable {
             let ref: String?
             let commit: Commit?
             let pipeline: Pipeline?
+            let created_at: String?
+            let started_at: String?
             struct Pipeline: Decodable {
                 let id: Int?
                 let source: String?
@@ -203,17 +208,30 @@ public struct GitLabClient: Sendable {
             struct Runner: Decodable { let description: String? }
             struct Commit: Decodable { let id: String? }
         }
-        let (data, _) = try await send(
-            "GET", "/projects/\(project.id)/jobs",
-            [URLQueryItem(name: "scope[]", value: status.rawValue), URLQueryItem(name: "per_page", value: "100")])
-        let jobs: [Job] = try decode(data, "jobs")
+        // A project with more than a page of jobs in one state (a busy shared project) keeps the rest on later pages.
+        var jobs: [Job] = []
+        var seen = Set<Int>()
+        for page in 1...Self.maxJobPages {
+            let (data, _) = try await send(
+                "GET", "/projects/\(project.id)/jobs",
+                [
+                    URLQueryItem(name: "scope[]", value: status.rawValue),
+                    URLQueryItem(name: "per_page", value: "\(Self.jobsPerPage)"),
+                    URLQueryItem(name: "page", value: "\(page)"),
+                ])
+            let batch: [Job] = try decode(data, "jobs")
+            // Pages shift while jobs change state: a job can show up on two of them.
+            jobs.append(contentsOf: batch.filter { seen.insert($0.id).inserted })
+            if batch.count < Self.jobsPerPage { break }
+        }
         return jobs.map {
             GitLabJob(
                 id: $0.id, name: $0.name, tags: $0.tag_list ?? [], project: project.path,
                 runnerDescription: $0.runner?.description, ref: $0.ref, sha: $0.commit?.id, projectID: project.id,
                 pipelineID: $0.pipeline?.id,
                 fromMergeRequest: $0.pipeline?.source == "merge_request_event"
-                    || ($0.ref ?? $0.pipeline?.ref ?? "").hasPrefix("refs/merge-requests/"))
+                    || ($0.ref ?? $0.pipeline?.ref ?? "").hasPrefix("refs/merge-requests/"),
+                createdAt: PipelineParsing.date($0.created_at), startedAt: PipelineParsing.date($0.started_at))
         }
     }
 
@@ -228,6 +246,12 @@ public struct GitLabClient: Sendable {
             [URLQueryItem(name: "per_page", value: "100")])
         let jobs: [GitLabPipelineJob] = try decode(jobsData, "pipeline jobs")
         return (info, jobs.sorted { $0.id < $1.id })
+    }
+
+    /// One job's state and times (`project` is the `path_with_namespace`). A single read, for telemetry.
+    func jobDetail(project: String, jobID: Int) async throws -> GitLabJobDetail {
+        let (data, _) = try await send("GET", "/projects/\(Self.encodePathSegment(project))/jobs/\(jobID)")
+        return try decode(data, "job")
     }
 
     /// A job's trace (its log so far; live while the job runs).
