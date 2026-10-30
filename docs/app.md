@@ -42,7 +42,7 @@ Everything kinhin does happens in a single main window. A segmented control swit
 | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Fleet**    | The **Runtimes** diagram: a lane per execution runtime — 🍎 Tart VMs, 🐧 Apple containers, 🐳 Docker, 🖥 Host — holding one icon-led row per live instance — the phase-colored icon, that instance's VM-row detail, and its **Pipeline…**/**Delete** actions (a busy row opens its pipeline) — or the word *idle* when the runtime has nothing running; then live status, Start/Stop/Pause, Current jobs, Queued work, and buttons for Logs and Diagnostics. If the background daemon stops answering, the status line says "Fleet not responding" (with the reason) rather than sending you back to Setup.                                                         |
 | **Setup**    | Connect your forges (a grid of GitHub, GitLab, Gitea and Forgejo — select every one to serve; the planned forges carry an **untested** badge), pick each account's repo, org, project or group (its `scope` in `accounts:`), get this Mac ready. Toolchains are per repo (see Advanced → Toolchains). First run is a three-step wizard.                                                  |
-| **Advanced** | **Accounts** (forges), **Capacity** (this Mac's macOS and Linux runtimes, the reserve, the budget split between runtimes, VM counts and sizes, with Apply), **Routing** (pools, routes, the default pool, labels), **Containers** (containers and volumes), **Toolchains** (read-only: **Repos** with each project's source and derived images, **Available toolchains**, **Examples**), **App** (launch options, updates, config file).                           |
+| **Advanced** | **Accounts** (forges), **Capacity** (this Mac's macOS and Linux runtimes, the reserve, the budget split between runtimes, VM counts and sizes, with Apply), **Routing** (pools, routes, the default pool, labels), **Containers** (containers and volumes), **Toolchains** (read-only: **Repos** with each project's source and derived images, **Available toolchains**, **Examples**), **App** (launch options, updates, **Telemetry**, config file).                           |
 
 ### This Mac: macOS and Linux jobs
 
@@ -144,7 +144,16 @@ the same journal as `kinhin heal`.
 ## Quitting
 
 With the in-process engine, quitting kinhin waits (up to 30 seconds) for the engine to stop and tear its VMs down
-before the app exits. When a background daemon runs the fleet, quitting the app leaves it running.
+before the app exits, then flushes pending telemetry (at most 5 more seconds, and only when telemetry is on). When a background
+daemon runs the fleet, quitting the app leaves it running, and the daemon keeps exporting.
+
+## Telemetry
+
+**Advanced → App → Telemetry** is the app's view of [OpenTelemetry export](telemetry.md). It shows whether telemetry is on, the
+signals, where each one goes, the Prometheus address and the last export problem, never a header value or credential. The data
+comes from whoever runs the exporters: this app when it runs the engine itself, the daemon when one runs the fleet (the app then
+starts no exporters). The **Send telemetry** switch and the **Prometheus address** field edit the `telemetry:` section of
+`config.yaml` and apply at once, without restarting the fleet; the collector address and signals stay in the file.
 
 ## Launch mode and login item
 
