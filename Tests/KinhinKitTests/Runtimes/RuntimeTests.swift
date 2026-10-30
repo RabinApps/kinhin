@@ -12,7 +12,8 @@ final class RuntimeTests: XCTestCase {
 
     func testProvisionClonesAndBoots() async throws {
         let tart = FakeTart()
-        let runtime = TartRuntime(tart: tart, bootTimeout: { 300 })
+        let runtime = TartRuntime(
+            tart: tart, bootTimeout: { 300 }, cpuCount: { 6 }, memoryMB: { 12 * 1024 })
         let route = RepoRoute(repo: "acme/widgets", image: "tahoe-base", ephemeral: true, bootTimeout: 300)
 
         try await runtime.provision(id: "kinhin-1", route: route)
@@ -20,7 +21,27 @@ final class RuntimeTests: XCTestCase {
         XCTAssertEqual(tart.cloneCalls.count, 1)
         XCTAssertEqual(tart.cloneCalls.first?.source, "tahoe-base")
         XCTAssertEqual(tart.cloneCalls.first?.name, "kinhin-1")
+        XCTAssertEqual(tart.setCalls.count, 1)
+        XCTAssertEqual(tart.setCalls.first?.name, "kinhin-1")
+        XCTAssertEqual(tart.setCalls.first?.cpu, 6)
+        XCTAssertEqual(tart.setCalls.first?.memoryMB, 12 * 1024)
+        XCTAssertEqual(tart.provisionEvents, ["clone:kinhin-1", "set:kinhin-1", "run:kinhin-1"])
         XCTAssertEqual(tart.runCalls, ["kinhin-1"])
+    }
+
+    func testProvisionDoesNotRunWhenSettingResourcesFails() async throws {
+        let tart = FakeTart()
+        tart.failNext("set", stderr: "resource update failed")
+        let runtime = TartRuntime(tart: tart, bootTimeout: { 300 }, cpuCount: { 6 }, memoryMB: { 12 * 1024 })
+        let route = RepoRoute(repo: "acme/widgets", image: "tahoe-base", ephemeral: true, bootTimeout: 300)
+
+        do {
+            try await runtime.provision(id: "kinhin-1", route: route)
+            XCTFail("failed resource configuration must abort provisioning")
+        } catch let error as TartError {
+            XCTAssertEqual(error.localizedDescription, "tart set failed: resource update failed")
+        }
+        XCTAssertTrue(tart.runCalls.isEmpty)
     }
 
     func testProvisionReusesExistingVMWithoutClone() async throws {

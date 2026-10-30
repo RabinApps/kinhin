@@ -191,6 +191,8 @@ struct TartRuntime: Runtime {
     let healthShell: ShellRunning
     let ssh: SSHExecuting
     let bootTimeout: @Sendable () -> Int
+    let cpuCount: @Sendable () -> Int
+    let memoryMB: @Sendable () -> Int
     /// How long registration keeps retrying while the guest's sshd is still
     /// coming up, and the pause between attempts. `tart ip` answers as soon
     /// as the VM has a lease — often 20+ seconds before SSH listens (seen
@@ -217,7 +219,9 @@ struct TartRuntime: Runtime {
     init(
         tart: TartControlling, bootTimeout: @escaping @Sendable () -> Int, tartPath: String? = nil,
         healthShell: ShellRunning = Shell(),
-        ssh: SSHExecuting = SSHExecutor(), sshReadyWindow: TimeInterval = 120,
+        ssh: SSHExecuting = SSHExecutor(), cpuCount: @escaping @Sendable () -> Int = { KinhinConfig.VM.default.cpuCount },
+        memoryMB: @escaping @Sendable () -> Int = { KinhinConfig.VM.default.memoryGB * 1024 },
+        sshReadyWindow: TimeInterval = 120,
         sshRetryInterval: Duration = .seconds(1), sshProbeInterval: Duration = .milliseconds(500),
         sshProbeGrace: TimeInterval = TartRuntime.defaultSSHProbeGrace,
         hostKeyWindow: TimeInterval = 30, hostKeyInterval: Duration = .seconds(2)
@@ -227,6 +231,8 @@ struct TartRuntime: Runtime {
         self.tartPath = tartPath
         self.healthShell = healthShell
         self.ssh = ssh
+        self.cpuCount = cpuCount
+        self.memoryMB = memoryMB
         self.sshReadyWindow = sshReadyWindow
         self.sshRetryInterval = sshRetryInterval
         self.sshProbeInterval = sshProbeInterval
@@ -261,6 +267,7 @@ struct TartRuntime: Runtime {
         }
         Log.info(id, "cloning from \(route.image)")
         try await tart.clone(source: route.image, to: id)
+        try await tart.set(name: id, cpu: cpuCount(), memoryMB: memoryMB())
         let mounts = route.cacheMount ? [ToolchainCacheMount.tartDirectorySpec(scope: route.cacheScope)] : []
         try await tart.run(name: id, mounts: mounts)
     }
