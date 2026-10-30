@@ -74,6 +74,26 @@ extension FleetEngine {
         }
     }
 
+    /// The observer a project-image builder reports finished bakes through: a duration sample and a
+    /// success or failure count, labelled by the derived image only.
+    static func bakeRecorder(_ telemetry: Telemetry) -> ProjectImageBuilder.BakeObserver? {
+        guard telemetry.isEnabled else { return nil }
+        return { image, seconds, succeeded in
+            let attributes = [Metric.Attr.image: image, Metric.Attr.outcome: succeeded ? "success" : "failure"]
+            telemetry.record(.imageBakeDuration, seconds: seconds, attributes)
+            telemetry.add(.imageBakes, 1, attributes)
+        }
+    }
+
+    /// One real cache sweep: counts it and remembers the size it measured for the gauge.
+    func noteCacheSweep(report: ToolchainPruneReport?, totalBytes: Int64?) {
+        // A cache that is not there (or could not be walked) has no size: absent, not zero.
+        toolchainCacheBytes.withLock { $0 = totalBytes }
+        // A sweep that skipped (no cache directory) did not run, so it is not counted.
+        guard let report, !report.dryRun, report.remainingBytes != nil else { return }
+        telemetry.add(.cachePrunes, 1, [Metric.Attr.outcome: report.failedCount > 0 ? "failure" : "success"])
+    }
+
     func countError(_ type: TelemetryErrorType, component: TelemetryErrorType.Component) {
         telemetry.add(
             .errors, 1, [Metric.Attr.errorType: type.rawValue, Metric.Attr.component: component.rawValue])
@@ -248,12 +268,14 @@ extension FleetEngine {
         var cpu: [Pool: [Double]] = [:]
         var memory: [Pool: Int] = [:]
         var limitMB: [Pool: Int] = [:]
+        var diskGB: [Pool: Int] = [:]
         for record in records {
             guard let sample = usage.byInstance[record.id] else { continue }
             let pool = Pool(pool: record.runtime ?? RuntimeID.tart.rawValue, image: record.image ?? "default")
             if let value = sample.cpuPercent { cpu[pool, default: []].append(value / 100) }
             if let value = sample.memoryUsedMB { memory[pool, default: 0] += value }
             if let value = sample.memoryLimitMB { limitMB[pool, default: 0] += value }
+            if let value = sample.diskUsedGB { diskGB[pool, default: 0] += value }
         }
         func attributes(_ pool: Pool) -> MetricAttributes {
             [Metric.Attr.pool: pool.pool, Metric.Attr.image: pool.image]
@@ -262,6 +284,11 @@ extension FleetEngine {
             .runnerCPU, cpu.map { series($0.value.reduce(0, +) / Double($0.value.count), attributes($0.key)) })
         telemetry.publish(.runnerMemoryUsage, memory.map { series(Double($0.value) * 1_048_576, attributes($0.key)) })
         telemetry.publish(.runnerMemoryLimit, limitMB.map { series(Double($0.value) * 1_048_576, attributes($0.key)) })
+        // Disk the runners occupy on the host (tart reports whole GB, decimal), summed per pool and image.
+        telemetry.publish(.runnerDiskUsage, diskGB.map { series(Double($0.value) * 1_000_000_000, attributes($0.key)) })
+        telemetry.publish(
+            .cacheSize,
+            toolchainCacheBytes.withLock { $0 }.map { [series(Double($0), [Metric.Attr.cache: "toolchain"])] } ?? [])
 
         publishServiceHealth()
 

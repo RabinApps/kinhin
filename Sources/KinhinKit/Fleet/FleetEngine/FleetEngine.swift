@@ -88,6 +88,8 @@ public final class FleetEngine: Sendable {
     let lastReconcileSuccess = Mutex<Date?>(nil)
     /// Whether disk pressure held spawns in the latest pass.
     let diskHold = Mutex(false)
+    /// The toolchain cache's size at the last sweep (the only time it is walked); nil until one measured it.
+    let toolchainCacheBytes = Mutex<Int64?>(nil)
 
     // MARK: - Mutable state
 
@@ -215,7 +217,8 @@ public final class FleetEngine: Sendable {
         let projectStore = dependencies.projectImageStore ?? ProjectImageStore()
         self.projectStore = projectStore
         self.projectImages = ProjectImageBuilder(
-            tart: tart, store: projectStore, baseImage: config.image, ssh: ssh, bake: dependencies.projectBake)
+            tart: tart, store: projectStore, baseImage: config.image, ssh: ssh, bake: dependencies.projectBake,
+            onBake: Self.bakeRecorder(dependencies.telemetry))
         // The primary runtime's cap; its disk estimate also feeds the
         // pre-spawn disk guard and `kinhin doctor`.
         self.capacity = Capacity.plan(for: config, host: host)

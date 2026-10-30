@@ -14,6 +14,9 @@ actor ProjectImageBuilder {
     }
 
     typealias Bake = @Sendable (ImagePreparer.Options) async throws -> Void
+    /// Told once per finished bake: the image name, how long it took, and whether it succeeded. Not called
+    /// for a bake cancelled by shutdown, which is neither.
+    typealias BakeObserver = @Sendable (_ image: String, _ seconds: Double, _ succeeded: Bool) -> Void
 
     /// How long a failed bake is left alone before the next attempt.
     static let retryAfter: TimeInterval = 600
@@ -25,6 +28,7 @@ actor ProjectImageBuilder {
     /// The global image every derived image is cloned from.
     private let baseImage: String
     private let bake: Bake
+    private let onBake: BakeObserver?
     private let now: @Sendable () -> Date
 
     private var building: Set<String> = []
@@ -37,8 +41,9 @@ actor ProjectImageBuilder {
 
     init(
         tart: TartControlling, store: ProjectImageStore, baseImage: String, ssh: SSHExecuting = SSHExecutor(),
-        bake: Bake? = nil, now: @escaping @Sendable () -> Date = { Date() }
+        bake: Bake? = nil, onBake: BakeObserver? = nil, now: @escaping @Sendable () -> Date = { Date() }
     ) {
+        self.onBake = onBake
         self.tart = tart
         self.store = store
         self.baseImage = baseImage
@@ -96,6 +101,7 @@ actor ProjectImageBuilder {
         building.insert(name)
         let previous = tail
         let bake = self.bake
+        let onBake = self.onBake
         let base = baseImage
         tail = Task { [weak self] in
             await previous?.value
@@ -103,11 +109,15 @@ actor ProjectImageBuilder {
                 source: base, target: name, toolchains: toolchains, shareCache: shareCache,
                 cacheScope: shareCache ? key : nil)
             options.provisionScriptPath = nil
+            let started = ContinuousClock.now
+            func elapsed() -> Double { (ContinuousClock.now - started) / .seconds(1) }
             do {
                 Log.info("images", "baking project image \(name) from \(base)")
                 try await bake(options)
+                onBake?(name, elapsed(), true)
                 await self?.finished(name: name, key: key, toolchains: toolchains, shareCache: shareCache, error: nil)
             } catch {
+                if !(error is CancellationError) { onBake?(name, elapsed(), false) }
                 await self?.finished(name: name, key: key, toolchains: toolchains, shareCache: shareCache, error: error)
             }
         }
