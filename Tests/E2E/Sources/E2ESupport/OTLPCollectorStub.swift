@@ -11,6 +11,14 @@ public final class OTLPCollectorStub: @unchecked Sendable {
         public let contentType: String
         public let bytes: Int
         public let mentionsKinhin: Bool
+        /// Request headers, names lowercased.
+        public let headers: [String: String]
+        /// Printable runs (4+ characters) found in the decoded body: metric, span and attribute names and string values.
+        /// Protobuf stores those as plain UTF-8, so this identifies what an export carries without a protobuf decoder.
+        public let strings: Set<String>
+
+        /// Whether the body carries `text` as a whole string or as part of one.
+        public func has(_ text: String) -> Bool { strings.contains { $0.contains(text) } }
     }
 
     public let port: Int
@@ -53,8 +61,15 @@ public final class OTLPCollectorStub: @unchecked Sendable {
         return items.map {
             Request(
                 path: $0["path"] as? String ?? "", contentType: $0["content_type"] as? String ?? "",
-                bytes: $0["bytes"] as? Int ?? 0, mentionsKinhin: $0["mentions_kinhin"] as? Bool ?? false)
+                bytes: $0["bytes"] as? Int ?? 0, mentionsKinhin: $0["mentions_kinhin"] as? Bool ?? false,
+                headers: $0["headers"] as? [String: String] ?? [:],
+                strings: Set(($0["strings"] as? [String]) ?? []))
         }
+    }
+
+    /// Whether any export to `path` carries `text` in a string.
+    public func received(_ text: String, at path: String) async -> Bool {
+        await requests(to: path).contains { $0.has(text) }
     }
 
     /// The requests posted to exactly `path` (for example `/v1/metrics`).
@@ -63,7 +78,7 @@ public final class OTLPCollectorStub: @unchecked Sendable {
     }
 
     private static let script = #"""
-        import gzip, json, sys
+        import gzip, json, re, sys
         from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
         port = int(sys.argv[1])
@@ -94,10 +109,73 @@ public final class OTLPCollectorStub: @unchecked Sendable {
                     "content_type": self.headers.get("Content-Type", ""),
                     "bytes": len(body),
                     "mentions_kinhin": b"kinhin." in body,
+                    "headers": {k.lower(): v for k, v in self.headers.items()},
+                    "strings": sorted(set(m.decode("latin-1") for m in re.findall(rb"[\x20-\x7e]{4,}", body)))[:2000],
                 })
                 self.reply(200, b"", "application/x-protobuf")
 
         ThreadingHTTPServer(("127.0.0.1", port), Handler).serve_forever()
+        """#
+}
+
+/// A raw TCP listener that records whether a client opened with the HTTP/2 connection preface, which is how every gRPC
+/// client starts. It proves the daemon dialed a gRPC endpoint without a gRPC server (Python's standard library has no HTTP/2).
+public final class HTTP2PrefaceProbe: @unchecked Sendable {
+    public let port: Int
+    private let process = Process()
+    private let directory: URL
+
+    public init() async throws {
+        guard FileManager.default.isExecutableFile(atPath: "/usr/bin/python3") else {
+            throw E2EError.unavailable("python3 is needed for the gRPC probe (xcode-select --install)")
+        }
+        port = try E2E.freePort()
+        directory = FileManager.default.temporaryDirectory.appendingPathComponent("ke2e-h2-\(E2E.randomID())")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let script = directory.appendingPathComponent("probe.py")
+        try Data(Self.script.utf8).write(to: script)
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
+        process.arguments = [script.path, String(port), directory.appendingPathComponent("seen").path]
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        try process.run()
+        let port = self.port
+        try await eventually("the gRPC probe to listen", timeout: 20, interval: 0.2) {
+            E2E.isListening(port: port) ? true : nil as Bool?
+        }
+    }
+
+    public func stop() {
+        if process.isRunning { process.terminate() }
+        try? FileManager.default.removeItem(at: directory)
+    }
+
+    /// Whether a client has sent the HTTP/2 preface (`PRI * HTTP/2.0`) to the probe.
+    public var sawHTTP2Preface: Bool {
+        FileManager.default.fileExists(atPath: directory.appendingPathComponent("seen").path)
+    }
+
+    private static let script = #"""
+        import socket, sys, threading
+
+        port, marker = int(sys.argv[1]), sys.argv[2]
+        server = socket.socket()
+        server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        server.bind(("127.0.0.1", port))
+        server.listen(8)
+
+        def handle(conn):
+            try:
+                if conn.recv(24).startswith(b"PRI * HTTP/2.0"):
+                    open(marker, "w").write("h2")
+            except Exception:
+                pass
+            finally:
+                conn.close()
+
+        while True:
+            conn, _ = server.accept()
+            threading.Thread(target=handle, args=(conn,), daemon=True).start()
         """#
 }
 

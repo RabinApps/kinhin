@@ -110,7 +110,8 @@ extension FleetEngine {
     /// Runs one instance's lifecycle inside its trace and log context. The trace is the job's
     /// root span (spawn to teardown); with telemetry off it is a no-op span.
     func runLifecycle(id: String, claimed: Bool = false) async {
-        let trace = makeJobTrace(id: id)
+        // A warm instance keeps its trace from the pooled boot until a job claims it: one trace per instance.
+        let trace = jobTrace(for: id) ?? makeJobTrace(id: id)
         jobTraces.withLock { $0[id] = trace }
         let context = Log.Context(vm: id, trace: trace.context)
         await Log.$context.withValue(context) { await runLifecycleBody(id: id, claimed: claimed) }

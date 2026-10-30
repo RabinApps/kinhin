@@ -83,6 +83,8 @@ struct KinhinCLI {
         case .configInit:
             if invocation.subcommand == "validate" {
                 try ConfigCommands.runValidate(rest)
+            } else if invocation.subcommand == "reload" {
+                try ConfigCommands.reload()
             } else if invocation.subcommand == "migrate" {
                 try ConfigCommands.migrate(rest)
             } else if invocation.subcommand == "export" {
