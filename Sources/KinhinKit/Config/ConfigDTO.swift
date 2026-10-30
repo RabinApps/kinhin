@@ -202,9 +202,14 @@ public struct PartialConfig: Decodable {
         var resourceAttributes: [String: String]?
         var prometheusListen: String?
         var logFormat: String?
+        var samplingRatio: Double?
+        var logLevel: String?
+        var headersKeychain: String?
+        var caFile: String?
+        var persist: Bool?
 
         enum CodingKeys: String, CodingKey, CaseIterable {
-            case enabled, endpoint, signals
+            case enabled, endpoint, signals, persist
             case otlpProtocol = "protocol"
             case exportInterval = "export_interval_seconds"
             case exportIntervalAlias = "export_interval"
@@ -212,6 +217,10 @@ public struct PartialConfig: Decodable {
             case resourceAttributes = "resource_attributes"
             case prometheusListen = "prometheus_listen"
             case logFormat = "log_format"
+            case samplingRatio = "sampling_ratio"
+            case logLevel = "log_level"
+            case headersKeychain = "headers_keychain"
+            case caFile = "ca_file"
         }
     }
 

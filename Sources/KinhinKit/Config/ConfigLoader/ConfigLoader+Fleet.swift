@@ -327,6 +327,7 @@ extension ConfigLoader {
             }
             telemetry.logFormat = format
         }
+        try parseTelemetryExporterKeys(partial, into: &telemetry)
         if telemetry.prometheusListen != nil, !telemetry.signals.contains(.metrics) {
             throw ConfigError.invalid("telemetry.prometheus_listen serves metrics: add 'metrics' to telemetry.signals")
         }

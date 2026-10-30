@@ -74,6 +74,10 @@ enum TelemetryCommand {
         if !status.jobAttributes.isEmpty {
             lines.append("  job dimensions: \(status.jobAttributes.joined(separator: ", "))")
         }
+        if status.signals.contains("traces"), let ratio = status.samplingRatio, ratio < 1 {
+            lines.append("  trace sampling: " + String(format: "%g", ratio * 100) + "% of jobs")
+        }
+        if status.persist == true { lines.append("  persist: spans and logs are queued on disk") }
         if let startedAt = status.startedAt { lines.append("  running since \(relative(startedAt, now: now))") }
         if let at = status.lastFailureAt, let message = status.lastFailure {
             let prefix = status.hasRecentFailure(now: now) ? "export problem" : "last export problem"

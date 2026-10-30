@@ -587,6 +587,13 @@ struct TelemetryTests {
             ("log_format: xml", "telemetry.log_format"),
             ("signals: [traces]\n  prometheus_listen: 9464", "telemetry.prometheus_listen"),
             ("job_attributes: [branch]", "telemetry.job_attributes"),
+            ("sampling_ratio: 1.5", "telemetry.sampling_ratio"),
+            ("sampling_ratio: -1", "telemetry.sampling_ratio"),
+            ("log_level: trace", "telemetry.log_level"),
+            ("headers_keychain: \"two words\"", "telemetry.headers_keychain"),
+            ("ca_file: relative/ca.pem", "telemetry.ca_file"),
+            ("ca_file: /nonexistent/kinhin-e2e-ca.pem", "telemetry.ca_file"),
+            ("persist: maybe", "persist"),
             ("resource_attributes:\n    service.name: mine", "service.name"),
             ("resource_attributes:\n    telemetry.sdk.version: 1", "telemetry.sdk.version"),
             ("enable: true", "telemetry.enable"),
@@ -628,6 +635,10 @@ struct TelemetryTests {
                         team: platform
                       prometheus_listen: 127.0.0.1:9464
                       log_format: json
+                      sampling_ratio: 0.5
+                      log_level: warn
+                      headers_keychain: grafana-cloud
+                      persist: true
                     """))
             let validated = try await sandbox.kinhin(["config", "validate"])
             #expect(validated.ok, "\(validated.output)")

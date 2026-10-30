@@ -232,23 +232,30 @@ public enum Log {
     }
 
     private static func emit(_ level: Level, _ component: String, _ message: String) {
-        guard level >= minLevel else { return }
+        // The local log (stderr, ring, file) and the OTLP pipeline have separate thresholds: `minLevel` and
+        // `telemetry.log_level`. A record below one still reaches the other.
+        let local = level >= minLevel
+        // Export problems stay local: forwarding one would queue the record whose delivery just failed.
+        let remote: Telemetry? = telemetry.flatMap {
+            component != TelemetryHealth.logComponent && $0.forwardsLogs(at: level) ? $0 : nil
+        }
+        guard local || remote != nil else { return }
         let entry = Entry.make(level: level.rawValue, component: component, message: LogRedactor.redact(message))
         let fields = Fields(component: component, context: context)
+
+        if let remote {
+            remote.emit(
+                log: TelemetryLogRecord(
+                    timestamp: entry.timestamp, level: level, component: component, message: entry.message,
+                    attributes: fields.attributes, trace: fields.trace))
+        }
+        guard local else { return }
 
         // Formatted once: the timestamp formatting is the costly part.
         let text = format == .json ? entry.json(fields) : entry.formatted
         let line = Data(text.appending("\n").utf8)
         if echoToStderr {
             FileHandle.standardError.write(line)
-        }
-
-        // Export problems stay local: forwarding one would queue the record whose delivery just failed.
-        if let telemetry, component != TelemetryHealth.logComponent {
-            telemetry.emit(
-                log: TelemetryLogRecord(
-                    timestamp: entry.timestamp, level: level, component: component, message: entry.message,
-                    attributes: fields.attributes, trace: fields.trace))
         }
 
         ring.append(entry)

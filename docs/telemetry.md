@@ -29,6 +29,11 @@ engine restart, no duplicate exporters, and a Prometheus port from the old setti
 | `prometheus_listen` | off | `host:port`, or a bare port, which binds `127.0.0.1`. Serves `GET /metrics`. Needs `metrics` in `signals`. |
 | `log_format` | `text` | `json` writes one JSON object per line to `kinhin.log` and stderr. Independent of `enabled`. |
 | `job_attributes` | none | `[repository, workflow]` adds those dimensions to the job counters and histograms. See [Cardinality](#cardinality-and-privacy). |
+| `sampling_ratio` | `1` | Share of job traces recorded and exported, from `0` to `1`. See [Sampling, severity, credentials and TLS](#sampling-severity-credentials-and-tls). |
+| `log_level` | `info` | `debug`, `info`, `warn` or `error`: the lowest severity sent over OTLP. Independent of the local log. |
+| `headers_keychain` | none | Name of a Keychain item holding a collector token, sent as `Authorization: Bearer <token>`. |
+| `ca_file` | system roots | Absolute path (or `~/…`) of a PEM CA bundle that signs the collector's `https` certificate. Checked when the config loads. |
+| `persist` | `false` | `true` queues spans and log records on disk, so they survive collector downtime and daemon restarts. |
 
 Credentials are never read from `config.yaml`. Put collector headers in `OTEL_EXPORTER_OTLP_HEADERS` in the environment of the process that
 runs the engine (for the daemon, its LaunchAgent environment). kinhin never logs them, and registers their values with the log redactor.
@@ -57,6 +62,39 @@ The environment never turns telemetry **on**; only `telemetry.enabled: true` doe
 Precedence, lowest to highest: host defaults (`host.name`, `host.arch`, `os.type`, `os.version`, `service.instance.id`), then
 `resource_attributes`, then `OTEL_RESOURCE_ATTRIBUTES`, then kinhin's own identity (`service.name=kinhin`, `service.version`, and the SDK's
 `telemetry.sdk.*`), which nothing can override.
+
+## Sampling, severity, credentials and TLS
+
+**Sampling.** `sampling_ratio: 0.1` records one job trace in ten. The decision is made once per job at its root span, from the trace ID, so
+a kept trace is complete and a dropped one has no spans at all (its log lines carry no trace ID either). Metrics are never sampled. The
+environment overrides it: `OTEL_TRACES_SAMPLER` (`always_on`, `always_off`, `traceidratio`, `parentbased_traceidratio`) with
+`OTEL_TRACES_SAMPLER_ARG` (the ratio, 0 to 1). `kinhin telemetry status` shows the ratio when it is below 1.
+
+**Log severity.** `log_level` filters only what is forwarded to the OTLP log pipeline. It is independent of the local log: the file, stderr
+and the app's log view follow `Log.minLevel` (info), whatever `log_level` says, and a `debug` here sends debug records to the collector even
+though the local file does not keep them.
+
+**Collector token from the Keychain.** `headers_keychain: grafana-cloud` reads the item stored for that name and sends it as
+`Authorization: Bearer <token>`, unless `OTEL_EXPORTER_OTLP_HEADERS` already sets `authorization`, which wins. The token is never in
+`config.yaml`, is masked in logs, and is not shown by `status`. If the item is missing or the Keychain refuses, telemetry still starts
+without the header and logs one warning naming the account. Store the token once (it is read by the daemon, so allow it when macOS asks):
+
+```sh
+security add-generic-password -U -s com.kinhin.runner -a telemetry:grafana-cloud -w
+```
+
+`-w` with no value prompts for it, so it stays out of your shell history. A config reload re-reads the item, so rotating the token restarts
+the exporters.
+
+**TLS.** `ca_file` (or `OTEL_EXPORTER_OTLP_CERTIFICATE`, which wins) makes kinhin trust only that CA bundle for the collector, over OTLP/HTTP
+and gRPC, instead of the system roots. The file must exist and hold at least one PEM certificate, or the config does not load (a bad
+environment value stops telemetry from starting instead). It has no effect on an `http` endpoint, and kinhin warns. Client certificates
+(mTLS) are not supported.
+
+**Persistence.** `persist: true` writes spans and log records to `~/Library/Application Support/Kinhin/telemetry-queue/` (owner-only) before
+sending and deletes them once the collector accepts them, so an outage or a daemon restart does not lose them. The queue is capped at 32 MB
+per signal (the oldest files go first) and anything older than 12 hours is dropped unsent. Metrics are not queued: they are cumulative, and
+the next successful push carries the totals. Keep it off unless you need it; queued records hold job and repository names on disk.
 
 ## Metrics
 

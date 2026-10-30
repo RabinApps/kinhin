@@ -18,6 +18,10 @@ public struct TelemetryStatus: Codable, Sendable, Equatable {
     public var lastFailureAt: Date?
     /// The most recent export problem, redacted and shortened.
     public var lastFailure: String?
+    /// Fraction of job traces recorded (1 = all). Nil from a daemon that predates sampling.
+    public var samplingRatio: Double?
+    /// Whether spans and logs are queued on disk. Nil from a daemon that predates persistence.
+    public var persist: Bool?
 
     public static let disabled = TelemetryStatus(
         enabled: false, signals: [], otlpProtocol: nil, endpoints: [:], prometheus: nil, jobAttributes: [],
@@ -125,6 +129,7 @@ extension TelemetryStatus {
                 uniqueKeysWithValues: settings.endpoints.map { ($0.key.rawValue, Self.redacted($0.value)) }),
             prometheus: settings.prometheus.map { "\($0.host):\(prometheusPort > 0 ? prometheusPort : $0.port)" },
             jobAttributes: settings.jobAttributes.map(\.rawValue).sorted(), startedAt: startedAt,
-            exportFailures: 0, lastFailureAt: nil, lastFailure: nil)
+            exportFailures: 0, lastFailureAt: nil, lastFailure: nil, samplingRatio: settings.sampler.ratio,
+            persist: settings.persist)
     }
 }

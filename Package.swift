@@ -46,6 +46,7 @@ let package = Package(
                 .product(name: "OpenTelemetryProtocolExporter", package: "opentelemetry-swift"),
                 .product(name: "OpenTelemetryProtocolExporterHTTP", package: "opentelemetry-swift"),
                 .product(name: "PrometheusExporter", package: "opentelemetry-swift"),
+                .product(name: "PersistenceExporter", package: "opentelemetry-swift"),
                 .product(name: "GRPC", package: "grpc-swift"),
                 .product(name: "NIOCore", package: "swift-nio"),
                 .product(name: "NIOPosix", package: "swift-nio"),
