@@ -32,10 +32,11 @@ enum TelemetryCommand {
     }
 
     /// The daemon's answer, or the configured state when none runs.
-    static func document(ask: (() throws -> TelemetryStatus)? = nil, config: KinhinConfig? = nil) async throws
-        -> Document
-    {
-        if RPCClient.isDaemonAlive() || ask != nil {
+    static func document(
+        ask: (() throws -> TelemetryStatus)? = nil, config: KinhinConfig? = nil,
+        daemonAlive: () -> Bool = { RPCClient.isDaemonAlive() }
+    ) async throws -> Document {
+        if daemonAlive() || ask != nil {
             do {
                 let status = try (ask ?? { try RPCClient().telemetryStatus() })()
                 return Document(daemon: true, status: status, message: nil)

@@ -56,7 +56,7 @@ struct TelemetryCard: View {
                 Button("Refresh") { model.reload() }
             }
             HintText(
-                "A port alone stays on this Mac. Leave it empty for no Prometheus endpoint. It needs the metrics signal."
+                "Enter just a port number to serve it on this Mac only (127.0.0.1). Leave it empty for no Prometheus endpoint. It needs the metrics signal."
             )
             if !model.result.text.isEmpty {
                 StatusText(verbatim: model.result.text, style: model.result.style)

@@ -15,7 +15,7 @@ telemetry:
   endpoint: http://localhost:4318   # your collector (Grafana Alloy, the OpenTelemetry Collector, …)
 ```
 
-That exports all three signals over OTLP/HTTP every 60 seconds. Edit the file and the running daemon picks the change up in place: no
+That exports all three signals over OTLP/HTTP every 60 seconds. After you edit the file, run `kinhin config reload`. The running daemon applies the change in place: no
 engine restart, no duplicate exporters, and a Prometheus port from the old settings is released first.
 
 | Key | Default | Meaning |

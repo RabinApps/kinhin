@@ -119,7 +119,7 @@ final class TelemetryModel: ConfigFormModel {
     private func settleAndRead() async {
         applying = true
         defer { applying = false }
-        if settle > .zero { try? await Task.sleep(for: settle) }  // cancelled only by a newer reload
+        if settle > .zero { try? await Task.sleep(for: settle) }  // runs in the caller's task, so `reload()` does not cancel it
         await load()
     }
 

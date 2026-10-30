@@ -122,6 +122,18 @@ final class TelemetryTLSTests: XCTestCase {
         XCTAssertNoThrow(try TelemetryTransport(settings: settings, queueRoot: directory).invalidate())
     }
 
+    /// The environment path is resolved like `ca_file` (so gRPC, which reads `settings.caFile` as is, gets a real path).
+    func testEnvironmentCertificateIsResolvedAndMustBeAbsolute() {
+        let config = KinhinConfig.TelemetryConfig(enabled: true, endpoint: "https://collector:4317")
+        let home = TelemetryResolver.resolve(
+            config, environment: ["OTEL_EXPORTER_OTLP_CERTIFICATE": "~/ca.pem"], host: host)
+        XCTAssertEqual(home.caFile, (("~/ca.pem") as NSString).expandingTildeInPath)
+        let relative = TelemetryResolver.resolve(
+            config, environment: ["OTEL_EXPORTER_OTLP_CERTIFICATE": "ca.pem"], host: host)
+        XCTAssertNil(relative.caFile)
+        XCTAssertTrue(relative.warnings.contains { $0.contains("not an absolute path") }, "\(relative.warnings)")
+    }
+
     func testEnvironmentCertificateOverridesTheConfigAndNeedsAnHTTPSEndpoint() {
         var config = KinhinConfig.TelemetryConfig(enabled: true, endpoint: "https://collector:4318")
         config.caFile = "/from/config.pem"
