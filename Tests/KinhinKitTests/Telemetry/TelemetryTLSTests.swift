@@ -130,8 +130,10 @@ final class TelemetryTLSTests: XCTestCase {
         XCTAssertEqual(home.caFile, (("~/ca.pem") as NSString).expandingTildeInPath)
         let relative = TelemetryResolver.resolve(
             config, environment: ["OTEL_EXPORTER_OTLP_CERTIFICATE": "ca.pem"], host: host)
-        XCTAssertNil(relative.caFile)
-        XCTAssertTrue(relative.warnings.contains { $0.contains("not an absolute path") }, "\(relative.warnings)")
+        XCTAssertEqual(relative.caFile, "ca.pem", "kept as given, so starting telemetry fails closed")
+        XCTAssertThrowsError(try TelemetryTransport(settings: relative, queueRoot: directory)) {
+            XCTAssertTrue("\($0)".contains("ca.pem"), "\($0)")
+        }
     }
 
     func testEnvironmentCertificateOverridesTheConfigAndNeedsAnHTTPSEndpoint() {

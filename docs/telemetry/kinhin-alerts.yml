@@ -5,7 +5,8 @@
 # KinhinExportFailing reads a counter that travels through the same exporter that is failing: when the collector is
 # unreachable the metrics push fails too, so the series may never arrive. It reliably covers a failing traces or logs
 # endpoint while metrics still arrive, and a setup that scrapes /metrics. KinhinTelemetrySilent covers the rest: it
-# fires when a series kinhin always publishes stops arriving.
+# fires when a series kinhin always publishes stops arriving. Load it only for instances that have telemetry enabled
+# with the metrics signal: with telemetry off, or `signals` without `metrics`, kinhin_fleet_active is absent by design.
 groups:
   - name: kinhin
     rules:
@@ -50,6 +51,7 @@ groups:
         labels: {severity: warning}
         annotations:
           summary: No kinhin metrics have arrived for 10 minutes (daemon down or telemetry not delivering); run `kinhin telemetry status`
+          description: Only meaningful where telemetry is enabled with the metrics signal.
       - alert: KinhinPaused
         expr: kinhin_fleet_paused == 1
         for: 1h
