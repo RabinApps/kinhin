@@ -234,10 +234,14 @@ final class OTelBackend: TelemetryBackend, @unchecked Sendable {
         builder.emit()
     }
 
-    func shutdown() async {
-        // Order: stop accepting scrapes, then flush each pipeline, then drop the transports.
+    func releaseListeners() {
         prometheusListener?.stop()
         prometheusListener = nil
+    }
+
+    func shutdown() async {
+        // Order: stop accepting scrapes, then flush each pipeline, then drop the transports.
+        releaseListeners()
         _ = meterProvider?.forceFlush()
         _ = meterProvider?.shutdown()
         tracerProvider?.forceFlush()

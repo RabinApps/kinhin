@@ -8,9 +8,6 @@ enum ForgeRequestMetrics {
         let telemetry = TelemetryService.shared.telemetry
         guard telemetry.isEnabled else { return }
         telemetry.add(.forgeRequests, 1, ["forge": forge.rawValue, "status_class": statusClass(status)])
-        if status == 429 {
-            telemetry.add(.errors, 1, ["error_type": TelemetryErrorType.rateLimited.rawValue, "component": "forge"])
-        }
     }
 
     /// `2xx`…`5xx`, or `error` when no response arrived.

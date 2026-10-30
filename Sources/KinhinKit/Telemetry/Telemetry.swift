@@ -83,8 +83,14 @@ protocol TelemetryBackend: Sendable {
     func publish(gauge name: String, series: [GaugeSeries])
     func startSpan(_ name: String, start: Date?, attributes: TelemetryAttributes) -> any TelemetrySpan
     func emit(log: TelemetryLogRecord)
+    /// Closes listening sockets at once, ahead of the slower `shutdown()`.
+    func releaseListeners()
     /// Flushes pending exports and releases exporters and listeners.
     func shutdown() async
+}
+
+extension TelemetryBackend {
+    func releaseListeners() {}
 }
 
 struct NoopBackend: TelemetryBackend {

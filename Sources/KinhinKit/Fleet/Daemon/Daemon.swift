@@ -35,8 +35,18 @@ public enum Daemon {
     public static let label = "com.kinhin.daemon"
     static let plistName = "com.kinhin.daemon.plist"
 
-    /// Boot the engine and block forever serving RPC.
+    /// Boot the engine and block forever serving RPC. A startup failure flushes telemetry first, so the record
+    /// that says why the daemon is down still reaches the collector.
     public static func run() async throws {
+        do {
+            try await serve()
+        } catch {
+            await TelemetryService.shared.shutdown()
+            throw error
+        }
+    }
+
+    private static func serve() async throws {
         Paths.ensureSupportDirectories()
         Log.setLogFile(directory: Paths.logsDirectory)
 

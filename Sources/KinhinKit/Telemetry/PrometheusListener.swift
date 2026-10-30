@@ -14,12 +14,20 @@ final class PrometheusListener: Sendable {
     // Network.framework delivers its callbacks on a DispatchQueue.
     private let queue = DispatchQueue(label: "kinhin.telemetry.prometheus")  // rules-lint: allow legacy-sync
     private let body: @Sendable () -> String
+    private let idleTimeout: TimeInterval
+    private let open = Locked(0)
+    static let maxConnections = 16
+    static let maxRequestBytes = 16 * 1024
     /// The port actually bound (differs from the requested one only for port 0).
-    let port: Int
+    private let boundPort = Locked(0)
+    var port: Int { boundPort.withLock { $0 } }
 
     /// Binds and starts listening; throws when the address cannot be bound (in use, not local, denied).
-    init(address: TelemetryListenAddress, body: @escaping @Sendable () -> String) throws {
+    init(
+        address: TelemetryListenAddress, idleTimeout: TimeInterval = 5, body: @escaping @Sendable () -> String
+    ) throws {
         self.body = body
+        self.idleTimeout = idleTimeout
         let parameters = NWParameters.tcp
         parameters.allowLocalEndpointReuse = true
         let host = NWEndpoint.Host(address.host)
@@ -49,11 +57,7 @@ final class PrometheusListener: Sendable {
                 break
             }
         }
-        let body = self.body
-        let queue = self.queue
-        listener.newConnectionHandler = { connection in
-            Self.serve(connection, on: queue, body: body)
-        }
+        listener.newConnectionHandler = { [self] connection in serve(connection) }
         listener.start(queue: queue)
         guard ready.wait(timeout: .now() + 3) == .success, let result = outcome.withLock({ $0 }) else {
             listener.cancel()
@@ -63,7 +67,8 @@ final class PrometheusListener: Sendable {
             listener.cancel()
             throw TelemetryError.listenFailed("\(address.host):\(address.port): \(error.localizedDescription)")
         }
-        self.port = listener.port.map { Int($0.rawValue) } ?? address.port
+        let bound = listener.port.map { Int($0.rawValue) } ?? address.port
+        boundPort.withLock { $0 = bound }
     }
 
     func stop() {
@@ -71,20 +76,49 @@ final class PrometheusListener: Sendable {
         listener.cancel()
     }
 
-    private static func serve(
-        _ connection: NWConnection, on queue: DispatchQueue,  // rules-lint: allow legacy-sync
-        body: @escaping @Sendable () -> String
-    ) {
-        connection.start(queue: queue)
-        connection.receive(minimumIncompleteLength: 1, maximumLength: 8192) { data, _, _, error in
-            guard error == nil, let data else {
-                connection.cancel()
-                return
+    /// A request is read until its blank line (or the size cap); a client that never finishes is dropped after
+    /// `idleTimeout`, and at most `maxConnections` are served at once, so a stuck scraper cannot hold the daemon's
+    /// file descriptors.
+    private func serve(_ connection: NWConnection) {
+        let admitted = open.withLock { count -> Bool in
+            guard count < Self.maxConnections else { return false }
+            count += 1
+            return true
+        }
+        guard admitted else {
+            connection.cancel()
+            return
+        }
+        let finished = Locked(false)
+        let close: @Sendable () -> Void = { [open] in
+            let first = finished.withLock { done -> Bool in
+                defer { done = true }
+                return !done
             }
-            let response = Self.response(forRequest: String(decoding: data, as: UTF8.self), body: body)
-            connection.send(
-                content: Data(response.utf8),
-                completion: .contentProcessed { _ in connection.cancel() })
+            guard first else { return }
+            open.withLock { $0 -= 1 }
+            connection.cancel()
+        }
+        connection.start(queue: queue)
+        queue.asyncAfter(deadline: .now() + idleTimeout) { close() }
+        receive(connection, buffer: Data(), close: close)
+    }
+
+    private func receive(_ connection: NWConnection, buffer: Data, close: @escaping @Sendable () -> Void) {
+        let body = self.body
+        connection.receive(minimumIncompleteLength: 1, maximumLength: 4096) { [self] data, _, isComplete, error in
+            guard error == nil else { return close() }
+            var buffer = buffer
+            if let data { buffer.append(data) }
+            let text = String(decoding: buffer, as: UTF8.self)
+            if text.contains("\r\n\r\n") || text.contains("\n\n") || buffer.count >= Self.maxRequestBytes {
+                let response = Self.response(forRequest: text, body: body)
+                connection.send(content: Data(response.utf8), completion: .contentProcessed { _ in close() })
+            } else if isComplete {
+                close()
+            } else {
+                receive(connection, buffer: buffer, close: close)
+            }
         }
     }
 

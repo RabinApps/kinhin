@@ -113,8 +113,7 @@ extension FleetEngine {
         // A warm instance keeps its trace from the pooled boot until a job claims it: one trace per instance.
         let trace = jobTrace(for: id) ?? makeJobTrace(id: id)
         jobTraces.withLock { $0[id] = trace }
-        let context = Log.Context(vm: id, trace: trace.context)
-        await Log.$context.withValue(context) { await runLifecycleBody(id: id, claimed: claimed) }
+        await Log.$context.withValue(trace.logContext) { await runLifecycleBody(id: id, claimed: claimed) }
         // A lifecycle that returned while the instance lives on (warm, or watching a classic runner)
         // keeps its trace for the rest of the story; failures and cancellations end it here.
         let phase = store.all.first { $0.id == id }?.phase
@@ -549,7 +548,7 @@ extension FleetEngine {
             return
         }
         if reason == "jobs finished" { noteJobFinished(id: id) }
-        endJobTrace(id: id, result: reason == "jobs finished" ? "completed" : reason, error: nil)
+        endJobTrace(id: id, result: Self.traceResult(forDeleteReason: reason), error: nil)
         store.remove(id: id)
         Log.info(id, "VM deleted")
     }
