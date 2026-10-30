@@ -32,19 +32,22 @@ public actor TelemetryService {
     private let environment: @Sendable () -> [String: String]
     private let host: TelemetryHostInfo
     private let makeBackend: BackendFactory
+    /// How long a stop waits for the old pipeline's final flush before carrying on (the flush keeps running).
+    private let shutdownTimeout: Duration
     private var running: TelemetrySettings?
     private var backendPort = 0
 
     public init() {
         self.init(
             environment: { ProcessInfo.processInfo.environment }, host: .current,
-            makeBackend: { try OTelBackend(settings: $0) }, handle: Telemetry())
+            makeBackend: { try OTelBackend(settings: $0) }, handle: Telemetry(), shutdownTimeout: .seconds(3))
     }
 
     init(
         environment: @escaping @Sendable () -> [String: String], host: TelemetryHostInfo = .current,
-        makeBackend: @escaping BackendFactory, handle: Telemetry = Telemetry()
+        makeBackend: @escaping BackendFactory, handle: Telemetry = Telemetry(), shutdownTimeout: Duration = .seconds(3)
     ) {
+        self.shutdownTimeout = shutdownTimeout
         self.environment = environment
         self.host = host
         self.makeBackend = makeBackend
@@ -94,15 +97,38 @@ public actor TelemetryService {
 
     /// Flushes pending exports and stops every exporter and listener. The handle stays valid (it
     /// records nothing afterwards), so engines still running do not need to know.
+    /// The flush is bounded (a dead collector must not hold up an exit or a reload); `final` allows longer on exit.
     public func shutdown() async {
-        await stop()
+        await stop(timeout: .seconds(8))
     }
 
-    private func stop() async {
+    private func stop(timeout: Duration? = nil) async {
         guard running != nil else { return }
         Log.telemetry = nil
         let old = telemetry.swap(to: NoopBackend(), enabled: false)
         running = nil
-        await old.shutdown()
+        // Listeners are released at once (a new pipeline may want the port); the flush that follows talks to
+        // the collector and can take as long as its timeouts, so the caller waits for it only up to a bound.
+        old.releaseListeners()
+        let limit = timeout ?? shutdownTimeout
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            let resumed = Locked(false)
+            let finish: @Sendable () -> Void = {
+                let first = resumed.withLock { done -> Bool in
+                    defer { done = true }
+                    return !done
+                }
+                if first { continuation.resume() }
+            }
+            Task.detached {
+                await old.shutdown()
+                finish()
+            }
+            Task.detached {
+                // Cancellation only happens on process exit; either way the bound has done its job.
+                try? await Task.sleep(for: limit)
+                finish()
+            }
+        }
     }
 }

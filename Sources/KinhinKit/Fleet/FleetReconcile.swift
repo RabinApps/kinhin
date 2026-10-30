@@ -258,7 +258,7 @@ extension FleetEngine {
         // the demand is deterministic whatever finishes first.
         enum ForgeAnswer: Sendable {
             case answered(jobs: [ForgeJob], images: ProjectImageDemand)
-            case failed(message: String)
+            case failed(message: String, type: TelemetryErrorType)
         }
         // One routing snapshot for the whole pass: a reload landing mid-pass applies from the next one.
         let routerState = router.snapshot
@@ -274,7 +274,9 @@ extension FleetEngine {
                     // A cancelled pass is not a failed forge: no queue alert.
                     throw CancellationError()
                 } catch {
-                    return .failed(message: (error as? LocalizedError)?.errorDescription ?? "\(error)")
+                    return .failed(
+                        message: (error as? LocalizedError)?.errorDescription ?? "\(error)",
+                        type: TelemetryErrorType.classify(error, stage: nil))
                 }
             }
         for (forge, answer) in zip(ordered, answers) {
@@ -298,7 +300,8 @@ extension FleetEngine {
                 }
                 for (image, count) in projectDemand.byImage { demand.byImage[image, default: 0] += count }
                 demand.imageNotices.formUnion(projectDemand.notices)
-            case .failed(let message):
+            case .failed(let message, let type):
+                countError(type == .unknown ? .forgeAPIFailure : type, component: .forge)
                 Log.warn("engine", "could not fetch \(forge.name) queue: \(message)")
                 demand.failedForges.insert(forge.account)
                 await statusBox.modify { $0.setAlert("queue:\(forge.account)", message) }

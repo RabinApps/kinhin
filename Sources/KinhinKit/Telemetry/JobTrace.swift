@@ -41,6 +41,8 @@ final class JobTrace: Sendable {
         var root: any TelemetrySpan
         var open: [String: any TelemetrySpan] = [:]
         var correlation: JobCorrelation?
+        /// Jobs already attached (a multi-runner instance carries several; the first owns the root span).
+        var seenJobs: Set<String> = []
         var ended = false
     }
 
@@ -58,6 +60,8 @@ final class JobTrace: Sendable {
     let pool: String
     let image: String
     let forge: String
+    /// The log context of this instance's lifecycle; its `job` follows the job the forge reports.
+    let logContext: Log.Context
 
     init(telemetry: Telemetry, vm: String, pool: String, image: String, forge: String, labels: [String]?) {
         self.telemetry = telemetry
@@ -71,7 +75,9 @@ final class JobTrace: Sendable {
         if let labels, !labels.isEmpty {
             attributes["kinhin.runner.labels"] = .string(labels.sorted().joined(separator: ","))
         }
-        state = Mutex(State(root: telemetry.startSpan("kinhin.job", attributes: attributes)))
+        let root = telemetry.startSpan("kinhin.job", attributes: attributes)
+        state = Mutex(State(root: root))
+        logContext = Log.Context(vm: vm, trace: root.context)
     }
 
     var context: TelemetrySpanContext? { state.withLock { $0.root.context } }
@@ -94,15 +100,19 @@ final class JobTrace: Sendable {
     /// queue wait in seconds when it is a real interval. Idempotent per job id.
     @discardableResult
     func attach(_ correlation: JobCorrelation) -> Double? {
-        let isNew: Bool = state.withLock { state in
-            guard !state.ended else { return false }
-            if let known = state.correlation, known.jobID == correlation.jobID, known.runID == correlation.runID {
-                return false
+        enum Role { case first, additional, seen }
+        let role: Role = state.withLock { state in
+            guard !state.ended else { return .seen }
+            if state.correlation == nil {
+                state.correlation = correlation
+                state.seenJobs.insert(Self.key(correlation))
+                return .first
             }
-            state.correlation = correlation
-            return true
+            return state.seenJobs.insert(Self.key(correlation)).inserted ? .additional : .seen
         }
-        guard isNew else { return nil }
+        if let name = correlation.jobName { logContext.job = name }
+        if role == .additional { return attachAdditional(correlation) }
+        guard role == .first else { return nil }
         var attributes: TelemetryAttributes = [:]
         if let value = correlation.runID { attributes["cicd.pipeline.run.id"] = .string(value) }
         if let value = correlation.runAttempt { attributes["kinhin.run.attempt"] = .int(value) }
@@ -122,6 +132,32 @@ final class JobTrace: Sendable {
             root.startChild("queue_wait", start: queued, attributes: ["kinhin.source": "provider"])
                 .end(at: started, error: nil)
         }
+        return wait
+    }
+
+    private static func key(_ correlation: JobCorrelation) -> String {
+        "\(correlation.runID ?? "-")/\(correlation.jobID ?? correlation.jobName ?? "-")"
+    }
+
+    /// A further job on the same instance (`runners_per_vm` above 1): its own child span under the root, so the root
+    /// keeps the first job's identifiers instead of being overwritten.
+    private func attachAdditional(_ correlation: JobCorrelation) -> Double? {
+        guard let root = state.withLock({ $0.ended ? nil : $0.root }) else { return nil }
+        var attributes: TelemetryAttributes = [:]
+        if let value = correlation.runID { attributes["cicd.pipeline.run.id"] = .string(value) }
+        if let value = correlation.runAttempt { attributes["kinhin.run.attempt"] = .int(value) }
+        if let value = correlation.jobID { attributes["kinhin.job.id"] = .string(value) }
+        if let value = correlation.workflow { attributes["cicd.pipeline.name"] = .string(value) }
+        if let value = correlation.jobName { attributes["cicd.pipeline.task.name"] = .string(value) }
+        let start = correlation.startedAt ?? correlation.enqueuedAt
+        let job = root.startChild("job", start: start, attributes: attributes)
+        var wait: Double?
+        if let queued = correlation.enqueuedAt, let started = correlation.startedAt, started >= queued {
+            wait = started.timeIntervalSince(queued)
+            job.startChild("queue_wait", start: queued, attributes: ["kinhin.source": "provider"]).end(
+                at: started, error: nil)
+        }
+        job.end(at: correlation.completedAt, error: nil)
         return wait
     }
 

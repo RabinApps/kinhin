@@ -1,5 +1,11 @@
 import Foundation
 
+/// Which healing events `kinhin.healing.actions` has counted, and whether the journal's history was skipped yet.
+struct HealingCounted {
+    var seen: Set<String> = []
+    var baselined = false
+}
+
 // FleetEngine — telemetry recording: per-instance traces, phase timings, job pickup and completion,
 // and error counts. Every method is a no-op while the handle is the no-op one.
 extension FleetEngine {
@@ -22,6 +28,16 @@ extension FleetEngine {
 
     func jobTrace(for id: String) -> JobTrace? { jobTraces.withLock { $0[id] } }
 
+    /// The bounded `kinhin.result` of a trace for a delete reason (reasons carry free text, such as an error message).
+    static func traceResult(forDeleteReason reason: String) -> String {
+        if reason == "jobs finished" { return "completed" }
+        if reason.hasPrefix("failed") { return "failed" }
+        if reason.hasPrefix("scale down") || reason == "cancelled remotely" { return "scaled_down" }
+        if reason.contains("evicted") { return "evicted" }
+        if reason.contains("timeout") { return "timeout" }
+        return "deleted"
+    }
+
     func endJobTrace(id: String, result: String, error: String?) {
         let trace = jobTraces.withLock { $0.removeValue(forKey: id) }
         trace?.finish(result: result, error: error)
@@ -42,8 +58,10 @@ extension FleetEngine {
             trace?.end(phase)
             return value
         } catch {
-            trace?.end(phase, error: error is CancellationError ? "cancelled" : "\(phase.rawValue) failed")
-            if !(error is CancellationError), trace?.claimErrorCount() ?? true {
+            // A cancelled lifecycle (engine hand-over, stop) is not a failure, whatever error the callee surfaced.
+            let cancelled = error is CancellationError || Task.isCancelled
+            trace?.end(phase, error: cancelled ? "cancelled" : "\(phase.rawValue) failed")
+            if !cancelled, trace?.claimErrorCount() ?? true {
                 countError(TelemetryErrorType.classify(error, stage: phase), component: .lifecycle)
             }
             throw error
@@ -56,7 +74,7 @@ extension FleetEngine {
 
     /// A lifecycle failure no timed phase already counted (a missing forge, a token mint failure…).
     func recordLifecycleFailure(id: String, error: Error) {
-        guard telemetry.isEnabled else { return }
+        guard telemetry.isEnabled, !Task.isCancelled else { return }
         if jobTrace(for: id)?.claimErrorCount() ?? true {
             countError(TelemetryErrorType.classify(error, stage: .registration), component: .lifecycle)
         }
@@ -208,9 +226,17 @@ extension FleetEngine {
     func recordHealingTelemetry(_ snapshot: HealingSnapshot) {
         guard telemetry.isEnabled else { return }
         telemetry.publish(.healingPending, [series(Double(snapshot.events.filter { $0.outcome == .pending }.count))])
-        for event in snapshot.events where event.outcome == .succeeded || event.outcome == .failed {
-            let fresh = healingCounted.withLock { $0.insert(event.id).inserted }
-            if fresh { telemetry.add(.healingActions, 1, ["result": event.outcome.rawValue]) }
+        let finished = snapshot.events.filter { $0.outcome == .succeeded || $0.outcome == .failed }
+        let fresh = healingCounted.withLock { counted -> [HealingEvent] in
+            // The journal outlives the process: what had already finished when this engine first published is
+            // history, not an action taken now, so it is remembered without being counted.
+            guard counted.baselined else {
+                counted.baselined = true
+                counted.seen.formUnion(finished.map(\.id))
+                return []
+            }
+            return finished.filter { counted.seen.insert($0.id).inserted }
         }
+        for event in fresh { telemetry.add(.healingActions, 1, ["result": event.outcome.rawValue]) }
     }
 }

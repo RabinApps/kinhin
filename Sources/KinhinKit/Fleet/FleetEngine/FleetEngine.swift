@@ -80,7 +80,7 @@ public final class FleetEngine: Sendable {
     /// One trace per instance with a lifecycle running (`runLifecycle`), keyed by instance id.
     let jobTraces = Mutex<[String: JobTrace]>([:])
     /// Healing events already counted in `kinhin.healing.actions`.
-    let healingCounted = Mutex<Set<String>>([])
+    let healingCounted = Mutex(HealingCounted())
     /// The daemon process's own CPU and memory.
     let processUsage = ProcessUsage()
 

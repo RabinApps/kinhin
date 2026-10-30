@@ -82,7 +82,7 @@ Names use dots; Prometheus shows them with underscores (`kinhin_workers`). Durat
 | `kinhin.forge.rate_limit.remaining`, `.limit` | gauge | `forge`, `account` |
 | `kinhin.healing.actions` | counter | `result` (`succeeded`, `failed`) |
 | `kinhin.healing.awaiting_approval` | gauge | none |
-| `kinhin.errors` | counter | `error_type`, `component` |
+| `kinhin.errors` | counter | `error_type`, `component` (`lifecycle`, `forge`) |
 
 `error_type` is one of `clone_failure`, `boot_timeout`, `ssh_unreachable`, `registration_failure`, `runner_not_registered`,
 `instance_lost`, `forge_api_failure`, `rate_limited`, `teardown_failure`, `unknown`; `component` is `lifecycle`, `forge`, … Never the error text.
@@ -117,6 +117,9 @@ One trace per instance, from spawn to teardown. The root span `kinhin.job` carri
 On GitHub Actions the root span also gets `cicd.pipeline.run.id`, `kinhin.run.attempt`, `kinhin.job.id`, `cicd.pipeline.name`,
 `cicd.pipeline.task.name` and `vcs.repository.name` once the running job is seen. A job that starts and finishes between two polls is still
 counted (the forge's completion signal is used), but it has no `run` span and no run duration, because nothing observed its start.
+
+With `runners_per_vm` above 1 an instance runs several jobs: the root keeps the first job's identifiers, and each further job is a child
+`job` span with its own, so nothing is overwritten. `kinhin.jobs.picked_up` still counts the instance once.
 
 ## Logs
 
@@ -160,6 +163,8 @@ and Ctrl-C; the app exports on its interval and does not flush on quit, so its l
 - **Step-level trace propagation is not implemented.** kinhin does not pass `TRACEPARENT` or a collector address into workflow steps. It
   needs a per-job runner hook, proof that context cannot leak between reused runners, and an explicitly reachable collector. Daemon-side traces
   are complete without it.
+- Job metrics (`picked_up`, `completed`, the run duration and the `run` span) need ephemeral or scale-set runners, the ones kinhin watches
+  until their job ends. A classic persistent runner (`vm.ephemeral: false`) has lifecycle timings but no job counters.
 - Job identifiers and provider timestamps come from GitHub Actions. Other forges get the lifecycle spans and timings kinhin measures itself.
 - Metrics and logs in the upstream SDK are still in development; pin and test before relying on them.
 - Prometheus histogram buckets come out of the upstream text writer as per-bucket counts rather than cumulative `le` counts; use the OTLP

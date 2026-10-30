@@ -74,7 +74,11 @@ extension FleetEngine {
             guard let runnerName = job.runnerName,
                 let vmID = Self.vmID(forRunnerName: runnerName, among: ids)
             else { continue }
-            if let correlation = job.correlation { noteJobCorrelation(vm: vmID, correlation) }
+            if let correlation = job.correlation {
+                noteJobCorrelation(vm: vmID, correlation)
+            } else {
+                jobTrace(for: vmID)?.logContext.job = job.name
+            }
             jobsByVM[vmID, default: []].append(
                 RunningJobStamp(runner: runnerName, job: job.name, repo: isOrgScope ? job.repository : nil))
         }
