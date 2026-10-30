@@ -49,6 +49,10 @@ final class FakeTart: TartControlling, Sendable {
         var parkedIPs: [CheckedContinuation<String, Error>] = []
         /// Set by `blockIP()`: the next `ip(of:)` parks.
         var parkNextIP = false
+        /// When true, `clone` parks (loops, sleeping) right after recording its call —
+        /// the hook for the warm-pool top-up test: two reconcile passes while the first
+        /// instance is still in flight must not double-spawn it.
+        var parkClones = false
     }
 
     private let state = Mutex(State())
@@ -99,6 +103,13 @@ final class FakeTart: TartControlling, Sendable {
     var failList: Bool {
         get { state.withLock { $0.failList } }
         set { state.withLock { $0.failList = newValue } }
+    }
+
+    /// When true, `clone` parks with its call already recorded, so an instance
+    /// stays in its in-flight pool phase for two reconcile passes.
+    var parkClones: Bool {
+        get { state.withLock { $0.parkClones } }
+        set { state.withLock { $0.parkClones = newValue } }
     }
 
     /// One-shot failures: `tart.failNext["runWithDisk"] = "boot failed"`
@@ -192,6 +203,10 @@ final class FakeTart: TartControlling, Sendable {
             state.cloneCalls.append((source, name))
             state.provisionEvents.append("clone:\(name)")
             state.vms[name] = TartVM(name: name, source: source, status: "running")
+        }
+        while state.withLock({ $0.parkClones }) {
+            if Task.isCancelled { break }
+            try? await Task.sleep(for: .milliseconds(5))
         }
     }
 

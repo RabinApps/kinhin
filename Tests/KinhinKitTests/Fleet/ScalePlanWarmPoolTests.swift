@@ -154,6 +154,44 @@ final class ScalePlanWarmPoolTests: XCTestCase {
         XCTAssertEqual(plan.warmSpawn, ["": 1])
     }
 
+    // MARK: - In-flight pooled instances
+
+    private func pooled(_ id: String, _ phase: VMPhase, image: String = "") -> VMRecord {
+        // Real pooled records have no account until they are claimed for a job.
+        var record = imageRecord(id, phase, image: image.isEmpty ? nil : image)
+        record.platform = nil
+        record.pooled = true
+        return record
+    }
+
+    func testAnInFlightPooledInstanceCountsTowardItsPoolTarget() {
+        // Pool of 1 with one instance still cloning: a second spawn would be why `warm_pool: 1` keeps 2 VMs.
+        let plan = ScalePlan.make(input(records: [pooled("p1", .cloning)], warmPool: 1))
+        XCTAssertEqual(plan.warmTotal, 0, "the in-flight instance holds its pool target")
+        XCTAssertTrue(plan.slots.isEmpty)
+        XCTAssertTrue(plan.evict.isEmpty, "an in-flight instance is not evicted while it should still arrive")
+    }
+
+    func testInFlightPooledInstancesCountPerImage() {
+        var i = input(records: [pooled("p1", .cloning, image: "xcode")], maxRunners: 4)
+        i.warmPool = ["": 1, "xcode": 2]
+        XCTAssertEqual(ScalePlan.make(i).warmSpawn, ["": 1, "xcode": 1], "only the base pool is short")
+    }
+
+    func testInFlightPooledInstancesDoNotScaleTheFleet() {
+        let plan = ScalePlan.make(input(records: [pooled("p1", .cloning)], warmPool: 1))
+        XCTAssertEqual(plan.active, 0, "a pooled instance serves no demand")
+        XCTAssertEqual(plan.target, 0)
+    }
+
+    func testInFlightPooledInstancesReserveRoomUnderTheCap() {
+        // Two busy VMs under a cap of 3 with one in-flight pooled clone: the top-up must not
+        // plan new instances as if the in-flight clone would not also need a slot.
+        let records = [record("b1", .busy), record("b2", .busy), pooled("p1", .booting)]
+        let plan = ScalePlan.make(input(records: records, warmPool: 2, maxRunners: 3))
+        XCTAssertEqual(plan.warmSpawn, [:], "the cap already holds the two busy VMs and the clone")
+    }
+
     func testChooseImagePrefersTheImageWithUnmetDemand() {
         XCTAssertEqual(ScalePlan.chooseImage(queuedTart: 1, byImage: ["xcode": 1], active: [:]), "xcode")
         XCTAssertNil(

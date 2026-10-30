@@ -85,7 +85,13 @@ struct ScalePlan: Equatable {
         // Warm instances serve no demand by themselves (they have no account and are not
         // registered) and are evictable, so every demand figure below counts only live ones.
         let all = input.records.filter { $0.phase.isActive }
-        let active = all.filter { $0.phase != .warm }
+        // A pooled instance that is still cloning or booting is not yet a warm instance the
+        // pool can claim and serve, but it already occupies one of its image's pool targets:
+        // counting it either way is wrong, so it sits outside both groups. Otherwise one
+        // pool pass sees nothing on its side and tops the pool up again, doubling clones.
+        let pooledInFlight = all.filter { $0.pooled == true && $0.phase != .warm }
+        let pooling = Set(pooledInFlight.map(\.id))
+        let active = all.filter { $0.phase != .warm && !pooling.contains($0.id) }
         let warm = all.filter { $0.phase == .warm }.sorted { $0.createdAt < $1.createdAt }
         let unmet = unmetByPool(records: active, input: input)
 
@@ -101,7 +107,7 @@ struct ScalePlan: Equatable {
             desired: desired, target: target, active: active.count, unmetByPool: unmet, slots: [], scaleDown: [],
             scaleDownHeld: false)
         plan.slots = slots(count: target - active.count, active: active, input: input)
-        applyWarm(warm, to: &plan, live: active.count, cap: cap, input: input)
+        applyWarm(warm, to: &plan, live: active.count, inFlight: pooledInFlight, cap: cap, input: input)
 
         if active.count > desired {
             if input.failedForges.isEmpty {
@@ -116,8 +122,12 @@ struct ScalePlan: Equatable {
     // MARK: - Warm pool
 
     /// Claims warm instances for the Tart slots, evicts the stale and the overflow, and tops the
-    /// pool up when nothing else needs the slots.
-    private static func applyWarm(_ warm: [VMRecord], to plan: inout ScalePlan, live: Int, cap: Int, input: Input) {
+    /// pool up when nothing else needs the slots. `inFlight` are pooled instances still cloning or
+    /// booting for their image: they hold their pool target until they reach `.warm`, so the top-up
+    /// leaves those targets alone (and reserves their room under the cap) instead of double-spawning.
+    private static func applyWarm(
+        _ warm: [VMRecord], to plan: inout ScalePlan, live: Int, inFlight: [VMRecord], cap: Int, input: Input
+    ) {
         // A warm VM whose pool is off or was removed (its images: entry dropped or renamed) serves
         // nothing and holds a slot, so it is recycled now rather than at `warmMaxAge`.
         let stale = Set(
@@ -154,14 +164,17 @@ struct ScalePlan: Equatable {
         // Warm instances that survive, per image: each pool tops up from its own count.
         var kept: [String: Int] = [:]
         for record in unclaimed where !dropped.contains(record.id) { kept[record.image ?? "", default: 0] += 1 }
+        var incoming: [String: Int] = [:]
+        for record in inFlight { incoming[record.image ?? "", default: 0] += 1 }
+        let inFlightCount = inFlight.count
         let tartRunning = input.records.count { $0.phase.isActive && ($0.runtimeID ?? input.defaultRuntime) == tart }
         var room = min(
-            cap - max(plan.target, live) - kept.values.reduce(0, +),
+            cap - max(plan.target, live) - kept.values.reduce(0, +) - inFlightCount,
             (input.poolCaps[tart] ?? Int.max) - tartRunning)
         // The base image first (its key sorts first), then named images in name order.
         for image in input.warmPool.keys.sorted() {
             let want = input.warmPool[image] ?? 0
-            let spawn = max(0, min(want - (kept[image] ?? 0), room))
+            let spawn = max(0, min(want - (kept[image] ?? 0) - (incoming[image] ?? 0), room))
             if spawn > 0 {
                 plan.warmSpawn[image] = spawn
                 room -= spawn
