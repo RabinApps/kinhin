@@ -28,12 +28,16 @@ public protocol GitHubServing: Sendable {
     /// The raw log of one job (`owner/name`, job id) so far; nil when the
     /// client can't read logs.
     func jobLog(repository: String, jobID: Int) async throws -> String?
+    /// One job's verdict, times and steps; nil when it can't be read. `repository` is `owner/name`, nil for a
+    /// repository-scoped client (its own repository).
+    func jobOutcome(repository: String?, jobID: Int) async throws -> JobOutcome?
 }
 
 extension GitHubServing {
     public var rateLimit: ForgeRateLimit? { nil }
     public func pipelineDetail(runnerName: String) async throws -> PipelineDetail? { nil }
     public func jobLog(repository: String, jobID: Int) async throws -> String? { nil }
+    public func jobOutcome(repository: String?, jobID: Int) async throws -> JobOutcome? { nil }
     public func projectFile(repository: String, ref: String?) async throws -> Data? { nil }
 }
 

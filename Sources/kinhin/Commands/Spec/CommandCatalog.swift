@@ -494,6 +494,17 @@ enum CommandCatalog {
             ],
             docs: "docs/healing.md"),
         CommandSpec(
+            name: "telemetry",
+            command: .telemetry,
+            group: .running,
+            summary: "OpenTelemetry export: what runs and what fails",
+            flags: [jsonFlag, quietFlag],
+            details: [
+                "Asks the daemon, which owns the exporters. Never prints header values or URL credentials. Exits 0 when "
+                    + "telemetry is off or healthy, 1 when exports are failing or the config enables telemetry but no daemon runs."
+            ],
+            docs: "docs/telemetry.md"),
+        CommandSpec(
             name: "cleanup",
             command: .cleanup,
             group: .running,

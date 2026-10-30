@@ -14,7 +14,7 @@ extension Infra {
             telemetry:
               enabled: true
               endpoint: \(collector.endpoint)
-              export_interval: 1
+              export_interval_seconds: 1
               signals: [metrics, traces, logs]
               resource_attributes:
                 deployment.environment: e2e
@@ -54,16 +54,20 @@ extension Infra {
                 let body = try await eventually("job metrics on /metrics", timeout: 300, interval: 3) {
                     let text = await Self.scrape(port)
                     let done = Self.sample(text, "kinhin_jobs_completed") ?? 0
-                    let teardown = Self.sample(text, "kinhin_vm_phase_duration_count", labels: ["phase=\"teardown\""])
+                    let teardown = Self.sample(text, "kinhin_runner_teardown_duration_count")
                     return done >= 1 && teardown != nil ? text : nil
                 }
                 #expect((Self.sample(body, "kinhin_jobs_picked_up") ?? 0) >= 1, "\(body.prefix(2000))")
-                for phase in ["provision", "boot_ready", "registration", "teardown"] {
-                    let count = Self.sample(body, "kinhin_vm_phase_duration_count", labels: ["phase=\"\(phase)\""])
+                for phase in ["clone", "boot", "register"] {
+                    let count = Self.sample(
+                        body, "kinhin_runner_provision_duration_count", labels: ["kinhin_runner_phase=\"\(phase)\""])
                     #expect((count ?? 0) >= 1, "phase \(phase) was never timed:\n\(body.prefix(2000))")
                 }
-                #expect(body.contains("kinhin_job_run_duration"), "the job's run time is a histogram")
-                #expect(body.contains("result=\"completed\""))
+                #expect((Self.sample(body, "kinhin_runner_teardown_duration_count") ?? 0) >= 1)
+                #expect(body.contains("cicd_pipeline_run_duration"), "the job's run time is a histogram")
+                // The verdict is the forge's: GitHub says success; a forge that cannot say reads `unknown`, never a guess.
+                let verdict = cell.forge == .github ? "success" : "unknown"
+                #expect(body.contains("cicd_pipeline_result=\"\(verdict)\""), "\(body.prefix(2000))")
 
                 // Cardinality: instance names, runner names and job identifiers never become labels.
                 let prefix = Instances.ownPrefix
@@ -82,6 +86,8 @@ extension Infra {
                 }
                 #expect(traces.contains { $0.has("kinhin.vm.id") && $0.has(prefix) }, "the VM id is a span attribute")
                 #expect(traces.contains { $0.has("kinhin.result") && $0.has("completed") })
+                #expect(traces.contains { $0.has("cicd.pipeline.result") }, "the root span carries the job's result")
+                #expect(traces.contains { $0.has("kinhin.runner.name") })
                 #expect(traces.allSatisfy { $0.has("service.name") }, "spans carry the kinhin resource")
 
                 // Logs: the instance's lifecycle lines carry its id and the trace they belong to.
@@ -126,10 +132,14 @@ extension Infra {
                 }
                 #expect((Self.sample(body, "kinhin_jobs_picked_up") ?? 0) >= 1)
                 // `result` says the job ended, not that it passed: kinhin cannot see the workflow's verdict.
-                #expect(!body.contains("result=\"success\""), "kinhin must not claim a failed job succeeded")
+                #expect(
+                    !body.contains("cicd_pipeline_result=\"success\""), "kinhin must not claim a failed job succeeded")
+                if cell.forge == .github {
+                    #expect(body.contains("cicd_pipeline_result=\"failure\""), "GitHub's verdict is the result")
+                }
                 // A workflow that fails is the user's failure, not a kinhin error.
                 #expect(
-                    Self.sample(body, "kinhin_errors") == nil,
+                    Self.sample(body, "cicd_system_errors") == nil,
                     "a failing workflow is not a kinhin error:\n\(body.prefix(2000))")
 
                 // The fleet recovers, and the next job is counted too.

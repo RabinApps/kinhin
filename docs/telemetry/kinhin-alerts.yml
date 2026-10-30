@@ -1,0 +1,47 @@
+# Prometheus alert rules for kinhin telemetry. Names are the ones OTLP ingestion produces (Mimir, Grafana Cloud, a
+# Prometheus with the OTLP receiver): counters end in `_total`. Scraping kinhin's own /metrics endpoint
+# (`prometheus_listen`) exposes counters without `_total`; drop the suffix in the expressions below for that setup.
+groups:
+  - name: kinhin
+    rules:
+      - alert: KinhinQueueStuck
+        expr: max(kinhin_queue_age) > 600
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: A queued job has waited more than 10 minutes
+          description: Check capacity (kinhin_pool_capacity), spawn problems and `kinhin status`.
+      - alert: KinhinFleetBelowDesired
+        expr: kinhin_fleet_desired - kinhin_fleet_active > 0
+        for: 15m
+        labels: {severity: warning}
+        annotations:
+          summary: The fleet has not reached its desired size for 15 minutes
+      - alert: KinhinErrors
+        expr: sum by (error_type) (increase(cicd_system_errors_total[15m])) > 3
+        labels: {severity: warning}
+        annotations:
+          summary: "kinhin is failing with {{ $labels.error_type }}"
+      - alert: KinhinForgeRateLimitLow
+        expr: min by (kinhin_forge) (kinhin_forge_rate_limit_remaining) < 200
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "The {{ $labels.kinhin_forge }} API budget is nearly spent"
+      - alert: KinhinDiskLow
+        expr: kinhin_host_disk_free < 20 * 1024 * 1024 * 1024
+        for: 10m
+        labels: {severity: critical}
+        annotations:
+          summary: Less than 20 GB free on the kinhin host
+      - alert: KinhinExportFailing
+        expr: increase(kinhin_telemetry_export_failures_total[15m]) > 0
+        labels: {severity: info}
+        annotations:
+          summary: kinhin cannot deliver telemetry; run `kinhin telemetry status`
+      - alert: KinhinPaused
+        expr: kinhin_fleet_paused == 1
+        for: 1h
+        labels: {severity: info}
+        annotations:
+          summary: The fleet has been paused for an hour

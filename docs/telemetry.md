@@ -23,11 +23,12 @@ engine restart, no duplicate exporters, and a Prometheus port from the old setti
 | `enabled` | `false` | Master switch. Nothing below does anything while it is false (except `log_format`). |
 | `endpoint` | `http://localhost:4318` (`:4317` for gRPC) | Collector base URL, `http` or `https`. For HTTP/protobuf kinhin appends `/v1/metrics`, `/v1/traces` and `/v1/logs`. |
 | `protocol` | `http/protobuf` | `http/protobuf` or `grpc`. |
-| `export_interval` | `60` | Seconds between metric pushes and between span and log batches (1–3600). |
+| `export_interval_seconds` | `60` | Seconds between metric pushes and between span and log batches (1–3600). `export_interval` is accepted as an alias. |
 | `signals` | all three | Any subset of `metrics`, `traces`, `logs`. |
 | `resource_attributes` | none | Extra resource attributes. `service.name`, `service.version` and `telemetry.sdk.*` belong to kinhin and are rejected here. |
 | `prometheus_listen` | off | `host:port`, or a bare port, which binds `127.0.0.1`. Serves `GET /metrics`. Needs `metrics` in `signals`. |
 | `log_format` | `text` | `json` writes one JSON object per line to `kinhin.log` and stderr. Independent of `enabled`. |
+| `job_attributes` | none | `[repository, workflow]` adds those dimensions to the job counters and histograms. See [Cardinality](#cardinality-and-privacy). |
 
 Credentials are never read from `config.yaml`. Put collector headers in `OTEL_EXPORTER_OTLP_HEADERS` in the environment of the process that
 runs the engine (for the daemon, its LaunchAgent environment). kinhin never logs them, and registers their values with the log redactor.
@@ -59,60 +60,69 @@ Precedence, lowest to highest: host defaults (`host.name`, `host.arch`, `os.type
 
 ## Metrics
 
-Names use dots; Prometheus shows them with underscores (`kinhin_workers`). Durations are in seconds, sizes in bytes, utilisation is a ratio.
+Names use dots; Prometheus shows them with underscores (`cicd_worker_count`). Durations are in seconds, sizes in bytes, utilisation is a ratio.
+Names and attributes follow the [OpenTelemetry CI/CD semantic conventions](https://opentelemetry.io/docs/specs/semconv/cicd/) where one
+exists (`cicd.worker.*`, `cicd.pipeline.*`, `cicd.system.*`, `error.type`) and are `kinhin.`-prefixed otherwise.
 
 | Metric | Kind | Attributes |
 | --- | --- | --- |
-| `kinhin.workers` | gauge | `pool`, `image`, `labels` (sorted), `state` (the lifecycle phase) |
-| `kinhin.queue.depth` | gauge | `account` |
-| `kinhin.queue.age.max` | gauge | none. Only while the forge reports when jobs were queued |
+| `cicd.worker.count` | gauge | `kinhin.pool`, `kinhin.image`, `kinhin.runner.labels` (sorted), `cicd.worker.state` (the lifecycle phase) |
+| `kinhin.queue.depth` | gauge | `kinhin.account` |
+| `kinhin.queue.age` | gauge | none. The oldest queued job; only while the forge reports when jobs were queued |
 | `kinhin.fleet.desired`, `.active`, `.paused`, `.running` | gauge | none |
-| `kinhin.fleet.capacity` | gauge | `kind` (`vm` or `job`) |
-| `kinhin.warm_pool.size` | gauge | `pool`, `image` |
-| `kinhin.warm_pool.claims`, `.evictions` | counter | `pool`, `image`, `forge` |
-| `kinhin.jobs.picked_up`, `kinhin.jobs.completed` | counter | `pool`, `image`, `forge` (+ `result` on completed) |
-| `kinhin.jobs.active` | gauge | none |
-| `kinhin.job.run.duration` | histogram | `pool`, `image`, `forge`, `result` |
-| `kinhin.job.queue_wait.duration` | histogram | `pool`, `image`, `forge`. Only with provider timestamps |
-| `kinhin.vm.phase.duration` | histogram | `pool`, `image`, `forge`, `phase` (`provision`, `boot_ready`, `registration`, `teardown`) |
-| `kinhin.runner.cpu.utilization`, `.memory.usage`, `.memory.limit` | gauge | `pool`, `image`. Aggregated over runners |
+| `kinhin.pool.capacity` | gauge | `kinhin.pool` |
+| `kinhin.warm_pool.size` | gauge | `kinhin.pool`, `kinhin.image` |
+| `kinhin.warm_pool.claims`, `.evictions` | counter | `kinhin.pool`, `kinhin.image`, `kinhin.forge` |
+| `kinhin.jobs.picked_up` | counter | `kinhin.pool`, `kinhin.image`, `kinhin.forge` |
+| `kinhin.jobs.completed` | counter | the same, plus `cicd.pipeline.result` (+ `job_attributes`) |
+| `cicd.pipeline.run.active` | gauge | none |
+| `cicd.pipeline.run.duration` | histogram | `kinhin.pool`, `kinhin.image`, `kinhin.forge`, `cicd.pipeline.result` (+ `job_attributes`) |
+| `kinhin.job.queue_wait.duration` | histogram | `kinhin.pool`, `kinhin.image`, `kinhin.forge` (+ `job_attributes`). Only with provider timestamps |
+| `kinhin.runner.provision.duration` | histogram | the pool attributes plus `kinhin.runner.phase` (`clone`, `boot`, `register`) |
+| `kinhin.runner.teardown.duration` | histogram | `kinhin.pool`, `kinhin.image`, `kinhin.forge` |
+| `kinhin.runner.cpu.utilization`, `.memory.usage`, `.memory.limit` | gauge | `kinhin.pool`, `kinhin.image`. Aggregated over runners |
 | `kinhin.host.cpu.utilization`, `.memory.usage`, `.memory.limit`, `.disk.free` | gauge | none |
-| `kinhin.process.cpu.utilization`, `.memory.usage` | gauge | none (the daemon process) |
-| `kinhin.forge.requests` | counter | `forge`, `status_class` (`2xx`…`5xx`, `error`) |
-| `kinhin.forge.rate_limit.remaining`, `.limit` | gauge | `forge`, `account` |
-| `kinhin.healing.actions` | counter | `result` (`succeeded`, `failed`) |
+| `process.cpu.utilization`, `process.memory.usage` | gauge | none (the daemon process) |
+| `kinhin.forge.api.requests` | counter | `kinhin.forge`, `http.response.status_class` (`2xx`…`5xx`, `error`) |
+| `kinhin.forge.rate_limit.remaining`, `.limit` | gauge | `kinhin.forge`, `kinhin.account` |
+| `kinhin.healing.actions` | counter | `kinhin.healing.result` (`succeeded`, `failed`) |
 | `kinhin.healing.awaiting_approval` | gauge | none |
-| `kinhin.errors` | counter | `error_type`, `component` (`lifecycle`, `forge`) |
+| `cicd.system.errors` | counter | `error.type`, `cicd.system.component` (`lifecycle`, `forge`) |
 
-`error_type` is one of `clone_failure`, `boot_timeout`, `ssh_unreachable`, `registration_failure`, `runner_not_registered`,
-`instance_lost`, `forge_api_failure`, `rate_limited`, `teardown_failure`, `unknown`; `component` is `lifecycle`, `forge`, … Never the error text.
+`error.type` is one of `clone_failed`, `boot_timeout`, `ssh_unreachable`, `registration_failed`, `runner_not_registered`, `instance_lost`,
+`forge_api`, `rate_limited`, `teardown_failed`, `unknown`. Never the error text.
 
-`result` is always `completed`: kinhin sees that a runner finished its job, not whether the job passed, so pass and fail rates belong to your
-forge's own CI metrics. `kinhin.errors` counts kinhin's own failures, not failing workflows.
+**The job result is the forge's, or `unknown`.** When a job ends kinhin asks the forge, once, what happened: GitHub answers with the
+job's conclusion, its own start and end times and its steps. `cicd.pipeline.result` is then `success`, `failure`, `cancellation`, `timeout`
+or `skip`, the run duration uses GitHub's times, and the trace gets one span per step. A forge that cannot say (today, everything but GitHub),
+or a job GitHub has not marked finished after a few short retries, reads `unknown`. kinhin never guesses a verdict. The read happens while
+the instance is torn down, so it adds no delay. `kinhin.errors` counts kinhin's own failures, not failing workflows.
 
 **Unavailable is not zero.** When a runtime or forge cannot supply a value, that series is absent. Today that means: per-runner disk use (no
-runtime exposes it), the `queue.age.max` gauge and the queue-wait histogram on forges that do not report queue timestamps (GitHub does, through
-the job's `created_at`), and CPU on the first sample after a start. `SSH-ready` is not timed apart from `boot_ready` because the runtimes do not
-separate them.
+runtime exposes it), `kinhin.queue.age` and the queue-wait histogram on forges that do not report queue timestamps (GitHub does, through
+the job's `created_at`), and CPU on the first sample after a start. SSH-ready is not timed apart from boot because the runtimes do not
+separate them: `boot` covers both.
 
 ### Cardinality and privacy
 
 VM names, job and run IDs and trace and span IDs are **never** metric attributes: they appear only on spans and log records. Metric attributes
 come from small closed sets (pool, image, forge, account, phase, result, error type, component) and the sorted runner labels from your config.
-Per-repository and per-workflow dimensions are deliberately not on any metric: in an org-scoped fleet they are unbounded, so use traces for
-that. Runner CPU and memory are aggregated per pool and image, never one series per VM.
+Per-repository and per-workflow dimensions are off by default: in an org-scoped fleet they are unbounded, and each combination is a series
+in Prometheus or Mimir. `job_attributes: [repository, workflow]` adds them (as `vcs.repository.name` and `cicd.pipeline.name`) to
+`kinhin.jobs.completed`, `cicd.pipeline.run.duration` and the queue-wait histogram only, and only where the forge supplied the value. Turn them
+on for a fleet with a known, small set of repositories; otherwise use traces, which carry them for free. Runner CPU and memory are aggregated per pool and image, never one series per VM.
 
 Logs pass through the same redaction as the local log before export; tokens and registration secrets cannot reach a collector or the JSON log.
 Spans and logs do carry repository, workflow and job names and VM names, so only point `endpoint` at a collector you trust with them.
 
 ## Traces
 
-One trace per instance, from spawn to teardown. The root span `kinhin.job` carries `kinhin.vm.id`, `kinhin.pool`, `kinhin.image`,
-`kinhin.forge`, `kinhin.runner.labels` and the final `kinhin.result`. Children, each only where there is a real measurement:
+One trace per instance, from spawn to teardown. The root span `kinhin.job` carries `kinhin.vm.id`, `kinhin.runner.name`, `kinhin.pool`, `kinhin.image`,
+`kinhin.forge`, `kinhin.runner.labels`, the forge's `cicd.pipeline.result` and the final `kinhin.result`. Children, each only where there is a real measurement:
 
 - `provision`, `boot_ready`, `registration`, `run`, `teardown`: timed by kinhin with the monotonic clock.
 - `queue_wait`: from the forge's queue timestamp to its start timestamp, only when the forge supplied both.
-- `step`: provider-reported steps with their own start and finish times, when kinhin has them.
+- `step`: one per step the forge reports for the finished job, with the forge's own start and finish times (GitHub).
 
 On GitHub Actions the root span also gets `cicd.pipeline.run.id`, `kinhin.run.attempt`, `kinhin.job.id`, `cicd.pipeline.name`,
 `cicd.pipeline.task.name` and `vcs.repository.name` once the running job is seen. A job that starts and finishes between two polls is still
@@ -124,7 +134,7 @@ With `runners_per_vm` above 1 an instance runs several jobs: the root keeps the 
 ## Logs
 
 With `logs` selected, every log line also becomes an OTLP log record with its severity, `kinhin.component`, the VM (`kinhin.vm.id`) and job
-when known, and the trace and span of the lifecycle it came from. `log_format: json` writes the same context locally:
+(`kinhin.job.name`, `kinhin.job.id`) when known, and the trace and span of the lifecycle it came from. `log_format: json` writes the same context locally:
 
 ```json
 {"component":"kinhin-1717000000-a1b2c3d4","level":"info","message":"booted at 192.168.64.5","span_id":"…","trace_id":"…","ts":"2026-10-29T18:00:00.000Z","vm":"kinhin-1717000000-a1b2c3d4"}
@@ -151,6 +161,70 @@ authenticating proxy in front of it. If the port cannot be bound, telemetry stay
 The daemon runs on the Mac and sends to `endpoint`, so `localhost` means the Mac. That is the right address for a collector on the same host.
 Runner VMs and containers are separate machines to the network: a loopback address is **not** reachable from them, which matters only if you
 forward telemetry from inside a job yourself.
+
+## Checking it works
+
+`kinhin telemetry status` (add `--json` for scripts) asks the daemon what the pipeline is doing: which signals, where each goes
+(credentials and query strings removed), the bound Prometheus address, and the last export problem. The SDK never throws export
+errors, so kinhin reports them itself: each distinct problem is logged at most once a minute as `export problem: …`, counted in
+`kinhin.telemetry.export.failures`, and shown by `status`. It exits 1 when exports failed in the last five minutes, or when the config
+enables telemetry and no daemon runs.
+
+## Grafana Alloy, dashboards and alerts
+
+A collector on the same Mac, forwarding to Grafana Cloud (Mimir for metrics, Loki for logs, Tempo for traces):
+
+```alloy
+otelcol.receiver.otlp "kinhin" {
+  http { endpoint = "127.0.0.1:4318" }
+  grpc { endpoint = "127.0.0.1:4317" }
+  output {
+    metrics = [otelcol.processor.batch.default.input]
+    logs    = [otelcol.processor.batch.default.input]
+    traces  = [otelcol.processor.batch.default.input]
+  }
+}
+
+otelcol.processor.batch "default" {
+  output {
+    metrics = [otelcol.exporter.otlphttp.cloud.input]
+    logs    = [otelcol.exporter.otlphttp.cloud.input]
+    traces  = [otelcol.exporter.otlphttp.cloud.input]
+  }
+}
+
+otelcol.auth.basic "cloud" {
+  client_auth {
+    username = sys.env("GRAFANA_CLOUD_INSTANCE_ID")
+    password = sys.env("GRAFANA_CLOUD_TOKEN")
+  }
+}
+
+otelcol.exporter.otlphttp "cloud" {
+  client {
+    endpoint = sys.env("GRAFANA_CLOUD_OTLP_ENDPOINT")
+    auth     = otelcol.auth.basic.cloud.handler
+  }
+}
+```
+
+and in `config.yaml`:
+
+```yaml
+telemetry:
+  enabled: true
+  endpoint: http://127.0.0.1:4318
+  resource_attributes: {deployment.environment: home}
+```
+
+To scrape metrics instead of pushing them, set `prometheus_listen: 127.0.0.1:9469` and add
+`prometheus.scrape "kinhin" { targets = [{__address__ = "127.0.0.1:9469"}]  forward_to = [prometheus.remote_write.cloud.receiver]  job_name = "kinhin" }`.
+
+Ready-made files live in the repository: [`docs/telemetry/kinhin-dashboard.json`](https://github.com/RabinApps/kinhin/blob/main/docs/telemetry/kinhin-dashboard.json)
+(import it in Grafana and pick your Prometheus data source) and [`docs/telemetry/kinhin-alerts.yml`](https://github.com/RabinApps/kinhin/blob/main/docs/telemetry/kinhin-alerts.yml)
+(queue stuck, fleet below desired, errors, forge rate limit, host disk, export failing, paused). Both use the names OTLP ingestion produces,
+where counters end in `_total`; kinhin's own `/metrics` endpoint exposes counters without it. A test keeps every metric name in these files
+in step with the catalog above.
 
 ## Who exports
 

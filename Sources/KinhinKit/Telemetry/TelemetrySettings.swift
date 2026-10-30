@@ -21,13 +21,15 @@ struct TelemetrySettings: Sendable, Equatable, CustomStringConvertible {
     /// Final resource attributes, identity included.
     var resource: [String: String]
     var prometheus: TelemetryListenAddress?
+    /// Extra dimensions on the job counters and histograms (see `TelemetryConfig.JobAttribute`).
+    var jobAttributes: Set<KinhinConfig.TelemetryConfig.JobAttribute>
     /// Environment values that were set but unusable, and were ignored.
     var warnings: [String]
 
     /// Nothing runs: no exporter, no listener.
     static let disabled = TelemetrySettings(
         enabled: false, otlpProtocol: .httpProtobuf, endpoints: [:], headers: [:], exportInterval: 60, signals: [],
-        resource: [:], prometheus: nil, warnings: [])
+        resource: [:], prometheus: nil, jobAttributes: [], warnings: [])
 
     /// A line for the log: never the header values.
     var description: String {
@@ -182,7 +184,7 @@ enum TelemetryResolver {
         return TelemetrySettings(
             enabled: true, otlpProtocol: otlpProtocol, endpoints: endpoints, headers: headers,
             exportInterval: interval, signals: signals, resource: resource, prometheus: prometheus,
-            warnings: warnings)
+            jobAttributes: config.jobAttributes, warnings: warnings)
     }
 
     /// The collector on this Mac at the protocol's conventional port.

@@ -167,6 +167,9 @@ extension Daemon {
                     try await engine.dismissHealing(id: id)
                 }
                 return RPCResponse(id: request.id, ok: true)
+            case .telemetryStatus:
+                return RPCResponse(
+                    id: request.id, ok: true, payload: try encoder.encode(await TelemetryService.shared.status()))
             case .logs:
                 let entries = Log.snapshot(limit: 300)
                 return RPCResponse(id: request.id, ok: true, payload: try encoder.encode(entries))

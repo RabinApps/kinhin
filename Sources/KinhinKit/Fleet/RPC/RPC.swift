@@ -40,6 +40,8 @@ public enum RPCMethod: String, Codable, Sendable {
     case healingApprove = "healing_approve"
     /// Close a pending or surfaced healing event.
     case healingDismiss = "healing_dismiss"
+    /// What the daemon's telemetry pipeline is doing (never any credentials).
+    case telemetryStatus = "telemetry_status"
 
     /// Methods that change fleet state; the daemon runs them one at a time.
     var mutatesFleet: Bool {
@@ -48,7 +50,8 @@ public enum RPCMethod: String, Codable, Sendable {
             .replaceToken, .replaceGiteaToken, .replaceForgejoToken, .replaceAccountToken, .reloadConfig,
             .benchStart, .healingApprove, .healingDismiss:
             return true
-        case .status, .pipelineDetail, .pipelineLog, .logs, .ping, .benchStatus, .benchCancel, .healingStatus:
+        case .status, .pipelineDetail, .pipelineLog, .logs, .ping, .benchStatus, .benchCancel, .healingStatus,
+            .telemetryStatus:
             return false
         }
     }

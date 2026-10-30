@@ -35,6 +35,7 @@ public actor TelemetryService {
     /// How long a stop waits for the old pipeline's final flush before carrying on (the flush keeps running).
     private let shutdownTimeout: Duration
     private var running: TelemetrySettings?
+    private var startedAt: Date?
     private var backendPort = 0
 
     public init() {
@@ -52,6 +53,14 @@ public actor TelemetryService {
         self.host = host
         self.makeBackend = makeBackend
         self.telemetry = handle
+    }
+
+    /// What the pipeline is doing now, for `kinhin telemetry status`.
+    public func status() -> TelemetryStatus {
+        guard let running, let startedAt else { return .disabled }
+        var status = TelemetryStatus(settings: running, prometheusPort: backendPort, startedAt: startedAt)
+        TelemetryHealth.shared.apply(to: &status)
+        return status
     }
 
     /// The settings the running pipeline was started with (nil while off).
@@ -77,8 +86,13 @@ public actor TelemetryService {
         }
         do {
             let backend = try makeBackend(settings)
+            telemetry.setJobAttributes(settings.jobAttributes)
             _ = telemetry.swap(to: backend, enabled: true)
             running = settings
+            startedAt = Date()
+            backendPort = (backend as? OTelBackend)?.prometheusPort ?? 0
+            TelemetryHealth.shared.reset()
+            TelemetryHealth.install(true)
             if settings.signals.contains(.logs) { Log.telemetry = telemetry }
             if let prometheus = settings.prometheus, !prometheus.isLoopback {
                 Log.warn(
@@ -105,8 +119,11 @@ public actor TelemetryService {
     private func stop(timeout: Duration? = nil) async {
         guard running != nil else { return }
         Log.telemetry = nil
+        TelemetryHealth.install(false)
         let old = telemetry.swap(to: NoopBackend(), enabled: false)
         running = nil
+        startedAt = nil
+        backendPort = 0
         // Listeners are released at once (a new pipeline may want the port); the flush that follows talks to
         // the collector and can take as long as its timeouts, so the caller waits for it only up to a bound.
         old.releaseListeners()

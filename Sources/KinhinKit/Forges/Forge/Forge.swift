@@ -162,6 +162,9 @@ public protocol Forge: Sendable {
     /// their state), or nil when it runs no job or the forge can't tell.
     /// `repository` narrows the lookup where the forge needs it.
     func pipelineDetail(runnerName: String, repository: String?) async throws -> PipelineDetail?
+    /// What the forge says the job described by `correlation` did, once it has finished: the verdict, its own
+    /// times and its steps. Nil when the forge cannot say. Read once per job, for telemetry only.
+    func jobOutcome(for correlation: JobCorrelation) async throws -> JobOutcome?
     /// The output of `step` of `job` (the whole job when `step` is nil) as the
     /// forge has it so far, or nil when the forge can't provide it. `job` and
     /// `step` come from this forge's own `pipelineDetail`.
@@ -200,6 +203,8 @@ extension Forge {
     func freshRunners() async throws -> [ForgeRunner] { try await runners() }
 
     public func pipelineDetail(runnerName: String, repository: String?) async throws -> PipelineDetail? { nil }
+
+    public func jobOutcome(for correlation: JobCorrelation) async throws -> JobOutcome? { nil }
 
     public func pipelineLog(job: PipelineJob, step: PipelineStep?) async throws -> PipelineLog? { nil }
 

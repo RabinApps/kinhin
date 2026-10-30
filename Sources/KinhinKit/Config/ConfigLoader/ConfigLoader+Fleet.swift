@@ -263,11 +263,17 @@ extension ConfigLoader {
             }
             telemetry.otlpProtocol = proto
         }
-        if let interval = partial.exportInterval {
+        // `export_interval` is accepted as an alias of `export_interval_seconds` (the key the docs use).
+        if let one = partial.exportInterval, let two = partial.exportIntervalAlias, one != two {
+            throw ConfigError.invalid(
+                "telemetry.export_interval and telemetry.export_interval_seconds disagree; keep export_interval_seconds"
+            )
+        }
+        if let interval = partial.exportInterval ?? partial.exportIntervalAlias {
             let range = Telemetry.exportIntervalRange
             guard range.contains(interval) else {
                 throw ConfigError.invalid(
-                    "telemetry.export_interval must be between \(range.lowerBound) and \(range.upperBound) seconds, got \(interval)"
+                    "telemetry.export_interval_seconds must be between \(range.lowerBound) and \(range.upperBound) seconds, got \(interval)"
                 )
             }
             telemetry.exportIntervalSeconds = interval
@@ -282,6 +288,17 @@ extension ConfigLoader {
                 signals.insert(signal)
             }
             telemetry.signals = signals
+        }
+        if let names = partial.jobAttributes {
+            var attributes = Set<Telemetry.JobAttribute>()
+            for name in names {
+                guard let attribute = Telemetry.JobAttribute(rawValue: name) else {
+                    throw ConfigError.invalid(
+                        "telemetry.job_attributes entries must be repository or workflow, got '\(name)'")
+                }
+                attributes.insert(attribute)
+            }
+            telemetry.jobAttributes = attributes
         }
         if let attributes = partial.resourceAttributes {
             for key in attributes.keys.sorted() {

@@ -91,6 +91,11 @@ struct GitHubForge: Forge {
         try await client.pipelineDetail(runnerName: runnerName)
     }
 
+    func jobOutcome(for correlation: JobCorrelation) async throws -> JobOutcome? {
+        guard let jobID = correlation.jobID.flatMap(Int.init) else { return nil }
+        return try await client.jobOutcome(repository: correlation.repository, jobID: jobID)
+    }
+
     func pipelineLog(job: PipelineJob, step: PipelineStep?) async throws -> PipelineLog? {
         guard let ref = job.logRef, let bar = ref.lastIndex(of: "|"), let jobID = Int(ref[ref.index(after: bar)...]),
             let raw = try await client.jobLog(repository: String(ref[..<bar]), jobID: jobID)
