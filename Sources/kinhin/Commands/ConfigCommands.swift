@@ -215,11 +215,18 @@ enum ConfigCommands {
     /// everything after it counts (a filename starting with `-`), and tokens
     /// before it that are not flags are operands too — a marker does not
     /// erase them, or `broken.yaml --` would validate the default config.
+    /// A dash-prefixed signed number is still an operand (`-1`), matching
+    /// CommandResolver's token rule rather than guessing at flag names.
     static func operands(in args: [String]) -> [String] {
         guard let marker = args.firstIndex(of: "--") else {
-            return args.compactMap { $0 == "-" || !$0.hasPrefix("-") ? $0 : nil }
+            return args.compactMap { isOperand($0) ? $0 : nil }
         }
-        return args[..<marker].compactMap { $0 == "-" || !$0.hasPrefix("-") ? $0 : nil }
-            + args[(marker + 1)...]
+        return args[..<marker].compactMap { isOperand($0) ? $0 : nil } + args[(marker + 1)...]
+    }
+
+    /// Not a flag: a bare `-` (stdin), a token outside the flag namespace,
+    /// or a dash-prefixed signed number that `Double` can read.
+    private static func isOperand(_ token: String) -> Bool {
+        token == "-" || !token.hasPrefix("-") || Double(token) != nil
     }
 }

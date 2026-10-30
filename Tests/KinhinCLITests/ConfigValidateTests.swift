@@ -141,6 +141,11 @@ final class ConfigValidateTests: XCTestCase {
         XCTAssertEqual(ConfigCommands.operands(in: ["--", "-breaky.yaml"]), ["-breaky.yaml"])
         XCTAssertEqual(
             ConfigCommands.operands(in: ["broken.yaml", "--"]), ["broken.yaml"])
+        // A dash-prefixed signed number is a filename, not a flag (the
+        // resolver's own token rule): `-1` names a config file to validate.
+        XCTAssertEqual(ConfigCommands.operands(in: ["-1"]), ["-1"])
+        XCTAssertEqual(ConfigCommands.operands(in: ["-1", "--"]), ["-1"])
+        XCTAssertEqual(ConfigCommands.operands(in: ["--verbose", "-2"]), ["-2"])
 
         // More than one FILE operand is a usage error, not a silent pick of
         // the first.
