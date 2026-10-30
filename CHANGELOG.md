@@ -4,6 +4,8 @@
 
 <!-- changelog: entries for the next release go here -->
 
+## v0.0.1-beta-4
+
 **Added**
 
 - The macOS 27 Golden Gate base images (`macos-golden-gate-base`, `-vanilla`, `-xcode`) join the curated base-image
@@ -15,7 +17,6 @@
 - `kinhin config validate [FILE]` checks a named config file instead of this Mac's default one — useful before
   pointing a fleet at the file, in CI, or for agent review of a proposed config. The command honors `--` before the
   file name (so `kinhin config validate -- -broken.yaml` parses) and rejects extra operands.
-
 - Opt-in OpenTelemetry: a `telemetry:` section exports metrics, traces and logs over OTLP (HTTP/protobuf or gRPC) and can serve the
   metrics on a local Prometheus `/metrics` endpoint. It covers workers by pool, image, labels and state, queue depth and age, fleet size
   and capacity, the warm pool, provisioning, boot and registration timings, jobs picked up and completed, runner, host and daemon resource
@@ -33,6 +34,10 @@
 
 **Fixed**
 
+- A VM with several runners (`runners_per_vm > 1`) showed only its first running job in Current jobs, the diagram and the CLI
+  status. Every running job is listed now, and a run with more than 100 jobs no longer loses the extras from the queue (#63).
+- A finished GitHub job or step kept its timer running: the finish time was never read, so the duration grew until the
+  pipeline sheet was closed. The timer now stops at the job's finish (#59).
 - `kinhin daemon install` wrote the path it was found by into the daemon's LaunchAgent: a bare `kinhin` resolved
   through PATH became `<cwd>/kinhin`, which launchd could not run at login. The path now comes from the running
   binary itself (`Bundle.main`/`_NSGetExecutablePath`, symlinks resolved), and the install uses `launchctl
@@ -63,7 +68,7 @@
 - Apple-container and Docker runners no longer advertise the fleet's `macos` label: their guests run Linux, and a macOS
   job started there would never finish (each Linux runtime keeps `kinhin-container`/`kinhin-docker`, the architecture
   label and — for containers — the `container.labels:` entries). A pool that must speak other fleet labels can drop the
-  inheritance  with `fleet_labels: false` under `container:` or `docker:` (replace-not-add: the pool then registers with
+  inheritance with `fleet_labels: false` under `container:` or `docker:` (replace-not-add: the pool then registers with
   the marker and that section's own labels alone — a Docker pool keeps the architecture label of the guest it
   actually runs, so an amd64 Docker VM advertises `x64` rather than the inherited `arm64`, while a container pool
   carries no architecture label at all). Configs whose workflows
@@ -74,6 +79,13 @@
   `macos` word in a Linux image's `labels:` is stripped too, so it cannot put the runner back into the macOS
   pool.
 
+**Upgrading**
+
+- Apple-container and Docker runners no longer carry the `macos` label. A workflow that targeted a Linux runtime with
+  `runs-on: […, macos]` must switch to `kinhin-container` or `kinhin-docker`. A pool that needs the fleet's other labels
+  can opt out of the inheritance with `fleet_labels: false` under `container:` or `docker:`.
+- Re-run `kinhin daemon install` if the daemon does not start after the upgrade; it now writes the real binary path
+  into the LaunchAgent.
 
 ## v0.0.1-beta-3
 

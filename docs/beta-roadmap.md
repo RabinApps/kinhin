@@ -5,11 +5,11 @@ What is supported today, and the milestones between the current beta and the **v
 [← Back to README](../README.md) · [Forge support](forges.md#what-has-been-tested)
 
 <!-- docs-sync:begin release-line -->
-kinhin is in beta (`v0.0.1-beta-3`).
+kinhin is in beta (`v0.0.1-beta-4`).
 <!-- docs-sync:end release-line -->
 
 The beta supports **GitHub, Gitea, Forgejo and GitLab CE**; Buildkite, Azure Pipelines and Bitbucket Pipelines follow in
-later betas. Milestones are ordered by what has to be true, not by date.
+later betas (planned for beta 5). Milestones are ordered by what has to be true, not by date.
 
 ## Where we are
 
@@ -22,7 +22,7 @@ later betas. Milestones are ordered by what has to be true, not by date.
 | ThreadSanitizer | Clean (`scripts/tsan.sh`) |
 | Long-running soak test | Not done |
 | In-app updater | Ships in beta-3; not yet exercised by a published release updating itself (needs the next release) |
-| Telemetry | None |
+| Telemetry | Opt-in OpenTelemetry (off by default; exports only to a server you configure). See [Telemetry](telemetry.md) |
 
 ## Milestones
 
@@ -42,14 +42,24 @@ later betas. Milestones are ordered by what has to be true, not by date.
 
 **Exit:** no open bugs that lose a job or leak a runner on a supported forge.
 
-### beta-3: updater, restart safety and localization (current)
+### beta-3: updater, restart safety and localization
 
 - The in-app updater installs updates itself (Sparkle, EdDSA-signed feed).
 - A restart no longer registers a VM again while its runner is still on the forge.
 - Ollama as a healing advisor, camera and karaoke captions for videos, and the app in seven more languages.
 - Azure Pipelines labeled experimental.
 
-### beta-4: more forges
+### beta-4: telemetry, macOS 27 images and reliability (current)
+
+- Opt-in OpenTelemetry: metrics, traces and logs over OTLP, a Prometheus endpoint, `kinhin telemetry status` and a menu bar card.
+- The macOS 27 Golden Gate base images and digest-pinned base images.
+- Install and reliability fixes: the daemon's LaunchAgent path, `vm.cpu` and `vm.memory_gb` on Tart, warm-pool counting, and
+  every running job shown on multi-runner VMs.
+- Linux runners (Apple container and Docker) no longer carry the `macos` label.
+
+The Buildkite, Azure Pipelines and Bitbucket Pipelines work promised for this beta did not make it and moves to beta 5.
+
+### beta-5: more forges
 
 - Buildkite, Azure Pipelines and Bitbucket Pipelines run against real accounts in the end-to-end suite, and become
   supported one by one as they pass.

@@ -11,7 +11,7 @@ narrated launch videos built from files in your repo.
 [Beta 3](https://kinhin.dev/blog/beta-3)
 
 <!-- docs-sync:begin release-banner -->
-> **Beta (`v0.0.1-beta-3`).** Supported: GitHub, Gitea, Forgejo and GitLab CE. See
+> **Beta (`v0.0.1-beta-4`).** Supported: GitHub, Gitea, Forgejo and GitLab CE. See
 > [what has been tested](docs/forges.md#what-has-been-tested) and the [roadmap](docs/beta-roadmap.md), and
 > [report what you find](https://github.com/RabinApps/kinhin/issues/new/choose). Telemetry is off unless you turn it on.
 <!-- docs-sync:end release-banner -->
