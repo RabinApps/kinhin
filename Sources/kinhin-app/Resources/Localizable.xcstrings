@@ -41911,49 +41911,49 @@
         }
       }
     },
-    "A port alone stays on this Mac. Leave it empty for no Prometheus endpoint. It needs the metrics signal." : {
+    "Enter just a port number to serve it on this Mac only (127.0.0.1). Leave it empty for no Prometheus endpoint. It needs the metrics signal." : {
       "comment" : "Settings → App → Telemetry hint under the Prometheus address field; `metrics` is a config value and stays verbatim",
       "localizations" : {
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Un puerto solo se queda en este Mac. Déjalo vacío para no tener endpoint de Prometheus. Requiere la señal metrics."
+            "value" : "Si escribes solo un número de puerto, el endpoint solo está disponible en este Mac (127.0.0.1). Déjalo vacío para no tener endpoint de Prometheus. Requiere la señal metrics."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ポートだけを指定すると、この Mac 内に限られます。空にすると Prometheus エンドポイントは無効になります。metrics シグナルが必要です。"
+            "value" : "ポート番号だけを入力すると、この Mac 内（127.0.0.1）のみで公開されます。空にすると Prometheus エンドポイントは無効になります。metrics シグナルが必要です。"
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Nur ein Port bleibt auf diesem Mac. Leer lassen, um keinen Prometheus-Endpunkt zu verwenden. Erfordert das Signal metrics."
+            "value" : "Gibst du nur eine Portnummer ein, ist der Endpunkt nur auf diesem Mac erreichbar (127.0.0.1). Leer lassen, um keinen Prometheus-Endpunkt zu verwenden. Erfordert das Signal metrics."
           }
         },
         "he" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "מספר פורט בלבד נשאר במחשב זה. השאירו ריק כדי לא להפעיל נקודת קצה של Prometheus. נדרש האות metrics."
+            "value" : "הזינו מספר פורט בלבד כדי לחשוף את נקודת הקצה רק במחשב זה (127.0.0.1). השאירו ריק כדי לא להפעיל נקודת קצה של Prometheus. נדרש האות metrics."
           }
         },
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "إذا كتبت المنفذ وحده فسيبقى على هذا الـ Mac. اتركه فارغًا لتعطيل نقطة Prometheus. يتطلب الإشارة metrics."
+            "value" : "إذا أدخلت رقم المنفذ فقط، تكون نقطة النهاية متاحة على هذا الـ Mac فقط (127.0.0.1). اتركه فارغًا لتعطيل نقطة Prometheus. يتطلب الإشارة metrics."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Una sola porta resta su questo Mac. Lascia vuoto per non avere un endpoint Prometheus. Richiede il segnale metrics."
+            "value" : "Se inserisci solo un numero di porta, l’endpoint è raggiungibile solo da questo Mac (127.0.0.1). Lascia vuoto per non avere un endpoint Prometheus. Richiede il segnale metrics."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Un port seul reste sur ce Mac. Laissez vide pour n’avoir aucun point de terminaison Prometheus. Nécessite le signal metrics."
+            "value" : "Si vous saisissez uniquement un numéro de port, le point de terminaison n’est accessible que depuis ce Mac (127.0.0.1). Laissez vide pour n’avoir aucun point de terminaison Prometheus. Nécessite le signal metrics."
           }
         }
       }

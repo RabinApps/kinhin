@@ -1,6 +1,11 @@
 # Prometheus alert rules for kinhin telemetry. Names are the ones OTLP ingestion produces (Mimir, Grafana Cloud, a
 # Prometheus with the OTLP receiver): counters end in `_total`. Scraping kinhin's own /metrics endpoint
 # (`prometheus_listen`) exposes counters without `_total`; drop the suffix in the expressions below for that setup.
+#
+# KinhinExportFailing reads a counter that travels through the same exporter that is failing: when the collector is
+# unreachable the metrics push fails too, so the series may never arrive. It reliably covers a failing traces or logs
+# endpoint while metrics still arrive, and a setup that scrapes /metrics. KinhinTelemetrySilent covers the rest: it
+# fires when a series kinhin always publishes stops arriving.
 groups:
   - name: kinhin
     rules:
@@ -39,6 +44,12 @@ groups:
         labels: {severity: info}
         annotations:
           summary: kinhin cannot deliver telemetry; run `kinhin telemetry status`
+      - alert: KinhinTelemetrySilent
+        expr: absent(kinhin_fleet_active)
+        for: 10m
+        labels: {severity: warning}
+        annotations:
+          summary: No kinhin metrics have arrived for 10 minutes (daemon down or telemetry not delivering); run `kinhin telemetry status`
       - alert: KinhinPaused
         expr: kinhin_fleet_paused == 1
         for: 1h
@@ -52,7 +63,7 @@ groups:
         annotations:
           summary: The kinhin control loop has not completed a pass for five minutes
       - alert: KinhinSpawnHeld
-        expr: max(kinhin_spawn_held) > 0
+        expr: max by (kinhin_pool, kinhin_spawn_hold_reason) (kinhin_spawn_held) > 0
         for: 15m
         labels: {severity: warning}
         annotations:

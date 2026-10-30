@@ -45,7 +45,8 @@ struct TelemetrySettings: Sendable, Equatable, CustomStringConvertible {
         guard enabled else { return "telemetry disabled" }
         let signalNames = signals.map(\.rawValue).sorted().joined(separator: ",")
         let target = endpoints.keys.sorted { $0.rawValue < $1.rawValue }
-            .compactMap { signal in endpoints[signal].map { "\(signal.rawValue)=\($0.absoluteString)" } }.joined(
+            .compactMap { signal in endpoints[signal].map { "\(signal.rawValue)=\(TelemetryStatus.redacted($0))" } }
+            .joined(
                 separator: " ")
         var parts = [
             "telemetry enabled", "protocol=\(otlpProtocol.rawValue)", "signals=\(signalNames)",
@@ -182,7 +183,14 @@ enum TelemetryResolver {
         let sampler = resolveSampler(config.samplingRatio, env: env, warnings: &warnings)
 
         // TLS trust: the environment's CA file wins over the config's.
-        let caFile = env("OTEL_EXPORTER_OTLP_CERTIFICATE") ?? config.caFile
+        var caFile = config.caFile
+        if let raw = env("OTEL_EXPORTER_OTLP_CERTIFICATE") {
+            if let path = try? TelemetryCABundle.resolvedPath(raw) {
+                caFile = path
+            } else {
+                warnings.append("OTEL_EXPORTER_OTLP_CERTIFICATE is not an absolute path; ignored")
+            }
+        }
         if caFile != nil, !endpoints.values.contains(where: { $0.scheme?.lowercased() == "https" }) {
             warnings.append("the collector CA file has no effect: no telemetry endpoint uses https")
         }

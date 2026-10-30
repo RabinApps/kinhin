@@ -118,7 +118,11 @@ extension FleetEngine {
     /// disturb scaling. The pruner's grace window keeps it from racing any
     /// in-flight download or install.
     func startCachePruneSweepIfNeeded() {
-        guard ToolchainCachePolicy(from: config.toolchainCache).autoPrune || !config.projects.isEmpty else { return }
+        // Telemetry measures the cache too (`kinhin.cache.size`), so it counts as a reason to sweep.
+        guard
+            ToolchainCachePolicy(from: config.toolchainCache).autoPrune || !config.projects.isEmpty
+                || telemetry.isEnabled
+        else { return }
         cachePruneTask = Task { [weak self] () -> Void in
             while !Task.isCancelled {
                 guard let self else { return }

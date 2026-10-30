@@ -168,10 +168,10 @@ It checks, against the daemon as a black box:
 
 **`TelemetryLifecycleTests`** (local tier: a real forge and runtime, per forge × runtime cell, the daemon exporting to the stub and
 to `/metrics`): after a real job, `kinhin_jobs_picked_up` and `kinhin_jobs_completed` count it, each of clone, boot, register and
-teardown was timed, `cicd_pipeline_run_duration` is a histogram and `cicd_pipeline_result` is the forge's verdict (`success` on GitHub, GitLab and Buildkite, `unknown` on a forge that cannot say), and one job trace reaches the collector with the
+teardown was timed, `cicd_pipeline_run_duration` is a histogram and `cicd_pipeline_result` is the forge's verdict (`success` on every forge but Bitbucket, which cannot say and reads `unknown`), and one job trace reaches the collector with the
 `kinhin.job` root and its phase spans, the instance id as a span attribute, and the kinhin resource; the instance's log lines
-arrive with its id. No instance name, job name or token appears on any metric or export. A failing workflow is still counted as
-picked up and completed (`failure` on GitHub, GitLab and Buildkite, `unknown` elsewhere, never `success`), is not a `cicd_system_errors` sample, and the next job is
+arrive with its id. No instance name, job name or token appears on any metric, and no token on any export. A failing workflow is still counted as
+picked up and completed (`failure` on every forge but Bitbucket, `unknown` there, never `success`), is not a `cicd_system_errors` sample, and the next job is
 counted too.
 
 **`CLITests`**: version and exit codes (usage 2, config 3), `--json` errors, `config init` on a pristine machine,

@@ -72,7 +72,9 @@ final class TelemetryLogLevelTests: XCTestCase {
 
     func testNothingIsForwardedWhileTelemetryIsOff() {
         Log.minLevel = .debug
-        Log.telemetry = Telemetry.noop
+        let recorder = RecordingTelemetryBackend()
+        Log.telemetry = Telemetry(backend: recorder, enabled: false)
         Log.error("level-off", "no pipeline")
+        XCTAssertTrue(recorder.logs.isEmpty, "a disabled handle forwards nothing")
     }
 }

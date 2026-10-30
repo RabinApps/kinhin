@@ -46,15 +46,14 @@ final class TelemetryCommandTests: XCTestCase {
 
     func testNoDaemonIsOnlyAProblemWhenTheConfigEnablesTelemetry() async throws {
         var config = KinhinConfig.default
-        let off = try await TelemetryCommand.document(config: config)
         // A real daemon may be running on the developer's Mac; the config-only path is what is under test.
-        if !off.daemon {
-            XCTAssertTrue(TelemetryCommand.healthy(off))
-            config.telemetry.enabled = true
-            let on = try await TelemetryCommand.document(config: config)
-            XCTAssertFalse(TelemetryCommand.healthy(on))
-            XCTAssertTrue(TelemetryCommand.render(on).contains("no daemon is running"))
-        }
+        let off = try await TelemetryCommand.document(config: config, daemonAlive: { false })
+        XCTAssertFalse(off.daemon)
+        XCTAssertTrue(TelemetryCommand.healthy(off))
+        config.telemetry.enabled = true
+        let on = try await TelemetryCommand.document(config: config, daemonAlive: { false })
+        XCTAssertFalse(TelemetryCommand.healthy(on))
+        XCTAssertTrue(TelemetryCommand.render(on).contains("no daemon is running"))
     }
 
     func testRPCMethodIsAReadAndKnownToTheWire() {

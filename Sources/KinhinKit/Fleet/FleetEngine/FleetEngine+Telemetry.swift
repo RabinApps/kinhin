@@ -83,8 +83,9 @@ extension FleetEngine {
 
     /// The observer a project-image builder reports finished bakes through: a duration sample and a
     /// success or failure count, labelled by the derived image only.
+    /// Always returned: the handle is the no-op until telemetry is switched on, and a hot reload can do that
+    /// without rebuilding the engine, so the check belongs to `add` and `record`, not to construction.
     static func bakeRecorder(_ telemetry: Telemetry) -> ProjectImageBuilder.BakeObserver? {
-        guard telemetry.isEnabled else { return nil }
         return { image, seconds, succeeded in
             let attributes = [Metric.Attr.image: image, Metric.Attr.outcome: succeeded ? "success" : "failure"]
             telemetry.record(.imageBakeDuration, seconds: seconds, attributes)
@@ -206,6 +207,8 @@ extension FleetEngine {
     /// all (unavailable), never as zero. VM ids are never attributes: runner usage is aggregated.
     func publishTelemetry() async {
         guard telemetry.isEnabled else { return }
+        // Telemetry switched on by a reload: the daily sweep that measures the cache starts now.
+        if cachePruneTask == nil && runState.withLock({ $0.running }) { startCachePruneSweepIfNeeded() }
         let status = await statusBox.get()
         let records = store.all
 

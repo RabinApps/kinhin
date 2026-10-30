@@ -50,11 +50,10 @@ public struct GHJob: Codable, Sendable, Equatable {
 
     /// The identifiers and provider timestamps of this job.
     func correlation(repository: String?) -> JobCorrelation {
-        func date(_ text: String?) -> Date? { text.flatMap { ISO8601DateFormatter().date(from: $0) } }
         return JobCorrelation(
             runID: String(runID), runAttempt: runAttempt, jobID: String(id), workflow: workflowName, jobName: name,
-            repository: repository, enqueuedAt: date(createdAt), startedAt: date(startedAt),
-            completedAt: date(completedAt))
+            repository: repository, enqueuedAt: PipelineParsing.date(createdAt),
+            startedAt: PipelineParsing.date(startedAt), completedAt: PipelineParsing.date(completedAt))
     }
 }
 

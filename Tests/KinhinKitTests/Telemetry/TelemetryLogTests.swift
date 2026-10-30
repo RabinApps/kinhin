@@ -71,7 +71,9 @@ final class TelemetryLogTests: XCTestCase {
     }
 
     func testDisabledHandleDropsLogs() {
-        Log.telemetry = Telemetry.noop
+        let recorder = RecordingTelemetryBackend()
+        Log.telemetry = Telemetry(backend: recorder, enabled: false)
         Log.info("engine", "nothing to export")
+        XCTAssertTrue(recorder.logs.isEmpty, "a disabled handle forwards nothing")
     }
 }
