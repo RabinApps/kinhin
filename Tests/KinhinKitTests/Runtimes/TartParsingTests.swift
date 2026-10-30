@@ -12,6 +12,8 @@ final class TartParsingTests: XCTestCase {
         let vms = try TartController.parseListJSON(json)
         XCTAssertEqual(vms.map(\.name), ["tahoe-base", "ghcr.io/x/y:latest"])
         XCTAssertEqual(vms[0].status, "stopped")
+        XCTAssertEqual(vms[0].diskGB, 40, "Tart Size is allocated storage; Disk is virtual capacity")
+        XCTAssertEqual(vms[1].diskGB, 33, "Tart Size is allocated storage; Disk is virtual capacity")
         XCTAssertThrowsError(try TartController.parseListJSON("tahoe-base\nother"))
     }
 

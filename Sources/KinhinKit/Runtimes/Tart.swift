@@ -195,10 +195,10 @@ public struct TartController: TartControlling {
             let Name: String
             let Source: String
             let State: String
-            let Disk: Int?
+            let Size: Int?
         }
         let entries = try JSONDecoder().decode([Entry].self, from: Data(text.utf8))
-        return entries.map { TartVM(name: $0.Name, source: $0.Source, status: $0.State, diskGB: $0.Disk) }
+        return entries.map { TartVM(name: $0.Name, source: $0.Source, status: $0.State, diskGB: $0.Size) }
     }
 
     /// Parse `tart list --quiet` output: lines of "name \t source \t status".
