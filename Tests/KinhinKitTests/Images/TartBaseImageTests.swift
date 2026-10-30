@@ -75,12 +75,47 @@ final class TartBaseImageTests: XCTestCase {
         XCTAssertEqual(TartBaseImage.resolveSource(preparedName: pinned), pinned)
     }
 
+    func testGoldenGateImagesAreCurated() {
+        for series in ["base", "vanilla", "xcode"] {
+            XCTAssertTrue(
+                TartBaseImage.isKnownSource("ghcr.io/cirruslabs/macos-golden-gate-\(series):latest"),
+                "the macOS 27 Golden Gate \(series) image is in the picker")
+        }
+        XCTAssertEqual(
+            TartBaseImage.reference(forShortName: "macos-golden-gate-xcode"),
+            "ghcr.io/cirruslabs/macos-golden-gate-xcode:latest")
+        XCTAssertFalse(TartBaseImage.isLinux("ghcr.io/cirruslabs/macos-golden-gate-base:latest"))
+    }
+
+    func testDigestPinnedCirrusMacosReferencesAreKnown() {
+        // A digest pin names exact, immutable bits, so any Cirrus macOS
+        // reference pinned by @sha256: is accepted — even a flavor or version
+        // the curated list does not carry (Xcode 27.1-style pinned tags).
+        let pinned = "ghcr.io/cirruslabs/macos-golden-gate-xcode:27.1@\(Self.digest)"
+        XCTAssertTrue(TartBaseImage.isKnownSource(pinned))
+        // The pin's base can even be outside the curated list, but must be a
+        // Cirrus macos image; unpinned non-curated references stay refused.
+        XCTAssertTrue(TartBaseImage.isKnownSource("ghcr.io/cirruslabs/macos-ventura-base:1.0@\(Self.digest)"))
+        XCTAssertFalse(
+            TartBaseImage.isKnownSource("ghcr.io/acme/macos-custom:1@\(Self.digest)"),
+            "a foreign namespace is not accepted, pin or no pin")
+        XCTAssertFalse(
+            TartBaseImage.isKnownSource("ghcr.io/cirruslabs/macos-ventura-base:1.0"),
+            "unpinned references still need the curated list or a local VM")
+    }
+
     func testMutableTagDetection() {
         XCTAssertTrue(TartBaseImage.isMutableTag("ghcr.io/cirruslabs/ubuntu:latest"))
         XCTAssertTrue(TartBaseImage.isMutableTag("ghcr.io/cirruslabs/macos-sequoia-base"), "untagged = latest")
         XCTAssertTrue(TartBaseImage.isMutableTag(TartBaseImage.defaultReference))
         XCTAssertFalse(TartBaseImage.isMutableTag("ghcr.io/cirruslabs/ubuntu:24.04"))
         XCTAssertFalse(TartBaseImage.isMutableTag("ghcr.io/cirruslabs/ubuntu:latest@\(Self.digest)"))
+        XCTAssertFalse(
+            TartBaseImage.isMutableTag("tahoe-base"),
+            "a local Tart VM has no registry: what the VM holds now is what every bake reads")
+        XCTAssertFalse(
+            TartBaseImage.isMutableTag("macos-sequoia:latest"),
+            "only registry references (contain /) can drift")
     }
 
     func testMutableTagWarningNamesTheFixAndStaysSilentOtherwise() {
@@ -92,8 +127,10 @@ final class TartBaseImageTests: XCTestCase {
         // A pinned reference and the absent default are never nagged about.
         XCTAssertNil(TartBaseImage.mutableTagWarning(for: "ghcr.io/cirruslabs/ubuntu:latest@\(Self.digest)"))
         XCTAssertNil(TartBaseImage.mutableTagWarning(for: nil))
-        // A specific tag is immutable: no warning either.
+        // A specific tag is immutable: no warning either. A local VM name is
+        // not a registry reference and never risked a warning.
         XCTAssertNil(TartBaseImage.mutableTagWarning(for: "ghcr.io/cirruslabs/ubuntu:24.04"))
+        XCTAssertNil(TartBaseImage.mutableTagWarning(for: "tahoe-base"))
     }
 
     func testDigestValidationRejectsMalformedPins() {
