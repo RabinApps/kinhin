@@ -205,8 +205,10 @@ final class FakeTart: TartControlling, Sendable {
             state.vms[name] = TartVM(name: name, source: source, status: "running")
         }
         while state.withLock({ $0.parkClones }) {
-            if Task.isCancelled { break }
-            try? await Task.sleep(for: .milliseconds(5))
+            // Cancellation ends the clone here: a cancelled provision must not
+            // continue into `set`/`run` on a VM it never finished cloning.
+            if Task.isCancelled { throw CancellationError() }
+            try await Task.sleep(for: .milliseconds(5))
         }
     }
 

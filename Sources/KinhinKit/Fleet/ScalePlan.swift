@@ -97,16 +97,23 @@ struct ScalePlan: Equatable {
 
         // A pool at its cap, backing off, or without a runtime cannot take
         // more instances, so its unmet demand must not inflate the target.
+        // An in-flight pooled clone cannot be evicted to make room, so it is
+        // reserved from both the per-pool and the global cap before any slot
+        // is created (counting an evictable warm instance as free room here
+        // would risk exceeding the cap; one extra spawn pass is the safe side).
+        var reservedByPool: [RuntimeID: Int] = [:]
+        for record in pooledInFlight { reservedByPool[Self.pool(of: record, input: input), default: 0] += 1 }
         var spawnable = 0
         for (pool, count) in unmet {
-            spawnable += min(count, headroom(pool, records: active, input: input))
+            spawnable += min(count, headroom(pool, records: active, input: input, reserved: reservedByPool[pool] ?? 0))
         }
-        let target = min(cap, max(desired, active.count + spawnable))
+        let reserved = reservedByPool.values.reduce(0, +)
+        let target = min(cap - reserved, max(desired, active.count + spawnable))
 
         var plan = ScalePlan(
             desired: desired, target: target, active: active.count, unmetByPool: unmet, slots: [], scaleDown: [],
             scaleDownHeld: false)
-        plan.slots = slots(count: target - active.count, active: active, input: input)
+        plan.slots = slots(count: target - active.count, active: active, input: input, reserved: reservedByPool)
         applyWarm(warm, to: &plan, live: active.count, inFlight: pooledInFlight, cap: cap, input: input)
 
         if active.count > desired {
@@ -149,7 +156,8 @@ struct ScalePlan: Equatable {
 
         // Warm instances left after the claims still occupy slots: drop the surplus the cap cannot hold.
         let unclaimed = fresh.filter { !claimed.contains($0.id) }
-        let overflow = live + plan.slots.count + unclaimed.count - cap
+        // The in-flight pooled clones still booting toward `.warm` occupy a slot when they land, so they count here too.
+        let overflow = live + plan.slots.count + unclaimed.count + inFlight.count - cap
         var dropped = Set<String>()
         if overflow > 0 {
             dropped = Set(unclaimed.prefix(overflow).map(\.id))
@@ -236,16 +244,19 @@ struct ScalePlan: Equatable {
         return result
     }
 
-    /// How many more instances `pool` may take.
-    private static func headroom(_ pool: RuntimeID, records: [VMRecord], input: Input) -> Int {
+    /// How many more instances `pool` may take: the pool's cap minus the
+    /// instances serving demand (`records`) and the reserved room (`reserved`)
+    /// that in-flight pooled clones already hold.
+    private static func headroom(_ pool: RuntimeID, records: [VMRecord], input: Input, reserved: Int = 0) -> Int {
         guard input.existingPools.contains(pool), !input.heldRuntimes.contains(pool) else { return 0 }
         let running = records.count { Self.pool(of: $0, input: input) == pool }
-        return max(0, (input.poolCaps[pool] ?? Int.max) - running)
+        return max(0, (input.poolCaps[pool] ?? Int.max) - running - reserved)
     }
 
     // MARK: - Spawn
 
-    private static func slots(count: Int, active: [VMRecord], input: Input) -> [Slot] {
+    private static func slots(count: Int, active: [VMRecord], input: Input, reserved: [RuntimeID: Int] = [:]) -> [Slot]
+    {
         guard count > 0 else { return [] }
         let totals = input.demand.mapValues { $0.values.reduce(0, +) }
         let queuedTart = input.demand.values.reduce(0) { $0 + ($1[.tart] ?? 0) }
@@ -266,6 +277,8 @@ struct ScalePlan: Equatable {
             for held in input.heldRuntimes { caps[held] = 0 }
             var running: [RuntimeID: Int] = [:]
             for record in sim { running[pool(of: record, input: input), default: 0] += 1 }
+            // The in-flight pooled clones already hold a slot in their pool.
+            for (pool, count) in reserved { running[pool, default: 0] += count }
             let chosen = selectRuntime(
                 unmet: unmet, active: running, caps: caps, fallback: input.defaultRuntime,
                 poolExists: input.existingPools.contains)

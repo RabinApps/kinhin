@@ -262,8 +262,17 @@ struct TartRuntime: Runtime {
         // A failed list must not read as "no VMs": cloning over an existing
         // one would fail later with a far less useful error.
         let existing = try await tart.list()
-        if existing.contains(where: { $0.name == id }) {
+        if let match = existing.first(where: { $0.name == id }) {
             Log.info(id, "VM already exists; reusing (recovery)")
+            guard match.status != "running" else {
+                return  // already booting or serving a recovery: nothing to start
+            }
+            // Recovery for a clone that died before its first boot: apply the
+            // sizing (a stopped clone may predate `vm.cpu`/`vm.memory_gb` or a
+            // failed `tart set`) and start it, like a fresh clone would have.
+            try await tart.set(name: id, cpu: cpuCount(), memoryMB: memoryMB())
+            let mounts = route.cacheMount ? [ToolchainCacheMount.tartDirectorySpec(scope: route.cacheScope)] : []
+            try await tart.run(name: id, mounts: mounts)
             return
         }
         Log.info(id, "cloning from \(route.image)")

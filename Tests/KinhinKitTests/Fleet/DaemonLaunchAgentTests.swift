@@ -84,6 +84,18 @@ final class DaemonLaunchAgentTests: XCTestCase {
         XCTAssertTrue(Daemon.launchAgentStatusIsHealthy("state = running\nlast exit code = 0"))
         XCTAssertFalse(Daemon.launchAgentStatusIsHealthy("state = waiting\nlast exit code = 0"))
         XCTAssertFalse(Daemon.launchAgentStatusIsHealthy("state = running\nlast exit code = 78"))
+        // launchctl annotates some codes (`78: EX_CONFIG`): the annotated
+        // value still names the failing status, and an unreadable line is no
+        // evidence of a healthy agent either.
+        XCTAssertFalse(Daemon.launchAgentStatusIsHealthy("state = running\nlast exit code = 78: EX_CONFIG"))
+        XCTAssertFalse(Daemon.launchAgentStatusIsHealthy("state = running\nlast exit code = EX_CONFIG"))
+    }
+
+    func testExitCodeFromReadsPlainAndAnnotatedFragments() {
+        XCTAssertEqual(Daemon.exitCode(from: "78"), 78)
+        XCTAssertEqual(Daemon.exitCode(from: "78: EX_CONFIG"), 78)
+        XCTAssertEqual(Daemon.exitCode(from: "26768: receiver terminated strangely"), 26768)
+        XCTAssertNil(Daemon.exitCode(from: "EX_CONFIG"))
     }
 
     func testASymlinkIntoADebugBuildIsADebugBuild() throws {

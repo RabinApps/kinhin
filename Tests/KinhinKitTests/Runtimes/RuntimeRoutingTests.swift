@@ -87,12 +87,15 @@ final class RuntimeRoutingTests: XCTestCase {
             ["ce", "kinhin-container"], "replace-not-add: the pool's own labels plus the marker")
         XCTAssertEqual(
             RuntimePool.labelsFor(.docker, fleetLabels: fleetLabels, inheritingFleetLabels: false),
-            ["kinhin-docker"])
-        // The amd64 architecture swap still applies to the replaced set.
+            ["arm64", "kinhin-docker"],
+            "replace-not-add keeps the platform's architecture label alongside the marker")
+        // Replace-not-add keeps the platform label as the pool's base label
+        // (like the arm64 case above); x64 arrives with the base, before the
+        // marker — not via the inherit-mode swap, which appends it last.
         XCTAssertEqual(
             RuntimePool.labelsFor(
                 .docker, fleetLabels: fleetLabels, dockerPlatform: .amd64, inheritingFleetLabels: false),
-            ["kinhin-docker", "x64"])
+            ["x64", "kinhin-docker"])
     }
 
     func testPoolLabelsForReflectsTheFleetLabelsOverride() {
@@ -117,7 +120,7 @@ final class RuntimeRoutingTests: XCTestCase {
             "the apple-container pool strips macos even when it inherits")
         XCTAssertTrue(inherited!.contains("kinhin-container"))
         let dockerReplaced = RuntimeConfigModel.poolLabels(for: .docker, config: config(dockerFleetLabels: false))
-        XCTAssertEqual(dockerReplaced, ["kinhin-docker"])
+        XCTAssertEqual(dockerReplaced, ["arm64", "kinhin-docker"])
     }
 
     func testRouterSnapshotCarriesTheLabeledDefaultImage() {

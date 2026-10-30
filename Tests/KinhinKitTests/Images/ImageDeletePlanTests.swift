@@ -136,7 +136,9 @@ final class ImageDeletePlanTests: XCTestCase {
             XCTAssertTrue(failures[0].contains("proj-failed"), failures[0])
         }
         XCTAssertEqual(tart.deleteCalls, ["proj-good"], "the second target is attempted despite the first failure")
-        XCTAssertEqual(store.all, [], "derived-image index entries are cleared even when deletion fails")
+        XCTAssertEqual(
+            store.all.map(\.name), ["proj-failed"],
+            "the succeeded record is cleared; the failed target keeps its record for a retry")
     }
 
     func testDeletingAnAlreadyMissingTartImageIsSuccess() async throws {

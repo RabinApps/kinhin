@@ -62,6 +62,18 @@ final class ImagePreparerTests: XCTestCase {
                     prefix: "agent provision/update failed: ", excerpt: "config.sh exit 3: boom")
         else { return XCTFail("wrong error") }
         XCTAssertEqual(why, "agent provision/update failed: config.sh exit 3: boom")
+
+        // Transport words in the script's own output (a guest-side retry log,
+        // an external service timing out) are not a host→VM transport error:
+        // only the SSH excerpt is matched.
+        guard
+            case .provisioningFailed(let why) =
+                ImagePreparer.provisioningFailure(
+                    prefix:
+                        "agent provision/update failed (configure.sh: exit 1). Script log: waiting for updates (operation timed out), retrying…",
+                    excerpt: "configure.sh exit 1: boom")
+        else { return XCTFail("wrong error") }
+        XCTAssertFalse(why.contains("vnet interface"), why)
     }
 
     func testImagePrepareHappyPath() async throws {

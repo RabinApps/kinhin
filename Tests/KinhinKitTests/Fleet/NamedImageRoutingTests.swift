@@ -82,6 +82,26 @@ final class NamedImageRoutingTests: XCTestCase {
             "non-macos fleet labels are retained")
     }
 
+    /// The named image's own labels cannot reintroduce the macOS-only fleet
+    /// labels either (config validation only rejects labels that are wholly
+    /// fleet labels, so `labels: [macos, xcode]` parses): a Linux base strips
+    /// them from the user labels too.
+    func testLinuxNamedImageUserLabelsCannotReaddvertiseMacos() {
+        let linuxImage = KinhinConfig.ImageConfig(
+            name: "linux",
+            baseImage: "ghcr.io/cirruslabs/ubuntu:latest",
+            labels: ["macos", "xcode"])
+        let (engine, _, _) = engine(images: [linuxImage], fleetLabels: ["self-hosted", "macos", "arm64"])
+        var record = VMRecord(id: "kinhin-1")
+        record.runtimeID = .tart
+        record.image = "linux"
+        let labels = engine.poolLabels(for: record) ?? []
+        XCTAssertFalse(
+            labels.contains { $0.lowercased() == "macos" },
+            "the image's own macos label must not attract macOS jobs")
+        XCTAssertTrue(labels.contains("xcode"), "the image's non-macos labels survive")
+    }
+
     /// A custom/local image name whose OS cannot be reliably detected keeps the
     /// fleet labels as-is — we only strip `macos` for curated Linux bases.
     func testUnknownBaseImageKeepsFleetLabels() {

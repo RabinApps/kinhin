@@ -24,6 +24,10 @@ final class Router: Sendable {
         var projects: [KinhinConfig.ProjectConfig]
         /// The fleet labels forges query demand with and runners advertise.
         var labels: [String]
+        /// The fleet's base `image:` name, so a named-image match can be told
+        /// apart from the synthesized default-image entry (which keys base-image
+        /// demand as the empty string).
+        var baseImage: String
 
         /// The union of the labels every pool (and every named image) registers
         /// runners with, de-duplicated case-insensitively, in first-seen order.
@@ -55,7 +59,8 @@ final class Router: Sendable {
                 caps: RuntimeCapacity.caps(for: config, host: host),
                 images: config.effectiveImages(),
                 projects: config.projects,
-                labels: config.labels)
+                labels: config.labels,
+                baseImage: config.image)
         }
 
         /// Job slots the pool of `runtime` offers: its instance cap (the

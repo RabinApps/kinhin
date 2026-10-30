@@ -192,6 +192,16 @@ final class ScalePlanWarmPoolTests: XCTestCase {
         XCTAssertEqual(plan.warmSpawn, [:], "the cap already holds the two busy VMs and the clone")
     }
 
+    func testAQueuedJobBesideAnInFlightPooledCloneDoesNotPassTheCap() {
+        // One busy VM and one pooled clone still booting, cap 3, one queued job:
+        // the eager clone is not evictable supply, so only one demand slot may
+        // spawn (busy + slot + clone = 3). Two slots would exceed the cap.
+        let records = [record("b1", .busy), pooled("p1", .cloning)]
+        let plan = ScalePlan.make(input(records: records, queued: 1, warmPool: 1, maxRunners: 3))
+        XCTAssertEqual(plan.slots.count, 1, "the in-flight clone reserves its slot under the cap")
+        XCTAssertEqual(plan.warmTotal, 0)
+    }
+
     func testChooseImagePrefersTheImageWithUnmetDemand() {
         XCTAssertEqual(ScalePlan.chooseImage(queuedTart: 1, byImage: ["xcode": 1], active: [:]), "xcode")
         XCTAssertNil(

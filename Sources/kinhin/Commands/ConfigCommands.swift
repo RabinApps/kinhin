@@ -112,8 +112,13 @@ enum ConfigCommands {
     /// (the same classification the prose path gets by throwing). `FILE`
     /// validates that config instead of this Mac's default one.
     static func runValidate(_ args: [String]) throws {
-        let file = positional(args)
-        let configURL = file.map { URL(fileURLWithPath: $0) } ?? Paths.config
+        let files = operands(in: args)
+        guard files.count <= 1 else {
+            throw CLIError(
+                "usage: kinhin config validate [FILE] (at most one config; `--` accepts names starting with `-`)",
+                exit: .usage)
+        }
+        let configURL = files.first.map { URL(fileURLWithPath: $0) } ?? Paths.config
         guard args.contains("--json") else {
             print(try validate(configURL: configURL))
             return
@@ -204,5 +209,15 @@ enum ConfigCommands {
     /// The first argument that is not a flag.
     private static func positional(_ args: [String]) -> String? {
         args.first { $0 == "-" || !$0.hasPrefix("-") }
+    }
+
+    /// The config subcommand's file operands. `--` ends the flags, so
+    /// everything after it counts (a filename starting with `-`), and tokens
+    /// before it that are not flags are the operands too.
+    static func operands(in args: [String]) -> [String] {
+        if let marker = args.firstIndex(of: "--") {
+            return Array(args[(marker + 1)...])
+        }
+        return args.compactMap { $0 == "-" || !$0.hasPrefix("-") ? $0 : nil }
     }
 }

@@ -28,9 +28,13 @@ struct RuntimePool: Sendable, Equatable {
     ) -> [String] {
         // The fleet's `macos` OS label names the macOS runners' guests; Linux
         // guest runtimes must never advertise it, or macOS jobs would land there.
+        // Replace-not-add drops the fleet's labels but keeps the platform's
+        // architecture label: a Docker slot runs an arm64 or x64 guest,
+        // whichever `arch` the Docker VM has, and `runs-on: […, arm64]`
+        // workflows route by that label like the fleet's own runners do.
         let base =
             !inheritingFleetLabels
-            ? []
+            ? (runtime == .docker ? [dockerPlatform.runnerLabel] : [])
             : servesMacOS(runtime)
                 ? fleetLabels
                 : fleetLabels.filter { $0.lowercased() != "macos" }

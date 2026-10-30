@@ -83,8 +83,21 @@ extension Daemon {
                 .first(where: { $0.hasPrefix("last exit code = ") })
         else { return true }
         let rawCode = line.dropFirst("last exit code = ".count)
-        guard let code = Int(rawCode) else { return true }
+        guard let code = Self.exitCode(from: String(rawCode)) else { return false }
         return code == 0
+    }
+
+    /// The exit code in a `last exit code = …` fragment: a plain integer
+    /// (`78`), an annotated one (`78: EX_CONFIG`), or nil for anything else —
+    /// an unreadable code is not evidence of a healthy agent.
+    static func exitCode(from fragment: String) -> Int? {
+        if let exact = Int(fragment) { return exact }
+        var rest = fragment[...]
+        var negative = false
+        if rest.first == "-" { negative = true; rest = rest.dropFirst() }
+        let numeric = rest.prefix { $0.isNumber }
+        guard !numeric.isEmpty else { return nil }
+        return Int((negative ? "-" : "") + numeric)
     }
 
     /// Escapes the five XML special characters for text inside a plist

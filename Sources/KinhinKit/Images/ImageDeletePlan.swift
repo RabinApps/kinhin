@@ -163,6 +163,7 @@ public struct ImageDeletePlan: Sendable, Equatable {
     ) async throws {
         var failures: [String] = []
         for target in targets {
+            var failed = false
             do {
                 if target.present {
                     switch target.runtime {
@@ -194,8 +195,11 @@ public struct ImageDeletePlan: Sendable, Equatable {
                 // A tag/digest alias or concurrent cleanup may already have removed it.
             } catch {
                 failures.append(target.runtime.rawValue + "/" + target.name + ": " + error.localizedDescription)
+                failed = true
             }
-            if target.role == .derived {
+            // A failed deletion leaves the image behind: keep its derived index
+            // record so `image list` still shows it and a retry can find it.
+            if target.role == .derived, !failed {
                 store.remove(name: target.name)
             }
         }

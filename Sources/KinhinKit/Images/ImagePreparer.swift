@@ -251,14 +251,17 @@ public struct ImagePreparer: Sendable {
     // MARK: - Guest OS detection
 
     /// The failure for a provision step, with a reachability hint when the
-    /// network error itself says the host could not reach the guest VM — as
-    /// opposed to an agent or script failing inside the guest. OrbStack and
-    /// Docker Desktop's VPN interop share the vnet interface tart uses and
+    /// SSH failure itself says the host could not reach the guest VM — as
+    /// opposed to an agent or script failing inside the guest. Only the SSH
+    /// excerpt is matched: a guest script's own output (`curl` timing out on
+    /// an external service) must not trigger the hint. OrbStack and Docker
+    /// Desktop's VPN interop share the vnet interface tart uses and
     /// occasionally re-route or claim it, so the remedy points there first.
     static func provisioningFailure(prefix: String?, excerpt: String) -> ImageError {
         let message = (prefix ?? "") + excerpt
-        let lower = message.lowercased()
-        let reach = ["no route to host", "operation timed out", "host is down"].contains { lower.contains($0) }
+        let reach = ["no route to host", "operation timed out", "host is down"].contains {
+            excerpt.lowercased().contains($0)
+        }
         guard reach else { return .provisioningFailed(message) }
         return .provisioningFailed(
             message + " — the host could not reach the guest VM over its vnet interface. OrbStack or"

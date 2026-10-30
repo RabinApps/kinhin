@@ -115,6 +115,37 @@ final class ConfigValidateTests: XCTestCase {
         XCTAssertEqual(document.path, configURL.path)
     }
 
+    func testRunValidateHonorsTheEndOfOptionsMarkerAndRejectsSurplusOperands() throws {
+        try """
+        accounts:
+          - name: github
+            forge: github
+            scope: "acme/widgets"
+        """.write(to: configURL, atomically: true, encoding: .utf8)
+
+        // `--` ends the flags: the operand after it is the FILE, even one
+        // whose name starts with `-`.
+        let dashFile = scratch.appendingPathComponent("-breaky.yaml")
+        try """
+        accounts:
+          - name: github
+            forge: github
+            scope: "acme/widgets"
+        """.write(to: dashFile, atomically: true, encoding: .utf8)
+        let prose = try captureStdout { try ConfigCommands.runValidate(["--", dashFile.path]) }
+        XCTAssertTrue(prose.contains("config OK: \(dashFile.path)"), prose)
+
+        // More than one FILE operand is a usage error, not a silent pick of
+        // the first.
+        XCTAssertThrowsError(try ConfigCommands.runValidate([configURL.path, dashFile.path])) { error in
+            guard let cliError = error as? CLIError else {
+                return XCTFail("wrong error: \(error)")
+            }
+            XCTAssertTrue(cliError.message.contains("at most one config"), cliError.message)
+            XCTAssertEqual(cliError.exit, .usage)
+        }
+    }
+
     func testRunValidateStillThrowsTheLoadersErrorForAnInvalidPositionalFile() throws {
         try "poll_interval: 1\n".write(to: configURL, atomically: true, encoding: .utf8)
         XCTAssertThrowsError(try ConfigCommands.runValidate([configURL.path])) { error in

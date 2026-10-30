@@ -32,12 +32,15 @@ extension FleetEngine {
         // base is a curated Linux image; custom/local names can't be reliably
         // identified, so they keep the fleet labels as-is.
         let labels: [String]
+        var extra = entry.labels ?? []
         if TartBaseImage.isLinux(entry.baseImage) {
+            // The image's own labels are user config: they must not reintroduce
+            // the macOS-specific fleet labels the Linux base took off the pool.
             labels = pool.filter { !macosOnlyLabel($0) }
+            extra = extra.filter { !macosOnlyLabel($0) }
         } else {
             labels = pool
         }
-        let extra = entry.labels ?? []
         return labels + extra.filter { label in !labels.contains { $0.caseInsensitiveCompare(label) == .orderedSame } }
     }
 
