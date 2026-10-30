@@ -218,7 +218,7 @@ extension ImagePreparer {
         let result = try await ssh.exec(
             vm: session.vm, user: session.user, ip: session.ip, script: step.script, timeout: step.timeout)
         guard result.succeeded else {
-            throw ImageError.provisioningFailed((step.failurePrefix ?? "") + result.failureExcerpt)
+            throw ImagePreparer.provisioningFailure(prefix: step.failurePrefix, excerpt: result.failureExcerpt)
         }
         if let label = step.outputLabel {
             // Audit trail: the tail of the script's stdout (version prints
