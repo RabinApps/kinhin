@@ -77,6 +77,31 @@ final class TelemetryOutcomeTests: XCTestCase {
         XCTAssertEqual(recorder.counterTotal(.jobsCompleted) { $0[Metric.Attr.result] == "unknown" }, 1)
     }
 
+    /// Job counters and durations split by the runner's labels as well as pool and image, so they line up with
+    /// `cicd.worker.count`.
+    func testJobMetricsCarryTheRunnerLabels() async throws {
+        let recorder = RecordingTelemetryBackend()
+        let github = FakeGitHub()
+        let engine = makeEngine(recorder, github: github)
+        let vm = try await readyVM(engine, github: github)
+        engine.noteJobPickedUp(id: vm)
+        engine.noteJobCorrelation(
+            vm: vm,
+            JobCorrelation(runID: "7", jobID: "45", repository: "acme/widgets", enqueuedAt: t0, startedAt: t0 + 2))
+        github.jobOutcomes[45] = JobOutcome(result: .success, startedAt: t0 + 2, completedAt: t0 + 12)
+        await engine.noteJobFinished(id: vm)
+        let expected = engine.runnerLabelsValue(of: engine.store.all.first { $0.id == vm })
+        XCTAssertFalse(expected.isEmpty)
+        let sets =
+            recorder.counters.filter {
+                [Metric.Counter.jobsPickedUp.rawValue, Metric.Counter.jobsCompleted.rawValue].contains($0.name)
+            }.map(\.attributes) + recorder.histograms.map(\.attributes)
+        XCTAssertFalse(sets.isEmpty)
+        for attributes in sets {
+            XCTAssertEqual(attributes[Metric.Attr.labels], expected, "\(attributes)")
+        }
+    }
+
     func testRepositoryAndWorkflowAreOptInDimensions() async throws {
         for enabled in [false, true] {
             let recorder = RecordingTelemetryBackend()

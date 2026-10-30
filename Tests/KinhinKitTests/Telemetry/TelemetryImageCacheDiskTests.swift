@@ -261,7 +261,7 @@ final class TelemetryImageCacheDiskTests: XCTestCase {
         let series = try XCTUnwrap(recorder.gauge(.runnerDiskUsage))
         XCTAssertEqual(series.count, 1, "one series per pool and image, not per VM")
         XCTAssertEqual(series[0].value, 15_000_000_000)
-        XCTAssertEqual(Set(series[0].attributes.keys), [Metric.Attr.pool, Metric.Attr.image])
+        XCTAssertEqual(Set(series[0].attributes.keys), [Metric.Attr.pool, Metric.Attr.image, Metric.Attr.labels])
         XCTAssertFalse(series[0].attributes.values.contains { $0.hasPrefix(InstanceNaming.prefix) })
     }
 

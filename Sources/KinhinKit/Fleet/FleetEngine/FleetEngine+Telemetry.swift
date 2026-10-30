@@ -9,12 +9,19 @@ struct HealingCounted {
 // FleetEngine — telemetry recording: per-instance traces, phase timings, job pickup and completion,
 // and error counts. Every method is a no-op while the handle is the no-op one.
 extension FleetEngine {
-    /// The bounded metric attributes of an instance: pool (runtime), image and forge.
+    /// The sorted runner labels an instance advertises, as the `kinhin.runner.labels` value: the pool's, else the
+    /// fleet's. They come from the config, so the set is as small as the pools are.
+    func runnerLabelsValue(of record: VMRecord?) -> String {
+        (record.flatMap { poolLabels(for: $0) } ?? fleetLabels).sorted().joined(separator: ",")
+    }
+
+    /// The bounded metric attributes of an instance: pool (runtime), image, forge and runner labels.
     func metricAttributes(of id: String) -> MetricAttributes {
         let record = store.all.first { $0.id == id }
         return [
             Metric.Attr.pool: record?.runtime ?? RuntimeID.tart.rawValue, Metric.Attr.image: record?.image ?? "default",
             Metric.Attr.forge: record?.platform ?? ForgeID.github.rawValue,
+            Metric.Attr.labels: runnerLabelsValue(of: record),
         ]
     }
 
@@ -207,7 +214,7 @@ extension FleetEngine {
         var workers: [Key: Int] = [:]
         var warm: [Key: Int] = [:]
         for record in records {
-            let labels = (poolLabels(for: record) ?? fleetLabels).sorted().joined(separator: ",")
+            let labels = runnerLabelsValue(of: record)
             let key = Key(
                 pool: record.runtime ?? RuntimeID.tart.rawValue, image: record.image ?? "default", labels: labels,
                 state: record.phase.rawValue)
@@ -264,21 +271,23 @@ extension FleetEngine {
 
         // Resource use: aggregated per pool and image, from the sampler (unavailable stays absent).
         let usage = await usageSampler.snapshot(for: records)
-        struct Pool: Hashable { var pool: String, image: String }
+        struct Pool: Hashable { var pool: String, image: String, labels: String }
         var cpu: [Pool: [Double]] = [:]
         var memory: [Pool: Int] = [:]
         var limitMB: [Pool: Int] = [:]
         var diskGB: [Pool: Int] = [:]
         for record in records {
             guard let sample = usage.byInstance[record.id] else { continue }
-            let pool = Pool(pool: record.runtime ?? RuntimeID.tart.rawValue, image: record.image ?? "default")
+            let pool = Pool(
+                pool: record.runtime ?? RuntimeID.tart.rawValue, image: record.image ?? "default",
+                labels: runnerLabelsValue(of: record))
             if let value = sample.cpuPercent { cpu[pool, default: []].append(value / 100) }
             if let value = sample.memoryUsedMB { memory[pool, default: 0] += value }
             if let value = sample.memoryLimitMB { limitMB[pool, default: 0] += value }
             if let value = sample.diskUsedGB { diskGB[pool, default: 0] += value }
         }
         func attributes(_ pool: Pool) -> MetricAttributes {
-            [Metric.Attr.pool: pool.pool, Metric.Attr.image: pool.image]
+            [Metric.Attr.pool: pool.pool, Metric.Attr.image: pool.image, Metric.Attr.labels: pool.labels]
         }
         telemetry.publish(
             .runnerCPU, cpu.map { series($0.value.reduce(0, +) / Double($0.value.count), attributes($0.key)) })

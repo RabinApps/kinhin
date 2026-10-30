@@ -1,6 +1,6 @@
 import Foundation
 
-/// The bounded vocabulary of `kinhin.errors`: what failed, never the error text (free text
+/// The bounded vocabulary of `cicd.system.errors`: what failed, never the error text (free text
 /// is unbounded, and can carry secrets).
 enum TelemetryErrorType: String, CaseIterable, Sendable {
     case cloneFailure = "clone_failed"
