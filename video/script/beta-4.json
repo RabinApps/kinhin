@@ -1,0 +1,151 @@
+{
+  "name": "kinhin beta 4",
+  "adapter": "kinhin",
+  "theme": "paper",
+  "format": "16:9",
+  "voice": {
+    "engine": "kokoro",
+    "name": "af_heart",
+    "speed": 1
+  },
+  "pronounce": {
+    "kinhin": "kin-hin"
+  },
+  "lead": 0.5,
+  "gap": 0.3,
+  "tail": 0.8,
+  "overrides": {},
+  "scenes": [
+    {
+      "id": "intro",
+      "type": "title",
+      "props": {
+        "title": "kinhin beta 4",
+        "subtitle": "Your Mac is your CI.",
+        "mark": "ring"
+      },
+      "minLength": 4,
+      "lead": 1.0,
+      "narration": "This is kinhin beta 4. Your Mac is your CI."
+    },
+    {
+      "id": "headline",
+      "type": "statement",
+      "props": {
+        "text": "See what your fleet is doing.",
+        "sub": "Opt-in telemetry, new images, fewer rough edges."
+      },
+      "minLength": 4,
+      "narration": "See what your fleet is doing. Optional telemetry, new images, and fewer rough edges."
+    },
+    {
+      "id": "telemetry",
+      "type": "steps",
+      "props": {
+        "title": "Telemetry, only if you want it.",
+        "steps": [
+          "Off by default: nothing is sent",
+          "Point it at your own OpenTelemetry server",
+          "Metrics, traces and logs, plus a Prometheus endpoint"
+        ]
+      },
+      "minLength": 7,
+      "narration": "Telemetry is off by default, and nothing is sent until you turn it on. Point it at your own OpenTelemetry server."
+    },
+    {
+      "id": "config",
+      "type": "code",
+      "props": {
+        "label": "config.yaml",
+        "lines": [
+          "telemetry:",
+          "  enabled: true",
+          "  endpoint: http://localhost:4318"
+        ],
+        "caption": "Bring your own OpenTelemetry server."
+      },
+      "minLength": 6,
+      "narration": "Turn it on in your config. The data goes to your server, never to kinhin."
+    },
+    {
+      "id": "status",
+      "type": "stats",
+      "props": {
+        "items": [
+          {
+            "value": "3",
+            "label": "signals: metrics, traces, logs"
+          },
+          {
+            "value": "Off",
+            "label": "by default"
+          },
+          {
+            "value": "1",
+            "label": "command to check: kinhin telemetry status"
+          }
+        ]
+      },
+      "minLength": 6,
+      "narration": "Three signals, off by default. One command, kinhin telemetry status, shows where it stands."
+    },
+    {
+      "id": "images",
+      "type": "statement",
+      "props": {
+        "text": "macOS 27 base images.",
+        "sub": "Golden Gate is in the image picker."
+      },
+      "minLength": 4,
+      "narration": "There are base images for macOS 27. Golden Gate is in the image picker."
+    },
+    {
+      "id": "fixes",
+      "type": "steps",
+      "props": {
+        "title": "Fixed after your feedback.",
+        "steps": [
+          "The daemon install path is verified",
+          "warm_pool: 1 starts one VM",
+          "vm.cpu and vm.memory_gb are honoured on Tart"
+        ]
+      },
+      "minLength": 7,
+      "narration": "Fixed after your feedback: the daemon install path, a warm pool of one, and CPU and memory on Tart."
+    },
+    {
+      "id": "upgrade",
+      "type": "statement",
+      "props": {
+        "text": "Linux runners no longer carry the macos label.",
+        "sub": "Use kinhin-container or kinhin-docker."
+      },
+      "minLength": 5,
+      "narration": "When upgrading, Linux runners no longer carry the macos label. Use kinhin-container or kinhin-docker."
+    },
+    {
+      "id": "outro",
+      "type": "outro",
+      "props": {
+        "line": "Beta 4 is out. Tell me what breaks.",
+        "url": "kinhin.dev",
+        "facts": [
+          "Free",
+          "Apache-2.0",
+          "Telemetry optional",
+          "In beta"
+        ]
+      },
+      "minLength": 5,
+      "cues": [
+        {
+          "text": "Beta 4 is out. Tell me what breaks."
+        },
+        {
+          "text": "kinhin.dev. Free, open source, in beta.",
+          "say": "kinhin dot dev. Free, open source, in beta."
+        }
+      ]
+    }
+  ]
+}
