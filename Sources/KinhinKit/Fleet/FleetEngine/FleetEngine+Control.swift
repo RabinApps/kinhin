@@ -142,11 +142,16 @@ extension FleetEngine {
         guard pruner.isSweepDue(minInterval: Self.cacheSweepInterval) else { return }
         await pruneProjectImages()
         let policy = ToolchainCachePolicy(from: config.toolchainCache)
-        guard policy.autoPrune else { return }
         let root = pruner.cacheRoot
-        await Task.detached(priority: .utility) {
-            ToolchainCachePruner(cacheRoot: root).prune(policy: policy, minInterval: Self.cacheSweepInterval)
+        // The walk that prunes also measures; with auto-prune off the sweep still measures, once a day, so the
+        // size gauge never costs a walk per reconcile pass.
+        let (report, size) = await Task.detached(priority: .utility) { () -> (ToolchainPruneReport?, Int64?) in
+            let pruner = ToolchainCachePruner(cacheRoot: root)
+            guard policy.autoPrune else { return (nil, pruner.measuredBytes()) }
+            let report = pruner.prune(policy: policy, minInterval: Self.cacheSweepInterval)
+            return (report, report.remainingBytes)
         }.value
+        noteCacheSweep(report: report, totalBytes: size)
     }
 
     // MARK: - Pause and status

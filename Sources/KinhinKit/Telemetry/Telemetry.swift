@@ -191,6 +191,8 @@ enum Metric {
         case exportFailures = "kinhin.telemetry.export.failures"
         case reconcileErrors = "kinhin.reconcile.errors"
         case spawnFailures = "kinhin.spawn.failures"
+        case imageBakes = "kinhin.image.bakes"
+        case cachePrunes = "kinhin.cache.prunes"
     }
 
     enum Histogram: String, CaseIterable {
@@ -199,6 +201,7 @@ enum Metric {
         case reconcileDuration = "kinhin.reconcile.duration"
         case queueWait = "kinhin.job.queue_wait.duration"
         case runDuration = "cicd.pipeline.run.duration"
+        case imageBakeDuration = "kinhin.image.bake.duration"
     }
 
     enum Gauge: String, CaseIterable {
@@ -229,6 +232,8 @@ enum Metric {
         case daemonUptime = "kinhin.daemon.uptime"
         case reconcileLastSuccess = "kinhin.reconcile.last_success"
         case spawnHeld = "kinhin.spawn.held"
+        case cacheSize = "kinhin.cache.size"
+        case runnerDiskUsage = "kinhin.runner.disk.usage"
     }
 
     /// Metric attribute keys. Names follow the OpenTelemetry CI/CD semantic conventions where one exists
@@ -250,6 +255,10 @@ enum Metric {
         static let healingResult = "kinhin.healing.result"
         static let version = "service.version"
         static let holdReason = "kinhin.spawn.hold_reason"
+        /// The outcome of an image bake or cache prune: `success` or `failure`.
+        static let outcome = "kinhin.result"
+        /// Which host cache a size describes (`toolchain`).
+        static let cache = "kinhin.cache"
     }
 
     /// The VM lifecycle phases timed directly by the engine.

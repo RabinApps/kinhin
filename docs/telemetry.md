@@ -82,6 +82,11 @@ exists (`cicd.worker.*`, `cicd.pipeline.*`, `cicd.system.*`, `error.type`) and a
 | `kinhin.runner.provision.duration` | histogram | the pool attributes plus `kinhin.runner.phase` (`clone`, `boot`, `register`) |
 | `kinhin.runner.teardown.duration` | histogram | `kinhin.pool`, `kinhin.image`, `kinhin.forge` |
 | `kinhin.runner.cpu.utilization`, `.memory.usage`, `.memory.limit` | gauge | `kinhin.pool`, `kinhin.image`. Aggregated over runners |
+| `kinhin.runner.disk.usage` | gauge | `kinhin.pool`, `kinhin.image`. Host disk the runner VMs occupy, summed over runners (tart reports whole GB); tart only |
+| `kinhin.image.bake.duration` | histogram | `kinhin.image`, `kinhin.result` (`success`, `failure`). Derived per-project image bakes run by the daemon |
+| `kinhin.image.bakes` | counter | the same |
+| `kinhin.cache.size` | gauge | `kinhin.cache` (`toolchain`). Sampled at the daily cache sweep, so it can be up to a day old; absent until the first sweep |
+| `kinhin.cache.prunes` | counter | `kinhin.result` (`success`, `failure`: some entries could not be deleted). One per daily sweep that pruned |
 | `kinhin.host.cpu.utilization`, `.memory.usage`, `.memory.limit`, `.disk.free` | gauge | none |
 | `process.cpu.utilization`, `process.memory.usage` | gauge | none (the daemon process) |
 | `kinhin.forge.api.requests` | counter | `kinhin.forge`, `http.response.status_class` (`2xx`…`5xx`, `error`) |
@@ -109,8 +114,9 @@ step. The other forges, a job the forge has not yet marked finished after a few 
 took, kinhin asks the forge for the running jobs as soon as the runner turns busy; a job that finishes in about a second can still outrun
 that and read `unknown`. `kinhin.errors` counts kinhin's own failures, not failing workflows.
 
-**Unavailable is not zero.** When a runtime or forge cannot supply a value, that series is absent. Today that means: per-runner disk use (no
-runtime exposes it), `kinhin.queue.age` and the queue-wait histogram on forges that do not report queue timestamps (GitHub does, through
+**Unavailable is not zero.** When a runtime or forge cannot supply a value, that series is absent. Today that means: per-runner disk use on
+runtimes other than tart, and for a VM where tart reports no on-disk size, `kinhin.cache.size` before the first daily sweep or when
+there is no cache directory, `kinhin.queue.age` and the queue-wait histogram on forges that do not report queue timestamps (GitHub does, through
 the job's `created_at`), and CPU on the first sample after a start. SSH-ready is not timed apart from boot because the runtimes do not
 separate them: `boot` covers both.
 

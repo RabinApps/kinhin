@@ -28,6 +28,8 @@ final class FakeTart: TartControlling, Sendable {
         var failNextClone = false
         /// Makes every `list()` throw, like `tart list` failing to launch.
         var failList = false
+        /// What `processSamples` reports, by VM name (empty: nothing, like a real controller that cannot sample).
+        var processSamples: [String: ProcessSample] = [:]
         /// `stop`/`delete` of an unknown VM fail like real tart ("does not exist").
         var strictMissing = false
         /// When set, the next (one-shot) call to the named operation fails.
@@ -88,6 +90,16 @@ final class FakeTart: TartControlling, Sendable {
     var strictMissing: Bool {
         get { state.withLock { $0.strictMissing } }
         set { state.withLock { $0.strictMissing = newValue } }
+    }
+
+    /// What `processSamples` reports for the VMs asked about; empty by default.
+    var processSampleValues: [String: ProcessSample] {
+        get { state.withLock { $0.processSamples } }
+        set { state.withLock { $0.processSamples = newValue } }
+    }
+
+    func processSamples(of names: [String]) async throws -> [String: ProcessSample] {
+        state.withLock { state in state.processSamples.filter { names.contains($0.key) } }
     }
 
     /// Makes every `list()` throw, like `tart list` failing to launch.

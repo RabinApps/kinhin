@@ -7,16 +7,22 @@ public struct TartVM: Sendable, Equatable {
     public let status: String  // "running" | "suspended" | "stopped" | ...
     public let cpu: Int?
     let memoryMB: Int?
+    /// The VM's virtual disk size (`Disk` in `tart list`).
     public let diskGB: Int?
+    /// What the VM occupies on the host's disk, in whole GB (`SizeOnDisk`, else `Size`, in `tart list`); nil when tart omits it.
+    public let sizeGB: Int?
 
-    public init(name: String, source: String, status: String, cpu: Int? = nil, memoryMB: Int? = nil, diskGB: Int? = nil)
-    {
+    public init(
+        name: String, source: String, status: String, cpu: Int? = nil, memoryMB: Int? = nil, diskGB: Int? = nil,
+        sizeGB: Int? = nil
+    ) {
         self.name = name
         self.source = source
         self.status = status
         self.cpu = cpu
         self.memoryMB = memoryMB
         self.diskGB = diskGB
+        self.sizeGB = sizeGB
     }
 }
 
@@ -196,9 +202,14 @@ public struct TartController: TartControlling {
             let Source: String
             let State: String
             let Disk: Int?
+            let Size: Int?
+            let SizeOnDisk: Int?  // newer tart: the allocated size; older tart reports it as `Size`
         }
         let entries = try JSONDecoder().decode([Entry].self, from: Data(text.utf8))
-        return entries.map { TartVM(name: $0.Name, source: $0.Source, status: $0.State, diskGB: $0.Disk) }
+        return entries.map {
+            TartVM(
+                name: $0.Name, source: $0.Source, status: $0.State, diskGB: $0.Disk, sizeGB: $0.SizeOnDisk ?? $0.Size)
+        }
     }
 
     /// Parse `tart list --quiet` output: lines of "name \t source \t status".
