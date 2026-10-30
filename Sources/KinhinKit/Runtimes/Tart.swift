@@ -309,6 +309,11 @@ public struct TartController: TartControlling {
         throw lastError
     }
 
+    static func vmIsGone(stderr: String) -> Bool {
+        let text = stderr.lowercased()
+        return text.contains("does not exist") || text.contains("not found") || text.contains("no such")
+    }
+
     static func isValidIPv4(_ s: String) -> Bool {
         let parts = s.split(separator: ".")
         guard parts.count == 4 else { return false }
@@ -328,7 +333,9 @@ public struct TartController: TartControlling {
 
     public func delete(name: String) async throws {
         let res = try await exec(["delete", name], timeout: 120)
-        guard res.succeeded else { throw TartError.commandFailed(what: "delete \(name)", stderr: res.stderr) }
+        guard res.succeeded || Self.vmIsGone(stderr: res.stderr) else {
+            throw TartError.commandFailed(what: "delete \(name)", stderr: res.stderr)
+        }
     }
 
     public func pull(image: String) async throws {

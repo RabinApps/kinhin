@@ -115,6 +115,39 @@ final class ImageDeletePlanTests: XCTestCase {
         XCTAssertEqual(store.all, [], "the index must not keep a record for a deleted image")
     }
 
+    func testExecutionContinuesAfterFailureAndAggregatesAtTheEnd() async throws {
+        let store = store(with: ["proj-failed", "proj-good"])
+        let tart = FakeTart()
+        tart.vms["proj-failed"] = TartVM(name: "proj-failed", source: "base", status: "stopped")
+        tart.vms["proj-good"] = TartVM(name: "proj-good", source: "base", status: "stopped")
+        tart.failNext("delete", stderr: "disk busy")
+        let plan = ImageDeletePlan(targets: [
+            .init(name: "proj-failed", runtime: .tart, role: .derived, present: true),
+            .init(name: "proj-good", runtime: .tart, role: .derived, present: true),
+        ], refusals: [])
+
+        do {
+            try await plan.execute(tart: tart, container: nil, docker: nil, store: store)
+            XCTFail("the failed deletion must be reported after trying the remaining target")
+        } catch let error as ImageError {
+            guard case .deletionFailed(let failures) = error else { return XCTFail("wrong error: \(error)") }
+            XCTAssertEqual(failures.count, 1)
+            XCTAssertTrue(failures[0].contains("proj-failed"), failures[0])
+        }
+        XCTAssertEqual(tart.deleteCalls, ["proj-good"], "the second target is attempted despite the first failure")
+        XCTAssertEqual(store.all, [], "derived-image index entries are cleared even when deletion fails")
+    }
+
+    func testDeletingAnAlreadyMissingTartImageIsSuccess() async throws {
+        let tart = FakeTart()
+        tart.strictMissing = true
+        let plan = ImageDeletePlan(targets: [
+            .init(name: "gone", runtime: .tart, role: .local, present: true)
+        ], refusals: [])
+        try await plan.execute(tart: tart, container: nil, docker: nil, store: store(with: []))
+        XCTAssertTrue(tart.deleteCalls.isEmpty)
+    }
+
     func testExecutingAStaleRecordOnlyTouchesTheIndex() async throws {
         let store = store(with: ["proj-gone"])
         let tart = FakeTart()
@@ -137,11 +170,9 @@ final class ImageDeletePlanTests: XCTestCase {
             try await plan.execute(tart: FakeTart(), container: nil, docker: nil, store: store(with: []))
             XCTFail("deleting a container image without the container CLI must fail")
         } catch let error as ImageError {
-            guard case .runtimeUnavailable(let why) = error else { return XCTFail("wrong error: \(error)") }
-            XCTAssertEqual(
-                why,
-                "the container CLI is not available — brew install container && container system start --enable-kernel-install"
-            )
+            guard case .deletionFailed(let failures) = error else { return XCTFail("wrong error: \(error)") }
+            XCTAssertEqual(failures.count, 1)
+            XCTAssertTrue(failures[0].contains("the container CLI is not available"), failures[0])
         } catch {
             XCTFail("expected ImageError.runtimeUnavailable, got \(error)")
         }
@@ -155,8 +186,9 @@ final class ImageDeletePlanTests: XCTestCase {
             try await plan.execute(tart: nil, container: nil, docker: nil, store: store(with: []))
             XCTFail("deleting a tart image without tart must fail")
         } catch let error as ImageError {
-            guard case .runtimeUnavailable(let why) = error else { return XCTFail("wrong error: \(error)") }
-            XCTAssertTrue(why.contains("tart is not installed"), why)
+            guard case .deletionFailed(let failures) = error else { return XCTFail("wrong error: \(error)") }
+            XCTAssertEqual(failures.count, 1)
+            XCTAssertTrue(failures[0].contains("tart is not installed"), failures[0])
         } catch {
             XCTFail("expected ImageError.runtimeUnavailable, got \(error)")
         }
