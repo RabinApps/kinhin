@@ -144,10 +144,10 @@ exists (`cicd.worker.*`, `cicd.pipeline.*`, `cicd.system.*`, `error.type`) and a
 `error.type` is one of `clone_failed`, `boot_timeout`, `ssh_unreachable`, `registration_failed`, `runner_not_registered`, `instance_lost`,
 `forge_api`, `rate_limited`, `teardown_failed`, `unknown`. Never the error text.
 
-**The job result is the forge's, or `unknown`.** When a job ends kinhin asks the forge, once, what happened. GitHub, GitLab and
-Buildkite answer with the job's verdict and its own start and end times (GitHub also with its steps): `cicd.pipeline.result` is then
+**The job result is the forge's, or `unknown`.** When a job ends kinhin asks the forge, once, what happened. GitHub, GitLab,
+Buildkite, Gitea, Forgejo and Azure DevOps answer with the job's verdict and its own start and end times (GitHub also with its steps): `cicd.pipeline.result` is then
 `success`, `failure`, `cancellation`, `timeout` or `skip`, the run duration uses the forge's times, and on GitHub the trace gets one span per
-step. The other forges, a job the forge has not yet marked finished after a few short retries, and a job kinhin never saw running read
+step. Bitbucket (its API does not say which runner took a step, so a step cannot be tied to a VM), a job the forge has not yet marked finished after a few short retries, and a job kinhin never saw running read
 `unknown`. kinhin never guesses a verdict. The read happens while the instance is torn down, so it adds no delay. To learn which job a runner
 took, kinhin asks the forge for the running jobs as soon as the runner turns busy; a job that finishes in about a second can still outrun
 that and read `unknown`. `kinhin.errors` counts kinhin's own failures, not failing workflows.
@@ -301,8 +301,9 @@ Everything else (endpoint, signals, headers) stays in the file and the environme
   are complete without it.
 - Job metrics (`picked_up`, `completed`, the run duration and the `run` span) need ephemeral or scale-set runners, the ones kinhin watches
   until their job ends. A classic persistent runner (`vm.ephemeral: false`) has lifecycle timings but no job counters.
-- Job identifiers, queue times and a verdict come from GitHub Actions, GitLab and Buildkite. Other forges get the lifecycle spans and
-  timings kinhin measures itself, and a result of `unknown`. Step spans exist for GitHub only (the others have no step list).
+- Job identifiers, queue times and a verdict come from GitHub Actions, GitLab, Buildkite, Gitea, Forgejo and Azure DevOps. Bitbucket gets
+  the lifecycle spans and timings kinhin measures itself, and a result of `unknown`. On Gitea and Forgejo the job's end time is the task's
+  last update, and the task is found in the newest 100 tasks; Azure DevOps has no separate `timeout` result. Step spans exist for GitHub only (the others have no step list).
 - Metrics and logs in the upstream SDK are still in development; pin and test before relying on them.
 - Prometheus histogram buckets come out of the upstream text writer as per-bucket counts rather than cumulative `le` counts; use the OTLP
   path where `histogram_quantile` accuracy matters.

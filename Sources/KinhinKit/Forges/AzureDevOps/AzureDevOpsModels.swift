@@ -124,6 +124,7 @@ public struct AzureDevOpsJobRequest: Decodable, Sendable, Equatable {
     let assignTime: String?
     let result: String?
     let finishTime: String?
+    let queueTime: String?
     /// Demands as the API reports them: `name`, or `name -equals value` (and
     /// other operators kinhin does not interpret).
     public let demands: [String]
@@ -171,26 +172,28 @@ public struct AzureDevOpsJobRequest: Decodable, Sendable, Equatable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case requestId, jobName, assignTime, result, finishTime, demands, reservedAgent, definition
+        case requestId, jobName, assignTime, result, finishTime, queueTime, demands, reservedAgent, definition
         case jobId, scopeId
         case buildOwner = "owner"
     }
 
     init(
         requestId: Int64, jobName: String?, assignTime: String? = nil, result: String? = nil, demands: [String] = [],
-        reservedAgent: String? = nil, definition: String? = nil
+        reservedAgent: String? = nil, definition: String? = nil, queueTime: String? = nil, finishTime: String? = nil,
+        buildID: Int? = nil
     ) {
         self.requestId = requestId
         self.jobName = jobName
         self.assignTime = assignTime
         self.result = result
-        self.finishTime = nil
+        self.finishTime = finishTime
+        self.queueTime = queueTime
         self.demands = demands
         self.reservedAgent = reservedAgent.map { AgentRef(name: $0) }
         self.definition = definition.map { Owner(name: $0) }
         self.jobId = nil
         self.scopeId = nil
-        self.buildOwner = nil
+        self.buildOwner = buildID.map { BuildOwner(id: $0, name: nil) }
     }
 
     public init(from decoder: Decoder) throws {
@@ -200,6 +203,7 @@ public struct AzureDevOpsJobRequest: Decodable, Sendable, Equatable {
         assignTime = try container.decodeIfPresent(String.self, forKey: .assignTime)
         result = try container.decodeIfPresent(String.self, forKey: .result)
         finishTime = try container.decodeIfPresent(String.self, forKey: .finishTime)
+        queueTime = try? container.decodeIfPresent(String.self, forKey: .queueTime)  // lenient: telemetry only
         reservedAgent = try container.decodeIfPresent(AgentRef.self, forKey: .reservedAgent)
         definition = try container.decodeIfPresent(Owner.self, forKey: .definition)
         // Leniency policy: these three only enrich the job (log links, owner);
@@ -237,6 +241,17 @@ public struct AzureDevOpsJobRequest: Decodable, Sendable, Equatable {
     var isRunning: Bool { assignTime != nil && result == nil && finishTime == nil }
     /// The pipeline the request belongs to.
     var pipeline: String? { definition?.name }
+    /// Handed out and ended.
+    var isFinished: Bool { result != nil || finishTime != nil }
+
+    /// The identifiers and provider timestamps of this request, for telemetry. The build is the run, the request
+    /// the job; the pipeline stands for both the workflow and the repository, as it does in `ForgeJob`.
+    var correlation: JobCorrelation {
+        JobCorrelation(
+            runID: buildOwner?.id.map(String.init), jobID: String(requestId), workflow: pipeline, jobName: jobName,
+            repository: pipeline, enqueuedAt: PipelineParsing.date(queueTime),
+            startedAt: PipelineParsing.date(assignTime))
+    }
 }
 
 // MARK: - Build timeline

@@ -212,7 +212,7 @@ struct GiteaForge: Forge {
         return tasks.map { task in
             ForgeJob(
                 name: task.name ?? taskName, runnerName: nil, repository: task.repository, ref: task.ref,
-                sha: task.sha)
+                sha: task.sha, correlation: task.correlation)
         }
     }
 
@@ -237,13 +237,27 @@ struct GiteaForge: Forge {
             startedAt: started, jobs: [job], granularity: .job)
     }
 
+    /// The finished task's verdict and times; Gitea and Forgejo have no step list below the task. The task's
+    /// `updated_at` is its last write, so it stands for the end time.
+    func jobOutcome(for correlation: JobCorrelation) async throws -> JobOutcome? {
+        guard let taskID = correlation.jobID.flatMap(Int.init), let task = try await client.task(id: taskID) else {
+            return nil
+        }
+        guard JobOutcome.isFinished(giteaStatus: task.status) else { return JobOutcome() }
+        return JobOutcome(
+            result: JobOutcome.result(giteaStatus: task.status), startedAt: PipelineParsing.date(task.startedAt),
+            completedAt: PipelineParsing.date(task.updatedAt))
+    }
+
     func runningJobs() async throws -> [ForgeJob] {
         // Preferred: running tasks keyed by runner_name (repo attribution
         // when the instance exposes it) — mirrors GitHub's running jobs.
         let tasks = try await client.runningTasks().filter { $0.runnerName != nil }
         if !tasks.isEmpty {
             return tasks.map { task in
-                ForgeJob(name: task.name ?? taskName, runnerName: task.runnerName, repository: task.repository)
+                ForgeJob(
+                    name: task.name ?? taskName, runnerName: task.runnerName, repository: task.repository,
+                    correlation: task.correlation)
             }
         }
         // Fallback: busy runners carry per-VM attribution even where per-task

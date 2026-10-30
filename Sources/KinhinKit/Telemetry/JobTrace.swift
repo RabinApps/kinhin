@@ -95,6 +95,34 @@ public struct JobOutcome: Sendable, Equatable {
         ["success", "failed", "canceled", "skipped"].contains(status ?? "")
     }
 
+    /// Maps a Gitea or Forgejo task status. `unknown` is a task that never ran: finished, with no verdict.
+    static func result(giteaStatus status: String?) -> Result? {
+        switch status {
+        case "success": return .success
+        case "failure": return .failure
+        case "cancelled": return .cancellation
+        case "skipped": return .skip
+        default: return nil
+        }
+    }
+
+    /// Whether a Gitea or Forgejo task status means the task is over.
+    static func isFinished(giteaStatus status: String?) -> Bool {
+        ["success", "failure", "cancelled", "skipped", "unknown"].contains(status ?? "")
+    }
+
+    /// Maps an Azure DevOps job request result (`TaskResult`); a request with no result yet stays unknown. The API
+    /// has no separate timeout result.
+    static func result(azureResult result: String?) -> Result? {
+        switch (result ?? "").lowercased() {
+        case "succeeded", "succeededwithissues": return .success
+        case "failed": return .failure
+        case "canceled", "abandoned": return .cancellation
+        case "skipped": return .skip
+        default: return nil
+        }
+    }
+
     /// Maps a GitHub job conclusion; unrecognised values (`neutral`, `action_required`) stay unknown.
     static func result(gitHubConclusion conclusion: String?) -> Result? {
         switch conclusion {
