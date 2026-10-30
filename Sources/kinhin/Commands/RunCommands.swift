@@ -76,7 +76,9 @@ enum RunCommands {
     static func noDaemonMessage(for method: RPCMethod) -> String {
         switch method {
         case .stop:
-            return "no daemon running; nothing to stop (if `kinhin start` runs elsewhere, Ctrl-C it there)"
+            return "no daemon running; nothing to stop (if `kinhin start` runs elsewhere, Ctrl-C it there; if "
+                + "the menu bar app runs the fleet in-process, stop or pause it from the app — the CLI's control "
+                + "actions reach the daemon install only)"
         case .pause, .resume:
             return "no daemon running; pause/resume works while a daemon is active"
         default:
