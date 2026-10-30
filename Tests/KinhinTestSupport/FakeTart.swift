@@ -49,6 +49,12 @@ final class FakeTart: TartControlling, Sendable {
         var parkedIPs: [CheckedContinuation<String, Error>] = []
         /// Set by `blockIP()`: the next `ip(of:)` parks.
         var parkNextIP = false
+        /// Set by `blockNextSet()`: the next `set` parks (checked
+        /// continuation) until `releaseSet()` resumes it — the hook for the
+        /// set-to-run window: cancellation landing there must not leave `run`
+        /// starting the VM anyway.
+        var parkNextSet = false
+        var parkedSets: [CheckedContinuation<Void, Error>] = []
         /// When true, `clone` parks (loops, sleeping) right after recording its call —
         /// the hook for the warm-pool top-up test: two reconcile passes while the first
         /// instance is still in flight must not double-spawn it.
@@ -127,6 +133,36 @@ final class FakeTart: TartControlling, Sendable {
     /// Parks the next `stop` call (one-shot) until `releaseStop()` resumes it.
     func blockNextStop() {
         state.withLock { $0.parkNextStop = true }
+    }
+
+    /// Parks the next `set` call (one-shot, after its call is recorded) until
+    /// `releaseSet()` resumes it.
+    func blockNextSet() {
+        state.withLock { $0.parkNextSet = true }
+    }
+
+    /// True while a `set` call is parked in `blockNextSet`.
+    var isBlockedInSet: Bool {
+        !state.withLock { $0.parkedSets.isEmpty }
+    }
+
+    /// Waits (bounded) until a parked `set` exists, like `waitUntilStopParked`.
+    func waitUntilSetParked(timeout: TimeInterval = 5) async {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline, !isBlockedInSet {
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+    }
+
+    /// Resumes every parked `set` call.
+    func releaseSet() {
+        let parked = state.withLock { state -> [CheckedContinuation<Void, Error>] in
+            let parked = state.parkedSets
+            state.parkedSets.removeAll()
+            state.parkNextSet = false
+            return parked
+        }
+        for continuation in parked { continuation.resume() }
     }
 
     /// True while a `stop` call is parked in `blockNextStop`.
@@ -225,6 +261,17 @@ final class FakeTart: TartControlling, Sendable {
                     name: vm.name, source: vm.source, status: vm.status, cpu: cpu, memoryMB: memoryMB,
                     diskGB: vm.diskGB)
             }
+        }
+        try await withCheckedThrowingContinuation { continuation in
+            let park = state.withLock { state -> Bool in
+                if state.parkNextSet {
+                    state.parkNextSet = false
+                    state.parkedSets.append(continuation)
+                    return true
+                }
+                return false
+            }
+            if !park { continuation.resume() }
         }
     }
 

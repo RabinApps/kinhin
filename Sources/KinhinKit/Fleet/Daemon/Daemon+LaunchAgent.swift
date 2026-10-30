@@ -83,6 +83,10 @@ extension Daemon {
                 .first(where: { $0.hasPrefix("last exit code = ") })
         else { return true }
         let rawCode = line.dropFirst("last exit code = ".count)
+        // A fresh job that never exited yet says so; treat that as the
+        // healthy zero it stands for (it can only appear on a running agent,
+        // which the state check above already required).
+        if rawCode == "(never exited)" { return true }
         guard let code = Self.exitCode(from: String(rawCode)) else { return false }
         return code == 0
     }

@@ -49,6 +49,13 @@ extension ConfigLoader {
             if let labels = entry.labels, labels.contains(where: { $0.trimmingCharacters(in: .whitespaces).isEmpty }) {
                 throw ConfigError.invalid("\(position).labels must not contain empty labels")
             }
+            if let base = entry.baseImage, let labels = entry.labels,
+                TartBaseImage.isLinux(base), labels.contains(where: { $0.lowercased() == "macos" })
+            {
+                throw ConfigError.invalid(
+                    "\(position).labels must not include 'macos' on a Linux base_image: its "
+                        + "runners cannot advertise macOS-only labels, so a job asking for them could never land on it")
+            }
             if let labels = entry.labels, !labels.isEmpty {
                 let own = Set(labels.map { $0.lowercased() })
                 guard !own.isSubset(of: fleet) else {
@@ -71,12 +78,19 @@ extension ConfigLoader {
     /// Labels for the default `image:` (`image_labels:`). Same rules as an `images:` entry's
     /// labels: no empty values, at least one label outside the fleet labels (or every job
     /// requesting the fleet labels would match the default image specifically), and no label
-    /// set shared with a named `images:` entry (jobs could not tell them apart).
+    /// set shared with a named `images:` entry (jobs could not tell them apart). A Linux
+    /// default base additionally rejects `macos`: its runners never advertise macOS-only
+    /// labels, so a job asking for the image's `macos` label could never land on it.
     static func validatedImageLabels(
-        _ labels: [String], fleetLabels: [String], images: [KinhinConfig.ImageConfig]
+        _ labels: [String], fleetLabels: [String], images: [KinhinConfig.ImageConfig], linuxBase: Bool
     ) throws -> [String] {
         if labels.contains(where: { $0.trimmingCharacters(in: .whitespaces).isEmpty }) {
             throw ConfigError.invalid("image_labels must not contain empty labels")
+        }
+        if linuxBase, labels.contains(where: { $0.lowercased() == "macos" }) {
+            throw ConfigError.invalid(
+                "image_labels must not include 'macos' when base_image is a Linux image: its runners "
+                    + "cannot advertise macOS-only labels, so a job asking for them could never land on it")
         }
         let own = Set(labels.map { $0.lowercased() })
         let fleet = Set(fleetLabels.map { $0.lowercased() })

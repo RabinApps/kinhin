@@ -193,11 +193,19 @@ struct ScalePlan: Equatable {
     /// The image a new Tart instance clones: the named or derived image with the most unmet queued
     /// jobs, else the base image (nil). Ties go to a derived image. `active` counts the instances
     /// that serve demand per image ("" = the base image).
+    /// The empty key is never a candidate image — the synthesized default entry (from `image_labels:`
+    /// or a Linux base) is base demand, not a cloneable name; its records already count under "",
+    /// and a "" clone source would break `tart clone` and queue the job forever.
     static func chooseImage(queuedTart: Int, byImage: [String: Int], active: [String: Int]) -> String? {
         guard !byImage.isEmpty else { return nil }
-        let derivedTotal = byImage.values.reduce(0, +)
-        var best: (image: String?, unmet: Int) = (nil, (queuedTart - derivedTotal) - (active[""] ?? 0))
-        for (image, count) in byImage.sorted(by: { $0.key < $1.key }) {
+        let derived = byImage.filter { !$0.key.isEmpty }
+        let derivedTotal = derived.values.reduce(0, +)
+        // Base demand: jobs on tart not matched to a named image, but never
+        // fewer than what the synthesized default entry counted (it is a
+        // subset of the same jobs, so the larger value is the honest one).
+        let baseDemand = max(queuedTart - derivedTotal, byImage[""] ?? 0)
+        var best: (image: String?, unmet: Int) = (nil, baseDemand - (active[""] ?? 0))
+        for (image, count) in derived.sorted(by: { $0.key < $1.key }) {
             let unmet = count - (active[image] ?? 0)
             if unmet > 0, unmet >= best.unmet { best = (image, unmet) }
         }
@@ -279,9 +287,11 @@ struct ScalePlan: Equatable {
             for record in sim { running[pool(of: record, input: input), default: 0] += 1 }
             // The in-flight pooled clones already hold a slot in their pool.
             for (pool, count) in reserved { running[pool, default: 0] += count }
-            let chosen = selectRuntime(
-                unmet: unmet, active: running, caps: caps, fallback: input.defaultRuntime,
-                poolExists: input.existingPools.contains)
+            guard
+                let chosen = selectRuntime(
+                    unmet: unmet, active: running, caps: caps, fallback: input.defaultRuntime,
+                    poolExists: input.existingPools.contains)
+            else { break }  // unmet demand but no pool may take another instance
             if input.heldRuntimes.contains(chosen) { break }  // every pool with demand is backing off
 
             // The image for a Tart slot, counting only instances that serve demand (warm ones do not).
@@ -307,11 +317,15 @@ struct ScalePlan: Equatable {
     /// The runtime for a new instance: among pools with unmet demand the one
     /// with the most, never beyond its capacity partition. Ties break
     /// alphabetically by runtime id; with no unmet demand anywhere, `fallback`
-    /// wins (uncapped within the global target).
+    /// wins (uncapped within the global target — the minRunners top-up).
+    /// When pools carry unmet demand but none can take an instance (full,
+    /// backing off, or administratively held), the result is nil: a fallback
+    /// slot would be pure surplus beyond the queue, and the spawn path does
+    /// not recheck a partition cap, so it must not start on a filled runtime.
     static func selectRuntime(
         unmet: [RuntimeID: Int], active: [RuntimeID: Int], caps: [RuntimeID: Int], fallback: RuntimeID,
         poolExists: (RuntimeID) -> Bool
-    ) -> RuntimeID {
+    ) -> RuntimeID? {
         var best: RuntimeID = fallback
         var bestUnmet = -1
         for (id, count) in unmet.sorted(by: { $0.key.rawValue < $1.key.rawValue }) {
@@ -325,7 +339,8 @@ struct ScalePlan: Equatable {
                 best = id
             }
         }
-        return best
+        if unmet.isEmpty || bestUnmet >= 0 { return best }
+        return nil
     }
 
     // MARK: - Scale down

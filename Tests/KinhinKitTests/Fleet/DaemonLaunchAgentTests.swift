@@ -89,6 +89,9 @@ final class DaemonLaunchAgentTests: XCTestCase {
         // evidence of a healthy agent either.
         XCTAssertFalse(Daemon.launchAgentStatusIsHealthy("state = running\nlast exit code = 78: EX_CONFIG"))
         XCTAssertFalse(Daemon.launchAgentStatusIsHealthy("state = running\nlast exit code = EX_CONFIG"))
+        // A job that has never exited yet reports the sentinel instead of a
+        // code; with `state = running` that is a healthy start, not a failure.
+        XCTAssertTrue(Daemon.launchAgentStatusIsHealthy("state = running\nlast exit code = (never exited)"))
     }
 
     func testExitCodeFromReadsPlainAndAnnotatedFragments() {

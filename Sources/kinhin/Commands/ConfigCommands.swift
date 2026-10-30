@@ -213,11 +213,13 @@ enum ConfigCommands {
 
     /// The config subcommand's file operands. `--` ends the flags, so
     /// everything after it counts (a filename starting with `-`), and tokens
-    /// before it that are not flags are the operands too.
+    /// before it that are not flags are operands too — a marker does not
+    /// erase them, or `broken.yaml --` would validate the default config.
     static func operands(in args: [String]) -> [String] {
-        if let marker = args.firstIndex(of: "--") {
-            return Array(args[(marker + 1)...])
+        guard let marker = args.firstIndex(of: "--") else {
+            return args.compactMap { $0 == "-" || !$0.hasPrefix("-") ? $0 : nil }
         }
-        return args.compactMap { $0 == "-" || !$0.hasPrefix("-") ? $0 : nil }
+        return args[..<marker].compactMap { $0 == "-" || !$0.hasPrefix("-") ? $0 : nil }
+            + args[(marker + 1)...]
     }
 }

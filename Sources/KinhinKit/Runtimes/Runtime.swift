@@ -271,6 +271,9 @@ struct TartRuntime: Runtime {
             // sizing (a stopped clone may predate `vm.cpu`/`vm.memory_gb` or a
             // failed `tart set`) and start it, like a fresh clone would have.
             try await tart.set(name: id, cpu: cpuCount(), memoryMB: memoryMB())
+            // Teardown only cancels this task without waiting for it, so a VM
+            // whose stop lands in this window must not be started again.
+            try Task.checkCancellation()
             let mounts = route.cacheMount ? [ToolchainCacheMount.tartDirectorySpec(scope: route.cacheScope)] : []
             try await tart.run(name: id, mounts: mounts)
             return
@@ -278,6 +281,10 @@ struct TartRuntime: Runtime {
         Log.info(id, "cloning from \(route.image)")
         try await tart.clone(source: route.image, to: id)
         try await tart.set(name: id, cpu: cpuCount(), memoryMB: memoryMB())
+        // Same window as the recovery path: cancelled between `tart.set` and
+        // `tart.run`, the fresh clone stays a stopped VM for teardown's stop
+        // instead of outliving it.
+        try Task.checkCancellation()
         let mounts = route.cacheMount ? [ToolchainCacheMount.tartDirectorySpec(scope: route.cacheScope)] : []
         try await tart.run(name: id, mounts: mounts)
     }

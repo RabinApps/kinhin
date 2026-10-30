@@ -60,6 +60,30 @@ final class RuntimeTests: XCTestCase {
         XCTAssertEqual(tart.runCalls, ["kinhin-1"], "the stopped clone is started")
     }
 
+    /// The set-to-run window: teardown cancels the lifecycle task without
+    /// waiting for it, so a provision whose task is cancelled while `tart set`
+    /// runs must not start the VM once set returns — its teardown stop would
+    /// otherwise be undone and the VM would survive until a later retry.
+    func testProvisionDoesNotStartTheVMAfterACancelledTask() async throws {
+        let tart = FakeTart()
+        tart.blockNextSet()
+        let runtime = TartRuntime(
+            tart: tart, bootTimeout: { 300 }, cpuCount: { 6 }, memoryMB: { 12 * 1024 })
+        let route = RepoRoute(repo: "acme/widgets", image: "tahoe-base", ephemeral: true, bootTimeout: 300)
+
+        let task = Task { try await runtime.provision(id: "kinhin-1", route: route) }
+        await tart.waitUntilSetParked()
+        task.cancel()  // cancellation is observed exactly once set resumes
+        tart.releaseSet()
+
+        do {
+            try await task.value
+            XCTFail("a cancelled provision must end with CancellationError")
+        } catch is CancellationError {
+        }
+        XCTAssertTrue(tart.runCalls.isEmpty, "the VM is not started after cancellation")
+    }
+
     func testProvisionLeavesARunningVMUntouched() async throws {
         let tart = FakeTart()
         tart.vms["kinhin-1"] = TartVM(name: "kinhin-1", source: "tahoe-base", status: "running")

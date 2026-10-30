@@ -36,6 +36,27 @@ final class NamedImageRoutingTests: XCTestCase {
         XCTAssertNoThrow(try ConfigLoader.parse(head + "images:\n  - name: x\n    labels: [macos, xcode]\n"))
     }
 
+    /// A curated Linux base cannot advertise `macos` — runner registration
+    /// strips macOS-only labels — so carrying it in an image's labels would
+    /// select jobs (ImageRouting requires every label) the runner can never
+    /// serve. The loader rejects it up front, on the named entries and the
+    /// default image (`image_labels:`); an entry without a Linux base keeps it.
+    func testLinuxBaseImagesRejectMacosInTheirLabels() {
+        let head = "accounts:\n  - name: github\n    forge: github\n    scope: \"a/b\"\nlabels: [self-hosted, macos]\n"
+        XCTAssertThrowsError(
+            try ConfigLoader.parse(
+                head + "images:\n  - name: linux\n    base_image: ghcr.io/cirruslabs/ubuntu:latest\n"
+                    + "    labels: [macos, xcode]\n"),
+            "a Linux runner never advertises macos")
+        XCTAssertThrowsError(
+            try ConfigLoader.parse(
+                head + "base_image: ghcr.io/cirruslabs/ubuntu:latest\nimage_labels: [macos, xcode]\n"),
+            "a Linux default base never advertises macos either")
+        XCTAssertNoThrow(
+            try ConfigLoader.parse(head + "images:\n  - name: linux\n    labels: [linux, macos]\n"),
+            "a macOS-based entry (no base_image) keeps macos")
+    }
+
     // MARK: - Engine
 
     private func engine(

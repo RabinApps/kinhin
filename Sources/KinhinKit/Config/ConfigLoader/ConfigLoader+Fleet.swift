@@ -85,7 +85,9 @@ extension ConfigLoader {
             cfg.images = try Self.parseImages(images, primary: cfg.image, fleetLabels: cfg.labels)
         }
         if let imageLabels = partial.imageLabels {
-            cfg.imageLabels = try Self.validatedImageLabels(imageLabels, fleetLabels: cfg.labels, images: cfg.images)
+            cfg.imageLabels = try Self.validatedImageLabels(
+                imageLabels, fleetLabels: cfg.labels, images: cfg.images,
+                linuxBase: TartBaseImage.isLinux(cfg.baseImage))
         }
         // Warm VMs take slots under max_runners, so the base and every image's warm_pool share that ceiling.
         for image in cfg.images where image.warmPool > cfg.maxRunners {

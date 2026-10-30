@@ -202,11 +202,30 @@ final class ScalePlanWarmPoolTests: XCTestCase {
         XCTAssertEqual(plan.warmTotal, 0)
     }
 
+    func testAFullPartitionDoesNotTakeTheFallbackDemandSlots() {
+        // Tart cap 1, one in-flight pooled clone (which fills it) and two
+        // queued Tart jobs with a global cap of 3: `desired` raises the target
+        // above the empty active set, but Tart's partition is exhausted, so no
+        // slot is admissible — a fallback spawn would just second Tart.
+        var planInput = input(records: [pooled("p1", .cloning)], queued: 2, warmPool: 0, maxRunners: 3)
+        planInput.poolCaps = [.tart: 1]
+        let plan = ScalePlan.make(planInput)
+        XCTAssertTrue(
+            plan.slots.isEmpty,
+            "a full partition must not take slots raised by `desired`: \(plan.slots)")
+    }
+
     func testChooseImagePrefersTheImageWithUnmetDemand() {
         XCTAssertEqual(ScalePlan.chooseImage(queuedTart: 1, byImage: ["xcode": 1], active: [:]), "xcode")
         XCTAssertNil(
             ScalePlan.chooseImage(queuedTart: 3, byImage: ["xcode": 1], active: [:]), "base has the most unmet")
         XCTAssertNil(ScalePlan.chooseImage(queuedTart: 1, byImage: ["xcode": 1], active: ["xcode": 1]))
+        // The synthesized default entry keys base demand as "": that is not a
+        // clone source. The job keeps its base demand and the slot gets nil, so
+        // the spawn path clones `config.image` instead of the empty string.
+        XCTAssertNil(ScalePlan.chooseImage(queuedTart: 1, byImage: ["": 1], active: [:]))
+        // It still counts as base demand: a base instance at the cap absorbs it.
+        XCTAssertNil(ScalePlan.chooseImage(queuedTart: 1, byImage: ["": 1], active: ["": 1]))
     }
 }
 

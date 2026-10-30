@@ -135,6 +135,13 @@ final class ConfigValidateTests: XCTestCase {
         let prose = try captureStdout { try ConfigCommands.runValidate(["--", dashFile.path]) }
         XCTAssertTrue(prose.contains("config OK: \(dashFile.path)"), prose)
 
+        // The separator's tokens keep their shape: the parser returns the
+        // dash-prefixed name as an operand, and a name before the marker is
+        // not erased by it.
+        XCTAssertEqual(ConfigCommands.operands(in: ["--", "-breaky.yaml"]), ["-breaky.yaml"])
+        XCTAssertEqual(
+            ConfigCommands.operands(in: ["broken.yaml", "--"]), ["broken.yaml"])
+
         // More than one FILE operand is a usage error, not a silent pick of
         // the first.
         XCTAssertThrowsError(try ConfigCommands.runValidate([configURL.path, dashFile.path])) { error in
