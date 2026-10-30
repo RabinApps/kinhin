@@ -193,6 +193,8 @@ extension Daemon {
         }
         do {
             let cfg = try ConfigLoader.load(from: configURL)
+            // Telemetry settings apply in place (no engine rebuild): unchanged settings leave the exporters alone.
+            await TelemetryService.shared.apply(cfg.telemetry)
             if FleetEngine.restartRequired(from: engine.activeConfig, to: cfg) {
                 let replacement = try (engineFactory ?? Self.buildEngine)(cfg)
                 switch await engine.handOver(to: replacement) {

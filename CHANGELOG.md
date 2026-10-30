@@ -4,6 +4,16 @@
 
 <!-- changelog: entries for the next release go here -->
 
+**Added**
+
+- Opt-in OpenTelemetry: a `telemetry:` section exports metrics, traces and logs over OTLP (HTTP/protobuf or gRPC) and can serve the
+  metrics on a local Prometheus `/metrics` endpoint. It covers workers by pool, image, labels and state, queue depth and age, fleet size
+  and capacity, the warm pool, provisioning, boot and registration timings, jobs picked up and completed, runner, host and daemon resource
+  use, forge request counts and rate limits, and classified errors, with no VM, job or run IDs as metric labels. Each instance gets one
+  trace, with GitHub run, attempt and job identifiers and queue timestamps when GitHub supplies them. `log_format: json` writes structured
+  local logs. Standard `OTEL_*` variables take precedence. Off by default: nothing starts and no port opens until `enabled: true`.
+  Passing trace context into workflow steps is not part of this release. See [docs/telemetry.md](docs/telemetry.md).
+
 ## v0.0.1-beta-3
 
 **Added**

@@ -218,6 +218,7 @@ extension FleetEngine: HealingActions {
     // MARK: Publishing
 
     func publish(_ snapshot: HealingSnapshot, alert: String?) async {
+        recordHealingTelemetry(snapshot)
         await statusBox.modify { status in
             status.healing = snapshot
             status.setAlert("healing", alert)

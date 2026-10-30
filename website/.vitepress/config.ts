@@ -152,6 +152,7 @@ export default defineConfig({
           { text: "Toolchains & shared cache", link: "/guide/toolchains" },
           { text: "Requeue and skip queued jobs", link: "/guide/requeue-skip" },
           { text: "The healing agent", link: "/guide/healing" },
+          { text: "Telemetry (OpenTelemetry)", link: "/guide/telemetry" },
           { text: "Test workflows locally", link: "/guide/workflow-testing" },
           { text: "Benchmarks", link: "/guide/benchmarks" },
         ],

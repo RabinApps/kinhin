@@ -75,6 +75,14 @@ public final class FleetEngine: Sendable {
     let healing: HealingAgent
     /// The healing fixes that reach outside the engine (Homebrew, pruning).
     let healingHost: HealingHostActions
+    /// Where metrics, traces and log records go (a no-op unless the host process started telemetry).
+    let telemetry: Telemetry
+    /// One trace per instance with a lifecycle running (`runLifecycle`), keyed by instance id.
+    let jobTraces = Mutex<[String: JobTrace]>([:])
+    /// Healing events already counted in `kinhin.healing.actions`.
+    let healingCounted = Mutex<Set<String>>([])
+    /// The daemon process's own CPU and memory.
+    let processUsage = ProcessUsage()
 
     // MARK: - Mutable state
 
@@ -208,6 +216,7 @@ public final class FleetEngine: Sendable {
         self.capacity = Capacity.plan(for: config, host: host)
         self.router = Router(Router.Snapshot.make(config: config, host: host))
         self.healingHost = dependencies.healingHost
+        self.telemetry = dependencies.telemetry
         self.healing = HealingAgent(
             policy: config.healing, timings: dependencies.healingTimings,
             advisor: dependencies.healingAdvisor ?? NoHealingAdvisor(),
@@ -274,6 +283,8 @@ extension FleetEngine {
         var healingTimings = HealingAgent.Timings()
         /// The advisor for problems no rule covers; nil → none.
         public var healingAdvisor: (any HealingAdvisor)?
+        /// The telemetry handle; the no-op unless the host process started a `TelemetryService`.
+        public var telemetry: Telemetry = .noop
 
         public init(
             githubFactory: GitHubClientFactory? = nil,
@@ -303,6 +314,7 @@ extension FleetEngine {
         public static func live(healing: KinhinConfig.HealingConfig = .default) -> Dependencies {
             var live = Dependencies(hostProbe: { ResourceProbe().snapshot() })
             live.healingHost = .live
+            live.telemetry = TelemetryService.shared.telemetry
             live.healingAdvisor = HealingAdvisors.production(config: healing)
             live.healingTimings = HealingAdvisors.productionTimings()
             return live

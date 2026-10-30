@@ -101,6 +101,8 @@ public struct KinhinConfig: Sendable, Equatable {
     public var accounts: [AccountConfig] = []
     /// The healing agent's policy (`healing:`).
     public var healing: HealingConfig = .default
+    /// Observability (`telemetry:`): off unless `enabled: true`.
+    public var telemetry: TelemetryConfig = .default
 
     /// True when any project mounts the host toolchain cache into its runners.
     public var sharesToolchainCache: Bool { projects.contains { $0.shareCache == true } }
@@ -290,6 +292,7 @@ public struct KinhinConfig: Sendable, Equatable {
         case projects
         case accounts
         case healing
+        case telemetry
     }
 
     public static let `default` = KinhinConfig(

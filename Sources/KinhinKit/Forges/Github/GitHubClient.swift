@@ -125,11 +125,13 @@ public struct GitHubClient: GitHubServing {
             do {
                 (data, response) = try await session.data(for: request)
             } catch let error where ForgeHTTP.isTransientNetworkError(error) {
+                ForgeRequestMetrics.record(forge: .github, status: nil)
                 return .retry(GitHubError.http(0, error.localizedDescription), after: nil)
             }
             guard let http = response as? HTTPURLResponse else {
                 return .retry(GitHubError.http(0, "non-HTTP response"), after: nil)
             }
+            ForgeRequestMetrics.record(forge: .github, status: http.statusCode)
             if let limit = ForgeRateLimit(headers: http) { rateLimits.record(limit) }
             if (200...299).contains(http.statusCode) {
                 if let conditionalKey, let etag = http.value(forHTTPHeaderField: "ETag") {
@@ -281,7 +283,8 @@ public struct GitHubClient: GitHubServing {
                         QueuedJob(
                             runID: run.id, jobID: job.id, name: job.name,
                             labels: jobLabels.sorted(), repository: run.attributedRepository,
-                            ref: run.ref, sha: run.sha, isFork: run.isFork, forkKnown: run.forkKnown
+                            ref: run.ref, sha: run.sha, isFork: run.isFork, forkKnown: run.forkKnown,
+                            correlation: job.correlation(repository: run.attributedRepository)
                         ))
                 }
             }
@@ -314,7 +317,8 @@ public struct GitHubClient: GitHubServing {
                     jobs.append(
                         RunningJob(
                             name: job.name, runnerName: job.runnerName,
-                            repository: run.attributedRepository
+                            repository: run.attributedRepository,
+                            correlation: job.correlation(repository: run.attributedRepository)
                         ))
                 }
             }

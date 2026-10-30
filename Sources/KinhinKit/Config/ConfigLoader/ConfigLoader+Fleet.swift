@@ -245,3 +245,91 @@ extension ConfigLoader {
         }
     }
 }
+
+// MARK: - Telemetry
+
+extension ConfigLoader {
+    /// `telemetry:`: every key optional, defaults from `TelemetryConfig` (off).
+    static func parseTelemetry(_ partial: PartialConfig.PartialTelemetry) throws -> KinhinConfig.TelemetryConfig {
+        typealias Telemetry = KinhinConfig.TelemetryConfig
+        var telemetry = Telemetry.default
+        if let enabled = partial.enabled { telemetry.enabled = enabled }
+        if let raw = partial.endpoint {
+            telemetry.endpoint = try validateTelemetryEndpoint(raw, key: "telemetry.endpoint")
+        }
+        if let raw = partial.otlpProtocol {
+            guard let proto = Telemetry.OTLPProtocol(rawValue: raw) else {
+                throw ConfigError.invalid("telemetry.protocol must be http/protobuf or grpc, got '\(raw)'")
+            }
+            telemetry.otlpProtocol = proto
+        }
+        if let interval = partial.exportInterval {
+            let range = Telemetry.exportIntervalRange
+            guard range.contains(interval) else {
+                throw ConfigError.invalid(
+                    "telemetry.export_interval must be between \(range.lowerBound) and \(range.upperBound) seconds, got \(interval)"
+                )
+            }
+            telemetry.exportIntervalSeconds = interval
+        }
+        if let names = partial.signals {
+            var signals = Set<Telemetry.Signal>()
+            for name in names {
+                guard let signal = Telemetry.Signal(rawValue: name) else {
+                    throw ConfigError.invalid(
+                        "telemetry.signals entries must be metrics, traces or logs, got '\(name)'")
+                }
+                signals.insert(signal)
+            }
+            telemetry.signals = signals
+        }
+        if let attributes = partial.resourceAttributes {
+            for key in attributes.keys.sorted() {
+                guard !key.isEmpty, !key.contains(where: \.isWhitespace) else {
+                    throw ConfigError.invalid("telemetry.resource_attributes has an invalid key '\(key)'")
+                }
+                if Telemetry.isReservedResourceKey(key) {
+                    throw ConfigError.invalid(
+                        "telemetry.resource_attributes cannot set '\(key)': kinhin owns the service identity "
+                            + "(service.name, service.version, telemetry.sdk.*)")
+                }
+            }
+            telemetry.resourceAttributes = attributes
+        }
+        if let raw = partial.prometheusListen {
+            guard TelemetryListenAddress(parsing: raw) != nil else {
+                throw ConfigError.invalid(
+                    "telemetry.prometheus_listen must be a port or host:port (for example 127.0.0.1:9464), got '\(raw)'"
+                )
+            }
+            telemetry.prometheusListen = raw.trimmingCharacters(in: .whitespaces)
+        }
+        if let raw = partial.logFormat {
+            guard let format = Telemetry.LogFormat(rawValue: raw) else {
+                throw ConfigError.invalid("telemetry.log_format must be text or json, got '\(raw)'")
+            }
+            telemetry.logFormat = format
+        }
+        if telemetry.prometheusListen != nil, !telemetry.signals.contains(.metrics) {
+            throw ConfigError.invalid("telemetry.prometheus_listen serves metrics: add 'metrics' to telemetry.signals")
+        }
+        return telemetry
+    }
+
+    /// An OTLP endpoint is an http(s) URL with a host.
+    static func validateTelemetryEndpoint(_ raw: String, key: String) throws -> String {
+        guard telemetryEndpointURL(raw) != nil else {
+            throw ConfigError.invalid("\(key) must be an http or https URL, got '\(raw)'")
+        }
+        return raw.trimmingCharacters(in: .whitespaces)
+    }
+
+    /// The URL of an OTLP endpoint text, or nil when it is not an http(s) URL with a host.
+    static func telemetryEndpointURL(_ raw: String) -> URL? {
+        let trimmed = raw.trimmingCharacters(in: .whitespaces)
+        guard let url = URL(string: trimmed), let scheme = url.scheme?.lowercased(),
+            scheme == "http" || scheme == "https", let host = url.host, !host.isEmpty
+        else { return nil }
+        return url
+    }
+}

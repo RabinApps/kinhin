@@ -90,6 +90,7 @@ public struct ConfigLoader {
         }
         try parseReserve(partial.reserve, into: &cfg)
         if let healing = partial.healing { cfg.healing = try parseHealing(healing) }
+        if let telemetry = partial.telemetry { cfg.telemetry = try parseTelemetry(telemetry) }
         try validateHostScopes(cfg)
         try validateEphemeralForges(cfg)
         return cfg
