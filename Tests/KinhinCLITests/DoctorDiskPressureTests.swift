@@ -109,7 +109,7 @@ final class DoctorDiskPressureTests: XCTestCase {
         XCTAssertEqual(
             withImages.diskPressureLine,
             "40 GB free, a new tart instance needs 50 GB + 10 GB reserve — the fleet holds spawns"
-                + "; images hold 42 GB; reclaim 12 GB with: kinhin image prune")
+                + "; images hold 42 GB; up to ~12 GB allocated may be freed with: kinhin image prune")
 
         let bare = await builder(freeDiskGB: 40, config: .loaded(Self.tartConfig)).build()
         XCTAssertEqual(

@@ -117,8 +117,9 @@ public struct DoctorReport: Codable, Equatable, Sendable {
         /// True when the reference pins a digest (`ref@sha256:…`) — bakes
         /// are reproducible.
         public let pinned: Bool
-        /// Reproducibility warning for a mutable tag (`:latest` or untagged),
-        /// null when pinned or immutable.
+        /// Reproducibility warning for a mutable tag (`:latest` or untagged;
+        /// registry references only — a local VM name never drifts), null
+        /// when pinned or immutable.
         public let warning: String?
 
         public init(reference: String, state: String, ok: Bool, fix: String?, pinned: Bool, warning: String?) {
@@ -224,7 +225,7 @@ public struct DoctorReport: Codable, Equatable, Sendable {
         /// Installed unused images the sweep would remove (stale index
         /// records are not counted — they waste no disk).
         public let count: Int
-        /// Whole GB those images occupy; nil when no target reported a size.
+        /// Upper-bound estimate of their allocated storage, in whole GB; nil when no target reported a size.
         public let reclaimGB: Int?
         /// The command that reviews the sweep (deletes only with `--yes`).
         public let command: String

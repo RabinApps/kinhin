@@ -156,7 +156,8 @@ final class DiagnosticsModelTests: XCTestCase {
     func testUnusedImagesRowSuggestsPrune() throws {
         let row = try XCTUnwrap(
             render(imagePrune: #"{"count": 62, "reclaimGB": 68, "command": "kinhin image prune"}"#))
-        XCTAssertEqual(row.detail, "62 unused image(s) (~68 GB) — review with: kinhin image prune")
+        XCTAssertEqual(
+            row.detail, "62 unused image(s) (up to ~68 GB allocated) — review with: kinhin image prune")
         XCTAssertTrue(row.ok, "advice, not a fault — it never blocks readiness")
     }
 

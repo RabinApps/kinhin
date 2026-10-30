@@ -55,12 +55,14 @@ enum ImagePruneCommand {
         if !records.isEmpty { parts.append("\(records.count) stale record(s)") }
         var header = "\(verb) \(parts.joined(separator: " and "))"
         if let gb = plan.reclaimGB, !images.isEmpty {
-            header += gb > 0 ? " (~\(gb) GB)" : " (<1 GB)"
+            header += gb > 0 ? " (up to ~\(gb) GB allocated)" : " (up to <1 GB allocated)"
         }
         var lines = [header + ":"]
         for target in images {
             var fields = ["  \(target.name)", "(\(target.runtime.rawValue), \(target.role.rawValue))"]
-            if let size = target.sizeGB { fields.append(size > 0 ? "\(size) GB" : "<1 GB") }
+            if let size = target.sizeGB {
+                fields.append(size > 0 ? "up to \(size) GB allocated" : "up to <1 GB allocated")
+            }
             lines.append(fields.joined(separator: "  "))
         }
         for target in records {

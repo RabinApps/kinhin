@@ -91,7 +91,7 @@ final class FakeTartContractTests: XCTestCase {
                 whenContainsAll: ["list", "--format"],
                 ShellResult(
                     exitCode: 0,
-                    stdout: #"[{"Name":"tahoe-1","Source":"base/image","State":"stopped","Disk":30}]"#,
+                    stdout: #"[{"Name":"tahoe-1","Source":"base/image","State":"stopped","Disk":50,"Size":30}]"#,
                     stderr: ""))
         ]
         let real = try makeReal(realShell)

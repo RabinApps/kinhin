@@ -28,7 +28,7 @@ extension DoctorReport {
         guard let imagePrune else { return nil }
         var line = "\(imagePrune.count) unused image(s)"
         if let gb = imagePrune.reclaimGB {
-            line += gb > 0 ? " (~\(gb) GB)" : " (<1 GB)"
+            line += gb > 0 ? " (up to ~\(gb) GB allocated)" : " (up to <1 GB allocated)"
         }
         return line + " — review with: \(imagePrune.command)"
     }
@@ -47,7 +47,7 @@ extension DoctorReport {
             line += "; images hold \(images) GB"
         }
         if let reclaim = imagePrune?.reclaimGB, let command = imagePrune?.command {
-            line += "; reclaim \(reclaim > 0 ? "\(reclaim) GB" : "<1 GB") with: \(command)"
+            line += "; up to \(reclaim > 0 ? "~\(reclaim) GB" : "<1 GB") allocated may be freed with: \(command)"
         }
         return line
     }
