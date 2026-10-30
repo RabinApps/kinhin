@@ -278,6 +278,7 @@ public struct ImageInventory: Sendable, Equatable, Codable {
     /// configured nor installed (nothing to say about it).
     private static func probeContainer(_ config: KinhinConfig) async throws -> RuntimeImages? {
         guard config.container != nil || Paths.findExecutable(named: "container") != nil else { return nil }
+        if config.container == nil, await AppleContainerRuntime().health() != .ready { return nil }
         switch await AppleContainerRuntime().health() {
         case .ready:
             let images = await listing(runtime: .container, config: config, sizes: true)
@@ -295,6 +296,7 @@ public struct ImageInventory: Sendable, Equatable, Codable {
     /// installed. Same shape as `probeContainer`.
     private static func probeDocker(_ config: KinhinConfig) async throws -> RuntimeImages? {
         guard config.docker != nil || Paths.findExecutable(named: "docker") != nil else { return nil }
+        if config.docker == nil, await DockerRuntime(image: "kinhin-ci-linux").health() != .ready { return nil }
         let docker = DockerRuntime(image: config.docker?.image ?? "kinhin-ci-linux")
         switch await docker.health() {
         case .ready:
