@@ -28,9 +28,9 @@ after a re-bake (`kinhin image prepare --container`, `--docker`, or `--source <n
 ### Choosing the base image
 
 `image prepare` clones a Cirrus Labs macOS image by default and bakes the runner agents into it. To start from another
-published image (`macos-sequoia-base`, `macos-sonoma-xcode`, …), set the top-level `base_image:` or pick one in the app's
+published image (`macos-golden-gate-base`, `macos-tahoe-xcode`, …), set the top-level `base_image:` or pick one in the app's
 macOS card, then press **Rebuild image…** in that card: a changed base image only takes effect once the image is rebuilt (the
-Apple container and Docker rows have a **Build image…** button for their Linux images). `kinhin doctor` flags a reference that is neither a published image nor a local VM, so a typo doesn't
+Apple container and Docker rows have a **Build image…** button for their Linux images). `kinhin doctor` flags a reference that is neither a published image, a digest pin of one, nor a local VM, so a typo doesn't
 surface as a failed clone mid-prepare.
 
 `kinhin image prepare` automates a clone-boot-inject sequence and skips the download when tart or the image already
@@ -112,6 +112,10 @@ kinhin image digest ghcr.io/cirruslabs/macos-sequoia-base:latest
 ```
 
 A pin never moves on its own: re-run `image digest` and re-prepare to update it.
+
+A digest pin also passes `kinhin doctor` beyond the curated list — any digest-pinned `ghcr.io/cirruslabs/macos-*`
+reference is accepted, because the pin names exact bits that serve every bake even when the tag itself is later retired
+from the registry.
 
 ### Cancelling a build
 
@@ -254,6 +258,11 @@ fails). Then run `kinhin image prepare --container`. [Full install steps](instal
 Once `container:` is configured, the setup checklist and `kinhin doctor` gain container rows with one-click fixes.
 `kinhin runtimes` (or **Advanced → Routing**) shows the pool, its cap and its health.
 
+Container runners register with the fleet `labels:` plus `kinhin-container` and any `container.labels:` — but **not**
+with the fleet's `macos` label, because these guests run Linux: a macOS job would never finish there. Set
+`fleet_labels: false` under `container:` to drop the inherited fleet labels entirely (replace-not-add): the pool then
+registers with `kinhin-container` and `container.labels:` alone.
+
 ### Docker
 
 ```yaml
@@ -269,7 +278,8 @@ docker:
 Install a provider with `kinhin setup repair docker` (Docker Desktop by default; `--method orbstack` or `--method colima`
 for the others), see [Installing a Linux runtime](install.md#installing-a-linux-runtime). kinhin never starts or configures
 your Docker provider; it only runs containers in it. Run `kinhin image prepare --docker` to bake the agents. Docker slots register with `kinhin-docker`, so jobs opt in with
-`runs-on: [kinhin-docker]`.
+`runs-on: [kinhin-docker]`. They also inherit the fleet `labels:` minus `macos` (Linux guests); `fleet_labels: false`
+trims the pool to `kinhin-docker` (plus the architecture label) alone.
 
 Prefer a CI-built image? Write a Dockerfile that installs the GitHub Actions runner at `/opt/actions-runner` (with an
 executable `config.sh`) and the Gitea runner at `/opt/gitea-runner/gitea-runner`, push it, and set `docker.image:`. Bake
@@ -361,6 +371,21 @@ images:
 Jobs that ask for `[self-hosted, macos, arm64]` run on `image:` (macOS VMs); jobs that ask for `[self-hosted, linux]`
 run on the `linux` image (Linux VMs). The fleet `labels:` may still include `macos` — you do not need to remove it.
 
+Runners of the top-level `image:` itself can carry labels too: set top-level `image_labels:`. That is how a Linux
+default base answers a label:
+
+```yaml
+image: "tahoe-base"
+base_image: "ghcr.io/cirruslabs/ubuntu:latest"
+labels: [self-hosted, macos, arm64]
+image_labels: [linux]
+```
+
+A Linux default — whether from `base_image:` or a named image — strips the fleet's `macos` automatically, so macOS
+jobs stay on macOS runners. `image_labels:` follows the same rules as a named entry's `labels:` (at least one label
+outside the fleet `labels:`, and no label set shared with a named entry); the top-level `warm_pool:` keeps covering
+these runners.
+
 ## How usage is measured
 
 The app and `kinhin status` show live CPU and RAM per instance (see
@@ -393,7 +418,8 @@ runtimes:
       runtime: appleContainer
 ```
 
-Precedence: **workflow route → repo route → `runs-on:` label → default**. Capacity is split by the `budget` weights, and
+Precedence: **workflow route → repo route → `runs-on:` label → default**. Capacity is split by the `budget` weights —
+each runtime gets its share of the host's CPU cores and of its RAM, and may only run what both allow — and
 `kinhin status` shows the result. If a split would leave a configured route with zero capacity, the app warns you
 before you can save it.
 
