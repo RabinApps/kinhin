@@ -32,6 +32,41 @@ public struct JobCorrelation: Sendable, Equatable {
     }
 }
 
+/// What a forge reports about a finished job: its verdict, its own start and end times and its steps. Every field
+/// is optional (a forge fills what its API exposes), and a nil result is "unknown", never a guess.
+public struct JobOutcome: Sendable, Equatable {
+    /// The `cicd.pipeline.result` values.
+    public enum Result: String, Sendable, Equatable {
+        case success, failure, cancellation, timeout, skip
+    }
+
+    public var result: Result?
+    public var startedAt: Date?
+    public var completedAt: Date?
+    public var steps: [PipelineStep]
+
+    public init(
+        result: Result? = nil, startedAt: Date? = nil, completedAt: Date? = nil, steps: [PipelineStep] = []
+    ) {
+        self.result = result
+        self.startedAt = startedAt
+        self.completedAt = completedAt
+        self.steps = steps
+    }
+
+    /// Maps a GitHub job conclusion; unrecognised values (`neutral`, `action_required`) stay unknown.
+    static func result(gitHubConclusion conclusion: String?) -> Result? {
+        switch conclusion {
+        case "success": return .success
+        case "failure": return .failure
+        case "cancelled": return .cancellation
+        case "timed_out": return .timeout
+        case "skipped": return .skip
+        default: return nil
+        }
+    }
+}
+
 /// The trace of one instance's job: a root span from spawn to teardown, with child spans for
 /// the phases kinhin times itself (provision, boot, registration, run, teardown) and, when the
 /// forge supplied timestamps, queue-wait and provider-reported steps. VM, run and job
@@ -69,11 +104,11 @@ final class JobTrace: Sendable {
         self.image = image
         self.forge = forge
         var attributes: TelemetryAttributes = [
-            "kinhin.vm.id": .string(vm), "kinhin.pool": .string(pool), "kinhin.image": .string(image),
-            "kinhin.forge": .string(forge),
+            "kinhin.vm.id": .string(vm), "kinhin.runner.name": .string(vm), Metric.Attr.pool: .string(pool),
+            Metric.Attr.image: .string(image), Metric.Attr.forge: .string(forge),
         ]
         if let labels, !labels.isEmpty {
-            attributes["kinhin.runner.labels"] = .string(labels.sorted().joined(separator: ","))
+            attributes[Metric.Attr.labels] = .string(labels.sorted().joined(separator: ","))
         }
         let root = telemetry.startSpan("kinhin.job", attributes: attributes)
         state = Mutex(State(root: root))
@@ -90,9 +125,15 @@ final class JobTrace: Sendable {
         }
     }
 
-    func end(_ phase: Metric.Phase, error: String? = nil) {
+    func end(_ phase: Metric.Phase, at: Date? = nil, error: String? = nil) {
         let span = state.withLock { $0.open.removeValue(forKey: phase.rawValue) }
-        span?.end(error: error)
+        span?.end(at: at, error: error)
+    }
+
+    /// The forge's verdict, on the root span as `cicd.pipeline.result`.
+    func setResult(_ result: String) {
+        let root = state.withLock { $0.ended ? nil : $0.root }
+        root?.setAttributes([Metric.Attr.result: .string(result)])
     }
 
     /// Records the forge's view of the job once it is known: root attributes, plus a
@@ -111,6 +152,7 @@ final class JobTrace: Sendable {
             return state.seenJobs.insert(Self.key(correlation)).inserted ? .additional : .seen
         }
         if let name = correlation.jobName { logContext.job = name }
+        if let id = correlation.jobID { logContext.jobID = id }
         if role == .additional { return attachAdditional(correlation) }
         guard role == .first else { return nil }
         var attributes: TelemetryAttributes = [:]
@@ -213,14 +255,14 @@ final class JobTrace: Sendable {
     var hasRunStarted: Bool { markers.withLock { $0.runStart != nil } }
 
     /// The run ended: the measured duration in seconds (nil when it never started or already ended).
-    func markRunFinished(error: String? = nil) -> Double? {
+    func markRunFinished(at end: Date? = nil, error: String? = nil) -> Double? {
         let start: ContinuousClock.Instant? = markers.withLock { markers in
             guard let start = markers.runStart, !markers.runFinished else { return nil }
             markers.runFinished = true
             return start
         }
         guard let start else { return nil }
-        end(.run, error: error)
+        self.end(.run, at: end, error: error)
         return (ContinuousClock.now - start) / .seconds(1)
     }
 

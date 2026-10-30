@@ -28,24 +28,24 @@ final class TelemetryExportTests: XCTestCase {
         let port = backend.prometheusPort
         XCTAssertGreaterThan(port, 0)
 
-        backend.add(counter: Metric.Counter.jobsPickedUp.rawValue, value: 3, attributes: ["pool": "tart"])
+        backend.add(counter: Metric.Counter.jobsPickedUp.rawValue, value: 3, attributes: [Metric.Attr.pool: "tart"])
         backend.record(
-            histogram: Metric.Histogram.phaseDuration.rawValue, seconds: 2.5, attributes: ["phase": "provision"])
+            histogram: Metric.Histogram.phaseDuration.rawValue, seconds: 2.5, attributes: [Metric.Attr.phase: "clone"])
         backend.publish(
             gauge: Metric.Gauge.workers.rawValue,
-            series: [GaugeSeries(attributes: ["pool": "tart", "state": "ready"], value: 2)])
+            series: [GaugeSeries(attributes: [Metric.Attr.pool: "tart", Metric.Attr.state: "ready"], value: 2)])
 
         let (status, body) = try await get("/metrics", port: port)
         XCTAssertEqual(status, 200)
         XCTAssertTrue(body.contains("kinhin_jobs_picked_up"), body)
-        XCTAssertTrue(body.contains("kinhin_vm_phase_duration"), body)
-        XCTAssertTrue(body.contains("kinhin_workers"), body)
-        XCTAssertTrue(body.contains("state=\"ready\""), body)
+        XCTAssertTrue(body.contains("kinhin_runner_provision_duration"), body)
+        XCTAssertTrue(body.contains("cicd_worker_count"), body)
+        XCTAssertTrue(body.contains("cicd_worker_state=\"ready\""), body)
 
         // A vanished series stops reporting: gauges are snapshots, not accumulations.
         backend.publish(gauge: Metric.Gauge.workers.rawValue, series: [])
         let (_, after) = try await get("/metrics", port: port)
-        XCTAssertFalse(after.contains("state=\"ready\""), after)
+        XCTAssertFalse(after.contains("cicd_worker_state=\"ready\""), after)
     }
 
     func testOnlyMetricsIsServed() async throws {

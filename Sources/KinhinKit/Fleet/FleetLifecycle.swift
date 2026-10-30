@@ -529,6 +529,10 @@ extension FleetEngine {
                 }
             }
         }
+        // The forge is asked for the job's verdict while the instance is torn down (not before): the read can need
+        // a few retries, and it must not hold the instance's resources.
+        let finalize: Task<Void, Never>? =
+            reason == "jobs finished" ? Task { await noteJobFinished(id: id) } : nil
         // Runtime teardown (per-record: stop+delete the VM, or container rm).
         var probe = VMRecord(id: id, phase: .deleting)
         probe.runtime = store.all.first { $0.id == id }?.runtime
@@ -547,7 +551,7 @@ extension FleetEngine {
             updateRecord(id) { $0.error = "teardown failed: \(message)" }
             return
         }
-        if reason == "jobs finished" { noteJobFinished(id: id) }
+        await finalize?.value
         endJobTrace(id: id, result: Self.traceResult(forDeleteReason: reason), error: nil)
         store.remove(id: id)
         Log.info(id, "VM deleted")

@@ -196,6 +196,8 @@ public struct PartialConfig: Decodable {
         var endpoint: String?
         var otlpProtocol: String?
         var exportInterval: Int?
+        var exportIntervalAlias: Int?
+        var jobAttributes: [String]?
         var signals: [String]?
         var resourceAttributes: [String: String]?
         var prometheusListen: String?
@@ -204,7 +206,9 @@ public struct PartialConfig: Decodable {
         enum CodingKeys: String, CodingKey, CaseIterable {
             case enabled, endpoint, signals
             case otlpProtocol = "protocol"
-            case exportInterval = "export_interval"
+            case exportInterval = "export_interval_seconds"
+            case exportIntervalAlias = "export_interval"
+            case jobAttributes = "job_attributes"
             case resourceAttributes = "resource_attributes"
             case prometheusListen = "prometheus_listen"
             case logFormat = "log_format"

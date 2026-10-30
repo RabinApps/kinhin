@@ -29,12 +29,12 @@ final class TelemetryInstrumentationTests: XCTestCase {
         let engine = makeEngine(recorder: recorder, tart: FakeTart(), github: github)
         let vm = try await runToReady(engine, github: github)
 
-        let phases = Set(recorder.histograms(.phaseDuration).compactMap { $0.attributes["phase"] })
-        XCTAssertEqual(phases, ["provision", "boot_ready", "registration"])
+        let phases = Set(recorder.histograms(.phaseDuration).compactMap { $0.attributes[Metric.Attr.phase] })
+        XCTAssertEqual(phases, ["clone", "boot", "register"])
         for sample in recorder.histograms(.phaseDuration) {
             XCTAssertGreaterThanOrEqual(sample.seconds, 0)
-            XCTAssertEqual(sample.attributes["pool"], "tart")
-            XCTAssertEqual(sample.attributes["forge"], "github")
+            XCTAssertEqual(sample.attributes[Metric.Attr.pool], "tart")
+            XCTAssertEqual(sample.attributes[Metric.Attr.forge], "github")
         }
 
         let roots = recorder.spans(named: "kinhin.job")
@@ -58,6 +58,8 @@ final class TelemetryInstrumentationTests: XCTestCase {
         XCTAssertFalse(attributeSets.isEmpty)
         for attributes in attributeSets {
             for key in forbiddenKeys { XCTAssertNil(attributes[key], "\(attributes)") }
+            XCTAssertNil(attributes[Metric.Attr.repository], "repository is opt-in")
+            XCTAssertNil(attributes[Metric.Attr.workflow], "workflow is opt-in")
             for value in attributes.values {
                 XCTAssertFalse(value.contains(vm), "metric attribute carries the VM id: \(attributes)")
                 XCTAssertFalse(value.hasPrefix(InstanceNaming.prefix), "\(attributes)")
@@ -74,14 +76,14 @@ final class TelemetryInstrumentationTests: XCTestCase {
 
         let workers = try XCTUnwrap(recorder.gauge(.workers))
         XCTAssertEqual(workers.map(\.value).reduce(0, +), 1)
-        XCTAssertEqual(workers[0].attributes["state"], "ready")
-        XCTAssertEqual(workers[0].attributes["pool"], "tart")
-        XCTAssertEqual(workers[0].attributes["labels"], "kinhin")
+        XCTAssertEqual(workers[0].attributes[Metric.Attr.state], "ready")
+        XCTAssertEqual(workers[0].attributes[Metric.Attr.pool], "tart")
+        XCTAssertEqual(workers[0].attributes[Metric.Attr.labels], "kinhin")
         XCTAssertEqual(recorder.gauge(.fleetActive)?.first?.value, 1)
         XCTAssertEqual(recorder.gauge(.fleetPaused)?.first?.value, 0)
         XCTAssertNotNil(recorder.gauge(.hostDiskFree)?.first)
         // Unavailable is absent, never zero: the fake tart reports no per-VM disk, and none is published.
-        XCTAssertNil(recorder.gauge(.queueAgeMax).flatMap { $0.isEmpty ? nil : $0 })
+        XCTAssertNil(recorder.gauge(.queueAge).flatMap { $0.isEmpty ? nil : $0 })
     }
 
     func testQueueAgeOnlyWithAProviderTimestamp() {
@@ -89,10 +91,10 @@ final class TelemetryInstrumentationTests: XCTestCase {
         let engine = makeEngine(recorder: recorder, tart: FakeTart(), github: FakeGitHub())
         let now = Date()
         engine.publishQueueTelemetry(byForge: ["github": 2], oldestEnqueuedAt: nil, now: now)
-        XCTAssertEqual(recorder.gauge(.queueAgeMax)?.count, 0, "no timestamp, no age")
+        XCTAssertEqual(recorder.gauge(.queueAge)?.count, 0, "no timestamp, no age")
         XCTAssertEqual(recorder.gauge(.queueDepth)?.first?.value, 2)
         engine.publishQueueTelemetry(byForge: [:], oldestEnqueuedAt: now.addingTimeInterval(-42), now: now)
-        XCTAssertEqual(try XCTUnwrap(recorder.gauge(.queueAgeMax)?.first?.value), 42, accuracy: 0.001)
+        XCTAssertEqual(try XCTUnwrap(recorder.gauge(.queueAge)?.first?.value), 42, accuracy: 0.001)
     }
 
     func testJobPickupAndCompletionCountOnce() async throws {
@@ -113,6 +115,7 @@ final class TelemetryInstrumentationTests: XCTestCase {
         let root = try XCTUnwrap(recorder.spans(named: "kinhin.job").first)
         XCTAssertTrue(root.ended)
         XCTAssertEqual(root.attributes["kinhin.result"], .string("completed"))
+        XCTAssertEqual(root.attributes[Metric.Attr.result], .string("unknown"), "FakeGitHub gives no verdict")
         XCTAssertTrue(recorder.spans(named: "teardown").first?.ended ?? false)
         XCTAssertEqual(recorder.spans(named: "run").count, 1)
     }
@@ -123,13 +126,13 @@ final class TelemetryInstrumentationTests: XCTestCase {
         let engine = makeEngine(recorder: recorder, tart: FakeTart(), github: github)
         let vm = try await runToReady(engine, github: github)
         // The forge's event stream says the job finished; no poll ever saw the runner busy.
-        engine.noteJobFinished(id: vm)
+        await engine.noteJobFinished(id: vm)
         XCTAssertEqual(recorder.counterTotal(.jobsPickedUp), 1)
         XCTAssertEqual(recorder.counterTotal(.jobsCompleted), 1)
         XCTAssertTrue(recorder.histograms(.runDuration).isEmpty, "no observed start, no run duration")
         XCTAssertTrue(recorder.spans(named: "run").isEmpty)
         // Counted once however often the watcher repeats itself.
-        engine.noteJobFinished(id: vm)
+        await engine.noteJobFinished(id: vm)
         XCTAssertEqual(recorder.counterTotal(.jobsPickedUp), 1)
     }
 
@@ -145,8 +148,8 @@ final class TelemetryInstrumentationTests: XCTestCase {
         try await Task.sleep(for: .milliseconds(100))
         XCTAssertEqual(recorder.counterTotal(.errors), 1)
         let error = try XCTUnwrap(recorder.counters.first { $0.name == Metric.Counter.errors.rawValue })
-        XCTAssertEqual(error.attributes["error_type"], "clone_failure")
-        XCTAssertEqual(error.attributes["component"], "lifecycle")
+        XCTAssertEqual(error.attributes[Metric.Attr.errorType], "clone_failed")
+        XCTAssertEqual(error.attributes[Metric.Attr.component], "lifecycle")
         XCTAssertEqual(error.attributes.count, 2, "no free-text error message as a dimension")
     }
 
@@ -182,7 +185,7 @@ final class TelemetryInstrumentationTests: XCTestCase {
         XCTAssertEqual(root.attributes["cicd.pipeline.run.id"], .string("77"))
         XCTAssertEqual(root.attributes["kinhin.run.attempt"], .int(2))
         XCTAssertEqual(root.attributes["kinhin.job.id"], .string("88"))
-        XCTAssertEqual(root.attributes["kinhin.runner.labels"], .string("a,b"))
+        XCTAssertEqual(root.attributes[Metric.Attr.labels], .string("a,b"))
         let queueSpan = try XCTUnwrap(recorder.spans(named: "queue_wait").first)
         XCTAssertEqual(queueSpan.start, queued)
         XCTAssertEqual(queueSpan.end, started)
@@ -237,6 +240,8 @@ final class TelemetryInstrumentationTests: XCTestCase {
         typealias T = TelemetryErrorType
         XCTAssertEqual(
             T.classify(TartError.commandFailed(what: "clone", stderr: "x"), stage: .provision), .cloneFailure)
+        XCTAssertEqual(T.cloneFailure.rawValue, "clone_failed")
+        XCTAssertEqual(T.forgeAPIFailure.rawValue, "forge_api")
         XCTAssertEqual(T.classify(TartError.ipNotFound(vm: "v"), stage: .bootReady), .bootTimeout)
         XCTAssertEqual(T.classify(Plain(), stage: .bootReady), .bootTimeout)
         XCTAssertEqual(T.classify(ForgeAPIError.http(forge: .github, code: 429, body: ""), stage: nil), .rateLimited)

@@ -13,8 +13,8 @@ extension FleetEngine {
     func metricAttributes(of id: String) -> MetricAttributes {
         let record = store.all.first { $0.id == id }
         return [
-            "pool": record?.runtime ?? RuntimeID.tart.rawValue, "image": record?.image ?? "default",
-            "forge": record?.platform ?? ForgeID.github.rawValue,
+            Metric.Attr.pool: record?.runtime ?? RuntimeID.tart.rawValue, Metric.Attr.image: record?.image ?? "default",
+            Metric.Attr.forge: record?.platform ?? ForgeID.github.rawValue,
         ]
     }
 
@@ -22,8 +22,9 @@ extension FleetEngine {
         let attributes = metricAttributes(of: id)
         let record = store.all.first { $0.id == id }
         return JobTrace(
-            telemetry: telemetry, vm: id, pool: attributes["pool"] ?? "tart", image: attributes["image"] ?? "default",
-            forge: attributes["forge"] ?? "github", labels: record.flatMap { poolLabels(for: $0) })
+            telemetry: telemetry, vm: id, pool: attributes[Metric.Attr.pool] ?? "tart",
+            image: attributes[Metric.Attr.image] ?? "default", forge: attributes[Metric.Attr.forge] ?? "github",
+            labels: record.flatMap { poolLabels(for: $0) })
     }
 
     func jobTrace(for id: String) -> JobTrace? { jobTraces.withLock { $0[id] } }
@@ -44,7 +45,7 @@ extension FleetEngine {
     }
 
     /// Times one lifecycle call with the monotonic clock: a histogram sample and a child span; a
-    /// failure counts once in `kinhin.errors`, classified by the phase it happened in.
+    /// failure counts once in `cicd.system.errors`, classified by the phase it happened in.
     func timed<T>(_ phase: Metric.Phase, id: String, _ body: () async throws -> T) async throws -> T {
         guard telemetry.isEnabled else { return try await body() }
         let trace = jobTrace(for: id)
@@ -52,9 +53,14 @@ extension FleetEngine {
         let start = ContinuousClock.now
         do {
             let value = try await body()
-            telemetry.record(
-                .phaseDuration, seconds: (ContinuousClock.now - start) / .seconds(1),
-                metricAttributes(of: id).merging(["phase": phase.rawValue]) { $1 })
+            let seconds = (ContinuousClock.now - start) / .seconds(1)
+            if phase == .teardown {
+                telemetry.record(.teardownDuration, seconds: seconds, metricAttributes(of: id))
+            } else {
+                telemetry.record(
+                    .phaseDuration, seconds: seconds,
+                    metricAttributes(of: id).merging([Metric.Attr.phase: phase.metricName]) { $1 })
+            }
             trace?.end(phase)
             return value
         } catch {
@@ -69,7 +75,8 @@ extension FleetEngine {
     }
 
     func countError(_ type: TelemetryErrorType, component: TelemetryErrorType.Component) {
-        telemetry.add(.errors, 1, ["error_type": type.rawValue, "component": component.rawValue])
+        telemetry.add(
+            .errors, 1, [Metric.Attr.errorType: type.rawValue, Metric.Attr.component: component.rawValue])
     }
 
     /// A lifecycle failure no timed phase already counted (a missing forge, a token mint failure…).
@@ -89,16 +96,59 @@ extension FleetEngine {
         telemetry.add(.jobsPickedUp, 1, metricAttributes(of: id))
     }
 
-    /// The instance's job is done: completion count, run duration and trace end. A job that was never
-    /// seen running (it started and finished between polls) still counts, with no run duration.
-    func noteJobFinished(id: String, result: String = "completed") {
+    /// The opt-in per-job dimensions (`telemetry.job_attributes`), where the forge supplied the value.
+    private func jobDimensions(_ correlation: JobCorrelation?) -> MetricAttributes {
+        var out: MetricAttributes = [:]
+        let wanted = telemetry.jobAttributes
+        if wanted.contains(.repository), let value = correlation?.repository { out[Metric.Attr.repository] = value }
+        if wanted.contains(.workflow), let value = correlation?.workflow { out[Metric.Attr.workflow] = value }
+        return out
+    }
+
+    /// What the forge says the finished job did. A job's state flips to completed a moment after its runner
+    /// leaves, so an unfinished answer is retried briefly. Nil when the forge cannot say (kinhin then reports
+    /// the result as unknown rather than guessing).
+    private func fetchJobOutcome(id: String, trace: JobTrace) async -> JobOutcome? {
+        guard let correlation = trace.correlation, correlation.jobID != nil else { return nil }
+        let platform = store.all.first { $0.id == id }?.platform ?? ForgeID.github.rawValue
+        guard let forge = forgeState.withLock({ $0.byPlatform[platform] }) else { return nil }
+        for attempt in 0..<4 {
+            if Task.isCancelled { return nil }
+            do {
+                if let outcome = try await forge.jobOutcome(for: correlation),
+                    outcome.result != nil
+                        || outcome.completedAt != nil
+                {
+                    return outcome
+                }
+            } catch {
+                Log.debug(id, "job outcome unavailable: \(error.localizedDescription)")
+                return nil
+            }
+            if attempt < 3 { try? await Task.sleep(for: .seconds(1)) }  // cancelled: the next loop turn returns
+        }
+        return nil
+    }
+
+    /// The instance's job is done: completion count, run duration, the forge's verdict and step spans.
+    /// A job that was never seen running (it started and finished between polls) still counts; with the
+    /// forge's own times it still gets a duration, without them it gets none.
+    func noteJobFinished(id: String) async {
         guard telemetry.isEnabled, let trace = jobTrace(for: id) else { return }
         noteJobPickedUp(id: id, observed: false)
-        let attributes = metricAttributes(of: id)
-        if let seconds = trace.markRunFinished() {
-            telemetry.record(.runDuration, seconds: seconds, attributes.merging(["result": result]) { $1 })
+        let outcome = await fetchJobOutcome(id: id, trace: trace)
+        let result = outcome?.result?.rawValue ?? "unknown"
+        let observed = trace.markRunFinished(at: outcome?.completedAt)
+        var seconds = observed
+        if let start = outcome?.startedAt, let end = outcome?.completedAt, end >= start {
+            seconds = end.timeIntervalSince(start)
         }
-        telemetry.add(.jobsCompleted, 1, attributes.merging(["result": result]) { $1 })
+        var attributes = metricAttributes(of: id).merging(jobDimensions(trace.correlation)) { $1 }
+        attributes[Metric.Attr.result] = result
+        if let seconds { telemetry.record(.runDuration, seconds: seconds, attributes) }
+        telemetry.add(.jobsCompleted, 1, attributes)
+        trace.setResult(result)
+        if let outcome { trace.addProviderSteps(outcome.steps) }
     }
 
     /// The forge's view of the job running on `id` (identifiers and provider timestamps), attached to
@@ -107,7 +157,8 @@ extension FleetEngine {
         guard telemetry.isEnabled, let trace = jobTrace(for: id) else { return }
         noteJobPickedUp(id: id)
         if let wait = trace.attach(correlation) {
-            telemetry.record(.queueWait, seconds: wait, metricAttributes(of: id))
+            let attributes = metricAttributes(of: id).merging(jobDimensions(correlation)) { $1 }
+            telemetry.record(.queueWait, seconds: wait, attributes)
         }
     }
 }
@@ -145,7 +196,10 @@ extension FleetEngine {
             workers.map {
                 series(
                     Double($0.value),
-                    ["pool": $0.key.pool, "image": $0.key.image, "labels": $0.key.labels, "state": $0.key.state])
+                    [
+                        Metric.Attr.pool: $0.key.pool, Metric.Attr.image: $0.key.image,
+                        Metric.Attr.labels: $0.key.labels, Metric.Attr.state: $0.key.state,
+                    ])
             })
         var warmByPool: [String: Int] = [:]
         for (key, count) in warm { warmByPool["\(key.pool)\u{1f}\(key.image)", default: 0] += count }
@@ -153,7 +207,9 @@ extension FleetEngine {
             .warmSize,
             warmByPool.map { entry in
                 let parts = entry.key.split(separator: "\u{1f}", maxSplits: 1).map(String.init)
-                return series(Double(entry.value), ["pool": parts[0], "image": parts.count > 1 ? parts[1] : "default"])
+                return series(
+                    Double(entry.value),
+                    [Metric.Attr.pool: parts[0], Metric.Attr.image: parts.count > 1 ? parts[1] : "default"])
             })
 
         // Fleet size and state.
@@ -161,8 +217,10 @@ extension FleetEngine {
         telemetry.publish(.fleetDesired, [series(Double(status.desired))])
         telemetry.publish(.fleetActive, [series(Double(active))])
         telemetry.publish(
-            .fleetCapacity,
-            [series(Double(status.capacityCap), ["kind": "vm"]), series(Double(status.jobCapacity), ["kind": "job"])])
+            .poolCapacity,
+            // A single-pool fleet has no per-runtime caps: its one pool is capped by the fleet cap.
+            (capsByRuntime.isEmpty ? [Capacity.primaryRuntime(of: config): status.capacityCap] : capsByRuntime)
+                .map { series(Double($0.value), [Metric.Attr.pool: $0.key.rawValue]) })
         telemetry.publish(.fleetPaused, [series(status.paused ? 1 : 0)])
         telemetry.publish(.fleetRunning, [series(status.running ? 1 : 0)])
         telemetry.publish(
@@ -174,7 +232,7 @@ extension FleetEngine {
         var limits: [GaugeSeries] = []
         for forge in forgeState.withLock({ Array($0.byPlatform.values) }) {
             guard let limit = forge.rateLimit else { continue }
-            let attributes = ["forge": forge.id.rawValue, "account": forge.account]
+            let attributes = [Metric.Attr.forge: forge.id.rawValue, Metric.Attr.account: forge.account]
             remaining.append(series(Double(limit.remaining), attributes))
             limits.append(series(Double(limit.limit), attributes))
         }
@@ -194,7 +252,9 @@ extension FleetEngine {
             if let value = sample.memoryUsedMB { memory[pool, default: 0] += value }
             if let value = sample.memoryLimitMB { limitMB[pool, default: 0] += value }
         }
-        func attributes(_ pool: Pool) -> MetricAttributes { ["pool": pool.pool, "image": pool.image] }
+        func attributes(_ pool: Pool) -> MetricAttributes {
+            [Metric.Attr.pool: pool.pool, Metric.Attr.image: pool.image]
+        }
         telemetry.publish(
             .runnerCPU, cpu.map { series($0.value.reduce(0, +) / Double($0.value.count), attributes($0.key)) })
         telemetry.publish(.runnerMemoryUsage, memory.map { series(Double($0.value) * 1_048_576, attributes($0.key)) })
@@ -217,9 +277,9 @@ extension FleetEngine {
     func publishQueueTelemetry(byForge: [String: Int], oldestEnqueuedAt: Date?, now: Date = Date()) {
         guard telemetry.isEnabled else { return }
         telemetry.publish(
-            .queueDepth, byForge.map { series(Double($0.value), ["account": $0.key]) })
+            .queueDepth, byForge.map { series(Double($0.value), [Metric.Attr.account: $0.key]) })
         telemetry.publish(
-            .queueAgeMax, oldestEnqueuedAt.map { [series(max(0, now.timeIntervalSince($0)))] } ?? [])
+            .queueAge, oldestEnqueuedAt.map { [series(max(0, now.timeIntervalSince($0)))] } ?? [])
     }
 
     /// Healing: awaiting-approval count as a gauge, finished fixes as a counter (once per event).
@@ -237,6 +297,6 @@ extension FleetEngine {
             }
             return finished.filter { counted.seen.insert($0.id).inserted }
         }
-        for event in fresh { telemetry.add(.healingActions, 1, ["result": event.outcome.rawValue]) }
+        for event in fresh { telemetry.add(.healingActions, 1, [Metric.Attr.healingResult: event.outcome.rawValue]) }
     }
 }

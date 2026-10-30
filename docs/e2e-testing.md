@@ -157,7 +157,7 @@ It checks, against the daemon as a black box:
 - *OTLP:* metrics and logs reach the collector with the kinhin resource (`service.name`, `service.version`, host attributes, the
   user's attribute, the SDK's own) and keep coming; collector headers from `OTEL_EXPORTER_OTLP_HEADERS` arrive as request
   headers and never in the log or the exported data; `protocol: grpc` opens an HTTP/2 connection (`HTTP2PrefaceProbe`); an
-  unreachable collector never hurts the daemon; a stopping daemon flushes what it had not yet exported (`export_interval: 3600`).
+  unreachable collector never hurts the daemon; a stopping daemon flushes what it had not yet exported (`export_interval_seconds: 3600`).
 - *Environment:* `OTEL_EXPORTER_OTLP_ENDPOINT` beats the config endpoint, `OTEL_METRICS_EXPORTER=none` removes a signal,
   `OTEL_RESOURCE_ATTRIBUTES` adds attributes but `service.name` cannot be replaced, `OTEL_SDK_DISABLED=true` wins over
   `enabled: true`. The sandbox strips inherited `OTEL_*` variables so a developer's collector never leaks into a run.
@@ -167,11 +167,11 @@ It checks, against the daemon as a black box:
   text; thirteen bad `telemetry:` values are each exit 3 and name their key, and a config using every key validates.
 
 **`TelemetryLifecycleTests`** (local tier: a real forge and runtime, per forge × runtime cell, the daemon exporting to the stub and
-to `/metrics`): after a real job, `kinhin_jobs_picked_up` and `kinhin_jobs_completed` count it, each of provision, boot,
-registration and teardown was timed, the run duration is a histogram, and one job trace reaches the collector with the
+to `/metrics`): after a real job, `kinhin_jobs_picked_up` and `kinhin_jobs_completed` count it, each of clone, boot, register and
+teardown was timed, `cicd_pipeline_run_duration` is a histogram and `cicd_pipeline_result` is the forge's verdict (`success` on GitHub, `unknown` on a forge that cannot say), and one job trace reaches the collector with the
 `kinhin.job` root and its phase spans, the instance id as a span attribute, and the kinhin resource; the instance's log lines
 arrive with its id. No instance name, job name or token appears on any metric or export. A failing workflow is still counted as
-picked up and completed (never as `success`: kinhin cannot see the verdict), is not a `kinhin_errors` sample, and the next job is
+picked up and completed (`failure` on GitHub, `unknown` elsewhere, never `success`), is not a `cicd_system_errors` sample, and the next job is
 counted too.
 
 **`CLITests`**: version and exit codes (usage 2, config 3), `--json` errors, `config init` on a pristine machine,

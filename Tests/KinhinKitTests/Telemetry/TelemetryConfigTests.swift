@@ -101,3 +101,45 @@ final class TelemetryConfigTests: XCTestCase {
         XCTAssertFalse(FleetEngine.restartRequired(from: old, to: new))
     }
 }
+
+final class TelemetryConfigKeyTests: XCTestCase {
+    private let accounts = "accounts:\n  - name: github\n    forge: github\n    scope: acme/widgets\n"
+
+    func testExportIntervalSecondsIsTheKeyAndExportIntervalIsAnAlias() throws {
+        XCTAssertEqual(
+            try ConfigLoader.parse(accounts + "telemetry:\n  export_interval_seconds: 30\n").telemetry
+                .exportIntervalSeconds, 30)
+        XCTAssertEqual(
+            try ConfigLoader.parse(accounts + "telemetry:\n  export_interval: 45\n").telemetry.exportIntervalSeconds, 45
+        )
+        XCTAssertEqual(
+            try ConfigLoader.parse(accounts + "telemetry:\n  export_interval: 20\n  export_interval_seconds: 20\n")
+                .telemetry.exportIntervalSeconds, 20)
+        XCTAssertThrowsError(
+            try ConfigLoader.parse(accounts + "telemetry:\n  export_interval: 20\n  export_interval_seconds: 30\n"))
+        XCTAssertThrowsError(try ConfigLoader.parse(accounts + "telemetry:\n  export_interval_seconds: 0\n")) {
+            XCTAssertTrue("\($0.localizedDescription)".contains("export_interval_seconds"))
+        }
+    }
+
+    func testJobAttributesParseAndValidate() throws {
+        XCTAssertTrue(try ConfigLoader.parse(accounts).telemetry.jobAttributes.isEmpty, "off by default")
+        let config = try ConfigLoader.parse(accounts + "telemetry:\n  job_attributes: [repository, workflow]\n")
+        XCTAssertEqual(config.telemetry.jobAttributes, [.repository, .workflow])
+        XCTAssertThrowsError(try ConfigLoader.parse(accounts + "telemetry:\n  job_attributes: [branch]\n")) {
+            XCTAssertTrue("\($0.localizedDescription)".contains("telemetry.job_attributes"))
+        }
+        let settings = TelemetryResolver.resolve(
+            config.telemetry.with(enabled: true), environment: [:],
+            host: TelemetryHostInfo(hostName: "h", architecture: "arm64", osVersion: "1.0.0"))
+        XCTAssertEqual(settings.jobAttributes, [.repository, .workflow])
+    }
+}
+
+extension KinhinConfig.TelemetryConfig {
+    fileprivate func with(enabled: Bool) -> Self {
+        var copy = self
+        copy.enabled = enabled
+        return copy
+    }
+}

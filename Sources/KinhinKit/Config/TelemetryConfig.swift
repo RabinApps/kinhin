@@ -18,6 +18,12 @@ extension KinhinConfig {
             case metrics, traces, logs
         }
 
+        /// A per-job dimension that can be added to the job counters and histograms. Off by default: in an
+        /// org-scoped fleet repositories and workflows are unbounded, which costs a series each in Prometheus.
+        public enum JobAttribute: String, Sendable, CaseIterable, Hashable {
+            case repository, workflow
+        }
+
         public enum LogFormat: String, Sendable, CaseIterable {
             /// The plain-text lines kinhin has always written.
             case text
@@ -39,12 +45,14 @@ extension KinhinConfig {
         /// scrape endpoint; nil = no listener.
         public var prometheusListen: String?
         public var logFormat: LogFormat
+        /// Extra dimensions on `cicd.pipeline.run.duration`, `kinhin.jobs.completed` and the queue-wait histogram.
+        public var jobAttributes: Set<JobAttribute>
 
         public init(
             enabled: Bool = false, endpoint: String? = nil, otlpProtocol: OTLPProtocol = .httpProtobuf,
             exportIntervalSeconds: Int = 60, signals: Set<Signal> = Set(Signal.allCases),
             resourceAttributes: [String: String] = [:], prometheusListen: String? = nil,
-            logFormat: LogFormat = .text
+            logFormat: LogFormat = .text, jobAttributes: Set<JobAttribute> = []
         ) {
             self.enabled = enabled
             self.endpoint = endpoint
@@ -54,6 +62,7 @@ extension KinhinConfig {
             self.resourceAttributes = resourceAttributes
             self.prometheusListen = prometheusListen
             self.logFormat = logFormat
+            self.jobAttributes = jobAttributes
         }
 
         public static let `default` = TelemetryConfig()
@@ -71,7 +80,8 @@ extension KinhinConfig {
         enum CodingKeys: String, CodingKey {
             case enabled, endpoint, signals
             case otlpProtocol = "protocol"
-            case exportIntervalSeconds = "export_interval"
+            case exportIntervalSeconds = "export_interval_seconds"
+            case jobAttributes = "job_attributes"
             case resourceAttributes = "resource_attributes"
             case prometheusListen = "prometheus_listen"
             case logFormat = "log_format"

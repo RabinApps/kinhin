@@ -20,10 +20,10 @@ struct TelemetryTests {
         """
 
     /// Gauges published on every reconcile pass whatever the fleet holds (Prometheus renders `kinhin.fleet.active` as
-    /// `kinhin_fleet_active`). Series with no value yet (`kinhin_workers` with no instance) are absent by design.
+    /// `kinhin_fleet_active`). Series with no value yet (`cicd_worker_count` with no instance) are absent by design.
     private static let alwaysPublished = [
         "kinhin_fleet_desired", "kinhin_fleet_active", "kinhin_fleet_running", "kinhin_fleet_paused",
-        "kinhin_fleet_capacity", "kinhin_host_disk_free", "kinhin_process_memory_usage",
+        "kinhin_pool_capacity", "kinhin_host_disk_free", "process_memory_usage",
     ]
 
     private static let secret = "e2e-collector-secret-value"
@@ -69,17 +69,18 @@ struct TelemetryTests {
                 #expect(body.contains(name), "\(name) is missing from /metrics:\n\(body.prefix(1500))")
             }
             #expect(body.contains("# TYPE kinhin_"), "Prometheus text format:\n\(body.prefix(600))")
-            #expect(body.contains("kind=\"vm\"") && body.contains("kind=\"job\""), "capacity carries both kinds")
+            #expect(body.contains("kinhin_pool=\""), "capacity is per pool")
 
             // The (unreachable) forge's requests are counted by forge and status class, never by URL or error text.
             let counted = try await eventually("the forge request counter", timeout: 60, interval: 2) {
-                guard let text = await Self.scrape(port)?.text, text.contains("kinhin_forge_requests") else {
+                guard let text = await Self.scrape(port)?.text, text.contains("kinhin_forge_api_requests") else {
                     return nil as String?
                 }
                 return text
             }
-            #expect(counted.contains("forge=\"gitea\""), "\(counted.prefix(1500))")
-            #expect(counted.contains("status_class=\"error\""), "a refused connection is class `error`")
+            #expect(counted.contains("kinhin_forge=\"gitea\""), "\(counted.prefix(1500))")
+            #expect(
+                counted.contains("http_response_status_class=\"error\""), "a refused connection is class `error`")
             #expect(!counted.contains("127.0.0.1:9"), "no URL becomes a label")
 
             // Only GET /metrics is served, and no token or instance name leaks into the text.
@@ -225,7 +226,7 @@ struct TelemetryTests {
                       enabled: true
                       endpoint: \(collector.endpoint)
                       protocol: http/protobuf
-                      export_interval: 1
+                      export_interval_seconds: 1
                       signals: [metrics, logs]
                       resource_attributes:
                         deployment.environment: e2e
@@ -275,7 +276,7 @@ struct TelemetryTests {
         try await withSandbox { sandbox in
             try sandbox.writeConfig(
                 Self.telemetry(
-                    "  enabled: true\n  endpoint: \(collector.endpoint)\n  export_interval: 1\n  signals: [metrics, logs]"
+                    "  enabled: true\n  endpoint: \(collector.endpoint)\n  export_interval_seconds: 1\n  signals: [metrics, logs]"
                 ))
             sandbox.setEnvironment("OTEL_EXPORTER_OTLP_HEADERS", "authorization=Bearer \(Self.secret),x-team=ci")
             let daemon = try await sandbox.startDaemon()
@@ -304,7 +305,8 @@ struct TelemetryTests {
             let dead = try E2E.freePort()
             try sandbox.writeConfig(
                 Self.telemetry(
-                    "  enabled: true\n  endpoint: http://127.0.0.1:\(dead)\n  export_interval: 1\n  signals: [metrics]")
+                    "  enabled: true\n  endpoint: http://127.0.0.1:\(dead)\n  export_interval_seconds: 1\n  signals: [metrics]"
+                )
             )
             sandbox.setEnvironment("OTEL_EXPORTER_OTLP_ENDPOINT", collector.endpoint)
             let daemon = try await sandbox.startDaemon()
@@ -319,7 +321,7 @@ struct TelemetryTests {
         try await withSandbox { sandbox in
             try sandbox.writeConfig(
                 Self.telemetry(
-                    "  enabled: true\n  endpoint: \(signals.endpoint)\n  export_interval: 1\n  signals: [metrics, logs]"
+                    "  enabled: true\n  endpoint: \(signals.endpoint)\n  export_interval_seconds: 1\n  signals: [metrics, logs]"
                 ))
             sandbox.setEnvironment("OTEL_METRICS_EXPORTER", "none")
             let daemon = try await sandbox.startDaemon()
@@ -336,7 +338,8 @@ struct TelemetryTests {
         try await withSandbox { sandbox in
             try sandbox.writeConfig(
                 Self.telemetry(
-                    "  enabled: true\n  endpoint: \(resource.endpoint)\n  export_interval: 1\n  signals: [metrics]"))
+                    "  enabled: true\n  endpoint: \(resource.endpoint)\n  export_interval_seconds: 1\n  signals: [metrics]"
+                ))
             sandbox.setEnvironment("OTEL_RESOURCE_ATTRIBUTES", "team=platform,service.name=evil")
             sandbox.setEnvironment("OTEL_SERVICE_NAME", "also-evil")
             let daemon = try await sandbox.startDaemon()
@@ -355,7 +358,7 @@ struct TelemetryTests {
             let port = try E2E.freePort()
             try sandbox.writeConfig(
                 Self.telemetry(
-                    "  enabled: true\n  endpoint: \(off.endpoint)\n  export_interval: 1\n  prometheus_listen: 127.0.0.1:\(port)"
+                    "  enabled: true\n  endpoint: \(off.endpoint)\n  export_interval_seconds: 1\n  prometheus_listen: 127.0.0.1:\(port)"
                 ))
             sandbox.setEnvironment("OTEL_SDK_DISABLED", "true")
             let daemon = try await sandbox.startDaemon()
@@ -373,7 +376,8 @@ struct TelemetryTests {
         try await withSandbox { sandbox in
             try sandbox.writeConfig(
                 Self.telemetry(
-                    "  enabled: true\n  endpoint: \(collector.endpoint)\n  export_interval: 1\n  signals: [traces]"))
+                    "  enabled: true\n  endpoint: \(collector.endpoint)\n  export_interval_seconds: 1\n  signals: [traces]"
+                ))
             let daemon = try await sandbox.startDaemon()
             defer { Task { await daemon.stop() } }
             try await Task.sleep(for: .seconds(10))
@@ -390,7 +394,7 @@ struct TelemetryTests {
         try await withSandbox { sandbox in
             try sandbox.writeConfig(
                 Self.telemetry(
-                    "  enabled: true\n  endpoint: http://127.0.0.1:\(probe.port)\n  protocol: grpc\n  export_interval: 1\n  signals: [metrics]"
+                    "  enabled: true\n  endpoint: http://127.0.0.1:\(probe.port)\n  protocol: grpc\n  export_interval_seconds: 1\n  signals: [metrics]"
                 ))
             let daemon = try await sandbox.startDaemon()
             defer { Task { await daemon.stop() } }
@@ -407,7 +411,7 @@ struct TelemetryTests {
             let dead = try E2E.freePort()
             try sandbox.writeConfig(
                 Self.telemetry(
-                    "  enabled: true\n  endpoint: http://127.0.0.1:\(dead)\n  export_interval: 1\n  signals: [metrics, traces, logs]"
+                    "  enabled: true\n  endpoint: http://127.0.0.1:\(dead)\n  export_interval_seconds: 1\n  signals: [metrics, traces, logs]"
                 ))
             let daemon = try await sandbox.startDaemon()
             defer { Task { await daemon.stop() } }
@@ -415,6 +419,56 @@ struct TelemetryTests {
             #expect(daemon.isRunning)
             let status = try await sandbox.kinhin(["status", "--json"], timeout: 15)
             #expect(status.ok, "the daemon still answers: \(status.output)")
+
+            // The failure is not silent: `kinhin telemetry status` names it and exits 1.
+            let report = try await eventually("telemetry status to report the export problem", timeout: 60, interval: 2)
+            {
+                let result = try await sandbox.kinhin(["telemetry", "status"], timeout: 15)
+                return result.output.contains("export problem") ? result : nil
+            }
+            #expect(report.status == 1, "exit \(report.status): \(report.output)")
+            #expect(report.output.contains("telemetry: on"), "\(report.output)")
+            #expect(!report.output.contains("unreachable-forge-token"))
+            let json = try await sandbox.kinhin(["telemetry", "status", "--json"], timeout: 15)
+            let document = try #require(
+                try JSONSerialization.jsonObject(with: Data(json.output.utf8)) as? [String: Any])
+            let state = try #require(document["status"] as? [String: Any])
+            #expect(state["enabled"] as? Bool == true)
+            #expect((state["exportFailures"] as? Int ?? 0) >= 1)
+            // The log carries each distinct problem once a minute, never every retry.
+            let lines = sandbox.log().split(separator: "\n").filter { $0.contains("export problem") }
+            #expect(!lines.isEmpty && lines.count <= 3, "\(lines.count) export-problem lines in the log")
+        }
+    }
+
+    @Test("kinhin telemetry status reports a healthy pipeline and a disabled one")
+    func telemetryStatusCommand() async throws {
+        let collector = try await OTLPCollectorStub()
+        defer { collector.stop() }
+        try await withSandbox { sandbox in
+            let port = try E2E.freePort()
+            try sandbox.writeConfig(
+                Self.telemetry(
+                    "  enabled: true\n  endpoint: \(collector.endpoint)\n  export_interval_seconds: 1\n  signals: [metrics]\n  prometheus_listen: 127.0.0.1:\(port)"
+                ))
+            let daemon = try await sandbox.startDaemon()
+            defer { Task { await daemon.stop() } }
+            let healthy = try await eventually("telemetry status", timeout: 60, interval: 1) {
+                let result = try await sandbox.kinhin(["telemetry"], timeout: 15)
+                return result.output.contains("telemetry: on") ? result : nil
+            }
+            #expect(healthy.ok, "exit \(healthy.status): \(healthy.output)")
+            #expect(healthy.output.contains("metrics -> \(collector.endpoint)/v1/metrics"), "\(healthy.output)")
+            #expect(healthy.output.contains("http://127.0.0.1:\(port)/metrics"), "\(healthy.output)")
+            #expect(healthy.output.contains("no export problems reported"), "\(healthy.output)")
+        }
+        try await withSandbox { sandbox in
+            try sandbox.writeConfig(Self.account)
+            let daemon = try await sandbox.startDaemon()
+            defer { Task { await daemon.stop() } }
+            let off = try await sandbox.kinhin(["telemetry"], timeout: 15)
+            #expect(off.ok, "off is healthy: \(off.output)")
+            #expect(off.output.contains("telemetry is off"), "\(off.output)")
         }
     }
 
@@ -426,7 +480,7 @@ struct TelemetryTests {
             // An hour between exports: anything the collector gets arrives because shutdown flushed it.
             try sandbox.writeConfig(
                 Self.telemetry(
-                    "  enabled: true\n  endpoint: \(collector.endpoint)\n  export_interval: 3600\n  signals: [metrics, logs]"
+                    "  enabled: true\n  endpoint: \(collector.endpoint)\n  export_interval_seconds: 3600\n  signals: [metrics, logs]"
                 ))
             let daemon = try await sandbox.startDaemon()
             try await Task.sleep(for: .seconds(3))
@@ -457,7 +511,7 @@ struct TelemetryTests {
                     """
                       enabled: false
                       endpoint: \(collector.endpoint)
-                      export_interval: 1
+                      export_interval_seconds: 1
                       signals: [metrics, traces, logs]
                       prometheus_listen: 127.0.0.1:\(port)
                     """) : Self.account
@@ -525,13 +579,14 @@ struct TelemetryTests {
             ("protocol: carrier-pigeon", "telemetry.protocol"),
             ("endpoint: not a url", "telemetry.endpoint"),
             ("endpoint: ftp://collector:21", "telemetry.endpoint"),
-            ("export_interval: 0", "telemetry.export_interval"),
-            ("export_interval: 100000", "telemetry.export_interval"),
+            ("export_interval_seconds: 0", "telemetry.export_interval_seconds"),
+            ("export_interval_seconds: 100000", "telemetry.export_interval_seconds"),
             ("signals: [metrics, spans]", "telemetry.signals"),
             ("prometheus_listen: somewhere", "telemetry.prometheus_listen"),
             ("prometheus_listen: 127.0.0.1:99999", "telemetry.prometheus_listen"),
             ("log_format: xml", "telemetry.log_format"),
             ("signals: [traces]\n  prometheus_listen: 9464", "telemetry.prometheus_listen"),
+            ("job_attributes: [branch]", "telemetry.job_attributes"),
             ("resource_attributes:\n    service.name: mine", "service.name"),
             ("resource_attributes:\n    telemetry.sdk.version: 1", "telemetry.sdk.version"),
             ("enable: true", "telemetry.enable"),
@@ -545,6 +600,17 @@ struct TelemetryTests {
         }
     }
 
+    @Test("export_interval is accepted as an alias of export_interval_seconds")
+    func intervalAlias() async throws {
+        try await withSandbox { sandbox in
+            try sandbox.writeConfig(Self.telemetry("  enabled: true\n  export_interval: 30"))
+            #expect(try await sandbox.kinhin(["config", "validate"]).ok)
+            try sandbox.writeConfig(
+                Self.telemetry("  enabled: true\n  export_interval: 30\n  export_interval_seconds: 60"))
+            #expect(try await sandbox.kinhin(["config", "validate"]).status == 3, "disagreeing keys are an error")
+        }
+    }
+
     @Test("every telemetry key together validates")
     func fullConfigValidates() async throws {
         try await withSandbox { sandbox in
@@ -554,7 +620,8 @@ struct TelemetryTests {
                       enabled: true
                       endpoint: https://collector.example.com:4317
                       protocol: grpc
-                      export_interval: 15
+                      export_interval_seconds: 15
+                      job_attributes: [repository, workflow]
                       signals: [metrics, traces, logs]
                       resource_attributes:
                         deployment.environment: lab

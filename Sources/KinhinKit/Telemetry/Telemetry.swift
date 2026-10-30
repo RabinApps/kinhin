@@ -110,6 +110,7 @@ struct NoopBackend: TelemetryBackend {
 public final class Telemetry: Sendable {
     private let backendBox: Mutex<any TelemetryBackend>
     private let enabledBox: Mutex<Bool>
+    private let jobAttributesBox = Mutex(Set<KinhinConfig.TelemetryConfig.JobAttribute>())
 
     /// A handle that records nothing (the default for every engine).
     public static let noop = Telemetry()
@@ -127,6 +128,13 @@ public final class Telemetry: Sendable {
     public var isEnabled: Bool { enabledBox.withLock { $0 } }
 
     var backend: any TelemetryBackend { backendBox.withLock { $0 } }
+
+    /// The opt-in per-job dimensions in force (empty by default).
+    var jobAttributes: Set<KinhinConfig.TelemetryConfig.JobAttribute> { jobAttributesBox.withLock { $0 } }
+
+    func setJobAttributes(_ attributes: Set<KinhinConfig.TelemetryConfig.JobAttribute>) {
+        jobAttributesBox.withLock { $0 = attributes }
+    }
 
     /// Swaps in a new backend, returning the old one for the caller to shut down.
     func swap(to backend: any TelemetryBackend, enabled: Bool) -> any TelemetryBackend {
@@ -178,27 +186,29 @@ enum Metric {
         case warmClaims = "kinhin.warm_pool.claims"
         case warmEvictions = "kinhin.warm_pool.evictions"
         case healingActions = "kinhin.healing.actions"
-        case forgeRequests = "kinhin.forge.requests"
-        case errors = "kinhin.errors"
+        case forgeRequests = "kinhin.forge.api.requests"
+        case errors = "cicd.system.errors"
+        case exportFailures = "kinhin.telemetry.export.failures"
     }
 
     enum Histogram: String, CaseIterable {
-        case phaseDuration = "kinhin.vm.phase.duration"
+        case phaseDuration = "kinhin.runner.provision.duration"
+        case teardownDuration = "kinhin.runner.teardown.duration"
         case queueWait = "kinhin.job.queue_wait.duration"
-        case runDuration = "kinhin.job.run.duration"
+        case runDuration = "cicd.pipeline.run.duration"
     }
 
     enum Gauge: String, CaseIterable {
-        case workers = "kinhin.workers"
+        case workers = "cicd.worker.count"
         case queueDepth = "kinhin.queue.depth"
-        case queueAgeMax = "kinhin.queue.age.max"
+        case queueAge = "kinhin.queue.age"
         case fleetDesired = "kinhin.fleet.desired"
         case fleetActive = "kinhin.fleet.active"
-        case fleetCapacity = "kinhin.fleet.capacity"
+        case poolCapacity = "kinhin.pool.capacity"
         case fleetPaused = "kinhin.fleet.paused"
         case fleetRunning = "kinhin.fleet.running"
         case warmSize = "kinhin.warm_pool.size"
-        case jobsActive = "kinhin.jobs.active"
+        case jobsActive = "cicd.pipeline.run.active"
         case runnerCPU = "kinhin.runner.cpu.utilization"
         case runnerMemoryUsage = "kinhin.runner.memory.usage"
         case runnerMemoryLimit = "kinhin.runner.memory.limit"
@@ -206,11 +216,30 @@ enum Metric {
         case hostMemoryUsage = "kinhin.host.memory.usage"
         case hostMemoryLimit = "kinhin.host.memory.limit"
         case hostDiskFree = "kinhin.host.disk.free"
-        case processCPU = "kinhin.process.cpu.utilization"
-        case processMemory = "kinhin.process.memory.usage"
+        case processCPU = "process.cpu.utilization"
+        case processMemory = "process.memory.usage"
         case rateLimitRemaining = "kinhin.forge.rate_limit.remaining"
         case rateLimitLimit = "kinhin.forge.rate_limit.limit"
         case healingPending = "kinhin.healing.awaiting_approval"
+    }
+
+    /// Metric attribute keys. Names follow the OpenTelemetry CI/CD semantic conventions where one exists
+    /// (`cicd.worker.*`, `cicd.pipeline.*`, `cicd.system.*`, `error.type`) and are `kinhin.`-prefixed otherwise.
+    enum Attr {
+        static let pool = "kinhin.pool"
+        static let image = "kinhin.image"
+        static let forge = "kinhin.forge"
+        static let account = "kinhin.account"
+        static let labels = "kinhin.runner.labels"
+        static let state = "cicd.worker.state"
+        static let phase = "kinhin.runner.phase"
+        static let result = "cicd.pipeline.result"
+        static let workflow = "cicd.pipeline.name"
+        static let repository = "vcs.repository.name"
+        static let errorType = "error.type"
+        static let component = "cicd.system.component"
+        static let statusClass = "http.response.status_class"
+        static let healingResult = "kinhin.healing.result"
     }
 
     /// The VM lifecycle phases timed directly by the engine.
@@ -220,5 +249,16 @@ enum Metric {
         case registration
         case run
         case teardown
+
+        /// The `kinhin.runner.phase` value on the provision histogram: what the phase does, not the span's name.
+        var metricName: String {
+            switch self {
+            case .provision: return "clone"
+            case .bootReady: return "boot"
+            case .registration: return "register"
+            case .run: return "run"
+            case .teardown: return "teardown"
+            }
+        }
     }
 }

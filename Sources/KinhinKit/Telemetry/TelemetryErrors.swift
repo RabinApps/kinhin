@@ -3,15 +3,15 @@ import Foundation
 /// The bounded vocabulary of `kinhin.errors`: what failed, never the error text (free text
 /// is unbounded, and can carry secrets).
 enum TelemetryErrorType: String, CaseIterable, Sendable {
-    case cloneFailure = "clone_failure"
+    case cloneFailure = "clone_failed"
     case bootTimeout = "boot_timeout"
     case sshUnreachable = "ssh_unreachable"
-    case registrationFailure = "registration_failure"
+    case registrationFailure = "registration_failed"
     case runnerNotRegistered = "runner_not_registered"
     case instanceLost = "instance_lost"
-    case forgeAPIFailure = "forge_api_failure"
+    case forgeAPIFailure = "forge_api"
     case rateLimited = "rate_limited"
-    case teardownFailure = "teardown_failure"
+    case teardownFailure = "teardown_failed"
     case unknown
 
     /// The part of kinhin an error came from (the `component` attribute).

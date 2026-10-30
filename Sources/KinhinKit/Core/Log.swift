@@ -56,6 +56,7 @@ public enum Log {
             ]
             if let vm = fields.vm { object["vm"] = vm }
             if let job = fields.job { object["job"] = job }
+            if let jobID = fields.jobID { object["job_id"] = jobID }
             if let trace = fields.trace {
                 object["trace_id"] = trace.traceID
                 object["span_id"] = trace.spanID
@@ -121,6 +122,7 @@ public enum Log {
         let vm: String
         let trace: TelemetrySpanContext?
         private let jobBox = Mutex<String?>(nil)
+        private let jobIDBox = Mutex<String?>(nil)
 
         init(vm: String, trace: TelemetrySpanContext?) {
             self.vm = vm
@@ -131,6 +133,12 @@ public enum Log {
             get { jobBox.withLock { $0 } }
             set { jobBox.withLock { $0 = newValue } }
         }
+
+        /// The forge's job id, when it supplied one.
+        var jobID: String? {
+            get { jobIDBox.withLock { $0 } }
+            set { jobIDBox.withLock { $0 = newValue } }
+        }
     }
 
     @TaskLocal static var context: Context?
@@ -140,11 +148,13 @@ public enum Log {
     struct Fields {
         var vm: String?
         var job: String?
+        var jobID: String?
         var trace: TelemetrySpanContext?
 
         init(component: String, context: Context?) {
             vm = InstanceNaming.isOurs(component) ? component : context?.vm
             job = context?.job.map { LogRedactor.redact($0) }
+            jobID = context?.jobID
             trace = context?.trace
         }
 
@@ -153,6 +163,7 @@ public enum Log {
             var out: [String: String] = [:]
             if let vm { out["kinhin.vm.id"] = vm }
             if let job { out["kinhin.job.name"] = job }
+            if let jobID { out["kinhin.job.id"] = jobID }
             return out
         }
     }
@@ -232,7 +243,8 @@ public enum Log {
             FileHandle.standardError.write(line)
         }
 
-        if let telemetry {
+        // Export problems stay local: forwarding one would queue the record whose delivery just failed.
+        if let telemetry, component != TelemetryHealth.logComponent {
             telemetry.emit(
                 log: TelemetryLogRecord(
                     timestamp: entry.timestamp, level: level, component: component, message: entry.message,

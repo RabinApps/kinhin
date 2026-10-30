@@ -49,7 +49,7 @@ final class HelpRendererTests: XCTestCase {
         for group in HelpGroup.allCases {
             XCTAssertTrue(lines.contains { $0 == "\(group.title):" }, "\(group.title) section missing")
         }
-        XCTAssertLessThan(lines.count, 95, "the overview is a command index; details are in per-command help")
+        XCTAssertLessThan(lines.count, 100, "the overview is a command index; details are in per-command help")
     }
 
     func testEveryPageStartsWithItsUsage() {

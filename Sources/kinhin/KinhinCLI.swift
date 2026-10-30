@@ -188,6 +188,9 @@ struct KinhinCLI {
         case .heal:
             try await HealCommand.run(args, subcommand: invocation.subcommand)
 
+        case .telemetry:
+            try await TelemetryCommand.run(args, subcommand: invocation.subcommand)
+
         case .support:
             print(SupportLinks.summary())
 
