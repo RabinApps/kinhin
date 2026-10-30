@@ -355,7 +355,7 @@ enum RunCommands {
         // The LaunchAgent runs this path at every login: it must be absolute (a relative
         // argv[0] resolves against whatever the cwd is at launch) and a built release, not a
         // debug binary that carries development-only token handling.
-        let binary = Daemon.launchAgentBinary(argv0: CommandLine.arguments[0])
+        let binary = try Daemon.currentExecutable()
         if Daemon.isDebugBuild(binary) {
             throw ControlFailure(
                 "refusing to install a LaunchAgent for a debug build (\(binary)); install a release build",
@@ -363,7 +363,7 @@ enum RunCommands {
         }
         try Daemon.installAgent(binaryPath: binary)
         let res = try await Daemon.loadAgent()
-        guard res.succeeded else { throw ControlFailure("launchctl load failed: \(res.stderr)", exit: .runtime) }
+        guard res.succeeded else { throw ControlFailure("launchctl bootstrap failed: \(res.stderr)", exit: .runtime) }
     }
 
     static func daemon(_ args: [String]) async throws {

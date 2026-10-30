@@ -7,18 +7,30 @@ import XCTest
 final class DaemonLaunchAgentTests: XCTestCase {
     func testLoadBootsOutARunningAgentThenLoadsByAbsolutePath() async throws {
         let shell = FakeShell()
+        shell.scriptedResponses = [
+            ScriptedResponse(
+                whenContains: "print", ShellResult(
+                    exitCode: 0, stdout: "gui/501/com.kinhin.daemon = {\n\tstate = running\n\tlast exit code = 0\n}", stderr: ""))
+        ]
         _ = try await Daemon.loadAgent(shell: shell)
         let plist = Daemon.agentPlistPath().path
         XCTAssertEqual(
             shell.calls,
-            [["/bin/launchctl", "bootout", "gui/\(getuid())", plist], ["/bin/launchctl", "load", plist]],
-            "a re-install restarts the daemon instead of leaving the old one running")
+            [
+                ["/bin/launchctl", "bootout", "gui/\(getuid())", plist],
+                ["/bin/launchctl", "bootstrap", "gui/\(getuid())", plist],
+                ["/bin/launchctl", "print", "gui/\(getuid())/\(Daemon.label)"],
+            ],
+            "a re-install restarts the daemon and verifies launchd reports it healthy")
     }
 
     func testAFailedBootoutOfALoadedAgentThrowsInsteadOfKeepingTheOldDaemon() async throws {
         let shell = FakeShell()
         shell.scriptedResponses = [
-            ScriptedResponse(whenContains: "bootout", ShellResult(exitCode: 5, stdout: "", stderr: "I/O error"))
+            ScriptedResponse(whenContains: "bootout", ShellResult(exitCode: 5, stdout: "", stderr: "I/O error")),
+            ScriptedResponse(
+                whenContains: "print", ShellResult(
+                    exitCode: 0, stdout: "gui/501/com.kinhin.daemon = {\n\tstate = running\n}", stderr: "")),
         ]
         do {
             _ = try await Daemon.loadAgent(shell: shell)
@@ -26,18 +38,46 @@ final class DaemonLaunchAgentTests: XCTestCase {
         } catch let error as Daemon.DaemonError {
             XCTAssertEqual(error, .bootoutFailed("I/O error"))
         }
-        XCTAssertFalse(shell.calls.contains { $0.contains("load") }, "nothing is loaded over the old daemon")
+        XCTAssertFalse(shell.calls.contains { $0.contains("bootstrap") }, "nothing is bootstrapped over the old daemon")
     }
 
     func testAFailedBootoutOfAnAgentThatIsNotLoadedStillLoads() async throws {
         let shell = FakeShell()
-        shell.scriptedResponses = [
-            ScriptedResponse(whenContains: "bootout", ShellResult(exitCode: 3, stdout: "", stderr: "No such process")),
-            ScriptedResponse(whenContains: "print", ShellResult(exitCode: 113, stdout: "", stderr: "not found")),
+        shell.responses = [
+            ShellResult(exitCode: 3, stdout: "", stderr: "No such process"),
+            ShellResult(exitCode: 113, stdout: "", stderr: "not found"),
+            ShellResult(exitCode: 0, stdout: "", stderr: ""),
+            ShellResult(
+                exitCode: 0, stdout: "gui/501/com.kinhin.daemon = {\n\tstate = running\n\tlast exit code = 0\n}", stderr: ""),
         ]
         let result = try await Daemon.loadAgent(shell: shell)
         XCTAssertTrue(result.succeeded)
-        XCTAssertEqual(shell.calls.last?[1], "load")
+        XCTAssertEqual(shell.calls[2][1], "bootstrap")
+        XCTAssertEqual(shell.calls[3][1], "print")
+    }
+
+    func testBootstrapFailsIfLaunchdReportsTheDaemonExited() async throws {
+        let shell = FakeShell()
+        shell.scriptedResponses = [
+            ScriptedResponse(
+                whenContains: "print", ShellResult(
+                    exitCode: 0, stdout: "gui/501/com.kinhin.daemon = {\n\tstate = waiting\n\tlast exit code = 78\n}", stderr: ""))
+        ]
+        do {
+            _ = try await Daemon.loadAgent(shell: shell)
+            XCTFail("a bootstrap success does not prove the daemon stayed running")
+        } catch let error as Daemon.DaemonError {
+            guard case .agentStartFailed(let reason) = error else {
+                return XCTFail("expected agentStartFailed, got \(error)")
+            }
+            XCTAssertTrue(reason.contains("state = waiting"), reason)
+        }
+    }
+
+    func testLaunchAgentHealthRequiresRunningStateAndZeroLastExitCode() {
+        XCTAssertTrue(Daemon.launchAgentStatusIsHealthy("state = running\nlast exit code = 0"))
+        XCTAssertFalse(Daemon.launchAgentStatusIsHealthy("state = waiting\nlast exit code = 0"))
+        XCTAssertFalse(Daemon.launchAgentStatusIsHealthy("state = running\nlast exit code = 78"))
     }
 
     func testASymlinkIntoADebugBuildIsADebugBuild() throws {
