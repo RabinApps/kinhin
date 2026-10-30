@@ -185,6 +185,7 @@ enum TelemetryResolver {
         // TLS trust: the environment's CA file wins over the config's.
         var caFile = config.caFile
         if let raw = env("OTEL_EXPORTER_OTLP_CERTIFICATE") {
+            // A relative or empty value is reported just below, so the thrown reason is not needed.
             if let path = try? TelemetryCABundle.resolvedPath(raw) {
                 caFile = path
             } else {
