@@ -337,6 +337,9 @@ public struct ForgeJob: Sendable, Equatable {
     /// Treat the job's code as untrusted: a fork's PR, or a job whose origin
     /// the forge does not reveal. Gates the shared cache and the repo file.
     public var isUntrusted: Bool { isFork || !forkKnown }
+    /// Stable identifiers and provider timestamps, for the forges that expose them (GitHub Actions
+    /// today). Nil elsewhere; consumers use only the fields that are present.
+    public let correlation: JobCorrelation?
     /// The pool the forge already chose for this job: a scale-set job arrives
     /// on the scale set the workflow named in `runs-on:`, and that set is bound
     /// to one runtime. Overrides repo and workflow routes; nil for every
@@ -345,8 +348,10 @@ public struct ForgeJob: Sendable, Equatable {
 
     public init(
         name: String, runnerName: String?, repository: String?, labels: [String]? = nil, ref: String? = nil,
-        sha: String? = nil, isFork: Bool = false, forkKnown: Bool = false, runtimeHint: RuntimeID? = nil
+        sha: String? = nil, isFork: Bool = false, forkKnown: Bool = false, runtimeHint: RuntimeID? = nil,
+        correlation: JobCorrelation? = nil
     ) {
+        self.correlation = correlation
         self.name = name
         self.runnerName = runnerName
         self.repository = repository

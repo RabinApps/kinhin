@@ -23,6 +23,9 @@ extension FleetEngine {
         b.images = []
         a.labels = []
         b.labels = []
+        // Telemetry is owned by the process's `TelemetryService`, which applies it in place.
+        a.telemetry = .default
+        b.telemetry = .default
         return a != b
     }
 

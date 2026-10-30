@@ -107,6 +107,7 @@ extension FleetEngine {
             var idle = false
             do {
                 idle = try await reconcileOnce().idle
+                await publishTelemetry()
                 await sweepOrphansIfDue()
                 await statusBox.modify { $0.setAlert("reconcile", nil) }
             } catch is CancellationError {
@@ -233,6 +234,8 @@ extension FleetEngine {
         /// not "no jobs": while any forge is unreadable the demand is
         /// incomplete, so the pass must not scale idle instances down on it.
         var failedForges: Set<String> = []
+        /// The oldest queue timestamp any forge supplied (nil when none did: the age is then unavailable).
+        var oldestEnqueuedAt: Date?
     }
 
     /// Polls every attached forge's queue (and running work) into `Demand`
@@ -284,6 +287,9 @@ extension FleetEngine {
                 perForgeJobs[forge.account] = (forge.attributesByRepo, jobs)
                 demand.byForge[forge.account] = jobs.count
                 demand.queueDepth += jobs.count
+                if let oldest = jobs.compactMap({ $0.correlation?.enqueuedAt }).min() {
+                    demand.oldestEnqueuedAt = min(demand.oldestEnqueuedAt ?? oldest, oldest)
+                }
                 let pools = routerState.model.demandByPool(for: jobs, forgeID: forge.id)
                 demand.byForgePool[forge.account] = pools
                 if forge.queueIncludesRunning { demand.includesRunning.insert(forge.account) }
@@ -298,6 +304,7 @@ extension FleetEngine {
                 await statusBox.modify { $0.setAlert("queue:\(forge.account)", message) }
             }
         }
+        publishQueueTelemetry(byForge: demand.byForge, oldestEnqueuedAt: demand.oldestEnqueuedAt)
         if paused {
             // Paused with auto-resume: hold while demand remains, release once
             // the queue is empty. A forge outage (every fetch failed) must NOT
@@ -400,7 +407,10 @@ extension FleetEngine {
         if !slots.isEmpty, spawnBackoff.withLock({ $0.blocked(now: Date()) }).isEmpty {
             Log.info("engine", "scaling up: \(plan.active) active, want \(plan.target) (queue \(demand.queueDepth))")
         }
-        for id in plan.evict { scheduleDelete(id: id, reason: "warm instance evicted") }
+        for id in plan.evict {
+            let attributes = metricAttributes(of: id)
+            if scheduleDelete(id: id, reason: "warm instance evicted") { telemetry.add(.warmEvictions, 1, attributes) }
+        }
         for slot in slots {
             // A claimed warm instance is bound to its slot; it is already on disk, so disk pressure never holds it.
             if let warmID = slot.claim {
@@ -591,7 +601,9 @@ extension FleetEngine {
                 answered = true
                 runningAll.append(
                     contentsOf: running.map {
-                        RunningJob(name: $0.name, runnerName: $0.runnerName, repository: $0.repository)
+                        RunningJob(
+                            name: $0.name, runnerName: $0.runnerName, repository: $0.repository,
+                            correlation: $0.correlation)
                     })
             } catch {
                 // Attribution is best-effort telemetry: never fail reconcile

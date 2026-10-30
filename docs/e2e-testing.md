@@ -144,6 +144,14 @@ reached the log and the journal is owner-only. **`HealingCLITests`** (quick tier
 stable document), `approve`/`dismiss` argument and daemon errors, `healing:` validation (exit 3) and export, and the MCP
 `heal_status` tool with no approving tool beside it.
 
+**`TelemetryTests`** (quick tier, no Docker; a real `kinhin daemon` with an unreachable forge, OTLP to a local stand-in
+collector, `OTLPCollectorStub`, a small Python server that records POSTs): with `telemetry.prometheus_listen` set,
+`GET /metrics` answers with the `kinhin_` fleet gauges; with an `endpoint` and a 1 s `export_interval` the daemon pushes
+OTLP/HTTP to `/v1/metrics` and `/v1/traces` (periodically, and not to `/v1/logs` when `logs` is not in `signals`);
+`OTEL_EXPORTER_OTLP_ENDPOINT` beats the config's endpoint; with telemetry off (no section, or `enabled: false` naming a
+port and a collector) the Prometheus port is not bound and the collector receives nothing; a bad `telemetry:` value is
+exit 3. The sandbox strips inherited `OTEL_*` variables so a developer's collector never leaks into a run.
+
 **`CLITests`**: version and exit codes (usage 2, config 3), `--json` errors, `config init` on a pristine machine,
 `config migrate`, `config export` and `import`, the account lifecycle, `doctor` (and a support bundle with no token in it), runtimes and routes,
 read-only inventory commands, toolchain detection, `workflow test` and `workflow route`, `reset`, and an MCP
@@ -222,6 +230,7 @@ What has actually been run, so the table does not claim more than it checked (20
 | Buildkite                                                 | Fixture written, **not run**: needs a throwaway organization, a cluster with a `kinhin` queue and a token. The forge stays planned until it passes |
 | Bitbucket                                                 | Fixture written, **not run**: needs a throwaway repository and an access token. The forge stays planned until it passes |
 | Azure DevOps                                              | Fixture written, **not run**: needs a throwaway project, a pool and a PAT. The forge stays planned until it passes |
+| Telemetry (quick tier: `TelemetryTests`)                  | Written, **not run**: needs the telemetry implementation (#64)             |
 | Healing (quick tier: `HealingCLITests`)                   | Run, passing (2026-10-14)                                                  |
 | Healing on Gitea × Docker (`HealingTests`, 6 scenarios)   | Run, passing (2026-10-14)                                                  |
 | Healing, live on-device advisor (`KINHIN_E2E_AI=1`)       | Run, passing on macOS 27 with Apple Intelligence (2026-10-14)              |

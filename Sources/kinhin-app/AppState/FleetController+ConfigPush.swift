@@ -100,6 +100,7 @@ extension FleetController {
             throw ConfigPushFailure.keychain(error.localizedDescription)
         }
         guard let pat = enginePAT else { throw ConfigPushFailure.tokenMissing }
+        await TelemetryService.shared.apply(cfg.telemetry)
         let replacement = try environment.makeEngine(cfg, pat)
         switch await old.handOver(to: replacement) {
         case .rejected(let error):

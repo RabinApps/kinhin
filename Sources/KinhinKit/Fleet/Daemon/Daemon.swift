@@ -63,6 +63,11 @@ public enum Daemon {
             Log.error("daemon", "config problem: \(error.localizedDescription)")
             throw error
         }
+        // Telemetry starts once per process, before the engine, and is flushed on SIGTERM/SIGINT.
+        await TelemetryService.shared.apply(cfg.telemetry)
+        let terminationSources = installTerminationFlush()
+        defer { withExtendedLifetime(terminationSources) {} }
+
         let enginePAT: String?
         do {
             enginePAT = try ConfigLoader.engineToken(for: cfg)
@@ -105,6 +110,23 @@ public enum Daemon {
         Log.info("daemon", "serving RPC on \(RPCPaths.socket.path)")
         try await RPCServer.serve(socketURL: RPCPaths.socket) { request in
             await Self.handle(request, engineRef: engineRef)
+        }
+    }
+
+    /// Flushes telemetry before the process ends on SIGTERM (launchctl stop) or SIGINT. Without a
+    /// handler the last export interval of metrics, spans and logs would be lost.
+    private static func installTerminationFlush() -> [any DispatchSourceSignal] {
+        [SIGTERM, SIGINT].map { number in
+            signal(number, SIG_IGN)
+            let source = DispatchSource.makeSignalSource(signal: number, queue: .global())
+            source.setEventHandler {
+                Task {
+                    await TelemetryService.shared.shutdown()
+                    exit(0)
+                }
+            }
+            source.resume()
+            return source
         }
     }
 

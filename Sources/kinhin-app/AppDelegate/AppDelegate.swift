@@ -219,6 +219,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// instead of reopening setup, which would only show a finished checklist.
     func installInProcessEngine(config cfg: KinhinConfig, token pat: String) {
         do {
+            // This app hosts the engine (no daemon), so it owns the exporters; an app attached to a daemon never does.
+            Task { await TelemetryService.shared.apply(cfg.telemetry) }
             fleet.backend = .inProcess(try fleet.environment.makeEngine(cfg, pat))
             setupIncomplete = false
             fleet.setProblem(.launch, nil)
