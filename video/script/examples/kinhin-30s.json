@@ -89,7 +89,7 @@
         "facts": [
           "Free",
           "Apache-2.0",
-          "No telemetry",
+          "Telemetry optional",
           "In beta"
         ]
       },

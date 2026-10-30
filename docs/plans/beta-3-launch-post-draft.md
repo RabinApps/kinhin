@@ -17,7 +17,7 @@ _Saturday, October 24, 2026 · Alex Rabin_
 
 **kinhin** watches your CI queue and, for each queued job, starts a fresh VM or container on your Apple Silicon Mac,
 registers a one-job runner, lets it run, then deletes it. Nothing idles and nothing is left over. It is free, open source
-(Apache-2.0), and sends no telemetry.
+(Apache-2.0), and sends no telemetry unless you point it at your own OpenTelemetry server.
 
 Beta 3 keeps a promise from the beta 2 post, makes the app update itself, and adds a few things for people who make videos
 or run their own models. This post covers what is new, what has been run, and what has not.

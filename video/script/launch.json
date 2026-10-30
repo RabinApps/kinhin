@@ -180,10 +180,25 @@
       "type": "statement",
       "props": {
         "text": "Runs on Apple silicon, macOS 15 or later.",
-        "sub": "Free and open source, Apache-2.0. No telemetry."
+        "sub": "Free and open source, Apache-2.0."
       },
-      "minLength": 4.6,
-      "narration": "Apple silicon, macOS 15 or later. Free, open source, and no telemetry."
+      "minLength": 5,
+      "narration": "Apple silicon, macOS 15 or later. Free and open source."
+    },
+    {
+      "id": "telemetry",
+      "type": "code",
+      "props": {
+        "label": "config.yaml",
+        "lines": [
+          "telemetry:",
+          "  enabled: true",
+          "  endpoint: http://localhost:4318"
+        ],
+        "caption": "Off by default. Bring your own OpenTelemetry server."
+      },
+      "minLength": 9,
+      "narration": "Telemetry is optional, and off by default. Until you turn it on, kinhin sends nothing anywhere. Turn it on, point it at your own OpenTelemetry collector, and you get metrics, traces and logs for your fleet. The data goes to your server, never to us."
     },
     {
       "id": "bonus",
@@ -233,7 +248,7 @@
         "facts": [
           "Free",
           "Apache-2.0",
-          "No telemetry",
+          "Telemetry optional",
           "In beta"
         ]
       },

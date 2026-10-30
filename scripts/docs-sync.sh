@@ -147,7 +147,7 @@ gen_release-banner() {
     v=$(current_version)
     echo "> **Beta (\`v$v\`).** Supported: GitHub, Gitea, Forgejo and GitLab CE. See"
     echo "> [what has been tested](docs/forges.md#what-has-been-tested) and the [roadmap](docs/beta-roadmap.md), and"
-    echo "> [report what you find](https://github.com/RabinApps/kinhin/issues/new/choose). No telemetry."
+    echo "> [report what you find](https://github.com/RabinApps/kinhin/issues/new/choose). Telemetry is off unless you turn it on."
 }
 
 # The roadmap's opening sentence, on its own line so the rest of the paragraph stays hand-written.
