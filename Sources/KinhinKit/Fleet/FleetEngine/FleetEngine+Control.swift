@@ -137,6 +137,11 @@ extension FleetEngine {
                 }
             }
         }
+        // `stop()` may have run between the caller's check and this assignment; its cancel would have missed the task.
+        if !runState.withLock({ $0.running }) {
+            cachePruneTask?.cancel()
+            cachePruneTask = nil
+        }
     }
 
     /// One sweep, skipped when the marker says the last one was recent. The

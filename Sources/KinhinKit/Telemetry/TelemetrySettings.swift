@@ -185,12 +185,9 @@ enum TelemetryResolver {
         // TLS trust: the environment's CA file wins over the config's.
         var caFile = config.caFile
         if let raw = env("OTEL_EXPORTER_OTLP_CERTIFICATE") {
-            // A relative or empty value is reported just below, so the thrown reason is not needed.
-            if let path = try? TelemetryCABundle.resolvedPath(raw) {
-                caFile = path
-            } else {
-                warnings.append("OTEL_EXPORTER_OTLP_CERTIFICATE is not an absolute path; ignored")
-            }
+            // A value that does not resolve is kept as it is: the transport rejects it when telemetry starts, so a
+            // bad CA stops telemetry instead of quietly falling back to the system roots.
+            caFile = (try? TelemetryCABundle.resolvedPath(raw)) ?? raw
         }
         if caFile != nil, !endpoints.values.contains(where: { $0.scheme?.lowercased() == "https" }) {
             warnings.append("the collector CA file has no effect: no telemetry endpoint uses https")
