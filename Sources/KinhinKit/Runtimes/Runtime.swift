@@ -219,7 +219,8 @@ struct TartRuntime: Runtime {
     init(
         tart: TartControlling, bootTimeout: @escaping @Sendable () -> Int, tartPath: String? = nil,
         healthShell: ShellRunning = Shell(),
-        ssh: SSHExecuting = SSHExecutor(), cpuCount: @escaping @Sendable () -> Int = { KinhinConfig.VM.default.cpuCount },
+        ssh: SSHExecuting = SSHExecutor(),
+        cpuCount: @escaping @Sendable () -> Int = { KinhinConfig.VM.default.cpuCount },
         memoryMB: @escaping @Sendable () -> Int = { KinhinConfig.VM.default.memoryGB * 1024 },
         sshReadyWindow: TimeInterval = 120,
         sshRetryInterval: Duration = .seconds(1), sshProbeInterval: Duration = .milliseconds(500),

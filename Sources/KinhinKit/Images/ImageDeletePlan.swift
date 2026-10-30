@@ -182,7 +182,8 @@ public struct ImageDeletePlan: Sendable, Equatable {
                     case .docker:
                         guard let docker else {
                             throw ImageError.runtimeUnavailable(
-                                "docker is not available — install Docker Desktop or: brew install colima && colima start")
+                                "docker is not available — install Docker Desktop or: brew install colima && colima start"
+                            )
                         }
                         try await docker.deleteImage(named: target.name)
                     }

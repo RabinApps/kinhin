@@ -121,10 +121,11 @@ final class ImageDeletePlanTests: XCTestCase {
         tart.vms["proj-failed"] = TartVM(name: "proj-failed", source: "base", status: "stopped")
         tart.vms["proj-good"] = TartVM(name: "proj-good", source: "base", status: "stopped")
         tart.failNext("delete", stderr: "disk busy")
-        let plan = ImageDeletePlan(targets: [
-            .init(name: "proj-failed", runtime: .tart, role: .derived, present: true),
-            .init(name: "proj-good", runtime: .tart, role: .derived, present: true),
-        ], refusals: [])
+        let plan = ImageDeletePlan(
+            targets: [
+                .init(name: "proj-failed", runtime: .tart, role: .derived, present: true),
+                .init(name: "proj-good", runtime: .tart, role: .derived, present: true),
+            ], refusals: [])
 
         do {
             try await plan.execute(tart: tart, container: nil, docker: nil, store: store)
@@ -141,9 +142,10 @@ final class ImageDeletePlanTests: XCTestCase {
     func testDeletingAnAlreadyMissingTartImageIsSuccess() async throws {
         let tart = FakeTart()
         tart.strictMissing = true
-        let plan = ImageDeletePlan(targets: [
-            .init(name: "gone", runtime: .tart, role: .local, present: true)
-        ], refusals: [])
+        let plan = ImageDeletePlan(
+            targets: [
+                .init(name: "gone", runtime: .tart, role: .local, present: true)
+            ], refusals: [])
         try await plan.execute(tart: tart, container: nil, docker: nil, store: store(with: []))
         XCTAssertTrue(tart.deleteCalls.isEmpty)
     }

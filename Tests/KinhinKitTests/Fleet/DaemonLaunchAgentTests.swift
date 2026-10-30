@@ -9,8 +9,10 @@ final class DaemonLaunchAgentTests: XCTestCase {
         let shell = FakeShell()
         shell.scriptedResponses = [
             ScriptedResponse(
-                whenContains: "print", ShellResult(
-                    exitCode: 0, stdout: "gui/501/com.kinhin.daemon = {\n\tstate = running\n\tlast exit code = 0\n}", stderr: ""))
+                whenContains: "print",
+                ShellResult(
+                    exitCode: 0, stdout: "gui/501/com.kinhin.daemon = {\n\tstate = running\n\tlast exit code = 0\n}",
+                    stderr: ""))
         ]
         _ = try await Daemon.loadAgent(shell: shell)
         let plist = Daemon.agentPlistPath().path
@@ -29,7 +31,8 @@ final class DaemonLaunchAgentTests: XCTestCase {
         shell.scriptedResponses = [
             ScriptedResponse(whenContains: "bootout", ShellResult(exitCode: 5, stdout: "", stderr: "I/O error")),
             ScriptedResponse(
-                whenContains: "print", ShellResult(
+                whenContains: "print",
+                ShellResult(
                     exitCode: 0, stdout: "gui/501/com.kinhin.daemon = {\n\tstate = running\n}", stderr: "")),
         ]
         do {
@@ -48,7 +51,8 @@ final class DaemonLaunchAgentTests: XCTestCase {
             ShellResult(exitCode: 113, stdout: "", stderr: "not found"),
             ShellResult(exitCode: 0, stdout: "", stderr: ""),
             ShellResult(
-                exitCode: 0, stdout: "gui/501/com.kinhin.daemon = {\n\tstate = running\n\tlast exit code = 0\n}", stderr: ""),
+                exitCode: 0, stdout: "gui/501/com.kinhin.daemon = {\n\tstate = running\n\tlast exit code = 0\n}",
+                stderr: ""),
         ]
         let result = try await Daemon.loadAgent(shell: shell)
         XCTAssertTrue(result.succeeded)
@@ -60,8 +64,10 @@ final class DaemonLaunchAgentTests: XCTestCase {
         let shell = FakeShell()
         shell.scriptedResponses = [
             ScriptedResponse(
-                whenContains: "print", ShellResult(
-                    exitCode: 0, stdout: "gui/501/com.kinhin.daemon = {\n\tstate = waiting\n\tlast exit code = 78\n}", stderr: ""))
+                whenContains: "print",
+                ShellResult(
+                    exitCode: 0, stdout: "gui/501/com.kinhin.daemon = {\n\tstate = waiting\n\tlast exit code = 78\n}",
+                    stderr: ""))
         ]
         do {
             _ = try await Daemon.loadAgent(shell: shell)

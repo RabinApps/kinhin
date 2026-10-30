@@ -78,8 +78,9 @@ extension Daemon {
     /// the daemon immediately exits because its binary/config is unusable.
     static func launchAgentStatusIsHealthy(_ output: String) -> Bool {
         guard jobIsRunning(printOutput: output) else { return false }
-        guard let line = output.split(separator: "\n").map({ $0.trimmingCharacters(in: .whitespaces) })
-            .first(where: { $0.hasPrefix("last exit code = ") })
+        guard
+            let line = output.split(separator: "\n").map({ $0.trimmingCharacters(in: .whitespaces) })
+                .first(where: { $0.hasPrefix("last exit code = ") })
         else { return true }
         let rawCode = line.dropFirst("last exit code = ".count)
         guard let code = Int(rawCode) else { return true }
