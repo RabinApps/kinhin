@@ -87,6 +87,9 @@ Names use dots; Prometheus shows them with underscores (`kinhin_workers`). Durat
 `error_type` is one of `clone_failure`, `boot_timeout`, `ssh_unreachable`, `registration_failure`, `runner_not_registered`,
 `instance_lost`, `forge_api_failure`, `rate_limited`, `teardown_failure`, `unknown`; `component` is `lifecycle`, `forge`, … Never the error text.
 
+`result` is always `completed`: kinhin sees that a runner finished its job, not whether the job passed, so pass and fail rates belong to your
+forge's own CI metrics. `kinhin.errors` counts kinhin's own failures, not failing workflows.
+
 **Unavailable is not zero.** When a runtime or forge cannot supply a value, that series is absent. Today that means: per-runner disk use (no
 runtime exposes it), the `queue.age.max` gauge and the queue-wait histogram on forges that do not report queue timestamps (GitHub does, through
 the job's `created_at`), and CPU on the first sample after a start. `SSH-ready` is not timed apart from `boot_ready` because the runtimes do not

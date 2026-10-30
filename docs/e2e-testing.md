@@ -145,12 +145,34 @@ stable document), `approve`/`dismiss` argument and daemon errors, `healing:` val
 `heal_status` tool with no approving tool beside it.
 
 **`TelemetryTests`** (quick tier, no Docker; a real `kinhin daemon` with an unreachable forge, OTLP to a local stand-in
-collector, `OTLPCollectorStub`, a small Python server that records POSTs): with `telemetry.prometheus_listen` set,
-`GET /metrics` answers with the `kinhin_` fleet gauges; with an `endpoint` and a 1 s `export_interval` the daemon pushes
-OTLP/HTTP to `/v1/metrics` and `/v1/traces` (periodically, and not to `/v1/logs` when `logs` is not in `signals`);
-`OTEL_EXPORTER_OTLP_ENDPOINT` beats the config's endpoint; with telemetry off (no section, or `enabled: false` naming a
-port and a collector) the Prometheus port is not bound and the collector receives nothing; a bad `telemetry:` value is
-exit 3. The sandbox strips inherited `OTEL_*` variables so a developer's collector never leaks into a run.
+collector, `OTLPCollectorStub`, a small Python server that records each POST's path, headers and the printable strings in its
+body, so a test can tell which metrics, span names and resource attributes an export carries without a protobuf decoder).
+It checks, against the daemon as a black box:
+
+- *Prometheus:* `GET /metrics` answers with the always-published `kinhin_` gauges and the forge request counter (by forge and
+  status class, never by URL); only `GET /metrics` is served; a bare `prometheus_listen` port is unreachable on the LAN address
+  while `0.0.0.0` is reachable and logs a warning; a port that is already taken leaves telemetry off and the daemon up.
+- *Reload:* `kinhin config reload` leaves an unchanged listener alone, moves it to a new port (same daemon process, old port
+  released), closes it when `enabled: false`, re-opens it, and refuses an invalid config (exit 3) before it reaches the daemon.
+- *OTLP:* metrics and logs reach the collector with the kinhin resource (`service.name`, `service.version`, host attributes, the
+  user's attribute, the SDK's own) and keep coming; collector headers from `OTEL_EXPORTER_OTLP_HEADERS` arrive as request
+  headers and never in the log or the exported data; `protocol: grpc` opens an HTTP/2 connection (`HTTP2PrefaceProbe`); an
+  unreachable collector never hurts the daemon; a stopping daemon flushes what it had not yet exported (`export_interval: 3600`).
+- *Environment:* `OTEL_EXPORTER_OTLP_ENDPOINT` beats the config endpoint, `OTEL_METRICS_EXPORTER=none` removes a signal,
+  `OTEL_RESOURCE_ATTRIBUTES` adds attributes but `service.name` cannot be replaced, `OTEL_SDK_DISABLED=true` wins over
+  `enabled: true`. The sandbox strips inherited `OTEL_*` variables so a developer's collector never leaks into a run.
+- *Off by default:* with no `telemetry:` section, or `enabled: false` naming a port and a collector, nothing is bound and the
+  collector receives nothing.
+- *Logs and validation:* `log_format: json` writes one JSON object per line (even with telemetry off) and the default stays plain
+  text; thirteen bad `telemetry:` values are each exit 3 and name their key, and a config using every key validates.
+
+**`TelemetryLifecycleTests`** (local tier: a real forge and runtime, per forge × runtime cell, the daemon exporting to the stub and
+to `/metrics`): after a real job, `kinhin_jobs_picked_up` and `kinhin_jobs_completed` count it, each of provision, boot,
+registration and teardown was timed, the run duration is a histogram, and one job trace reaches the collector with the
+`kinhin.job` root and its phase spans, the instance id as a span attribute, and the kinhin resource; the instance's log lines
+arrive with its id. No instance name, job name or token appears on any metric or export. A failing workflow is still counted as
+picked up and completed (never as `success`: kinhin cannot see the verdict), is not a `kinhin_errors` sample, and the next job is
+counted too.
 
 **`CLITests`**: version and exit codes (usage 2, config 3), `--json` errors, `config init` on a pristine machine,
 `config migrate`, `config export` and `import`, the account lifecycle, `doctor` (and a support bundle with no token in it), runtimes and routes,
@@ -230,7 +252,8 @@ What has actually been run, so the table does not claim more than it checked (20
 | Buildkite                                                 | Fixture written, **not run**: needs a throwaway organization, a cluster with a `kinhin` queue and a token. The forge stays planned until it passes |
 | Bitbucket                                                 | Fixture written, **not run**: needs a throwaway repository and an access token. The forge stays planned until it passes |
 | Azure DevOps                                              | Fixture written, **not run**: needs a throwaway project, a pool and a PAT. The forge stays planned until it passes |
-| Telemetry (quick tier: `TelemetryTests`)                  | Written, **not run**: needs the telemetry implementation (#64)             |
+| Telemetry (quick tier: `TelemetryTests`)                  | Written, **not run** in CI yet (#64)                                       |
+| Telemetry with a job (`TelemetryLifecycleTests`)          | Written, **not run** in CI yet (#64)                                       |
 | Healing (quick tier: `HealingCLITests`)                   | Run, passing (2026-10-14)                                                  |
 | Healing on Gitea × Docker (`HealingTests`, 6 scenarios)   | Run, passing (2026-10-14)                                                  |
 | Healing, live on-device advisor (`KINHIN_E2E_AI=1`)       | Run, passing on macOS 27 with Apple Intelligence (2026-10-14)              |

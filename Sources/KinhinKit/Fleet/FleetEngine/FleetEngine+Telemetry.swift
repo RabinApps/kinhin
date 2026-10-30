@@ -73,7 +73,7 @@ extension FleetEngine {
 
     /// The instance's job is done: completion count, run duration and trace end. A job that was never
     /// seen running (it started and finished between polls) still counts, with no run duration.
-    func noteJobFinished(id: String, result: String = "success") {
+    func noteJobFinished(id: String, result: String = "completed") {
         guard telemetry.isEnabled, let trace = jobTrace(for: id) else { return }
         noteJobPickedUp(id: id, observed: false)
         let attributes = metricAttributes(of: id)

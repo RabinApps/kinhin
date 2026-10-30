@@ -47,6 +47,15 @@ enum CommandCatalog {
                     flags: [jsonFlag],
                     details: ["Exits 3 when the config is invalid."]),
                 CommandSpec(
+                    name: "reload",
+                    command: .configInit,
+                    summary: "Make the running daemon re-read the config",
+                    details: [
+                        "Validates the file first (exit 3 when invalid, so a bad edit never reaches the daemon). "
+                            + "Telemetry and routing changes apply in place; other changes rebuild the engine without "
+                            + "touching running instances. Exits 1 when no daemon is running."
+                    ]),
+                CommandSpec(
                     name: "migrate",
                     command: .configInit,
                     summary: "Translate removed config keys to the current schema",

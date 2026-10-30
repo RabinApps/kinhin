@@ -13,6 +13,8 @@
   trace, with GitHub run, attempt and job identifiers and queue timestamps when GitHub supplies them. `log_format: json` writes structured
   local logs. Standard `OTEL_*` variables take precedence. Off by default: nothing starts and no port opens until `enabled: true`.
   Passing trace context into workflow steps is not part of this release. See [docs/telemetry.md](docs/telemetry.md).
+- `kinhin config reload` checks the config and makes the running daemon re-read it (telemetry and routing changes apply in
+  place; an invalid file is refused with exit 3 and never reaches the daemon).
 
 ## v0.0.1-beta-3
 
