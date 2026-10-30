@@ -45,11 +45,17 @@ final class RuntimesTabTests: XCTestCase {
         XCTAssertEqual(Set(vm.availability.keys), [.tart, .appleContainer, .docker])
         XCTAssertEqual(vm.availability[.tart], .ready)
         // Docker has no injection point: the real probe runs. On CI and dev
-        // Macs without Docker it reports missing rather than being absent.
+        // Macs without Docker it reports missing rather than being absent, and
+        // on a Mac whose docker CLI is installed while the daemon is down it
+        // reports broken — either way the availability sweep covers docker.
         guard case .missing = vm.availability[.docker] else {
-            if case .ready = vm.availability[.docker] { return }  // Docker present locally — fine
-            return XCTFail(
-                "docker availability should be ready or missing, got: \(String(describing: vm.availability[.docker]))")
+            switch vm.availability[.docker] {
+            case .ready, .broken: return  // Docker present locally (or its CLI with a down daemon) — fine
+            default:
+                return XCTFail(
+                    "docker availability should be ready, missing or broken, got: \(String(describing: vm.availability[.docker]))"
+                )
+            }
         }
     }
 

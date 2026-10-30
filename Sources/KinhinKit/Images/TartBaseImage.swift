@@ -24,6 +24,9 @@ public enum TartBaseImage {
     /// need apt-get; Fedora is listed because the docs do, but a bake on it
     /// needs its own scripts).
     public static let curated: [(title: String, reference: String)] = [
+        ("macOS 27 Golden Gate (base)", "ghcr.io/cirruslabs/macos-golden-gate-base:latest"),
+        ("macOS 27 Golden Gate (vanilla)", "ghcr.io/cirruslabs/macos-golden-gate-vanilla:latest"),
+        ("macOS 27 Golden Gate (Xcode)", "ghcr.io/cirruslabs/macos-golden-gate-xcode:latest"),
         ("macOS 26 Tahoe (base)", "ghcr.io/cirruslabs/macos-tahoe-base:latest"),
         ("macOS 26 Tahoe (vanilla)", "ghcr.io/cirruslabs/macos-tahoe-vanilla:latest"),
         ("macOS 26 Tahoe (Xcode)", "ghcr.io/cirruslabs/macos-tahoe-xcode:latest"),
@@ -90,7 +93,14 @@ public enum TartBaseImage {
     /// which would otherwise only surface as a mid-prepare clone failure).
     public static func isKnownSource(_ reference: String) -> Bool {
         if reference.hasSuffix("@sha256:") { return false }  // empty digest is never valid
-        return isKnownSourceUnpinned(pinnedDigestSuffix(reference))
+        let unpinned = pinnedDigestSuffix(reference)
+        if isKnownSourceUnpinned(unpinned) { return true }
+        // A digest pin of any Cirrus macOS image is accepted beyond the curated
+        // list: the pin names exact, immutable bits (a macos-Xcode 27.1 tag the
+        // registry later pruned still serves `@sha256:…`), so a bake from it is
+        // reproducible even when the tag itself is no longer listed.
+        return digestProblem(in: reference) == nil && isDigestPinned(reference)
+            && unpinned.hasPrefix("ghcr.io/cirruslabs/macos-")
     }
 
     /// The unpinned base of `reference` (the part before `@sha256:`), or
@@ -113,11 +123,14 @@ public enum TartBaseImage {
     }
 
     /// Whether the reference's mutable tag makes every bake potentially
-    /// different from the last: a `:latest` tag (including the curated
-    /// references, which all ship `:latest`) or no tag at all. Digest-pinned
-    /// references are never mutable.
+    /// different from the last: a registry reference tagged `:latest`
+    /// (including the curated ones, which all ship `:latest`) or with no tag
+    /// at all. Digest-pinned references are never mutable, and neither is a
+    /// local Tart VM name (no `/`, no registry): whatever that VM currently
+    /// holds is what every bake reads, so there is no drift to warn about.
     public static func isMutableTag(_ reference: String) -> Bool {
         if isDigestPinned(reference) { return false }
+        guard reference.contains("/") else { return false }
         let base = pinnedDigestSuffix(reference)
         return !base.contains(":") || base.hasSuffix(":latest")
     }

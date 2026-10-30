@@ -121,13 +121,21 @@ enum ConfigCommands {
 
     /// The whole `config validate` command: the summary line, or — with
     /// `--json` — the document on stdout either way, then exit 3 when invalid
-    /// (the same classification the prose path gets by throwing).
+    /// (the same classification the prose path gets by throwing). `FILE`
+    /// validates that config instead of this Mac's default one.
     static func runValidate(_ args: [String]) throws {
+        let files = operands(in: args)
+        guard files.count <= 1 else {
+            throw CLIError(
+                "usage: kinhin config validate [FILE] (at most one config; `--` accepts names starting with `-`)",
+                exit: .usage)
+        }
+        let configURL = files.first.map { URL(fileURLWithPath: $0) } ?? Paths.config
         guard args.contains("--json") else {
-            print(try validate())
+            print(try validate(configURL: configURL))
             return
         }
-        let document = validationDocument()
+        let document = validationDocument(configURL: configURL)
         try emitJSON(document)
         guard document.valid else { exit(CLIExit.config.rawValue) }
     }
@@ -213,5 +221,24 @@ enum ConfigCommands {
     /// The first argument that is not a flag.
     private static func positional(_ args: [String]) -> String? {
         args.first { $0 == "-" || !$0.hasPrefix("-") }
+    }
+
+    /// The config subcommand's file operands. `--` ends the flags, so
+    /// everything after it counts (a filename starting with `-`), and tokens
+    /// before it that are not flags are operands too — a marker does not
+    /// erase them, or `broken.yaml --` would validate the default config.
+    /// A dash-prefixed signed number is still an operand (`-1`), matching
+    /// CommandResolver's token rule rather than guessing at flag names.
+    static func operands(in args: [String]) -> [String] {
+        guard let marker = args.firstIndex(of: "--") else {
+            return args.compactMap { isOperand($0) ? $0 : nil }
+        }
+        return args[..<marker].compactMap { isOperand($0) ? $0 : nil } + args[(marker + 1)...]
+    }
+
+    /// Not a flag: a bare `-` (stdin), a token outside the flag namespace,
+    /// or a dash-prefixed signed number that `Double` can read.
+    private static func isOperand(_ token: String) -> Bool {
+        token == "-" || !token.hasPrefix("-") || Double(token) != nil
     }
 }

@@ -57,7 +57,8 @@ virtual machines. **Linux jobs** lists, in order, **Tart (Linux VM)**, **Apple c
   the macOS default. A tart fleet can serve macOS and Linux VMs at the same time when you use named images with
   distinct labels — each VM clones from its own image and advertises only that image's labels. A Linux-named image's
   runners strip the fleet's `macos` label automatically, so they do not attract macOS jobs; you do not need to remove
-  `macos` from your fleet `labels:`. See [Tart Linux VMs](runtimes.md#tart-linux-vms).
+  `macos` from your fleet `labels:` — the same applies to a Linux default image, and top-level `image_labels:`
+  labels the default image itself. See [Tart Linux VMs](runtimes.md#tart-linux-vms).
 - **Apple container** and **Docker** each have their own base-image picker (Docker also picks an architecture).
 
 Additional accounts (another org, a second server) are not part of first-run setup; add them under
@@ -216,7 +217,9 @@ you can ask about the fleet without opening a window:
 | "Run kinhin diagnostics"                  | One-line result of the `kinhin doctor` checks                    |
 
 They also appear as actions in Shortcuts, so you can automate them (for example, pause the fleet when a call
-starts). Start, stop, pause and resume are idempotent and work with both the in-process engine and the background daemon.
+starts). Start, stop, pause and resume are idempotent and work with both the in-process engine and the background daemon —
+unlike the CLI's `kinhin stop`/`kinhin pause`/`kinhin resume`, which reach the daemon install only. So when the app runs
+the fleet in-process, stop or pause the fleet from the app or a Shortcuts action: the CLI answers `no daemon running`.
 
 ## Playbook: clear a stalled VM from Shortcuts
 
@@ -233,7 +236,8 @@ it should ask first.
 
 The menu bar app runs the engine in-process when no daemon is active, and attaches read/write to
 the daemon's unix socket when `kinhin daemon install` has been used. Either way there is exactly
-one fleet.
+one fleet, but the CLI's [control commands](agents.md#safety-rules-for-agents) (`kinhin stop`, `kinhin pause`,
+`kinhin resume`) drive only the daemon — an in-process engine is stopped from the menu bar itself.
 
 ## Troubleshooting: app keeps restarting
 

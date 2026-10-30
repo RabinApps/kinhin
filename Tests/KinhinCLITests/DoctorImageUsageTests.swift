@@ -192,7 +192,8 @@ final class DoctorImageUsageTests: XCTestCase {
         XCTAssertEqual(report.imagePrune?.reclaimGB, 13, "8 + 2 + 3 GB — bases and derived are never swept")
         XCTAssertEqual(report.imagePrune?.command, "kinhin image prune")
         XCTAssertEqual(
-            report.imagePruneLine, "3 unused image(s) (~13 GB) — review with: kinhin image prune",
+            report.imagePruneLine,
+            "3 unused image(s) (up to ~13 GB allocated) — review with: kinhin image prune",
             "the shared line wording mirrors the prune report's own count and estimate")
     }
 
@@ -209,7 +210,9 @@ final class DoctorImageUsageTests: XCTestCase {
         let text = await wastefulBuilder().buildPlainText()
         XCTAssertTrue(text.contains("  images:     tart 60 GB · container 4 GB · docker 6 GB"), text)
         XCTAssertTrue(
-            text.contains("  prune:      3 unused image(s) (~13 GB) — review with: kinhin image prune"), text)
+            text.contains(
+                "  prune:      3 unused image(s) (up to ~13 GB allocated) — review with: kinhin image prune"),
+            text)
     }
 
     /// A runner on a local image keeps it out of the count — the suggestion

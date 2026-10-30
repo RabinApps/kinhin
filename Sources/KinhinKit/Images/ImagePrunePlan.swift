@@ -39,7 +39,10 @@ public struct ImagePrunePlan: Sendable, Equatable {
     /// size — the report then omits the estimate instead of guessing zero.
     public var reclaimGB: Int? {
         let sizes = targets.filter(\.present).compactMap(\.sizeGB)
-        return sizes.isEmpty ? nil : sizes.reduce(0, +)
+        guard !sizes.isEmpty else { return nil }
+        // Tart APFS clones can share allocated blocks; summing per-image
+        // allocation is an upper bound, not guaranteed newly-free space.
+        return sizes.reduce(0, +)
     }
 
     public init(targets: [ImageDeletePlan.Target], inUse: [InUse], unavailable: [String: String]) {
@@ -60,6 +63,7 @@ public struct ImagePrunePlan: Sendable, Equatable {
         let protected = protectedNames(config)
         var targets: [ImageDeletePlan.Target] = []
         var inUse: [InUse] = []
+        var seenTargets: Set<String> = []
         // A section that could not be listed, or whose instances could not
         // be, is never swept: "nothing uses it" is unknown there.
         let trusted = inventory.sections.filter { $0.unavailable == nil && $0.usageUnknown == nil }
@@ -74,6 +78,8 @@ public struct ImagePrunePlan: Sendable, Equatable {
                 continue
             }
             guard entry.present, entry.role == .local, !protected.contains(entry.name) else { continue }
+            let key = "\(entry.runtime.rawValue):\(entry.name)"
+            guard seenTargets.insert(key).inserted else { continue }
             if !entry.usedBy.isEmpty {
                 inUse.append(InUse(name: entry.name, runtime: entry.runtime, runners: entry.usedBy))
                 continue

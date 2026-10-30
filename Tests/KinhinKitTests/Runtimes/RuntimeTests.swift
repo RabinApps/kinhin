@@ -12,7 +12,8 @@ final class RuntimeTests: XCTestCase {
 
     func testProvisionClonesAndBoots() async throws {
         let tart = FakeTart()
-        let runtime = TartRuntime(tart: tart, bootTimeout: { 300 })
+        let runtime = TartRuntime(
+            tart: tart, bootTimeout: { 300 }, cpuCount: { 6 }, memoryMB: { 12 * 1024 })
         let route = RepoRoute(repo: "acme/widgets", image: "tahoe-base", ephemeral: true, bootTimeout: 300)
 
         try await runtime.provision(id: "kinhin-1", route: route)
@@ -20,18 +21,79 @@ final class RuntimeTests: XCTestCase {
         XCTAssertEqual(tart.cloneCalls.count, 1)
         XCTAssertEqual(tart.cloneCalls.first?.source, "tahoe-base")
         XCTAssertEqual(tart.cloneCalls.first?.name, "kinhin-1")
+        XCTAssertEqual(tart.setCalls.count, 1)
+        XCTAssertEqual(tart.setCalls.first?.name, "kinhin-1")
+        XCTAssertEqual(tart.setCalls.first?.cpu, 6)
+        XCTAssertEqual(tart.setCalls.first?.memoryMB, 12 * 1024)
+        XCTAssertEqual(tart.provisionEvents, ["clone:kinhin-1", "set:kinhin-1", "run:kinhin-1"])
         XCTAssertEqual(tart.runCalls, ["kinhin-1"])
     }
 
-    func testProvisionReusesExistingVMWithoutClone() async throws {
+    func testProvisionDoesNotRunWhenSettingResourcesFails() async throws {
+        let tart = FakeTart()
+        tart.failNext("set", stderr: "resource update failed")
+        let runtime = TartRuntime(tart: tart, bootTimeout: { 300 }, cpuCount: { 6 }, memoryMB: { 12 * 1024 })
+        let route = RepoRoute(repo: "acme/widgets", image: "tahoe-base", ephemeral: true, bootTimeout: 300)
+
+        do {
+            try await runtime.provision(id: "kinhin-1", route: route)
+            XCTFail("failed resource configuration must abort provisioning")
+        } catch let error as TartError {
+            XCTAssertEqual(error.localizedDescription, "tart set failed: resource update failed")
+        }
+        XCTAssertTrue(tart.runCalls.isEmpty)
+    }
+
+    func testProvisionResumesAStoppedCloneWithSizingAndBoot() async throws {
+        // Recovery for a clone that died before its first boot: the sizing
+        // applies (it may predate `vm.cpu`/`vm.memory_gb` or a failed
+        // `tart set`) and the still-stopped VM starts.
         let tart = FakeTart()
         tart.vms["kinhin-1"] = TartVM(name: "kinhin-1", source: "tahoe-base", status: "stopped")
+        let runtime = TartRuntime(tart: tart, bootTimeout: { 300 }, cpuCount: { 6 }, memoryMB: { 12 * 1024 })
+
+        try await runtime.provision(
+            id: "kinhin-1", route: RepoRoute(repo: "r", image: "tahoe-base", ephemeral: true, bootTimeout: 300))
+
+        XCTAssertTrue(tart.cloneCalls.isEmpty, "recovery path: existing VM is reused, not cloned")
+        XCTAssertEqual(tart.setCalls.map { $0.name }, ["kinhin-1"], "a stopped clone still gets its sizing")
+        XCTAssertEqual(tart.runCalls, ["kinhin-1"], "the stopped clone is started")
+    }
+
+    /// The set-to-run window: teardown cancels the lifecycle task without
+    /// waiting for it, so a provision whose task is cancelled while `tart set`
+    /// runs must not start the VM once set returns — its teardown stop would
+    /// otherwise be undone and the VM would survive until a later retry.
+    func testProvisionDoesNotStartTheVMAfterACancelledTask() async throws {
+        let tart = FakeTart()
+        tart.blockNextSet()
+        let runtime = TartRuntime(
+            tart: tart, bootTimeout: { 300 }, cpuCount: { 6 }, memoryMB: { 12 * 1024 })
+        let route = RepoRoute(repo: "acme/widgets", image: "tahoe-base", ephemeral: true, bootTimeout: 300)
+
+        let task = Task { try await runtime.provision(id: "kinhin-1", route: route) }
+        await tart.waitUntilSetParked()
+        task.cancel()  // cancellation is observed exactly once set resumes
+        tart.releaseSet()
+
+        do {
+            try await task.value
+            XCTFail("a cancelled provision must end with CancellationError")
+        } catch is CancellationError {
+        }
+        XCTAssertTrue(tart.runCalls.isEmpty, "the VM is not started after cancellation")
+    }
+
+    func testProvisionLeavesARunningVMUntouched() async throws {
+        let tart = FakeTart()
+        tart.vms["kinhin-1"] = TartVM(name: "kinhin-1", source: "tahoe-base", status: "running")
         let runtime = TartRuntime(tart: tart, bootTimeout: { 300 })
 
         try await runtime.provision(
             id: "kinhin-1", route: RepoRoute(repo: "r", image: "tahoe-base", ephemeral: true, bootTimeout: 300))
 
         XCTAssertTrue(tart.cloneCalls.isEmpty, "recovery path: existing VM is reused, not cloned")
+        XCTAssertTrue(tart.setCalls.isEmpty, "a running VM is not re-sized")
         XCTAssertTrue(tart.runCalls.isEmpty, "a running VM is left as-is")
     }
 

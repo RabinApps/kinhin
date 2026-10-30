@@ -47,6 +47,9 @@ public enum TartError: LocalizedError {
 public protocol TartControlling: Sendable {
     func list() async throws -> [TartVM]
     func clone(source: String, to name: String) async throws
+    /// Configure a cloned VM before its first boot. Tart's memory value is MB.
+    /// The default is a no-op for stand-ins that do not model VM resources.
+    func set(name: String, cpu: Int, memoryMB: Int) async throws
     /// Boots the VM, optionally sharing host directories into the guest
     /// (`--dir name:hostpath` specs; macOS guests auto-mount under "/Volumes/My Shared Files").
     func run(name: String, mounts: [String]) async throws
@@ -88,6 +91,8 @@ public protocol TartControlling: Sendable {
 }
 
 public extension TartControlling {
+    func set(name: String, cpu: Int, memoryMB: Int) async throws {}
+
     func run(name: String) async throws {
         try await run(name: name, mounts: [])
     }
@@ -236,6 +241,13 @@ public struct TartController: TartControlling {
         guard res.succeeded else { throw TartError.commandFailed(what: "clone \(source) \(name)", stderr: res.stderr) }
     }
 
+    public func set(name: String, cpu: Int, memoryMB: Int) async throws {
+        let res = try await exec(["set", name, "--cpu", "\(cpu)", "--memory", "\(memoryMB)"])
+        guard res.succeeded else {
+            throw TartError.commandFailed(what: "set \(name)", stderr: res.stderr)
+        }
+    }
+
     public func run(name: String, mounts: [String]) async throws {
         // `tart run` blocks while the VM runs; launch it detached and return.
         let process = Process()
@@ -308,6 +320,11 @@ public struct TartController: TartControlling {
         throw lastError
     }
 
+    static func vmIsGone(stderr: String) -> Bool {
+        let text = stderr.lowercased()
+        return text.contains("does not exist") || text.contains("not found") || text.contains("no such")
+    }
+
     static func isValidIPv4(_ s: String) -> Bool {
         let parts = s.split(separator: ".")
         guard parts.count == 4 else { return false }
@@ -327,7 +344,9 @@ public struct TartController: TartControlling {
 
     public func delete(name: String) async throws {
         let res = try await exec(["delete", name], timeout: 120)
-        guard res.succeeded else { throw TartError.commandFailed(what: "delete \(name)", stderr: res.stderr) }
+        guard res.succeeded || Self.vmIsGone(stderr: res.stderr) else {
+            throw TartError.commandFailed(what: "delete \(name)", stderr: res.stderr)
+        }
     }
 
     public func pull(image: String) async throws {

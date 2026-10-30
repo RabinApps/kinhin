@@ -19,20 +19,25 @@ extension FleetEngine {
     func poolLabels(for record: VMRecord) -> [String]? {
         guard let runtimeID = record.runtimeID else { return nil }
         let routerState = router.snapshot
-        let images = routerState.images
         let pool = routerState.model.pools[runtimeID]?.labels
         // A tart instance cloned from a named image also advertises that image's labels, so
-        // the jobs that ask for them (`runs-on: [..., xcode]`) can land on it.
-        guard runtimeID == .tart, let pool, let image = record.image,
-            let extra = images.first(where: { $0.name == image })?.labels
+        // the jobs that ask for them (`runs-on: [..., xcode]`) can land on it. The default
+        // image's `image_labels:` (and its Linux-base macOS strip) ride the snapshot's
+        // synthesized default entry — an unlabeled clone resolves to `image:`'s name.
+        guard runtimeID == .tart, let pool,
+            let entry = routerState.images.first(where: { $0.name == (record.image ?? config.image) })
         else { return pool }
         // A Linux Tart VM must not advertise macOS-only fleet labels — otherwise
         // it would attract macOS jobs it cannot run. Strip them when the image's
         // base is a curated Linux image; custom/local names can't be reliably
         // identified, so they keep the fleet labels as-is.
         let labels: [String]
-        if TartBaseImage.isLinux(images.first(where: { $0.name == image })?.baseImage) {
+        var extra = entry.labels ?? []
+        if TartBaseImage.isLinux(entry.baseImage) {
+            // The image's own labels are user config: they must not reintroduce
+            // the macOS-specific fleet labels the Linux base took off the pool.
             labels = pool.filter { !macosOnlyLabel($0) }
+            extra = extra.filter { !macosOnlyLabel($0) }
         } else {
             labels = pool
         }

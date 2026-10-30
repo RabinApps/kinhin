@@ -29,7 +29,7 @@ extension KinhinConfig {
         public init(
             image: String, cpus: Int = defaultCPUs, memoryGB: Int = defaultMemoryGB, maxSlots: Int = defaultMaxSlots,
             baseImage: String? = nil,
-            platform: LinuxPlatform = .arm64
+            platform: LinuxPlatform = .arm64, fleetLabels: Bool? = nil
         ) {
             self.image = image
             self.cpus = cpus
@@ -37,13 +37,20 @@ extension KinhinConfig {
             self.maxSlots = maxSlots
             self.baseImage = baseImage
             self.platform = platform
+            self.fleetLabels = fleetLabels
         }
+
+        /// How the pool builds its base labels. nil/true (default): inherit the fleet `labels:`,
+        /// with the `macos` OS label stripped (these guests run Linux). false: replace — the pool's
+        /// labels come from the "kinhin-docker" marker (and the platform's arm64/x64) alone.
+        public var fleetLabels: Bool?
 
         enum CodingKeys: String, CodingKey {
             case image, cpus, platform
             case memoryGB = "memory_gb"
             case maxSlots = "max_slots"
             case baseImage = "base_image"
+            case fleetLabels = "fleet_labels"
         }
     }
 }

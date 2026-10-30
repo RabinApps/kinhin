@@ -46,7 +46,7 @@ provision_script: "~/kinhin/provision.sh"
 - **The script is your version pin.** Every prepare rebuilds from the pristine upstream image, so edit the script and
   re-run prepare to change toolchains. Homebrew and mise are both in the base image.
 - **Need full Xcode?** Don't install it from a script (tens of GB). Point `image:` (or `image prepare --source`) at
-  Cirrus Labs' `macos-tahoe-xcode:16` or `macos-runner:tahoe` images instead.
+  Cirrus Labs' `macos-tahoe-xcode:16`, `macos-golden-gate-xcode` or `macos-runner:tahoe` images instead.
 - The script has its own 30-minute budget. A configured script that is missing or empty fails the setup checklist
   before a long prepare starts.
 

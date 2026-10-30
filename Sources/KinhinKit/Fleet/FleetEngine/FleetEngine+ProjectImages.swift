@@ -33,7 +33,11 @@ extension FleetEngine {
             // A job that requests a named image's labels runs on that image; per-project
             // toolchain images are derived from the main image only, so they do not apply.
             if let named = ImageRouting.image(for: job.labels, in: images) {
-                result.byImage[named.name, default: 0] += 1
+                // The default `image:`'s synthesized entry (from `image_labels:` or a
+                // Linux base) counts as base-image demand: ScalePlan keys those records
+                // as the empty string, so demand and supply meet under one key.
+                let key = named.name == routerState.baseImage ? "" : named.name
+                result.byImage[key, default: 0] += 1
                 continue
             }
             if !projects.isEmpty { candidates.append(job) }

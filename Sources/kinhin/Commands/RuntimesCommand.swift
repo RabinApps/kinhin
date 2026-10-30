@@ -205,6 +205,18 @@ enum RuntimesCommand {
     // MARK: - Text output
 
     /// The pool title, matching the app's Routing pane (🍎 Tart VMs, 🐧 Apple containers, 🐳 Docker, 🖥 Host).
+    /// The text bar for one budget share: a 20-cell bar, one block per 5%, and
+    /// the share as a whole percent. Rounding happens on the scaled value —
+    /// rounding first and scaling after (`x.rounded() * 100`) turned every
+    /// share that was not ~0% or ~100% into one of those two, so e.g. a ⅓
+    /// share printed as `░░░░░░░░░░░░░░░░░░░░ 0%`.
+    static func budgetBar(_ share: Double) -> String {
+        let pct = Int((share * 100).rounded())
+        let blocks = min(20, max(0, pct / 5))
+        let bar = String(repeating: "█", count: blocks) + String(repeating: "░", count: 20 - blocks)
+        return "\(bar) \(pct)%"
+    }
+
     static func poolTitle(_ runtime: RuntimeID) -> String {
         switch runtime {
         case .tart: return "🍎 Tart VMs (macOS)"
@@ -243,12 +255,10 @@ enum RuntimesCommand {
         print("Budget")
         let shares = BudgetEditor.displayShares(current: budget, defaultRuntime: vm.defaultRuntime)
         for pool in vm.pools {
-            let pct = Int((shares[pool.runtime.rawValue] ?? 0).rounded() * 100)
-            let bar =
-                String(repeating: "█", count: max(0, pct / 5)) + String(repeating: "░", count: max(0, 20 - pct / 5))
             let marker = pool.runtime == vm.defaultRuntime ? " (default, remainder)" : ""
             print(
-                "  \(pool.runtime.rawValue.padding(toLength: 16, withPad: " ", startingAt: 0)) \(bar) \(pct)%\(marker)")
+                "  \(pool.runtime.rawValue.padding(toLength: 16, withPad: " ", startingAt: 0)) \(budgetBar(shares[pool.runtime.rawValue] ?? 0))\(marker)"
+            )
         }
         print("")
 

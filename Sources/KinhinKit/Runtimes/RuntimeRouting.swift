@@ -18,26 +18,45 @@ struct RuntimePool: Sendable, Equatable {
 
     /// The fleet's default label set for this runtime: the config labels
     /// plus the runtime's marker ("kinhin-container" for Apple containers,
-    /// "kinhin-docker" for Docker slots).
+    /// "kinhin-docker" for Docker slots). Linux guest runtimes have the
+    /// `macos` fleet label stripped by default (see `servesMacOS`); pass
+    /// `inheritingFleetLabels: false` for replace-not-add — the pool's base
+    /// labels come from `labels:`-style config of that runtime alone.
     static func labelsFor(
         _ runtime: RuntimeID, fleetLabels: [String], containerExtra: [String]? = nil,
-        dockerPlatform: LinuxPlatform = .arm64
+        dockerPlatform: LinuxPlatform = .arm64, inheritingFleetLabels: Bool = true
     ) -> [String] {
-        var labels = fleetLabels
-        // Emulated amd64 containers must not advertise the fleet's native
-        // `arm64` label: swap it for `x64` so jobs land on the right architecture.
-        if runtime == .docker, dockerPlatform == .amd64 {
-            labels.removeAll { $0.lowercased() == LinuxPlatform.arm64.runnerLabel }
-            if !labels.contains(where: { $0.lowercased() == dockerPlatform.runnerLabel }) {
-                labels.append(dockerPlatform.runnerLabel)
+        // The fleet's `macos` OS label names the macOS runners' guests; Linux
+        // guest runtimes must never advertise it, or macOS jobs would land there.
+        // Replace-not-add drops the fleet's labels but keeps the platform's
+        // architecture label: a Docker slot runs an arm64 or x64 guest,
+        // whichever `arch` the Docker VM has, and `runs-on: […, arm64]`
+        // workflows route by that label like the fleet's own runners do.
+        let base =
+            !inheritingFleetLabels
+            ? (runtime == .docker ? [dockerPlatform.runnerLabel] : [])
+            : servesMacOS(runtime)
+                ? fleetLabels
+                : fleetLabels.filter { $0.lowercased() != "macos" }
+        var labels = base
+        // The pool's own `labels:`-style extras come first (replace-not-add is
+        // "own labels plus the marker"), then the exclusive marker appended
+        // when missing. The amd64 swap runs last: an emulated-x64 Docker pool
+        // must not advertise the fleet's native `arm64` label, so it is
+        // dropped and `x64` appended when absent — after the marker, like any
+        // other post-fleet addition.
+        if runtime == .appleContainer {
+            for extra in containerExtra ?? [] where !labels.contains(extra) {
+                labels.append(extra)
             }
         }
         if let marker = exclusiveMarker(for: runtime) {
             if !labels.contains(marker) { labels.append(marker) }
         }
-        if runtime == .appleContainer {
-            for extra in containerExtra ?? [] where !labels.contains(extra) {
-                labels.append(extra)
+        if runtime == .docker, dockerPlatform == .amd64 {
+            labels.removeAll { $0.lowercased() == LinuxPlatform.arm64.runnerLabel }
+            if !labels.contains(where: { $0.lowercased() == dockerPlatform.runnerLabel }) {
+                labels.append(dockerPlatform.runnerLabel)
             }
         }
         return labels
@@ -53,6 +72,19 @@ struct RuntimePool: Sendable, Equatable {
         case .docker: return "kinhin-docker"
         case .host: return "kinhin-host"
         default: return nil
+        }
+    }
+
+    /// Whether the runtime's pool advertises the fleet's `macos` OS label.
+    /// Only runtimes whose guests are macOS keep it (tart, host); apple
+    /// containers and Docker slots run Linux guests, so carrying `macos`
+    /// would attract macOS jobs they cannot run. Applied by `labelsFor` to
+    /// the inherited fleet labels — the same rule `macosOnlyLabel` enforces
+    /// for a Linux tart VM's pool.
+    static func servesMacOS(_ runtime: RuntimeID) -> Bool {
+        switch runtime {
+        case .appleContainer, .docker: return false
+        default: return true
         }
     }
 }
@@ -168,6 +200,7 @@ public struct RuntimeConfigModel: Sendable {
     init(
         config: KinhinConfig.RuntimeConfig?, fleetLabels: [String], containerLabels: [String]? = nil,
         containerConfigured: Bool = false, dockerConfigured: Bool = false, dockerPlatform: LinuxPlatform = .arm64,
+        containerInheritsFleetLabels: Bool? = nil, dockerInheritsFleetLabels: Bool? = nil,
         hostConfigured: Bool = false
     ) {
         if let config {
@@ -182,13 +215,16 @@ public struct RuntimeConfigModel: Sendable {
                 pools[.appleContainer] = RuntimePool(
                     runtime: .appleContainer,
                     labels: RuntimePool.labelsFor(
-                        .appleContainer, fleetLabels: fleetLabels, containerExtra: containerLabels)
+                        .appleContainer, fleetLabels: fleetLabels, containerExtra: containerLabels,
+                        inheritingFleetLabels: containerInheritsFleetLabels ?? true)
                 )
             }
             if dockerConfigured {
                 pools[.docker] = RuntimePool(
                     runtime: .docker,
-                    labels: RuntimePool.labelsFor(.docker, fleetLabels: fleetLabels, dockerPlatform: dockerPlatform)
+                    labels: RuntimePool.labelsFor(
+                        .docker, fleetLabels: fleetLabels, dockerPlatform: dockerPlatform,
+                        inheritingFleetLabels: dockerInheritsFleetLabels ?? true)
                 )
             }
             if hostConfigured {
@@ -260,6 +296,8 @@ public extension RuntimeConfigModel {
             containerConfigured: config.container != nil,
             dockerConfigured: config.docker != nil,
             dockerPlatform: config.docker?.platform ?? .arm64,
+            containerInheritsFleetLabels: config.container?.fleetLabels,
+            dockerInheritsFleetLabels: config.docker?.fleetLabels,
             hostConfigured: config.hostRoutesConfigured
         )
         return model.pools[runtime]?.labels

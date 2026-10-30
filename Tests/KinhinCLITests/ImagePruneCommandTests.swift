@@ -41,14 +41,15 @@ final class ImagePruneCommandTests: XCTestCase {
             willDelete: false)
 
         XCTAssertTrue(
-            text.hasPrefix("would prune 1 unused image(s) and 1 stale record(s) (~5 GB):"), text)
-        XCTAssertTrue(text.contains("old-vm  (tart, local)  5 GB"), text)
+            text.hasPrefix("would prune 1 unused image(s) and 1 stale record(s) (up to ~5 GB allocated):"),
+            text)
+        XCTAssertTrue(text.contains("old-vm  (tart, local)  up to 5 GB allocated"), text)
         XCTAssertTrue(
             text.contains("proj-gone  (tart, derived)  stale record — no image on disk"), text)
 
         let confirmed = ImagePruneCommand.describe(
             plan(images: [target("old-vm", sizeGB: 5)]), willDelete: true)
-        XCTAssertTrue(confirmed.hasPrefix("pruning 1 unused image(s) (~5 GB):"), confirmed)
+        XCTAssertTrue(confirmed.hasPrefix("pruning 1 unused image(s) (up to ~5 GB allocated):"), confirmed)
     }
 
     func testDescribeKeepsInUseImagesVisibleWithTheirRunners() {

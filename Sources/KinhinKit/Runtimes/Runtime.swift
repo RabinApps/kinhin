@@ -191,6 +191,8 @@ struct TartRuntime: Runtime {
     let healthShell: ShellRunning
     let ssh: SSHExecuting
     let bootTimeout: @Sendable () -> Int
+    let cpuCount: @Sendable () -> Int
+    let memoryMB: @Sendable () -> Int
     /// How long registration keeps retrying while the guest's sshd is still
     /// coming up, and the pause between attempts. `tart ip` answers as soon
     /// as the VM has a lease — often 20+ seconds before SSH listens (seen
@@ -217,7 +219,10 @@ struct TartRuntime: Runtime {
     init(
         tart: TartControlling, bootTimeout: @escaping @Sendable () -> Int, tartPath: String? = nil,
         healthShell: ShellRunning = Shell(),
-        ssh: SSHExecuting = SSHExecutor(), sshReadyWindow: TimeInterval = 120,
+        ssh: SSHExecuting = SSHExecutor(),
+        cpuCount: @escaping @Sendable () -> Int = { KinhinConfig.VM.default.cpuCount },
+        memoryMB: @escaping @Sendable () -> Int = { KinhinConfig.VM.default.memoryGB * 1024 },
+        sshReadyWindow: TimeInterval = 120,
         sshRetryInterval: Duration = .seconds(1), sshProbeInterval: Duration = .milliseconds(500),
         sshProbeGrace: TimeInterval = TartRuntime.defaultSSHProbeGrace,
         hostKeyWindow: TimeInterval = 30, hostKeyInterval: Duration = .seconds(2)
@@ -227,6 +232,8 @@ struct TartRuntime: Runtime {
         self.tartPath = tartPath
         self.healthShell = healthShell
         self.ssh = ssh
+        self.cpuCount = cpuCount
+        self.memoryMB = memoryMB
         self.sshReadyWindow = sshReadyWindow
         self.sshRetryInterval = sshRetryInterval
         self.sshProbeInterval = sshProbeInterval
@@ -255,12 +262,29 @@ struct TartRuntime: Runtime {
         // A failed list must not read as "no VMs": cloning over an existing
         // one would fail later with a far less useful error.
         let existing = try await tart.list()
-        if existing.contains(where: { $0.name == id }) {
+        if let match = existing.first(where: { $0.name == id }) {
             Log.info(id, "VM already exists; reusing (recovery)")
+            guard match.status != "running" else {
+                return  // already booting or serving a recovery: nothing to start
+            }
+            // Recovery for a clone that died before its first boot: apply the
+            // sizing (a stopped clone may predate `vm.cpu`/`vm.memory_gb` or a
+            // failed `tart set`) and start it, like a fresh clone would have.
+            try await tart.set(name: id, cpu: cpuCount(), memoryMB: memoryMB())
+            // Teardown only cancels this task without waiting for it, so a VM
+            // whose stop lands in this window must not be started again.
+            try Task.checkCancellation()
+            let mounts = route.cacheMount ? [ToolchainCacheMount.tartDirectorySpec(scope: route.cacheScope)] : []
+            try await tart.run(name: id, mounts: mounts)
             return
         }
         Log.info(id, "cloning from \(route.image)")
         try await tart.clone(source: route.image, to: id)
+        try await tart.set(name: id, cpu: cpuCount(), memoryMB: memoryMB())
+        // Same window as the recovery path: cancelled between `tart.set` and
+        // `tart.run`, the fresh clone stays a stopped VM for teardown's stop
+        // instead of outliving it.
+        try Task.checkCancellation()
         let mounts = route.cacheMount ? [ToolchainCacheMount.tartDirectorySpec(scope: route.cacheScope)] : []
         try await tart.run(name: id, mounts: mounts)
     }

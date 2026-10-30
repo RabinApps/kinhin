@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 
 // Daemon — the LaunchAgent that keeps `kinhin daemon` running at login.
@@ -11,8 +12,30 @@ extension Daemon {
     /// against the working directory and `kinhin daemon install` always failed.
     static let launchctlPath = "/bin/launchctl"
 
-    /// The binary a LaunchAgent should run for `argv0`: absolute, with symlinks
-    /// resolved, so `~/.local/bin/kinhin` is judged by what it points at.
+    /// The binary a LaunchAgent should run: use the process image rather than
+    /// argv[0], which may be a bare command found through PATH. Resolve
+    /// symlinks so an installed command linking into the app is judged by its target.
+    public static func currentExecutable() throws -> String {
+        if let path = Bundle.main.executablePath, !path.isEmpty {
+            return launchAgentBinary(argv0: path)
+        }
+        var capacity: UInt32 = 1024
+        while true {
+            var buffer = [CChar](repeating: 0, count: Int(capacity))
+            var size = capacity
+            let result = _NSGetExecutablePath(&buffer, &size)
+            if result == 0 {
+                let bytes = buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }
+                let path = String(decoding: bytes, as: UTF8.self)
+                guard !path.isEmpty else { throw DaemonError.executablePathUnavailable }
+                return launchAgentBinary(argv0: path)
+            }
+            guard size > capacity else { throw DaemonError.executablePathUnavailable }
+            capacity = size
+        }
+    }
+
+    /// Absolute, standardized executable path with symlinks resolved.
     public static func launchAgentBinary(argv0: String) -> String {
         URL(fileURLWithPath: argv0).standardizedFileURL.resolvingSymlinksInPath().path
     }
@@ -38,7 +61,47 @@ extension Daemon {
                 throw DaemonError.bootoutFailed(why.isEmpty ? "exit \(bootout.exitCode)" : why)
             }
         }
-        return try await shell.run([launchctlPath, "load", plist], cwd: nil, timeout: 30)
+        let bootstrap = try await shell.run(
+            [launchctlPath, "bootstrap", domain, plist], cwd: nil, timeout: 30)
+        guard bootstrap.succeeded else { return bootstrap }
+        let status = try await shell.run(
+            [launchctlPath, "print", "\(domain)/\(label)"], cwd: nil, timeout: 30)
+        guard status.succeeded, launchAgentStatusIsHealthy(status.stdout) else {
+            let detail = status.stderr.trimmingCharacters(in: .whitespacesAndNewlines)
+            let reason = detail.isEmpty ? status.stdout.trimmingCharacters(in: .whitespacesAndNewlines) : detail
+            throw DaemonError.agentStartFailed(reason.isEmpty ? "launchctl did not report a running daemon" : reason)
+        }
+        return status
+    }
+
+    /// launchctl's exit status is not enough: bootstrap can succeed even when
+    /// the daemon immediately exits because its binary/config is unusable.
+    static func launchAgentStatusIsHealthy(_ output: String) -> Bool {
+        guard jobIsRunning(printOutput: output) else { return false }
+        guard
+            let line = output.split(separator: "\n").map({ $0.trimmingCharacters(in: .whitespaces) })
+                .first(where: { $0.hasPrefix("last exit code = ") })
+        else { return true }
+        let rawCode = line.dropFirst("last exit code = ".count)
+        // A fresh job that never exited yet says so; treat that as the
+        // healthy zero it stands for (it can only appear on a running agent,
+        // which the state check above already required).
+        if rawCode == "(never exited)" { return true }
+        guard let code = Self.exitCode(from: String(rawCode)) else { return false }
+        return code == 0
+    }
+
+    /// The exit code in a `last exit code = …` fragment: a plain integer
+    /// (`78`), an annotated one (`78: EX_CONFIG`), or nil for anything else —
+    /// an unreadable code is not evidence of a healthy agent.
+    static func exitCode(from fragment: String) -> Int? {
+        if let exact = Int(fragment) { return exact }
+        var rest = fragment[...]
+        var negative = false
+        if rest.first == "-" { negative = true; rest = rest.dropFirst() }
+        let numeric = rest.prefix { $0.isNumber }
+        guard !numeric.isEmpty else { return nil }
+        return Int((negative ? "-" : "") + numeric)
     }
 
     /// Escapes the five XML special characters for text inside a plist

@@ -37,6 +37,45 @@ final class ImagePreparerTests: XCTestCase {
         )
     }
 
+    func testProvisioningFailureAppendsTheReachabilityHintForTransportErrors() throws {
+        for excerpt in [
+            "agent provision/update failed: /usr/bin/ssh: connect to host 10.4.4.1 port 22: No route to host",
+            "ssh: connect to host 10.4.4.1 port 22: Operation timed out",
+            "ssh: connect to host 10.4.4.1 port 22: Host is down",
+        ] {
+            guard
+                case .provisioningFailed(let why) =
+                    ImagePreparer.provisioningFailure(prefix: "agent provision/update failed: ", excerpt: excerpt)
+            else { return XCTFail("wrong error") }
+            XCTAssertTrue(why.hasPrefix("agent provision/update failed: "), why)
+            XCTAssertTrue(why.contains("could not reach the guest VM"), why)
+            XCTAssertTrue(why.contains("vnet interface"), why)
+            XCTAssertTrue(why.contains("OrbStack"), why)
+        }
+
+        // A failure *inside* the guest (a failing script, a refused
+        // registration) is not a host→VM transport error: the hint stays off
+        // and the message is verbatim.
+        guard
+            case .provisioningFailed(let why) =
+                ImagePreparer.provisioningFailure(
+                    prefix: "agent provision/update failed: ", excerpt: "config.sh exit 3: boom")
+        else { return XCTFail("wrong error") }
+        XCTAssertEqual(why, "agent provision/update failed: config.sh exit 3: boom")
+
+        // Transport words in the script's own output (a guest-side retry log,
+        // an external service timing out) are not a host→VM transport error:
+        // only the SSH excerpt is matched.
+        guard
+            case .provisioningFailed(let why) =
+                ImagePreparer.provisioningFailure(
+                    prefix:
+                        "agent provision/update failed (configure.sh: exit 1). Script log: waiting for updates (operation timed out), retrying…",
+                    excerpt: "configure.sh exit 1: boom")
+        else { return XCTFail("wrong error") }
+        XCTAssertFalse(why.contains("vnet interface"), why)
+    }
+
     func testImagePrepareHappyPath() async throws {
         let tart = FakeTart()
         let ssh = FakeSSH()

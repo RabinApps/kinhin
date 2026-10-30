@@ -69,7 +69,7 @@ public struct HealingHostActions: Sendable {
             try await plan.execute(
                 tart: tart, container: AppleContainerRuntime(),
                 docker: DockerRuntime(image: config.docker?.image ?? "kinhin-ci-linux"))
-            let gigabytes = plan.reclaimGB.map { " (~\($0) GB)" } ?? ""
+            let gigabytes = plan.reclaimGB.map { " (up to ~\($0) GB allocated)" } ?? ""
             return "pruned \(plan.targets.count) unused image(s) or stale record(s)\(gigabytes)"
         },
         startContainerSystem: {

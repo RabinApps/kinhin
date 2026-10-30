@@ -250,6 +250,24 @@ public struct ImagePreparer: Sendable {
 
     // MARK: - Guest OS detection
 
+    /// The failure for a provision step, with a reachability hint when the
+    /// SSH failure itself says the host could not reach the guest VM — as
+    /// opposed to an agent or script failing inside the guest. Only the SSH
+    /// excerpt is matched: a guest script's own output (`curl` timing out on
+    /// an external service) must not trigger the hint. OrbStack and Docker
+    /// Desktop's VPN interop share the vnet interface tart uses and
+    /// occasionally re-route or claim it, so the remedy points there first.
+    static func provisioningFailure(prefix: String?, excerpt: String) -> ImageError {
+        let message = (prefix ?? "") + excerpt
+        let reach = ["no route to host", "operation timed out", "host is down"].contains {
+            excerpt.lowercased().contains($0)
+        }
+        guard reach else { return .provisioningFailed(message) }
+        return .provisioningFailed(
+            message + " — the host could not reach the guest VM over its vnet interface. OrbStack or"
+                + " Docker Desktop's VPN interop can re-route host↔VM traffic: stop it (or update it) and retry.")
+    }
+
     /// Runs `uname -s` in the booted scratch VM. Darwin → macOS, anything
     /// else → Linux. An unrecognized answer is an error: guessing here would
     /// bake the wrong agent binaries into the image.
@@ -257,8 +275,8 @@ public struct ImagePreparer: Sendable {
         let result = try await ssh.exec(
             vm: vm, user: user, ip: ip, script: GuestOS.probeScript, timeout: 60)
         guard result.succeeded else {
-            throw ImageError.provisioningFailed(
-                "could not detect the guest OS (`uname -s` failed): \(result.failureExcerpt)")
+            throw Self.provisioningFailure(
+                prefix: "could not detect the guest OS (`uname -s` failed): ", excerpt: result.failureExcerpt)
         }
         guard let os = GuestOS.parse(unameOutput: result.stdout) else {
             throw ImageError.provisioningFailed(
