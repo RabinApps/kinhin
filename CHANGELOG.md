@@ -4,6 +4,37 @@
 
 <!-- changelog: entries for the next release go here -->
 
+**Added**
+
+- The macOS 27 Golden Gate base images (`macos-golden-gate-base`, `-vanilla`, `-xcode`) join the curated base-image
+  picker, and any `ghcr.io/cirruslabs/macos-*` reference pinned by `@sha256:` digest is accepted too: the pin names
+  exact, immutable bits, so it stays servable even after its tag is retired. The base-image refusal now says what
+  is acceptable, including `kinhin image digest <reference>` for printing the pin, instead of only failing. A local
+  Tart VM name is no longer warned about as a mutable tag: without a registry there is nothing to drift. See
+  [docs/runtimes.md](docs/runtimes.md#choosing-the-base-image).
+- `kinhin config validate [FILE]` checks a named config file instead of this Mac's default one — useful before
+  pointing a fleet at the file, in CI, or for agent review of a proposed config.
+
+**Fixed**
+
+- `kinhin daemon install` wrote the path it was found by into the daemon's LaunchAgent: a bare `kinhin` resolved
+  through PATH became `<cwd>/kinhin`, which launchd could not run at login. The path now comes from the running
+  binary itself (`Bundle.main`/`_NSGetExecutablePath`, symlinks resolved), and the install uses `launchctl
+  bootstrap` and verifies with `launchctl print` that the agent is actually running — a daemon that exits
+  immediately is reported as a failure instead of a silent success. Re-run `kinhin daemon install` on a Mac whose
+  daemon does not start.
+- `warm_pool: 1` could keep two VMs of an image: while the first pooled VM was still cloning or booting the scale
+  plan could not see it, so the next reconcile pass started another. Pooled VMs in flight now count toward the
+  pool's target. See [docs/scaling.md](docs/scaling.md#warm-pool).
+- `vm.cpu` and `vm.memory_gb` were silently ignored on Tart runners: the clone never issued `tart set`. The vCPU
+  count and memory are now set on the clone before its first boot, for runner, warm-pool and named-image clones
+  alike, and a failed `tart set` fails the spawn instead of booting an unconstrained VM.
+- An image that could not be deleted aborted the whole `image delete` or `prune` run, including the digest twin hit
+  because its tag twin was just deleted. A missing image counts as deleted, the run continues past the failures,
+  every failure is reported together at the end, and the image store is cleaned up as normal.
+- The `kinhin runtimes` budget bar rounded percentages at the wrong step, printing only edge values. It rounds
+  after scaling now.
+
 **Changed**
 
 - Apple-container and Docker runners no longer advertise the fleet's `macos` label: their guests run Linux, and a macOS
