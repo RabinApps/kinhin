@@ -49,7 +49,8 @@ until the `kinhin-e2e` Mac exists; dispatch `e2e.yml` in CI only, never `scripts
    `[ -s dist/appcast.xml ]` must hold.
 3. Publish with `gh release create` as in `docs/releasing.md` ("Local publish"), **five** files including `appcast.xml`.
 4. G6 on a clean Mac.
-5. Remove the `srcExclude` entry, uncomment the blog index entry, fast-forward `main` to `develop`, push. Open PRs against
+5. The beta 4 video files are already in `website/public/` (`beta-4.*`, and the rebuilt `launch.*`), and the home page shows both, so they go live
+   with the first site deploy; confirm that is acceptable. Then remove the `srcExclude` entry, uncomment the blog index entry, fast-forward `main` to `develop`, push. Open PRs against
    `develop` unless told otherwise. Check `https://kinhin.dev/blog/beta-4`, the older posts, and that
    `https://kinhin.dev/appcast.xml` lists beta 4.
 6. Add `"v0.0.1-beta-4"` to `website/versions.json`. Add a pointer to beta 4 under the beta 3 post's forges section, which

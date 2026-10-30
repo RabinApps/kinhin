@@ -15,6 +15,14 @@ aside: false
 
 _TODO(verify:Tdate): Weekday, Month D, 2026 · Alex Rabin_
 
+<figure>
+  <video controls playsinline preload="metadata" :poster="'/beta-4-poster.png'" style="width: 100%; border-radius: 8px">
+    <source :src="'/beta-4.webm'" type="video/webm" />
+    <source :src="'/beta-4.mp4'" type="video/mp4" />
+    <a href="/beta-4.mp4">Watch the beta 4 video</a>
+  </video>
+</figure>
+
 **kinhin** watches your CI queue and, for each queued job, starts a fresh VM or container on your Apple Silicon Mac,
 registers a one-job runner, lets it run, then deletes it. Nothing idles and nothing is left over. It is free, open source
 (Apache-2.0), and sends no telemetry unless you point it at your own OpenTelemetry server.
