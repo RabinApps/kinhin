@@ -241,7 +241,14 @@ in step with the catalog above.
 
 The process that hosts the engine owns the exporters: the daemon, foreground `kinhin start`, or the menu bar app when it runs its own engine
 because no daemon is up. An app attached to a daemon exports nothing; the daemon already does. The daemon and `kinhin start` flush on SIGTERM
-and Ctrl-C; the app exports on its interval and does not flush on quit, so its last interval can be lost.
+and Ctrl-C; the app flushes when you quit it (waiting at most a few seconds, so a dead collector cannot hold up the quit), and only when it owns
+the exporters.
+
+The app has a **Telemetry** card under **Advanced → App**. It shows whether telemetry is on, the signals, where each goes (credentials and query
+strings removed), the Prometheus address and the last export problem, read from the app's own pipeline or, when a daemon runs the fleet, from the
+daemon (the same data as `kinhin telemetry status`). Its switch sets `telemetry.enabled` in `config.yaml`, and its address field sets
+`telemetry.prometheus_listen`; both edit only that line, keep your comments and other keys, and apply in place without restarting the engine.
+Everything else (endpoint, signals, headers) stays in the file and the environment.
 
 ## Limitations
 
