@@ -12,6 +12,8 @@ dist/
 *.dmg
 kinhin-cli-*.zip
 node_modules/
+# Local vitepress runs may point website/node_modules at the main checkout's install (a symlink, so node_modules/ doesn't match it).
+/website/node_modules
 .freebuff/
 bad.sha256
 # Stray screencapture output and local scratch files at the repo root
