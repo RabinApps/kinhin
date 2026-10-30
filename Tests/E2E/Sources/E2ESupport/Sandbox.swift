@@ -44,9 +44,12 @@ public final class Sandbox: @unchecked Sendable {
         env["KINHIN_TOKEN_STORE"] = "env"
         // Mint and adopt only `ke2ed-*` instances, so a real fleet on this Mac is never touched (see `Instances.ownPrefix`).
         env["KINHIN_INSTANCE_PREFIX"] = Instances.ownPrefix
-        // Never inherit a developer's real forge tokens, nor healing switches meant for one scenario.
+        // Never inherit a developer's real forge tokens, nor healing switches meant for one scenario, nor OTEL_*
+        // variables (they override the `telemetry:` config, so a developer's collector must not leak into a test).
         for key in env.keys
-        where (key.hasPrefix("KINHIN_TOKEN_") && key != "KINHIN_TOKEN_STORE") || key.hasPrefix("KINHIN_HEALING_") {
+        where (key.hasPrefix("KINHIN_TOKEN_") && key != "KINHIN_TOKEN_STORE") || key.hasPrefix("KINHIN_HEALING_")
+            || key.hasPrefix("OTEL_")
+        {
             env[key] = nil
         }
         for (account, token) in lock.withLock({ tokens }) {

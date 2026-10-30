@@ -58,6 +58,16 @@ final class WindowModels {
         return model
     }()
 
+    /// The Telemetry card under Advanced → App: reads from whoever owns the exporters, edits `telemetry:` in the
+    /// config and pushes the edit like the other config forms.
+    lazy var telemetryModel: TelemetryModel = {
+        let model = TelemetryModel()
+        model.configURL = fleet.environment.configURL
+        model.onChanged = { [weak self] in self?.runtimesEdited?() }
+        model.read = { [fleet] in await fleet.readTelemetry() }
+        return model
+    }()
+
     /// Applies the Settings toggle. On failure the toggle (and the stored preference) go back to what the
     /// system really has, and the reason is shown; "needs approval" keeps it on, since the item is registered.
     private func launchAtLoginToggled(_ enabled: Bool) {
@@ -173,6 +183,7 @@ final class WindowModels {
             model.reload()
         case .app:
             _ = appModel
+            _ = telemetryModel
         }
     }
 
@@ -200,7 +211,7 @@ final class WindowModels {
             runtimesModel?.reload()
         case .toolchains: toolchainsModel?.reload()
         case .benchmarks: benchmarksModel?.reload()
-        case .app: break
+        case .app: telemetryModel.reload()
         }
     }
 

@@ -41910,6 +41910,993 @@
           }
         }
       }
+    },
+    "Enter just a port number to serve it on this Mac only (127.0.0.1). Leave it empty for no Prometheus endpoint. It needs the metrics signal." : {
+      "comment" : "Settings → App → Telemetry hint under the Prometheus address field; `metrics` is a config value and stays verbatim",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Si escribes solo un número de puerto, el endpoint solo está disponible en este Mac (127.0.0.1). Déjalo vacío para no tener endpoint de Prometheus. Requiere la señal metrics."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ポート番号だけを入力すると、この Mac 内（127.0.0.1）のみで公開されます。空にすると Prometheus エンドポイントは無効になります。metrics シグナルが必要です。"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gibst du nur eine Portnummer ein, ist der Endpunkt nur auf diesem Mac erreichbar (127.0.0.1). Leer lassen, um keinen Prometheus-Endpunkt zu verwenden. Erfordert das Signal metrics."
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "הזינו מספר פורט בלבד כדי לחשוף את נקודת הקצה רק במחשב זה (127.0.0.1). השאירו ריק כדי לא להפעיל נקודת קצה של Prometheus. נדרש האות metrics."
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "إذا أدخلت رقم المنفذ فقط، تكون نقطة النهاية متاحة على هذا الـ Mac فقط (127.0.0.1). اتركه فارغًا لتعطيل نقطة Prometheus. يتطلب الإشارة metrics."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se inserisci solo un numero di porta, l’endpoint è raggiungibile solo da questo Mac (127.0.0.1). Lascia vuoto per non avere un endpoint Prometheus. Richiede il segnale metrics."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Si vous saisissez uniquement un numéro de port, le point de terminaison n’est accessible que depuis ce Mac (127.0.0.1). Laissez vide pour n’avoir aucun point de terminaison Prometheus. Nécessite le signal metrics."
+          }
+        }
+      }
+    },
+    "Couldn't read the daemon's telemetry status: %@" : {
+      "comment" : "Settings → App → Telemetry status; %@ is the reason",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo leer el estado de telemetría del daemon: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "daemon のテレメトリ状態を読み取れませんでした: %@"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Telemetriestatus des Daemons konnte nicht gelesen werden: %@"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "לא ניתן לקרוא את מצב הטלמטריה של ה-daemon: %@"
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تعذّرت قراءة حالة القياس عن بُعد من daemon: %@"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossibile leggere lo stato della telemetria del daemon: %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible de lire l’état de la télémétrie du daemon : %@"
+          }
+        }
+      }
+    },
+    "Export problem %@ (%lld so far): %@" : {
+      "comment" : "Settings → App → Telemetry status; the time it happened, a number of problems so far, then the redacted problem text from the exporter (English)",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Problema de exportación %@ (%lld hasta ahora): %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "エクスポートの問題 %@(これまで %lld 件): %@"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exportproblem %@ (bisher %lld): %@"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "בעיית ייצוא %@ (%lld עד כה): %@"
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "مشكلة في التصدير %@ (%lld حتى الآن): %@"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Problema di esportazione %@ (%lld finora): %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Problème d’export %@ (%lld jusqu’ici) : %@"
+          }
+        }
+      }
+    },
+    "Exported by the daemon." : {
+      "comment" : "Settings → App → Telemetry: which process sends the data",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exportado por el daemon."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "daemon がエクスポートしています。"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wird vom Daemon exportiert."
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "מיוצא על ידי ה-daemon."
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "يُصدَّر بواسطة daemon."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esportato dal daemon."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exporté par le daemon."
+          }
+        }
+      }
+    },
+    "Exported by this app." : {
+      "comment" : "Settings → App → Telemetry: which process sends the data",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exportado por esta app."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このアプリがエクスポートしています。"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wird von dieser App exportiert."
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "מיוצא על ידי האפליקציה הזו."
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "يُصدَّر بواسطة هذا التطبيق."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esportato da questa app."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exporté par cette app."
+          }
+        }
+      }
+    },
+    "Last export problem %@ (%lld so far): %@" : {
+      "comment" : "Settings → App → Telemetry status; the time it happened, a number of problems so far, then the redacted problem text from the exporter (English)",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Último problema de exportación %@ (%lld hasta ahora): %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "直近のエクスポートの問題 %@(これまで %lld 件): %@"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Letztes Exportproblem %@ (bisher %lld): %@"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "בעיית הייצוא האחרונה %@ (%lld עד כה): %@"
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "آخر مشكلة في التصدير %@ (%lld حتى الآن): %@"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ultimo problema di esportazione %@ (%lld finora): %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dernier problème d’export %@ (%lld jusqu’ici) : %@"
+          }
+        }
+      }
+    },
+    "No export problems reported." : {
+      "comment" : "Settings → App → Telemetry status",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se han notificado problemas de exportación."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "エクスポートの問題は報告されていません。"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine Exportprobleme gemeldet."
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "לא דווחו בעיות ייצוא."
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "لم تُبلَّغ أي مشكلات في التصدير."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nessun problema di esportazione segnalato."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucun problème d’export signalé."
+          }
+        }
+      }
+    },
+    "Prometheus" : {
+      "comment" : "Settings → App → Telemetry label of the scrape URL row; product name, stays verbatim",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prometheus"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prometheus"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prometheus"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prometheus"
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prometheus"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prometheus"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prometheus"
+          }
+        }
+      }
+    },
+    "Prometheus address" : {
+      "comment" : "Settings → App → Telemetry text field label; Prometheus is a product name",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dirección de Prometheus"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prometheus のアドレス"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prometheus-Adresse"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "כתובת Prometheus"
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "عنوان Prometheus"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Indirizzo Prometheus"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adresse Prometheus"
+          }
+        }
+      }
+    },
+    "Prometheus address saved in config.yaml." : {
+      "comment" : "Settings → App → Telemetry status after the Prometheus address is saved",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dirección de Prometheus guardada en config.yaml."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prometheus のアドレスを config.yaml に保存しました。"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prometheus-Adresse in config.yaml gespeichert."
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "כתובת Prometheus נשמרה ב-config.yaml."
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تم حفظ عنوان Prometheus في config.yaml."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Indirizzo Prometheus salvato in config.yaml."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adresse Prometheus enregistrée dans config.yaml."
+          }
+        }
+      }
+    },
+    "Prometheus endpoint removed from config.yaml." : {
+      "comment" : "Settings → App → Telemetry status after the Prometheus address is cleared",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Endpoint de Prometheus eliminado de config.yaml."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prometheus エンドポイントを config.yaml から削除しました。"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prometheus-Endpunkt aus config.yaml entfernt."
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "נקודת הקצה של Prometheus הוסרה מ-config.yaml."
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تمت إزالة نقطة Prometheus من config.yaml."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Endpoint Prometheus rimosso da config.yaml."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Point de terminaison Prometheus supprimé de config.yaml."
+          }
+        }
+      }
+    },
+    "Send metrics, traces and logs about the fleet to your own OpenTelemetry collector, and optionally serve a local Prometheus endpoint. Off by default." : {
+      "comment" : "Settings → App → Telemetry card subtitle; OpenTelemetry and Prometheus are product names",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Envía métricas, trazas y registros de la flota a tu propio colector de OpenTelemetry y, opcionalmente, sirve un endpoint local de Prometheus. Desactivado por defecto."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フリートに関するメトリクス、トレース、ログを自分の OpenTelemetry コレクターに送信し、必要に応じてローカルの Prometheus エンドポイントを公開します。初期設定ではオフです。"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sendet Metriken, Traces und Logs der Flotte an deinen eigenen OpenTelemetry-Collector und stellt optional einen lokalen Prometheus-Endpunkt bereit. Standardmäßig aus."
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "שליחת מדדים, עקבות ויומנים על הצי לאספן OpenTelemetry שלכם, ואפשר גם להפעיל נקודת קצה מקומית של Prometheus. כבוי כברירת מחדל."
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "أرسل مقاييس وآثارًا وسجلات الأسطول إلى مُجمِّع OpenTelemetry الخاص بك، واختياريًا قدّم نقطة Prometheus محلية. معطّل افتراضيًا."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Invia metriche, tracce e log della flotta al tuo collector OpenTelemetry e, facoltativamente, espone un endpoint Prometheus locale. Disattivato per impostazione predefinita."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Envoie les métriques, traces et journaux de la flotte à votre propre collecteur OpenTelemetry et, en option, expose un point de terminaison Prometheus local. Désactivé par défaut."
+          }
+        }
+      }
+    },
+    "Send telemetry" : {
+      "comment" : "Settings → App → Telemetry switch",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enviar telemetría"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "テレメトリを送信"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Telemetrie senden"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "שליחת טלמטריה"
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "إرسال القياس عن بُعد"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Invia telemetria"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Envoyer la télémétrie"
+          }
+        }
+      }
+    },
+    "Telemetry" : {
+      "comment" : "Settings → App card title",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Telemetría"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "テレメトリ"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Telemetrie"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "טלמטריה"
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "القياس عن بُعد"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Telemetria"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Télémétrie"
+          }
+        }
+      }
+    },
+    "Telemetry is off." : {
+      "comment" : "Settings → App → Telemetry status",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La telemetría está desactivada."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "テレメトリはオフです。"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Telemetrie ist aus."
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "הטלמטריה כבויה."
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "القياس عن بُعد متوقف."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La telemetria è disattivata."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La télémétrie est désactivée."
+          }
+        }
+      }
+    },
+    "Telemetry is on, exporting %@." : {
+      "comment" : "Settings → App → Telemetry status; %@ is a list of signal names such as metrics, traces",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La telemetría está activada y exporta %@."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "テレメトリはオンで、%@ をエクスポートしています。"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Telemetrie ist an und exportiert %@."
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "הטלמטריה פועלת ומייצאת: %@."
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "القياس عن بُعد قيد التشغيل ويُصدِّر: %@."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La telemetria è attiva ed esporta %@."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La télémétrie est activée et exporte %@."
+          }
+        }
+      }
+    },
+    "Telemetry is turned on in config.yaml and starts with the fleet." : {
+      "comment" : "Settings → App → Telemetry status while no fleet is running",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La telemetría está activada en config.yaml y se inicia con la flota."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "テレメトリは config.yaml でオンになっており、フリートとともに開始します。"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Telemetrie ist in config.yaml aktiviert und startet mit der Flotte."
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "הטלמטריה מופעלת ב-config.yaml ותתחיל יחד עם הצי."
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "القياس عن بُعد مفعّل في config.yaml ويبدأ مع الأسطول."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La telemetria è attivata in config.yaml e parte insieme alla flotta."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La télémétrie est activée dans config.yaml et démarre avec la flotte."
+          }
+        }
+      }
+    },
+    "Telemetry is turned on in config.yaml but is not running. OTEL_SDK_DISABLED may be set, or the exporters could not start; see the logs." : {
+      "comment" : "Settings → App → Telemetry status; OTEL_SDK_DISABLED is an environment variable and stays verbatim",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La telemetría está activada en config.yaml pero no se está ejecutando. Puede que OTEL_SDK_DISABLED esté definida o que los exportadores no hayan podido iniciarse; consulta los registros."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "テレメトリは config.yaml でオンになっていますが、動作していません。OTEL_SDK_DISABLED が設定されているか、エクスポーターを開始できなかった可能性があります。ログを確認してください。"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Telemetrie ist in config.yaml aktiviert, läuft aber nicht. Möglicherweise ist OTEL_SDK_DISABLED gesetzt oder die Exporter konnten nicht starten; siehe die Logs."
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "הטלמטריה מופעלת ב-config.yaml אך אינה פועלת. ייתכן ש-OTEL_SDK_DISABLED מוגדר, או שהמייצאים לא הצליחו להתחיל; ראו ביומנים."
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "القياس عن بُعد مفعّل في config.yaml لكنه لا يعمل. قد يكون OTEL_SDK_DISABLED مضبوطًا، أو تعذّر بدء المُصدِّرات؛ راجع السجلات."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La telemetria è attivata in config.yaml ma non è in esecuzione. Forse OTEL_SDK_DISABLED è impostata, oppure gli exporter non sono riusciti ad avviarsi; controlla i log."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La télémétrie est activée dans config.yaml mais ne tourne pas. OTEL_SDK_DISABLED est peut-être définie, ou les exporteurs n’ont pas pu démarrer ; consultez les journaux."
+          }
+        }
+      }
+    },
+    "Telemetry turned off in config.yaml." : {
+      "comment" : "Settings → App → Telemetry status after the switch is turned off",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Telemetría desactivada en config.yaml."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "config.yaml でテレメトリをオフにしました。"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Telemetrie in config.yaml ausgeschaltet."
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "הטלמטריה כובתה ב-config.yaml."
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تم إيقاف القياس عن بُعد في config.yaml."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Telemetria disattivata in config.yaml."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Télémétrie désactivée dans config.yaml."
+          }
+        }
+      }
+    },
+    "Telemetry turned on in config.yaml." : {
+      "comment" : "Settings → App → Telemetry status after the switch is turned on",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Telemetría activada en config.yaml."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "config.yaml でテレメトリをオンにしました。"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Telemetrie in config.yaml eingeschaltet."
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "הטלמטריה הופעלה ב-config.yaml."
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تم تشغيل القياس عن بُعد في config.yaml."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Telemetria attivata in config.yaml."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Télémétrie activée dans config.yaml."
+          }
+        }
+      }
+    },
+    "The collector address, signals and the rest are set in config.yaml. Put collector credentials in the OTEL_EXPORTER_OTLP_HEADERS environment variable, never in the file." : {
+      "comment" : "Settings → App → Telemetry footnote; config.yaml and OTEL_EXPORTER_OTLP_HEADERS stay verbatim",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La dirección del colector, las señales y el resto se definen en config.yaml. Pon las credenciales del colector en la variable de entorno OTEL_EXPORTER_OTLP_HEADERS, nunca en el archivo."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コレクターのアドレス、シグナルなどは config.yaml で設定します。コレクターの認証情報はファイルではなく、環境変数 OTEL_EXPORTER_OTLP_HEADERS に設定してください。"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Collector-Adresse, Signale und alles Weitere werden in config.yaml festgelegt. Zugangsdaten für den Collector gehören in die Umgebungsvariable OTEL_EXPORTER_OTLP_HEADERS, nie in die Datei."
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "כתובת האספן, האותות ושאר ההגדרות נקבעים ב-config.yaml. את פרטי ההתחברות לאספן יש לשים במשתנה הסביבה OTEL_EXPORTER_OTLP_HEADERS, לעולם לא בקובץ."
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "يُحدَّد عنوان المُجمِّع والإشارات وبقية الإعدادات في config.yaml. ضع بيانات اعتماد المُجمِّع في متغير البيئة OTEL_EXPORTER_OTLP_HEADERS ولا تضعها في الملف أبدًا."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’indirizzo del collector, i segnali e il resto si impostano in config.yaml. Metti le credenziali del collector nella variabile d’ambiente OTEL_EXPORTER_OTLP_HEADERS, mai nel file."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’adresse du collecteur, les signaux et le reste se définissent dans config.yaml. Mettez les identifiants du collecteur dans la variable d’environnement OTEL_EXPORTER_OTLP_HEADERS, jamais dans le fichier."
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

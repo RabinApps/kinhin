@@ -162,6 +162,9 @@ public protocol Forge: Sendable {
     /// their state), or nil when it runs no job or the forge can't tell.
     /// `repository` narrows the lookup where the forge needs it.
     func pipelineDetail(runnerName: String, repository: String?) async throws -> PipelineDetail?
+    /// What the forge says the job described by `correlation` did, once it has finished: the verdict, its own
+    /// times and its steps. Nil when the forge cannot say. Read once per job, for telemetry only.
+    func jobOutcome(for correlation: JobCorrelation) async throws -> JobOutcome?
     /// The output of `step` of `job` (the whole job when `step` is nil) as the
     /// forge has it so far, or nil when the forge can't provide it. `job` and
     /// `step` come from this forge's own `pipelineDetail`.
@@ -200,6 +203,8 @@ extension Forge {
     func freshRunners() async throws -> [ForgeRunner] { try await runners() }
 
     public func pipelineDetail(runnerName: String, repository: String?) async throws -> PipelineDetail? { nil }
+
+    public func jobOutcome(for correlation: JobCorrelation) async throws -> JobOutcome? { nil }
 
     public func pipelineLog(job: PipelineJob, step: PipelineStep?) async throws -> PipelineLog? { nil }
 
@@ -337,6 +342,9 @@ public struct ForgeJob: Sendable, Equatable {
     /// Treat the job's code as untrusted: a fork's PR, or a job whose origin
     /// the forge does not reveal. Gates the shared cache and the repo file.
     public var isUntrusted: Bool { isFork || !forkKnown }
+    /// Stable identifiers and provider timestamps, for the forges that expose them (GitHub Actions
+    /// today). Nil elsewhere; consumers use only the fields that are present.
+    public let correlation: JobCorrelation?
     /// The pool the forge already chose for this job: a scale-set job arrives
     /// on the scale set the workflow named in `runs-on:`, and that set is bound
     /// to one runtime. Overrides repo and workflow routes; nil for every
@@ -345,8 +353,10 @@ public struct ForgeJob: Sendable, Equatable {
 
     public init(
         name: String, runnerName: String?, repository: String?, labels: [String]? = nil, ref: String? = nil,
-        sha: String? = nil, isFork: Bool = false, forkKnown: Bool = false, runtimeHint: RuntimeID? = nil
+        sha: String? = nil, isFork: Bool = false, forkKnown: Bool = false, runtimeHint: RuntimeID? = nil,
+        correlation: JobCorrelation? = nil
     ) {
+        self.correlation = correlation
         self.name = name
         self.runnerName = runnerName
         self.repository = repository

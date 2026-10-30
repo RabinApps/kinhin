@@ -6,6 +6,8 @@ enum RunCommands {
         Paths.ensureSupportDirectories()
         Log.setLogFile(directory: Paths.logsDirectory)
         let cfg = loadConfigOrExit()
+        // This process hosts the engine, so it owns the exporters (flushed on Ctrl-C below).
+        await TelemetryService.shared.apply(cfg.telemetry)
         let engine = try engineFromConfig(cfg)
         await engine.start()
         let scopes =
@@ -20,6 +22,7 @@ enum RunCommands {
             print("\nstopping…")
             Task {
                 await engine.stop()
+                await TelemetryService.shared.shutdown()
                 // The signal handler owns process shutdown: this task is parked
                 // forever below, so there is no caller to return to.
                 exit(0)

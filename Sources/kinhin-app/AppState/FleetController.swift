@@ -132,14 +132,21 @@ final class FleetController {
     }
 
     /// Quit-time teardown: stop polling and stop the in-process engine (which
-    /// tears its VMs down), waiting up to `timeout`. A running daemon owns its
-    /// own fleet and is left alone.
-    func shutdown(timeout: Duration = .seconds(30)) async {
+    /// tears its VMs down), waiting up to `timeout`; then flush telemetry,
+    /// waiting at most `telemetryTimeout` more so a dead collector can't hold
+    /// up the quit. A running daemon owns its own fleet and its own exporters
+    /// and is left alone: nothing here touches telemetry without an engine.
+    func shutdown(timeout: Duration = .seconds(30), telemetryTimeout: Duration = .seconds(5)) async {
         stopPolling()
         guard let engine else { return }
         let finished = await runWithTimeout(timeout) { await engine.stop() }
         if !finished {
             Log.warn("app", "engine did not stop within \(timeout) — quitting anyway; the next launch adopts survivors")
+        }
+        // After the engine stops, so its last spans and metrics are part of the flush.
+        let flush = environment.shutdownTelemetry
+        if !(await runWithTimeout(telemetryTimeout) { await flush() }) {
+            Log.warn("app", "telemetry did not flush within \(telemetryTimeout) — quitting anyway")
         }
     }
 

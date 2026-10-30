@@ -66,7 +66,7 @@ Prefer a GUI? Launch **kinhin** from Applications. Full walkthrough: [Quick star
 | | |
 | --- | --- |
 | **Get started** | [Why kinhin](docs/why.md) · [Install](docs/install.md) · [Configuration](website/guide/config.md) · [The app](docs/app.md) |
-| **Run your fleet** | [Runtimes](docs/runtimes.md) · [Scaling](docs/scaling.md) · [Toolchains](docs/toolchains.md) · [Healing](docs/healing.md) · [Hardware](docs/hardware.md) |
+| **Run your fleet** | [Runtimes](docs/runtimes.md) · [Scaling](docs/scaling.md) · [Toolchains](docs/toolchains.md) · [Healing](docs/healing.md) · [Telemetry](docs/telemetry.md) · [Hardware](docs/hardware.md) |
 | **Mobile releases** | [fastlane](docs/mobile-fastlane.md) · [Store screenshots](docs/mobile-screenshots.md) · [Credentials](docs/mobile-credentials.md) |
 | **Product videos** | [Add videos to your project](docs/videos-for-your-project.md) · [Video config](docs/video-config.md) · [Gallery](docs/video-gallery.md) |
 | **Reference** | [CLI commands](https://kinhin.dev/cli/commands) · [Forges](docs/forges.md) · [Agents & MCP](docs/agents.md) · [Architecture](docs/architecture.md) |

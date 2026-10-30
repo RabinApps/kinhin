@@ -75,6 +75,21 @@ public final class FleetEngine: Sendable {
     let healing: HealingAgent
     /// The healing fixes that reach outside the engine (Homebrew, pruning).
     let healingHost: HealingHostActions
+    /// Where metrics, traces and log records go (a no-op unless the host process started telemetry).
+    let telemetry: Telemetry
+    /// One trace per instance with a lifecycle running (`runLifecycle`), keyed by instance id.
+    let jobTraces = Mutex<[String: JobTrace]>([:])
+    /// Healing events already counted in `kinhin.healing.actions`.
+    let healingCounted = Mutex(HealingCounted())
+    /// The daemon process's own CPU and memory.
+    let processUsage = ProcessUsage()
+    /// When this engine was built, and when its last reconcile pass completed (for `kinhin.reconcile.last_success`).
+    let startedAt = Date()
+    let lastReconcileSuccess = Mutex<Date?>(nil)
+    /// Whether disk pressure held spawns in the latest pass.
+    let diskHold = Mutex(false)
+    /// The toolchain cache's size at the last sweep (the only time it is walked); nil until one measured it.
+    let toolchainCacheBytes = Mutex<Int64?>(nil)
 
     // MARK: - Mutable state
 
@@ -203,12 +218,14 @@ public final class FleetEngine: Sendable {
         let projectStore = dependencies.projectImageStore ?? ProjectImageStore()
         self.projectStore = projectStore
         self.projectImages = ProjectImageBuilder(
-            tart: tart, store: projectStore, baseImage: config.image, ssh: ssh, bake: dependencies.projectBake)
+            tart: tart, store: projectStore, baseImage: config.image, ssh: ssh, bake: dependencies.projectBake,
+            onBake: Self.bakeRecorder(dependencies.telemetry))
         // The primary runtime's cap; its disk estimate also feeds the
         // pre-spawn disk guard and `kinhin doctor`.
         self.capacity = Capacity.plan(for: config, host: host)
         self.router = Router(Router.Snapshot.make(config: config, host: host))
         self.healingHost = dependencies.healingHost
+        self.telemetry = dependencies.telemetry
         self.healing = HealingAgent(
             policy: config.healing, timings: dependencies.healingTimings,
             advisor: dependencies.healingAdvisor ?? NoHealingAdvisor(),
@@ -275,6 +292,8 @@ extension FleetEngine {
         var healingTimings = HealingAgent.Timings()
         /// The advisor for problems no rule covers; nil → none.
         public var healingAdvisor: (any HealingAdvisor)?
+        /// The telemetry handle; the no-op unless the host process started a `TelemetryService`.
+        public var telemetry: Telemetry = .noop
 
         public init(
             githubFactory: GitHubClientFactory? = nil,
@@ -304,6 +323,7 @@ extension FleetEngine {
         public static func live(healing: KinhinConfig.HealingConfig = .default) -> Dependencies {
             var live = Dependencies(hostProbe: { ResourceProbe().snapshot() })
             live.healingHost = .live
+            live.telemetry = TelemetryService.shared.telemetry
             live.healingAdvisor = HealingAdvisors.production(config: healing)
             live.healingTimings = HealingAdvisors.productionTimings()
             return live

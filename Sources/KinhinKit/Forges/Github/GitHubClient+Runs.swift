@@ -193,6 +193,30 @@ extension GitHubClient {
             startedAt: mapped.compactMap(\.startedAt).min(), jobs: mapped, granularity: .step)
     }
 
+    /// One job as GitHub reports it now: the conclusion, its times and its steps. A single read.
+    public func jobOutcome(repository: String?, jobID: Int) async throws -> JobOutcome? {
+        guard let repository = repository ?? (credentials.isOrgScope ? nil : credentials.scope) else { return nil }
+        let segments = repository.split(separator: "/")
+        guard segments.count == 2, segments.allSatisfy(Self.isValidScopeSegment) else { return nil }
+        let req = try request(method: "GET", path: "/repos/\(repository)/actions/jobs/\(jobID)")
+        let (data, _) = try await send(req)
+        let job: GHJob
+        do {
+            job = try JSONDecoder().decode(GHJob.self, from: data)
+        } catch {
+            throw GitHubError.decoding("job: \(error.localizedDescription)")
+        }
+        guard job.status == "completed" else { return JobOutcome() }
+        let steps = (job.steps ?? []).sorted { ($0.number ?? 0) < ($1.number ?? 0) }.map {
+            PipelineStep(
+                name: $0.name, state: PipelineParsing.state(status: $0.status, conclusion: $0.conclusion),
+                startedAt: PipelineParsing.date($0.startedAt), finishedAt: PipelineParsing.date($0.completedAt))
+        }
+        return JobOutcome(
+            result: JobOutcome.result(gitHubConclusion: job.conclusion), startedAt: PipelineParsing.date(job.startedAt),
+            completedAt: PipelineParsing.date(job.completedAt), steps: steps)
+    }
+
     /// One job's log so far. The endpoint answers with a redirect to a signed
     /// URL on another host, which the session refuses to follow with
     /// credentials; the signed URL is fetched by hand, without them.

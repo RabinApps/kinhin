@@ -18,6 +18,13 @@ let package = Package(
         .package(url: "https://github.com/jpsim/Yams.git", from: "6.2.2"),
         // Self-updater for the menu bar app (download, EdDSA check, in-place install, relaunch).
         .package(url: "https://github.com/sparkle-project/Sparkle.git", from: "2.10.0"),
+        // OpenTelemetry (opt-in metrics, traces and logs over OTLP, local Prometheus endpoint). The SDK and
+        // the OTLP/Prometheus exporters are pinned exactly: metrics and logs are still maturing upstream.
+        .package(url: "https://github.com/open-telemetry/opentelemetry-swift-core.git", exact: "2.6.0"),
+        .package(url: "https://github.com/open-telemetry/opentelemetry-swift.git", exact: "2.6.0"),
+        // The gRPC channel the OTLP gRPC exporters take (same pin as opentelemetry-swift's own).
+        .package(url: "https://github.com/grpc/grpc-swift.git", exact: "1.27.6"),
+        .package(url: "https://github.com/apple/swift-nio.git", from: "2.80.0"),
     ],
     targets: [
         // `swift package --disable-sandbox dev`: runs scripts/dev-run.sh.
@@ -34,6 +41,15 @@ let package = Package(
             name: "KinhinKit",
             dependencies: [
                 .product(name: "Yams", package: "Yams"),
+                .product(name: "OpenTelemetryApi", package: "opentelemetry-swift-core"),
+                .product(name: "OpenTelemetrySdk", package: "opentelemetry-swift-core"),
+                .product(name: "OpenTelemetryProtocolExporter", package: "opentelemetry-swift"),
+                .product(name: "OpenTelemetryProtocolExporterHTTP", package: "opentelemetry-swift"),
+                .product(name: "PrometheusExporter", package: "opentelemetry-swift"),
+                .product(name: "PersistenceExporter", package: "opentelemetry-swift"),
+                .product(name: "GRPC", package: "grpc-swift"),
+                .product(name: "NIOCore", package: "swift-nio"),
+                .product(name: "NIOPosix", package: "swift-nio"),
             ],
             path: "Sources/KinhinKit"
         ),

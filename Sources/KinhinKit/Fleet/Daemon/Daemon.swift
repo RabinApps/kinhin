@@ -35,8 +35,18 @@ public enum Daemon {
     public static let label = "com.kinhin.daemon"
     static let plistName = "com.kinhin.daemon.plist"
 
-    /// Boot the engine and block forever serving RPC.
+    /// Boot the engine and block forever serving RPC. A startup failure flushes telemetry first, so the record
+    /// that says why the daemon is down still reaches the collector.
     public static func run() async throws {
+        do {
+            try await serve()
+        } catch {
+            await TelemetryService.shared.shutdown()
+            throw error
+        }
+    }
+
+    private static func serve() async throws {
         Paths.ensureSupportDirectories()
         Log.setLogFile(directory: Paths.logsDirectory)
 
@@ -63,6 +73,11 @@ public enum Daemon {
             Log.error("daemon", "config problem: \(error.localizedDescription)")
             throw error
         }
+        // Telemetry starts once per process, before the engine, and is flushed on SIGTERM/SIGINT.
+        await TelemetryService.shared.apply(cfg.telemetry)
+        let terminationSources = installTerminationFlush()
+        defer { withExtendedLifetime(terminationSources) {} }
+
         let enginePAT: String?
         do {
             enginePAT = try ConfigLoader.engineToken(for: cfg)
@@ -105,6 +120,23 @@ public enum Daemon {
         Log.info("daemon", "serving RPC on \(RPCPaths.socket.path)")
         try await RPCServer.serve(socketURL: RPCPaths.socket) { request in
             await Self.handle(request, engineRef: engineRef)
+        }
+    }
+
+    /// Flushes telemetry before the process ends on SIGTERM (launchctl stop) or SIGINT. Without a
+    /// handler the last export interval of metrics, spans and logs would be lost.
+    private static func installTerminationFlush() -> [any DispatchSourceSignal] {
+        [SIGTERM, SIGINT].map { number in
+            signal(number, SIG_IGN)
+            let source = DispatchSource.makeSignalSource(signal: number, queue: .global())
+            source.setEventHandler {
+                Task {
+                    await TelemetryService.shared.shutdown()
+                    exit(0)
+                }
+            }
+            source.resume()
+            return source
         }
     }
 

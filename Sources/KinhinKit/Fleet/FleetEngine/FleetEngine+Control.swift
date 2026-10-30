@@ -118,7 +118,11 @@ extension FleetEngine {
     /// disturb scaling. The pruner's grace window keeps it from racing any
     /// in-flight download or install.
     func startCachePruneSweepIfNeeded() {
-        guard ToolchainCachePolicy(from: config.toolchainCache).autoPrune || !config.projects.isEmpty else { return }
+        // Telemetry measures the cache too (`kinhin.cache.size`), so it counts as a reason to sweep.
+        guard
+            ToolchainCachePolicy(from: config.toolchainCache).autoPrune || !config.projects.isEmpty
+                || telemetry.isEnabled
+        else { return }
         cachePruneTask = Task { [weak self] () -> Void in
             while !Task.isCancelled {
                 guard let self else { return }
@@ -133,6 +137,11 @@ extension FleetEngine {
                 }
             }
         }
+        // `stop()` may have run between the caller's check and this assignment; its cancel would have missed the task.
+        if !runState.withLock({ $0.running }) {
+            cachePruneTask?.cancel()
+            cachePruneTask = nil
+        }
     }
 
     /// One sweep, skipped when the marker says the last one was recent. The
@@ -142,11 +151,16 @@ extension FleetEngine {
         guard pruner.isSweepDue(minInterval: Self.cacheSweepInterval) else { return }
         await pruneProjectImages()
         let policy = ToolchainCachePolicy(from: config.toolchainCache)
-        guard policy.autoPrune else { return }
         let root = pruner.cacheRoot
-        await Task.detached(priority: .utility) {
-            ToolchainCachePruner(cacheRoot: root).prune(policy: policy, minInterval: Self.cacheSweepInterval)
+        // The walk that prunes also measures; with auto-prune off the sweep still measures, once a day, so the
+        // size gauge never costs a walk per reconcile pass.
+        let (report, size) = await Task.detached(priority: .utility) { () -> (ToolchainPruneReport?, Int64?) in
+            let pruner = ToolchainCachePruner(cacheRoot: root)
+            guard policy.autoPrune else { return (nil, pruner.measuredBytes()) }
+            let report = pruner.prune(policy: policy, minInterval: Self.cacheSweepInterval)
+            return (report, report.remainingBytes)
         }.value
+        noteCacheSweep(report: report, totalBytes: size)
     }
 
     // MARK: - Pause and status

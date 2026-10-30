@@ -51,11 +51,20 @@ public struct ToolchainPruneReport: Sendable, Equatable {
     public let entries: [ToolchainPruneEntry]
     public let freedBytes: Int64
     public let dryRun: Bool
+    /// Leaves the sweep tried to delete and could not (permissions, vanished files).
+    public let failedCount: Int
+    /// The cache's size once the sweep finished; nil when the sweep did not walk the tree.
+    public let remainingBytes: Int64?
 
-    public init(entries: [ToolchainPruneEntry], freedBytes: Int64, dryRun: Bool) {
+    public init(
+        entries: [ToolchainPruneEntry], freedBytes: Int64, dryRun: Bool, failedCount: Int = 0,
+        remainingBytes: Int64? = nil
+    ) {
         self.entries = entries
         self.freedBytes = freedBytes
         self.dryRun = dryRun
+        self.failedCount = failedCount
+        self.remainingBytes = remainingBytes
     }
 }
 
@@ -139,6 +148,7 @@ public struct ToolchainCachePruner {
 
         // Execute (or simulate) the deletions, newest-last for a stable report.
         var entries: [ToolchainPruneEntry] = []
+        var failedCount = 0
         let resolvedRoot = Self.resolvedPath(of: cacheRoot)  // once, not per deleted leaf
         let doomedLeaves = leaves.filter { doomed.contains($0.url) }.sorted { $0.url.path < $1.url.path }
         for leaf in doomedLeaves {
@@ -148,6 +158,7 @@ public struct ToolchainCachePruner {
                     try removeWithoutFollowingLinks(leaf.url, isDirectory: false, resolvedRoot: resolvedRoot)
                 } catch {
                     Log.warn("cache", "could not prune \(leaf.url.path): \(error.localizedDescription)")
+                    failedCount += 1
                     continue
                 }
             }
@@ -174,7 +185,9 @@ public struct ToolchainCachePruner {
                 "\(dryRun ? "would prune" : "pruned") \(entries.count) entr\(entries.count == 1 ? "y" : "ies") (\(ByteCountFormatter.string(fromByteCount: freed, countStyle: .file)))"
             )
         }
-        return ToolchainPruneReport(entries: entries, freedBytes: freed, dryRun: dryRun)
+        return ToolchainPruneReport(
+            entries: entries, freedBytes: freed, dryRun: dryRun, failedCount: failedCount,
+            remainingBytes: max(0, totalBytes - freed))
     }
 
     /// Current total size of the cache (for `kinhin toolchains`).
@@ -184,6 +197,11 @@ public struct ToolchainCachePruner {
         collectLeaves(at: cacheRoot, into: &leaves, now: Date())
         total = leaves.reduce(0) { $0 + $1.size }
         return total
+    }
+
+    /// The cache's size, or nil when there is no cache directory to measure.
+    public func measuredBytes() -> Int64? {
+        fileManager.fileExists(atPath: cacheRoot.path) ? totalBytes() : nil
     }
 
     /// Whether a rate-limited sweep (`prune(minInterval:)`) would walk the

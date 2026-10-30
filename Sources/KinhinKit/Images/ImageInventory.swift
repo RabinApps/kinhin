@@ -122,7 +122,10 @@ public struct ImageInventory: Sendable, Equatable, Codable {
             var sources: [String: String] = [:]
             for vm in tartEntries {
                 sources[vm.name] = vm.source
-                if let disk = vm.diskGB { sizes[vm.name] = disk }
+                // Allocated storage (sizeGB), falling back to the declared
+                // capacity for a tart too old to report a size — virtual
+                // capacity alone over-states freeable space.
+                if let size = vm.sizeGB ?? vm.diskGB { sizes[vm.name] = size }
             }
             self.init(names: tartEntries.map(\.name), sizesGB: sizes, sources: sources, instances: instances)
         }

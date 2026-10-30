@@ -10,6 +10,7 @@ USAGE:
 SETUP:
     config init                             Write a starter config file
     config validate [FILE]                  Check the config without starting anything
+    config reload                           Make the running daemon re-read the config
     config migrate                          Translate removed config keys to the current schema
     config export [FILE]                    Write the config for another Mac (no tokens)
     config import FILE                      Use a config exported on another Mac
@@ -60,6 +61,7 @@ RUNNING:
     heal                                    What the healing agent fixed, and what waits on you
     heal approve ID                         Carry out a fix that waits for approval
     heal dismiss ID                         Close a pending or surfaced entry
+    telemetry                               OpenTelemetry export: what runs and what fails
     cleanup                                 Reclaim disk: leftover VMs, the base image, the cache
     bench [SUITE]…                          Benchmark runtimes, workloads and toolchains here
     reset                                   Reset config, the daemon install, or everything

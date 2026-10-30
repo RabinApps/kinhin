@@ -77,7 +77,7 @@ struct GitHubForge: Forge {
         try await client.queuedJobs(matching: Set(labels)).map {
             ForgeJob(
                 name: $0.name, runnerName: nil, repository: $0.repository, labels: $0.labels, ref: $0.ref,
-                sha: $0.sha, isFork: $0.isFork, forkKnown: $0.forkKnown)
+                sha: $0.sha, isFork: $0.isFork, forkKnown: $0.forkKnown, correlation: $0.correlation)
         }
     }
 
@@ -89,6 +89,11 @@ struct GitHubForge: Forge {
 
     func pipelineDetail(runnerName: String, repository: String?) async throws -> PipelineDetail? {
         try await client.pipelineDetail(runnerName: runnerName)
+    }
+
+    func jobOutcome(for correlation: JobCorrelation) async throws -> JobOutcome? {
+        guard let jobID = correlation.jobID.flatMap(Int.init) else { return nil }
+        return try await client.jobOutcome(repository: correlation.repository, jobID: jobID)
     }
 
     func pipelineLog(job: PipelineJob, step: PipelineStep?) async throws -> PipelineLog? {
@@ -107,7 +112,8 @@ struct GitHubForge: Forge {
 
     func runningJobs() async throws -> [ForgeJob] {
         try await client.runningJobs(matching: Set(labels)).map {
-            ForgeJob(name: $0.name, runnerName: $0.runnerName, repository: $0.repository)
+            ForgeJob(
+                name: $0.name, runnerName: $0.runnerName, repository: $0.repository, correlation: $0.correlation)
         }
     }
 }

@@ -16,6 +16,21 @@
   pointing a fleet at the file, in CI, or for agent review of a proposed config. The command honors `--` before the
   file name (so `kinhin config validate -- -broken.yaml` parses) and rejects extra operands.
 
+- Opt-in OpenTelemetry: a `telemetry:` section exports metrics, traces and logs over OTLP (HTTP/protobuf or gRPC) and can serve the
+  metrics on a local Prometheus `/metrics` endpoint. It covers workers by pool, image, labels and state, queue depth and age, fleet size
+  and capacity, the warm pool, provisioning, boot and registration timings, jobs picked up and completed, runner, host and daemon resource
+  use, forge request counts and rate limits, and classified errors, with no VM, job or run IDs as metric labels. Each instance gets one
+  trace, with GitHub run, attempt and job identifiers and queue timestamps when GitHub supplies them. `log_format: json` writes structured
+  local logs. The job's result, run duration and step spans come from the forge when it can say (GitHub, GitLab, Buildkite, Gitea, Forgejo and Azure DevOps; step spans on GitHub), and read `unknown` otherwise. Metric names and attributes follow the OpenTelemetry CI/CD conventions, and `job_attributes` opts in to repository and workflow dimensions. Standard `OTEL_*` variables take precedence. Off by default: nothing starts and no port opens until `enabled: true`.
+  Passing trace context into workflow steps is not part of this release. See [docs/telemetry.md](docs/telemetry.md).
+- `kinhin telemetry status` shows what the daemon's telemetry pipeline sends where and whether exports are failing (the SDK never throws them, so kinhin logs each distinct problem once a minute, counts `kinhin.telemetry.export.failures` and reports it). A ready Grafana Alloy snippet, dashboard and alert rules are in [docs/telemetry.md](docs/telemetry.md).
+- Telemetry also reports the daemon's own health: build info, uptime, reconcile pass duration and last-success time (alert on a stuck loop), spawn failures and holds (backoff, disk pressure), and queue depth per pool.
+- Telemetry also reports image bakes (duration and result), the toolchain cache (size and prune results) and, on Tart, runner disk size.
+- Collector security and resilience: `ca_file` (or `OTEL_EXPORTER_OTLP_CERTIFICATE`) for a private CA, `sampling_ratio` (or `OTEL_TRACES_SAMPLER`) for traces, `headers_keychain` to read a bearer token from the Keychain instead of the config or environment, `persist: true` to queue spans and logs on disk through collector downtime and restarts, and `log_level` to keep debug noise out of OTLP logs.
+- Menu bar app: a Telemetry card under Advanced → App shows OpenTelemetry export status (signals, redacted collector endpoints, Prometheus address, last export problem) and switches it on or off in config.yaml; the app also flushes pending telemetry when you quit.
+- `kinhin config reload` checks the config and makes the running daemon re-read it (telemetry and routing changes apply in
+  place; an invalid file is refused with exit 3 and never reaches the daemon).
+
 **Fixed**
 
 - `kinhin daemon install` wrote the path it was found by into the daemon's LaunchAgent: a bare `kinhin` resolved
@@ -58,6 +73,7 @@
   Linux images already had, extended to the default image, and the same rule reads the image's own labels: a
   `macos` word in a Linux image's `labels:` is stripped too, so it cannot put the runner back into the macOS
   pool.
+
 
 ## v0.0.1-beta-3
 

@@ -44,6 +44,7 @@ public struct PartialConfig: Decodable {
     var projects: [PartialProject]?
     var accounts: [PartialAccount]?
     var healing: PartialHealing?
+    var telemetry: PartialTelemetry?
 
     struct PartialAccount: Decodable {
         var name: String?
@@ -195,6 +196,39 @@ public struct PartialConfig: Decodable {
         }
     }
 
+    struct PartialTelemetry: Decodable {
+        var enabled: Bool?
+        var endpoint: String?
+        var otlpProtocol: String?
+        var exportInterval: Int?
+        var exportIntervalAlias: Int?
+        var jobAttributes: [String]?
+        var signals: [String]?
+        var resourceAttributes: [String: String]?
+        var prometheusListen: String?
+        var logFormat: String?
+        var samplingRatio: Double?
+        var logLevel: String?
+        var headersKeychain: String?
+        var caFile: String?
+        var persist: Bool?
+
+        enum CodingKeys: String, CodingKey, CaseIterable {
+            case enabled, endpoint, signals, persist
+            case otlpProtocol = "protocol"
+            case exportInterval = "export_interval_seconds"
+            case exportIntervalAlias = "export_interval"
+            case jobAttributes = "job_attributes"
+            case resourceAttributes = "resource_attributes"
+            case prometheusListen = "prometheus_listen"
+            case logFormat = "log_format"
+            case samplingRatio = "sampling_ratio"
+            case logLevel = "log_level"
+            case headersKeychain = "headers_keychain"
+            case caFile = "ca_file"
+        }
+    }
+
     struct PartialReserve: Decodable {
         var cpu: Int?
         var memoryGB: Int?
@@ -277,6 +311,7 @@ public struct PartialConfig: Decodable {
         case projects
         case accounts
         case healing
+        case telemetry
     }
 
     /// forgejo is a stored property (decoded for the removed-key rejection);

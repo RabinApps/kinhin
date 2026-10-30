@@ -21,6 +21,7 @@
 | `reserve.cpu` / `reserve.memory_gb`        | Host headroom kept free                                                                                                                                                                                                                                                                                                                                      |
 | `reserve.disk_gb`                          | Host disk (GB) kept free (default 10)                                                                                                                                                                                                                                                                                                                        |
 | `healing`                                  | The healing agent: `enabled` (true), `auto` (`safe`, or `none` to approve every fix), `ai` (`auto` or `off`), `max_attempts` (3, 1–10). See [The healing agent](/guide/healing)                                                                                                                                                                              |
+| `telemetry`                                | Opt-in observability, off by default: `enabled`, `endpoint`, `protocol` (`http/protobuf` or `grpc`), `export_interval_seconds` (60), `signals`, `resource_attributes`, `prometheus_listen`, `job_attributes`, `log_format` (`text` or `json`), `sampling_ratio` (1), `log_level` (`info`), `headers_keychain`, `ca_file`, `persist` (false). Standard `OTEL_*` variables override it. See [Telemetry](/guide/telemetry) |
 
 Scale-set mode (GitHub, opt-in): an `accounts:` entry may carry `scale_set:` with `name` (the
 scale set's name — what workflows put in `runs-on:`; kinhin adds `-container`, `-docker` and `-<image>` sets for the other pools and named images) and `runner_group`
@@ -44,7 +45,7 @@ the disk would dip below `reserve.disk_gb` plus one instance's footprint.
 - **Unknown keys are an error.** A typo such as `max_runner:` is rejected with a suggestion
   (`did you mean 'max_runners'?`) instead of silently falling back to the default. The check covers
   the top level and the nested sections (`vm`, `reserve`, `container`, `docker`, `runtimes`,
-  `images`, `accounts`, `projects`, `toolchain_cache`, `healing`). Top-level keys that start with `x-` are
+  `images`, `accounts`, `projects`, `toolchain_cache`, `healing`, `telemetry`). Top-level keys that start with `x-` are
   ignored, so you can keep notes or YAML anchors there.
 - **`version`** is optional and defaults to `1`. A file that declares a newer version than your
   kinhin understands is still read: keys it does not know are logged and ignored, and the keys it

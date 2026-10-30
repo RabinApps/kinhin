@@ -181,6 +181,7 @@ The CLI and the app talk to the daemon over `RPCMethod` (`Sources/KinhinKit/Flee
 | `healing_status` | The healing agent's policy and journal. |
 | `healing_approve` | Carry out a healing fix that waits for approval. |
 | `healing_dismiss` | Close a pending or surfaced healing event. |
+| `telemetry_status` | What the daemon's telemetry pipeline is doing (never any credentials). |
 <!-- docs-sync:end rpc-methods -->
 
 ## Tests

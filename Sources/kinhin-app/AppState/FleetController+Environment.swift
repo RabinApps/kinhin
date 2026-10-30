@@ -24,5 +24,16 @@ extension FleetController {
         var makeDaemonBackend: () -> any FleetServing = { FleetBackend.daemon(RPCClient()) }
         /// The config file edits are read from (tests point this at a scratch file).
         var configURL: URL = Paths.config
+        /// Starts, restarts or stops the process's exporters to match the config. Called only while this app runs
+        /// the engine itself: an app attached to a daemon never owns exporters (the daemon exports for that fleet).
+        var applyTelemetry: @Sendable (KinhinConfig.TelemetryConfig) async -> Void = {
+            _ = await TelemetryService.shared.apply($0)
+        }
+        /// Flushes and stops the exporters on quit (bounded inside `TelemetryService`, and again by the caller).
+        var shutdownTelemetry: @Sendable () async -> Void = { await TelemetryService.shared.shutdown() }
+        /// What this process's own exporters are doing (the app runs the engine in-process).
+        var ownTelemetryStatus: @Sendable () async -> TelemetryStatus = { await TelemetryService.shared.status() }
+        /// What the daemon's exporters are doing (a blocking socket call: run off the main actor).
+        var daemonTelemetryStatus: @Sendable () throws -> TelemetryStatus = { try RPCClient().telemetryStatus() }
     }
 }

@@ -198,6 +198,7 @@ public struct GitHubScaleSetClient: GitHubScaleSetServing {
             guard let http = response as? HTTPURLResponse else {
                 return .retry(GitHubError.http(0, "non-HTTP response"), after: nil)
             }
+            ForgeRequestMetrics.record(forge: .github, status: http.statusCode)
             if (200...299).contains(http.statusCode) { return .done((data, http)) }
             if http.statusCode == 409 {
                 let body = String(decoding: data.prefix(500), as: UTF8.self)

@@ -20,6 +20,18 @@ enum ConfigCommands {
         }
     }
 
+    /// `kinhin config reload`: validates the config, then asks the running daemon to re-read it. The daemon applies
+    /// telemetry and routing edits in place and rebuilds its engine (keeping instances) for anything else; a daemon
+    /// that rejects the file keeps serving on its current config.
+    static func reload(configURL: URL = Paths.config) throws {
+        _ = try validated(configURL: configURL)
+        guard RPCClient.isDaemonAlive() else {
+            fail("no daemon is running: the config is read when it starts (kinhin daemon install)", exit: .general)
+        }
+        try RPCClient().reloadConfig()
+        print("daemon reloaded the config")
+    }
+
     /// `kinhin config migrate`: translates removed legacy keys to the current
     /// schema. Prints the result (notes and warnings on stderr so stdout stays
     /// pipeable); `--write` keeps the original as `<config>.bak` and replaces it.

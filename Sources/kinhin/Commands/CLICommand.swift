@@ -32,6 +32,7 @@ enum CLICommand: Equatable, Hashable {
     case requeue
     case skip
     case heal
+    case telemetry
     case support
     case issue
     case version
