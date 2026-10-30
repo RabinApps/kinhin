@@ -151,7 +151,7 @@ struct AzureDevOpsForge: Forge {
         try await requests().filter { $0.isQueued && isOurs($0) && Self.guestCanSatisfy($0.demands) }.map {
             ForgeJob(
                 name: $0.jobName ?? "azure-job", runnerName: nil, repository: $0.pipeline,
-                labels: Self.routingLabels($0.demands))
+                labels: Self.routingLabels($0.demands), correlation: $0.correlation)
         }
     }
 
@@ -159,8 +159,20 @@ struct AzureDevOpsForge: Forge {
         try await requests().filter { $0.isRunning && $0.reservedAgent?.name != nil && isOurs($0) }.map {
             ForgeJob(
                 name: $0.jobName ?? "azure-job", runnerName: $0.reservedAgent?.name, repository: $0.pipeline,
-                labels: Self.routingLabels($0.demands))
+                labels: Self.routingLabels($0.demands), correlation: $0.correlation)
         }
+    }
+
+    /// The finished request's verdict and times, read once from the pool's recent requests; the step list is the
+    /// build timeline's, which kinhin does not read for telemetry.
+    func jobOutcome(for correlation: JobCorrelation) async throws -> JobOutcome? {
+        guard let requestID = correlation.jobID.flatMap(Int64.init) else { return nil }
+        let recent = try await client.recentJobRequests(pool: pool)
+        guard let request = recent.first(where: { $0.requestId == requestID }) else { return nil }
+        guard request.isFinished else { return JobOutcome() }
+        return JobOutcome(
+            result: JobOutcome.result(azureResult: request.result), startedAt: PipelineParsing.date(request.assignTime),
+            completedAt: PipelineParsing.date(request.finishTime))
     }
 
     /// The build `runnerName`'s agent is running a job of, from the build

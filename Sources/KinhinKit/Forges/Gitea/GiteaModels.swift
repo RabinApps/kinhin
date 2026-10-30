@@ -44,12 +44,17 @@ public struct GiteaTask: Sendable, Equatable {
     let title: String?
     let runNumber: Int?
     let startedAt: String?
+    /// When the task was created, and when the instance last touched it (its end, once it has finished).
+    let createdAt: String?
+    let updatedAt: String?
 
     public init(
         id: Int?, name: String?, repository: String?, status: String?, runnerName: String? = nil, ref: String? = nil,
         sha: String? = nil, url: String? = nil, title: String? = nil, runNumber: Int? = nil,
-        startedAt: String? = nil
+        startedAt: String? = nil, createdAt: String? = nil, updatedAt: String? = nil
     ) {
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
         self.url = url
         self.title = title
         self.runNumber = runNumber
@@ -61,6 +66,17 @@ public struct GiteaTask: Sendable, Equatable {
         self.runnerName = runnerName
         self.ref = ref
         self.sha = sha
+    }
+}
+
+extension GiteaTask {
+    /// The identifiers and provider timestamps of this task, for telemetry; nil when the entry has no id to read
+    /// the verdict by. The run number stands for the run, the task id for the job.
+    var correlation: JobCorrelation? {
+        guard let id else { return nil }
+        return JobCorrelation(
+            runID: runNumber.map(String.init), jobID: String(id), jobName: name, repository: repository,
+            enqueuedAt: PipelineParsing.date(createdAt), startedAt: PipelineParsing.date(startedAt))
     }
 }
 

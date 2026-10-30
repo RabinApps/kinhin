@@ -94,6 +94,13 @@ public struct AzureDevOpsClient: Sendable {
         return requests.filter { $0.isQueued || $0.isRunning }
     }
 
+    /// The pool's most recent job requests, finished ones included, for telemetry's single read of a job's verdict.
+    func recentJobRequests(pool: AzureDevOpsPool) async throws -> [AzureDevOpsJobRequest] {
+        try await list(
+            "/_apis/distributedtask/pools/\(pool.id)/jobrequests",
+            [URLQueryItem(name: "completedRequestCount", value: "100")], what: "job requests")
+    }
+
     /// The build's timeline (stages, jobs, tasks) and its summary. `project`
     /// is the project id the job request reports.
     func timeline(project: String, buildID: Int) async throws -> AzureDevOpsTimeline {
