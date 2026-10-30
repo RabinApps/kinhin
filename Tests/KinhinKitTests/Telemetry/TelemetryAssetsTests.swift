@@ -39,7 +39,7 @@ final class TelemetryAssetsTests: XCTestCase {
     private let attributes: Set<String> = [
         "kinhin_pool", "kinhin_image", "kinhin_forge", "kinhin_account", "kinhin_runner_labels", "kinhin_runner_phase",
         "cicd_worker_state", "cicd_pipeline_result", "cicd_pipeline_name", "cicd_system_component",
-        "kinhin_healing_result", "kinhin_runner_name",
+        "kinhin_healing_result", "kinhin_runner_name", "kinhin_spawn_hold_reason",
     ]
 
     func testDashboardUsesOnlyEmittedMetrics() throws {

@@ -189,11 +189,14 @@ enum Metric {
         case forgeRequests = "kinhin.forge.api.requests"
         case errors = "cicd.system.errors"
         case exportFailures = "kinhin.telemetry.export.failures"
+        case reconcileErrors = "kinhin.reconcile.errors"
+        case spawnFailures = "kinhin.spawn.failures"
     }
 
     enum Histogram: String, CaseIterable {
         case phaseDuration = "kinhin.runner.provision.duration"
         case teardownDuration = "kinhin.runner.teardown.duration"
+        case reconcileDuration = "kinhin.reconcile.duration"
         case queueWait = "kinhin.job.queue_wait.duration"
         case runDuration = "cicd.pipeline.run.duration"
     }
@@ -201,6 +204,7 @@ enum Metric {
     enum Gauge: String, CaseIterable {
         case workers = "cicd.worker.count"
         case queueDepth = "kinhin.queue.depth"
+        case queueDepthByPool = "kinhin.queue.pool.depth"
         case queueAge = "kinhin.queue.age"
         case fleetDesired = "kinhin.fleet.desired"
         case fleetActive = "kinhin.fleet.active"
@@ -221,6 +225,10 @@ enum Metric {
         case rateLimitRemaining = "kinhin.forge.rate_limit.remaining"
         case rateLimitLimit = "kinhin.forge.rate_limit.limit"
         case healingPending = "kinhin.healing.awaiting_approval"
+        case buildInfo = "kinhin.build.info"
+        case daemonUptime = "kinhin.daemon.uptime"
+        case reconcileLastSuccess = "kinhin.reconcile.last_success"
+        case spawnHeld = "kinhin.spawn.held"
     }
 
     /// Metric attribute keys. Names follow the OpenTelemetry CI/CD semantic conventions where one exists
@@ -240,6 +248,8 @@ enum Metric {
         static let component = "cicd.system.component"
         static let statusClass = "http.response.status_class"
         static let healingResult = "kinhin.healing.result"
+        static let version = "service.version"
+        static let holdReason = "kinhin.spawn.hold_reason"
     }
 
     /// The VM lifecycle phases timed directly by the engine.

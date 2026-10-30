@@ -102,11 +102,17 @@ public struct GitLabJob: Sendable, Equatable {
     /// `refs/merge-requests/N/…`). Such a ref can carry a fork's code, so the
     /// job is treated like a fork pull request: no repo file, no cache trust.
     let fromMergeRequest: Bool
+    /// When GitLab created the job (it waits for a runner from then) and when it started, when the payload says.
+    let createdAt: Date?
+    let startedAt: Date?
 
     public init(
         id: Int, name: String, tags: [String], project: String, runnerDescription: String?, ref: String? = nil,
-        sha: String? = nil, projectID: Int? = nil, pipelineID: Int? = nil, fromMergeRequest: Bool = false
+        sha: String? = nil, projectID: Int? = nil, pipelineID: Int? = nil, fromMergeRequest: Bool = false,
+        createdAt: Date? = nil, startedAt: Date? = nil
     ) {
+        self.createdAt = createdAt
+        self.startedAt = startedAt
         self.projectID = projectID
         self.pipelineID = pipelineID
         self.fromMergeRequest = fromMergeRequest
@@ -117,6 +123,31 @@ public struct GitLabJob: Sendable, Equatable {
         self.runnerDescription = runnerDescription
         self.ref = ref
         self.sha = sha
+    }
+}
+
+extension GitLabJob {
+    /// The identifiers and provider timestamps of this job, for telemetry. GitLab has no workflow name below the
+    /// pipeline, so `workflow` stays nil.
+    var correlation: JobCorrelation {
+        JobCorrelation(
+            runID: pipelineID.map(String.init), jobID: String(id), jobName: name, repository: project,
+            enqueuedAt: createdAt, startedAt: startedAt)
+    }
+}
+
+/// `GET /projects/:id/jobs/:job_id`: what telemetry reads once a job has ended.
+struct GitLabJobDetail: Decodable, Sendable, Equatable {
+    let status: String?
+    let failureReason: String?
+    let startedAt: String?
+    let finishedAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case status
+        case failureReason = "failure_reason"
+        case startedAt = "started_at"
+        case finishedAt = "finished_at"
     }
 }
 

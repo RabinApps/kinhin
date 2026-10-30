@@ -45,3 +45,15 @@ groups:
         labels: {severity: info}
         annotations:
           summary: The fleet has been paused for an hour
+      - alert: KinhinReconcileStale
+        expr: time() - kinhin_reconcile_last_success > 300
+        for: 5m
+        labels: {severity: critical}
+        annotations:
+          summary: The kinhin control loop has not completed a pass for five minutes
+      - alert: KinhinSpawnHeld
+        expr: max(kinhin_spawn_held) > 0
+        for: 15m
+        labels: {severity: warning}
+        annotations:
+          summary: "New runners are held back ({{ $labels.kinhin_spawn_hold_reason }})"

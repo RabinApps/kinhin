@@ -83,6 +83,11 @@ public final class FleetEngine: Sendable {
     let healingCounted = Mutex(HealingCounted())
     /// The daemon process's own CPU and memory.
     let processUsage = ProcessUsage()
+    /// When this engine was built, and when its last reconcile pass completed (for `kinhin.reconcile.last_success`).
+    let startedAt = Date()
+    let lastReconcileSuccess = Mutex<Date?>(nil)
+    /// Whether disk pressure held spawns in the latest pass.
+    let diskHold = Mutex(false)
 
     // MARK: - Mutable state
 

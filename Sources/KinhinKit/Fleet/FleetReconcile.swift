@@ -106,7 +106,9 @@ extension FleetEngine {
         while !Task.isCancelled {
             var idle = false
             do {
+                let passStart = ContinuousClock.now
                 idle = try await reconcileOnce().idle
+                recordReconcilePass(seconds: (ContinuousClock.now - passStart) / .seconds(1))
                 await publishTelemetry()
                 await sweepOrphansIfDue()
                 await statusBox.modify { $0.setAlert("reconcile", nil) }
@@ -115,6 +117,7 @@ extension FleetEngine {
             } catch {
                 let message = (error as? LocalizedError)?.errorDescription ?? "\(error)"
                 Log.error("engine", "reconcile failed: \(message)")
+                telemetry.add(.reconcileErrors)
                 await statusBox.modify { $0.setAlert("reconcile", message) }
             }
             let paused = runState.withLock { $0.paused }
@@ -307,7 +310,8 @@ extension FleetEngine {
                 await statusBox.modify { $0.setAlert("queue:\(forge.account)", message) }
             }
         }
-        publishQueueTelemetry(byForge: demand.byForge, oldestEnqueuedAt: demand.oldestEnqueuedAt)
+        publishQueueTelemetry(
+            byForge: demand.byForge, byPool: demand.byPool, oldestEnqueuedAt: demand.oldestEnqueuedAt)
         if paused {
             // Paused with auto-resume: hold while demand remains, release once
             // the queue is empty. A forge outage (every fetch failed) must NOT
@@ -396,6 +400,7 @@ extension FleetEngine {
         defer { publishSpawnBackoff() }
         var slots = plan.slots
         var diskPressureMessage: String?
+        diskHold.withLock { $0 = false }
         if slots.contains(where: { $0.runtime != .host && $0.claim == nil }) {
             let listed = slots.contains { $0.image != nil } ? await listedTartVMs() : []
             let admission = ScalePlan.admitByDisk(
@@ -403,6 +408,7 @@ extension FleetEngine {
                 diskPerInstanceGB: { diskPerInstanceGB($0, listed: listed) })
             slots = admission.admitted
             if let blocked = admission.blocked {
+                diskHold.withLock { $0 = true }
                 diskPressureMessage =
                     "disk pressure: \(blocked.availableGB) GB free, a new \(blocked.runtime.rawValue) instance needs \(blocked.neededGB - config.reserve.diskGB) GB + \(config.reserve.diskGB) GB reserve — holding spawns"
             }
@@ -548,6 +554,7 @@ extension FleetEngine {
 
     /// Counts a failed start against `runtime`'s spawn backoff.
     func noteSpawnFailure(runtime: RuntimeID, reason: String) {
+        telemetry.add(.spawnFailures, 1, [Metric.Attr.pool: runtime.rawValue])
         let delay = spawnBackoff.withLock { $0.recordFailure(runtime, reason: reason, now: Date()) }
         if delay > 0 {
             Log.warn(
