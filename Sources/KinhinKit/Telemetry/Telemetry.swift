@@ -111,6 +111,7 @@ public final class Telemetry: Sendable {
     private let backendBox: Mutex<any TelemetryBackend>
     private let enabledBox: Mutex<Bool>
     private let jobAttributesBox = Mutex(Set<KinhinConfig.TelemetryConfig.JobAttribute>())
+    private let logLevelBox = Mutex(Log.Level.info)
 
     /// A handle that records nothing (the default for every engine).
     public static let noop = Telemetry()
@@ -134,6 +135,13 @@ public final class Telemetry: Sendable {
 
     func setJobAttributes(_ attributes: Set<KinhinConfig.TelemetryConfig.JobAttribute>) {
         jobAttributesBox.withLock { $0 = attributes }
+    }
+
+    /// The lowest severity sent to the OTLP log pipeline (`telemetry.log_level`); independent of `Log.minLevel`.
+    var logLevel: Log.Level { logLevelBox.withLock { $0 } }
+
+    func setLogLevel(_ level: Log.Level) {
+        logLevelBox.withLock { $0 = level }
     }
 
     /// Swaps in a new backend, returning the old one for the caller to shut down.
@@ -170,8 +178,13 @@ public final class Telemetry: Sendable {
     }
 
     func emit(log record: TelemetryLogRecord) {
-        guard isEnabled else { return }
+        guard forwardsLogs(at: record.level) else { return }
         backend.emit(log: record)
+    }
+
+    /// Whether a record of `level` goes to the OTLP log pipeline (`telemetry.log_level`).
+    func forwardsLogs(at level: Log.Level) -> Bool {
+        isEnabled && level >= logLevel
     }
 }
 

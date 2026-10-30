@@ -87,6 +87,7 @@ public actor TelemetryService {
         do {
             let backend = try makeBackend(settings)
             telemetry.setJobAttributes(settings.jobAttributes)
+            telemetry.setLogLevel(settings.logLevel)
             _ = telemetry.swap(to: backend, enabled: true)
             running = settings
             startedAt = Date()

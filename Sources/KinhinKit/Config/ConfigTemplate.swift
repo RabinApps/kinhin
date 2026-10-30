@@ -161,8 +161,9 @@ extension ConfigLoader {
         # Optional: observability. Metrics, traces and logs over OTLP, plus an
         # optional local Prometheus /metrics endpoint. Off by default: nothing
         # is exported and no port opens until enabled. Standard OTEL_* variables
-        # override these keys (exporter headers come from OTEL_EXPORTER_OTLP_HEADERS
-        # only, never from this file). See docs/telemetry.md.
+        # override these keys. Credentials never go in this file: use
+        # OTEL_EXPORTER_OTLP_HEADERS or a Keychain item (headers_keychain).
+        # See docs/telemetry.md.
         # telemetry:
         #   enabled: false
         #   endpoint: http://localhost:4318   # collector base URL (grpc default port is 4317)
@@ -174,6 +175,11 @@ extension ConfigLoader {
         #   prometheus_listen: 127.0.0.1:9464 # local scrape endpoint (a bare port binds loopback)
         #   log_format: text                  # json = one structured JSON object per log line
         #   job_attributes: []                # [repository, workflow] adds those to the job counters and histograms (cardinality!)
+        #   sampling_ratio: 1                 # 0-1: share of job traces recorded (1 = all)
+        #   log_level: info                   # debug|info|warn|error: lowest severity sent over OTLP (the local log is separate)
+        #   headers_keychain: grafana-cloud   # Keychain item holding a collector token, sent as "Authorization: Bearer"
+        #   ca_file: /etc/ssl/collector-ca.pem # PEM CA that signs the collector's https certificate
+        #   persist: false                    # true = queue spans and logs on disk while the collector is down
 
         # Optional: serve more forges from the same fleet. Every accounts:
         # entry above is one forge; VMs are assigned to whichever forge has

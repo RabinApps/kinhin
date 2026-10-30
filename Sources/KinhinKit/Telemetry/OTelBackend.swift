@@ -32,6 +32,7 @@ final class OTelBackend: TelemetryBackend, @unchecked Sendable {
     private var prometheusListener: PrometheusListener?
     private var channels: [GRPCChannel] = []
     private var eventLoops: MultiThreadedEventLoopGroup?
+    private let transport: TelemetryTransport
 
     private var counters: [String: LongCounterSdk] = [:]
     private var histograms: [String: DoubleHistogramMeterSdk] = [:]
@@ -41,8 +42,12 @@ final class OTelBackend: TelemetryBackend, @unchecked Sendable {
     /// The port the Prometheus endpoint bound (0 when there is none); tests read it for an ephemeral port.
     var prometheusPort: Int { prometheusListener?.port ?? 0 }
 
-    init(settings: TelemetrySettings) throws {
+    /// `queueRoot` is where `telemetry.persist` keeps its on-disk queue (a test points it at a temp directory).
+    init(
+        settings: TelemetrySettings, queueRoot: URL = Paths.appSupport.appendingPathComponent("telemetry-queue")
+    ) throws {
         self.settings = settings
+        transport = try TelemetryTransport(settings: settings, queueRoot: queueRoot)
         var resourceAttributes: [String: AttributeValue] = [:]
         for (key, value) in settings.resource { resourceAttributes[key] = .string(value) }
         // SDK defaults (telemetry.sdk.*) first, kinhin's attributes over them.
@@ -56,31 +61,37 @@ final class OTelBackend: TelemetryBackend, @unchecked Sendable {
             try buildMetrics(resource: resource, configuration: configuration)
         }
         if settings.signals.contains(.traces), let endpoint = settings.endpoints[.traces] {
-            let exporter: SpanExporter
+            var exporter: SpanExporter
             switch settings.otlpProtocol {
             case .httpProtobuf:
                 exporter = OtlpHttpTraceExporter(
-                    endpoint: endpoint, config: configuration, envVarHeaders: nil)
+                    endpoint: endpoint, config: configuration, httpClient: transport.httpClient, envVarHeaders: nil,
+                    requeueOnFailure: !transport.persist)
             case .grpc:
                 exporter = OtlpTraceExporter(
                     channel: try channel(for: endpoint), config: configuration, envVarHeaders: nil)
             }
+            exporter = try transport.wrap(exporter)
             let provider = TracerProviderBuilder()
                 .with(resource: resource)
+                .with(sampler: settings.sampler.sdkSampler)
                 .add(spanProcessor: BatchSpanProcessor(spanExporter: exporter, scheduleDelay: settings.exportInterval))
                 .build()
             tracerProvider = provider
             tracer = provider.get(instrumentationName: "kinhin", instrumentationVersion: kinhinVersion.current)
         }
         if settings.signals.contains(.logs), let endpoint = settings.endpoints[.logs] {
-            let exporter: LogRecordExporter
+            var exporter: LogRecordExporter
             switch settings.otlpProtocol {
             case .httpProtobuf:
-                exporter = OtlpHttpLogExporter(endpoint: endpoint, config: configuration, envVarHeaders: nil)
+                exporter = OtlpHttpLogExporter(
+                    endpoint: endpoint, config: configuration, httpClient: transport.httpClient, envVarHeaders: nil,
+                    requeueOnFailure: !transport.persist)
             case .grpc:
                 exporter = OtlpLogExporter(
                     channel: try channel(for: endpoint), config: configuration, envVarHeaders: nil)
             }
+            exporter = try transport.wrap(exporter)
             let processor = BatchLogRecordProcessor(logRecordExporter: exporter, scheduleDelay: settings.exportInterval)
             logProcessor = processor
             let provider = LoggerProviderBuilder().with(resource: resource).with(processors: [processor]).build()
@@ -117,7 +128,8 @@ final class OTelBackend: TelemetryBackend, @unchecked Sendable {
             let exporter: MetricExporter
             switch settings.otlpProtocol {
             case .httpProtobuf:
-                exporter = OtlpHttpMetricExporter(endpoint: endpoint, config: configuration, envVarHeaders: nil)
+                exporter = OtlpHttpMetricExporter(
+                    endpoint: endpoint, config: configuration, httpClient: transport.httpClient, envVarHeaders: nil)
             case .grpc:
                 exporter = OtlpMetricExporter(
                     channel: try channel(for: endpoint), config: configuration, envVarHeaders: nil)
@@ -175,10 +187,15 @@ final class OTelBackend: TelemetryBackend, @unchecked Sendable {
         let port = endpoint.port ?? (useTLS ? 443 : TelemetrySettings.OTLPProtocol.grpc.defaultPort)
         let group = eventLoops ?? MultiThreadedEventLoopGroup(numberOfThreads: 1)
         eventLoops = group
-        let builder =
-            useTLS
-            ? ClientConnection.usingPlatformAppropriateTLS(for: group)
-            : ClientConnection.insecure(group: group)
+        let builder: ClientConnection.Builder
+        if useTLS, let caFile = settings.caFile {
+            // Only the configured CA is trusted, as for HTTP (the file was parsed when the transport was built).
+            builder = ClientConnection.usingTLSBackedByNIOSSL(on: group).withTLS(trustRoots: .file(caFile))
+        } else if useTLS {
+            builder = ClientConnection.usingPlatformAppropriateTLS(for: group)
+        } else {
+            builder = ClientConnection.insecure(group: group)
+        }
         let channel = builder.connect(host: host, port: port)
         channels.append(channel)
         return channel
@@ -216,7 +233,11 @@ final class OTelBackend: TelemetryBackend, @unchecked Sendable {
         let builder = tracer.spanBuilder(spanName: name)
         if let start { builder.setStartTime(time: start) }
         for (key, value) in attributes { builder.setAttribute(key: key, value: Self.value(value)) }
-        return OTelSpan(span: builder.startSpan(), tracer: tracer)
+        let span = builder.startSpan()
+        // A root the sampler dropped is not recorded, and neither is anything under it: its children must not
+        // become roots of their own (the SDK would sample them afresh), so the whole trace is a no-op.
+        guard span.isRecording else { return NoopSpan() }
+        return OTelSpan(span: span, tracer: tracer)
     }
 
     func emit(log record: TelemetryLogRecord) {
@@ -254,6 +275,7 @@ final class OTelBackend: TelemetryBackend, @unchecked Sendable {
         // Best effort on the way out, as above.
         if let group = eventLoops { try? await group.shutdownGracefully() }
         eventLoops = nil
+        transport.invalidate()
     }
 
     // MARK: - Mapping
@@ -298,7 +320,8 @@ private final class OTelSpan: TelemetrySpan, @unchecked Sendable {
         let builder = tracer.spanBuilder(spanName: name).setParent(span)
         if let start { builder.setStartTime(time: start) }
         for (key, value) in attributes { builder.setAttribute(key: key, value: OTelBackend.value(value)) }
-        return OTelSpan(span: builder.startSpan(), tracer: tracer)
+        let child = builder.startSpan()
+        return child.isRecording ? OTelSpan(span: child, tracer: tracer) : NoopSpan()
     }
 
     func end(at: Date?, error: String?) {
@@ -310,11 +333,29 @@ private final class OTelSpan: TelemetrySpan, @unchecked Sendable {
 enum TelemetryError: LocalizedError {
     case badEndpoint(String)
     case listenFailed(String)
+    case badCAFile(String)
+    case queueUnavailable(String, String)
 
     var errorDescription: String? {
         switch self {
         case .badEndpoint(let endpoint): return "telemetry endpoint '\(endpoint)' has no host"
         case .listenFailed(let reason): return "could not start the Prometheus endpoint: \(reason)"
+        case .badCAFile(let reason): return "the collector CA file is unusable: \(reason)"
+        case .queueUnavailable(let path, let reason):
+            return "telemetry.persist: cannot use the queue directory \(path): \(reason)"
+        }
+    }
+}
+
+extension TelemetrySampler {
+    /// The SDK sampler that makes this decision.
+    var sdkSampler: Sampler {
+        switch self {
+        case .alwaysOn: return Samplers.alwaysOn
+        case .alwaysOff: return Samplers.alwaysOff
+        case .traceIDRatio(let ratio): return Samplers.traceIdRatio(ratio: ratio)
+        case .parentBasedTraceIDRatio(let ratio):
+            return Samplers.parentBased(root: Samplers.traceIdRatio(ratio: ratio))
         }
     }
 }
