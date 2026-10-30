@@ -287,7 +287,7 @@ final class JobTrace: Sendable {
 
     /// Ends every open span and the root. Safe to call more than once.
     func finish(result: String, error: String? = nil) {
-        let (root, open) = state.withLock { state -> (any TelemetrySpan?, [any TelemetrySpan]) in
+        let (root, open) = state.withLock { state -> ((any TelemetrySpan)?, [any TelemetrySpan]) in
             guard !state.ended else { return (nil, []) }
             state.ended = true
             defer { state.open = [:] }
