@@ -109,13 +109,16 @@ enum ConfigCommands {
 
     /// The whole `config validate` command: the summary line, or — with
     /// `--json` — the document on stdout either way, then exit 3 when invalid
-    /// (the same classification the prose path gets by throwing).
+    /// (the same classification the prose path gets by throwing). `FILE`
+    /// validates that config instead of this Mac's default one.
     static func runValidate(_ args: [String]) throws {
+        let file = positional(args)
+        let configURL = file.map { URL(fileURLWithPath: $0) } ?? Paths.config
         guard args.contains("--json") else {
-            print(try validate())
+            print(try validate(configURL: configURL))
             return
         }
-        let document = validationDocument()
+        let document = validationDocument(configURL: configURL)
         try emitJSON(document)
         guard document.valid else { exit(CLIExit.config.rawValue) }
     }

@@ -44,8 +44,12 @@ enum CommandCatalog {
                     name: "validate",
                     command: .configInit,
                     summary: "Check the config without starting anything",
+                    positionals: "[FILE]",
                     flags: [jsonFlag],
-                    details: ["Exits 3 when the config is invalid."]),
+                    details: [
+                        "With FILE, validates that config instead of this Mac's default file.",
+                        "Exits 3 when the config is invalid.",
+                    ]),
                 CommandSpec(
                     name: "migrate",
                     command: .configInit,

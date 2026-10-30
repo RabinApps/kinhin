@@ -13,7 +13,7 @@ USAGE:
 
 SETUP:
     config init                             Write a starter config file
-    config validate                         Check the config without starting anything
+    config validate [FILE]                  Check the config without starting anything
     config migrate                          Translate removed config keys to the current schema
     config export [FILE]                    Write the config for another Mac (no tokens)
     config import FILE                      Use a config exported on another Mac
