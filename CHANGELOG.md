@@ -15,6 +15,8 @@
   Passing trace context into workflow steps is not part of this release. See [docs/telemetry.md](docs/telemetry.md).
 - `kinhin telemetry status` shows what the daemon's telemetry pipeline sends where and whether exports are failing (the SDK never throws them, so kinhin logs each distinct problem once a minute, counts `kinhin.telemetry.export.failures` and reports it). A ready Grafana Alloy snippet, dashboard and alert rules are in [docs/telemetry.md](docs/telemetry.md).
 - Telemetry also reports the daemon's own health: build info, uptime, reconcile pass duration and last-success time (alert on a stuck loop), spawn failures and holds (backoff, disk pressure), and queue depth per pool.
+- Telemetry also reports image bakes (duration and result), the toolchain cache (size and prune results) and, on Tart, runner disk size.
+- Collector security and resilience: `ca_file` (or `OTEL_EXPORTER_OTLP_CERTIFICATE`) for a private CA, `sampling_ratio` (or `OTEL_TRACES_SAMPLER`) for traces, `headers_keychain` to read a bearer token from the Keychain instead of the config or environment, `persist: true` to queue spans and logs on disk through collector downtime and restarts, and `log_level` to keep debug noise out of OTLP logs.
 - Menu bar app: a Telemetry card under Advanced → App shows OpenTelemetry export status (signals, redacted collector endpoints, Prometheus address, last export problem) and switches it on or off in config.yaml; the app also flushes pending telemetry when you quit.
 - `kinhin config reload` checks the config and makes the running daemon re-read it (telemetry and routing changes apply in
   place; an invalid file is refused with exit 3 and never reaches the daemon).
