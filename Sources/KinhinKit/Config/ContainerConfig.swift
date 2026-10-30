@@ -19,13 +19,14 @@ extension KinhinConfig {
 
         public init(
             image: String, cpus: Int = defaultCPUs, memoryGB: Int = defaultMemoryGB, labels: [String]? = nil,
-            baseImage: String? = nil
+            baseImage: String? = nil, fleetLabels: Bool? = nil
         ) {
             self.image = image
             self.cpus = cpus
             self.memoryGB = memoryGB
             self.labels = labels
             self.baseImage = baseImage
+            self.fleetLabels = fleetLabels
         }
 
         /// Extra labels the Apple-container pool's runners register with, so
@@ -33,10 +34,16 @@ extension KinhinConfig {
         /// Always merged with "kinhin-container" at pool construction.
         public var labels: [String]?
 
+        /// How the pool builds its base labels. nil/true (default): inherit the fleet `labels:`,
+        /// with the `macos` OS label stripped (these guests run Linux). false: replace — the pool's
+        /// labels come from `labels:` plus the "kinhin-container" marker alone.
+        public var fleetLabels: Bool?
+
         enum CodingKeys: String, CodingKey {
             case image, cpus, labels
             case memoryGB = "memory_gb"
             case baseImage = "base_image"
+            case fleetLabels = "fleet_labels"
         }
     }
 }

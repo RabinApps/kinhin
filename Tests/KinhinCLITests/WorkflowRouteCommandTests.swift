@@ -199,10 +199,11 @@ final class WorkflowRouteCommandTests: XCTestCase {
         try await run([workflowURL.path, "appleContainer"])
 
         let edited = try workflowText()
-        // ubuntu-latest can never match kinhin's runners: replaced wholesale.
-        XCTAssertTrue(edited.contains("runs-on: [self-hosted, macos, arm64, kinhin-container]"), edited)
+        // ubuntu-latest can never match kinhin's runners: replaced wholesale with the
+        // pool's exact labels (the appleContainer pool carries no `macos`).
+        XCTAssertTrue(edited.contains("runs-on: [self-hosted, arm64, kinhin-container]"), edited)
         // A subset of the pool's labels keeps its labels and gains the marker.
-        XCTAssertTrue(edited.contains("runs-on: [self-hosted, macos, kinhin-container]"), edited)
+        XCTAssertTrue(edited.contains("runs-on: [self-hosted, kinhin-container]"), edited)
         XCTAssertTrue(edited.contains("name: CI"), "the rest of the file is untouched")
 
         XCTAssertTrue(try routes().isEmpty, "the marker uniquely targets the pool — no route needed")
@@ -216,7 +217,7 @@ final class WorkflowRouteCommandTests: XCTestCase {
         try await run([workflowURL.path, "appleContainer", "--job", "build"])
 
         let edited = try workflowText()
-        XCTAssertTrue(edited.contains("runs-on: [self-hosted, macos, arm64, kinhin-container]"), edited)
+        XCTAssertTrue(edited.contains("runs-on: [self-hosted, arm64, kinhin-container]"), edited)
         XCTAssertTrue(edited.contains("runs-on: [self-hosted, macos]\n"), "the untargeted job is untouched")
     }
 

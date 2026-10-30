@@ -67,4 +67,31 @@ extension ConfigLoader {
         }
         return result
     }
+
+    /// Labels for the default `image:` (`image_labels:`). Same rules as an `images:` entry's
+    /// labels: no empty values, at least one label outside the fleet labels (or every job
+    /// requesting the fleet labels would match the default image specifically), and no label
+    /// set shared with a named `images:` entry (jobs could not tell them apart).
+    static func validatedImageLabels(
+        _ labels: [String], fleetLabels: [String], images: [KinhinConfig.ImageConfig]
+    ) throws -> [String] {
+        if labels.contains(where: { $0.trimmingCharacters(in: .whitespaces).isEmpty }) {
+            throw ConfigError.invalid("image_labels must not contain empty labels")
+        }
+        let own = Set(labels.map { $0.lowercased() })
+        let fleet = Set(fleetLabels.map { $0.lowercased() })
+        guard !own.isSubset(of: fleet) else {
+            throw ConfigError.invalid(
+                "image_labels must include a label that is not already in the fleet labels:, or every job would match the default image"
+            )
+        }
+        for image in images {
+            guard let imageLabels = image.labels, !imageLabels.isEmpty else { continue }
+            if Set(imageLabels.map { $0.lowercased() }) == own {
+                throw ConfigError.invalid(
+                    "image_labels duplicate the labels of images: \(image.name), so jobs could not tell them apart")
+            }
+        }
+        return labels
+    }
 }

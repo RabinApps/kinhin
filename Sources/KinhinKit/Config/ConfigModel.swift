@@ -45,6 +45,12 @@ public struct KinhinConfig: Sendable, Equatable {
     public var vm: VM
     /// Tart image to clone for each runner, e.g. "tahoe-base" (prepared via `kinhin image prepare`).
     public var image: String
+    /// Runner labels the default `image:` advertises on top of the fleet `labels:` — the named-image
+    /// `labels:` rule, but for the top-level image (which has no `images:` entry of its own). Typical
+    /// use: a Linux default base keeps its macOS fleet labels stripped and answers a `linux` label.
+    /// Follows the images-entry validation (at least one label outside the fleet labels; no label set
+    /// shared with a named entry) and the macOS-strip rule. nil = no extra labels.
+    public var imageLabels: [String]? = nil
     /// What `image prepare` starts from: a curated tart reference (see
     /// `TartBaseImage.curated`), any other registry reference, or a local VM
     /// name (e.g. one created with `image prepare --linux`). nil = the
@@ -104,6 +110,19 @@ public struct KinhinConfig: Sendable, Equatable {
 
     /// True when any project mounts the host toolchain cache into its runners.
     public var sharesToolchainCache: Bool { projects.contains { $0.shareCache == true } }
+
+    /// The engine-facing image table: the named `images:` entries, plus — when the default
+    /// `image:` needs a voice of its own — a synthesized entry named after `image:`.
+    /// That is the case when `image_labels` is set (labels on the default image), or when the
+    /// default base is a Linux image (its runners must have the fleet's `macos` label stripped).
+    /// The synthesized entry carries `warm_pool` 0: the default image's warm pool is the
+    /// top-level `warm_pool:`, which stays keyed separately (see `ScalePlan.warmPool`).
+    public func effectiveImages() -> [ImageConfig] {
+        let linuxDefault = baseImage.map { TartBaseImage.isLinux($0) } ?? false
+        guard imageLabels != nil || linuxDefault else { return images }
+        let synthesized = ImageConfig(name: image, baseImage: baseImage, labels: imageLabels, warmPool: 0)
+        return images + [synthesized]
+    }
 
     // MARK: - Forge views (derived from `accounts`)
 
@@ -268,6 +287,7 @@ public struct KinhinConfig: Sendable, Equatable {
 
     enum CodingKeys: String, CodingKey {
         case labels, image, images, baseImage = "base_image"
+        case imageLabels = "image_labels"
         case minRunners = "min_runners"
         case maxRunners = "max_runners"
         case warmPool = "warm_pool"

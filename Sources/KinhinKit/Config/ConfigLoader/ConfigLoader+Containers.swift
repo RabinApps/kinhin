@@ -26,7 +26,8 @@ extension ConfigLoader {
             cpus: container.cpus ?? KinhinConfig.ContainerConfig.defaultCPUs,
             memoryGB: container.memoryGB ?? KinhinConfig.ContainerConfig.defaultMemoryGB,
             labels: container.labels,
-            baseImage: containerBase
+            baseImage: containerBase,
+            fleetLabels: container.fleetLabels
         )
     }
 
@@ -58,7 +59,8 @@ extension ConfigLoader {
             memoryGB: docker.memoryGB ?? KinhinConfig.DockerForgeConfig.defaultMemoryGB,
             maxSlots: docker.maxSlots ?? KinhinConfig.DockerForgeConfig.defaultMaxSlots,
             baseImage: dockerBase,
-            platform: dockerPlatform
+            platform: dockerPlatform,
+            fleetLabels: docker.fleetLabels
         )
     }
 

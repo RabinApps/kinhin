@@ -4,6 +4,18 @@
 
 <!-- changelog: entries for the next release go here -->
 
+**Changed**
+
+- Apple-container and Docker runners no longer advertise the fleet's `macos` label: their guests run Linux, and a macOS
+  job started there would never finish (each Linux runtime keeps `kinhin-container`/`kinhin-docker`, the architecture
+  label and — for containers — the `container.labels:` entries). A pool that must speak other fleet labels can drop the
+  inheritance with `fleet_labels: false` under `container:` or `docker:` (replace-not-add: the pool then registers with
+  the marker and that section's own labels alone). Configs whose workflows targeted a Linux runtime with
+  `runs-on: […, macos]` must switch to the marker label.
+- The default `image:` can carry runner labels via top-level `image_labels:` (same rules as a named `images:` entry's
+  `labels:`), and a Linux default base keeps macOS jobs off its runners by stripping `macos` — the behavior named
+  Linux images already had, extended to the default image.
+
 ## v0.0.1-beta-3
 
 **Added**

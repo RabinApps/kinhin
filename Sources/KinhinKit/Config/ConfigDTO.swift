@@ -27,6 +27,7 @@ public struct PartialConfig: Decodable {
     /// local VM name); nil = the default macOS base.
     var baseImage: String?
     var images: [PartialImage]?
+    var imageLabels: [String]?
     var vmBootTimeout: Int?
     var diskGB: Int?
     var tartPath: String?
@@ -86,6 +87,7 @@ public struct PartialConfig: Decodable {
         var memoryGB: Int?
         var labels: [String]?
         var baseImage: String?
+        var fleetLabels: Bool?
         /// Only present so `container.platform` can be rejected with a clear message.
         var platform: String?
 
@@ -95,6 +97,7 @@ public struct PartialConfig: Decodable {
             case memoryGB = "memory_gb"
             case labels
             case baseImage = "base_image"
+            case fleetLabels = "fleet_labels"
             case platform
         }
     }
@@ -106,6 +109,7 @@ public struct PartialConfig: Decodable {
         var maxSlots: Int?
         var baseImage: String?
         var platform: String?
+        var fleetLabels: Bool?
 
         enum CodingKeys: String, CodingKey, CaseIterable {
             case image
@@ -114,6 +118,7 @@ public struct PartialConfig: Decodable {
             case maxSlots = "max_slots"
             case baseImage = "base_image"
             case platform
+            case fleetLabels = "fleet_labels"
         }
     }
 
@@ -253,6 +258,7 @@ public struct PartialConfig: Decodable {
         case vm
         case image
         case images
+        case imageLabels = "image_labels"
         case baseImage = "base_image"
         case vmBootTimeout = "vm_boot_timeout"
         case diskGB = "disk_gb"

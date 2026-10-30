@@ -53,7 +53,7 @@ final class Router: Sendable {
                 // Mixed fleets partition the usable host budget between
                 // runtimes; single-pool fleets keep the fleet cap.
                 caps: RuntimeCapacity.caps(for: config, host: host),
-                images: config.images,
+                images: config.effectiveImages(),
                 projects: config.projects,
                 labels: config.labels)
         }
