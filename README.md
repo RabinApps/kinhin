@@ -8,7 +8,7 @@ Ephemeral, autoscaling runners for GitHub Actions, Gitea and Forgejo Actions and
 narrated launch videos built from files in your repo.
 
 **[kinhin.dev](https://kinhin.dev)** · [Quick start](https://kinhin.dev/guide/quick-start) ·
-[Beta 3](https://kinhin.dev/blog/beta-3)
+[Beta 4](https://kinhin.dev/blog/beta-4)
 
 <!-- docs-sync:begin release-banner -->
 > **Beta (`v0.0.1-beta-4`).** Supported: GitHub, Gitea, Forgejo and GitLab CE. See
