@@ -126,9 +126,11 @@ final class MinIdleConfigTests: XCTestCase {
     }
 
     func testHugeFloorsAreRejectedRatherThanOverflowing() {
+        // Each case must fail the max_runners check itself, not only the later macOS-VM one: a sum that overflows
+        // exceeds even `max_runners: Int.max`.
         let huge = Int.max
         let base = invalidMessage("\(Self.head)\nmax_runners: \(huge)\nwarm_pool: 1\nimage_min_idle: \(huge)\n")
-        XCTAssertTrue(base.contains("image_min_idle"), base)
+        XCTAssertTrue(base.contains("plus warm_pool"), base)
         let image = invalidMessage(
             "\(Self.head)\nmax_runners: \(huge)\nimages:\n  - name: xcode\n    warm_pool: 1\n    min_idle: \(huge)\n")
         XCTAssertTrue(image.contains("images: xcode min_idle"), image)
@@ -136,6 +138,7 @@ final class MinIdleConfigTests: XCTestCase {
             "\(Self.head)\nmax_runners: \(huge)\nimage_min_idle: \(huge)\n"
                 + "container:\n  image: kinhin-ci-linux\n  min_idle: \(huge)\n")
         XCTAssertTrue(total.contains("min_idle across"), total)
+        XCTAssertTrue(total.contains("more than \(huge)"), total)
     }
 
     func testMacOSImageFloorsMustFitTwoMacOSVMs() {
