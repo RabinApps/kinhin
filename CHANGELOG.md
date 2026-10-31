@@ -9,6 +9,10 @@
 - Editing a named image in the menu bar app (labels, base image, warm pool, add or remove) cleared every image's
   `warm_pool`, and the app showed each image's warm pool as 0. Setting the Apple container or Docker base image, or
   the Docker platform, dropped that section's `fleet_labels:`. Both are kept now.
+- A Tart job that could not claim a warm VM (another image's job, or one with no warm VM of its own) could start a
+  third Tart VM beside two warm ones when `runtimes.budget` gives Tart a partition of 2, which is Apple's limit for
+  macOS VMs. Warm VMs are now evicted to keep the Tart partition, not only `max_runners`. See
+  [docs/scaling.md](docs/scaling.md#warm-pool).
 
 ## v0.0.1-beta-4
 

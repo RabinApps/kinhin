@@ -157,7 +157,16 @@ struct ScalePlan: Equatable {
         // Warm instances left after the claims still occupy slots: drop the surplus the cap cannot hold.
         let unclaimed = fresh.filter { !claimed.contains($0.id) }
         // The in-flight pooled clones still booting toward `.warm` occupy a slot when they land, so they count here too.
-        let overflow = live + plan.slots.count + unclaimed.count + inFlight.count - cap
+        // Warm VMs are Tart VMs, so the Tart partition must hold them as well (on most Macs it is Apple's limit of two
+        // macOS VMs): the live Tart instances, the Tart slots, the warm VMs that stay and the in-flight clones.
+        var overflow = live + plan.slots.count + unclaimed.count + inFlight.count - cap
+        if let tartCap = input.poolCaps[.tart] {
+            let tartLive = input.records.count {
+                $0.phase.isActive && $0.phase != .warm && $0.pooled != true && pool(of: $0, input: input) == .tart
+            }
+            let tartSlots = plan.slots.count { $0.runtime == .tart }
+            overflow = max(overflow, tartLive + tartSlots + unclaimed.count + inFlight.count - tartCap)
+        }
         var dropped = Set<String>()
         if overflow > 0 {
             dropped = Set(unclaimed.prefix(overflow).map(\.id))
