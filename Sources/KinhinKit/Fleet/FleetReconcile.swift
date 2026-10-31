@@ -366,7 +366,8 @@ extension FleetEngine {
                 maxRunners: config.maxRunners, capacityCap: capacity.maxConcurrent, poolCaps: routerState.caps,
                 heldRuntimes: held, existingPools: Set(routing.pools.keys), defaultRuntime: routing.defaultRuntime,
                 warmPool: warmTargets(images: routerState.images),
-                warmMaxAge: TimeInterval(config.warmMaxAgeMinutes) * 60, imageDemand: demand.byImage))
+                warmMaxAge: TimeInterval(config.warmMaxAgeMinutes) * 60, imageDemand: demand.byImage,
+                minIdle: minIdleTargets(images: routerState.images)))
     }
 
     /// Warm instances to keep per Tart image: the base `warm_pool` ("") and each `images:` entry's own.
@@ -398,7 +399,7 @@ extension FleetEngine {
     /// Host-runtime slots cost no disk, so they skip it.
     func spawn(plan: ScalePlan, demand: Demand) async {
         defer { publishSpawnBackoff() }
-        var slots = plan.slots
+        var slots = await admitIdleTopUps(plan.slots)
         var diskPressureMessage: String?
         diskHold.withLock { $0 = false }
         if slots.contains(where: { $0.runtime != .host && $0.claim == nil }) {
@@ -458,6 +459,8 @@ extension FleetEngine {
         var fetchedAt: Date?
         /// Named images whose warm pool was skipped as unprepared, so each skip is logged once.
         var skipped: Set<String> = []
+        /// The same for `min_idle` top-ups (see `admitIdleTopUps`).
+        var idleSkipped: Set<String> = []
     }
 
     /// How long one `tart list` answer serves the reconcile passes that ask for it.

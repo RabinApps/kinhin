@@ -21,6 +21,8 @@ struct ScalePlan: Equatable {
         var image: String? = nil
         /// A warm instance of `image` to bind instead of cloning.
         var claim: String? = nil
+        /// A `min_idle` top-up rather than queued demand (see `ScalePlan+MinIdle`).
+        var idle = false
     }
 
     struct Input {
@@ -52,6 +54,8 @@ struct ScalePlan: Equatable {
         var warmMaxAge: TimeInterval = 3600
         /// Queued Tart jobs per named or derived image; the base image takes the rest of the Tart demand.
         var imageDemand: [String: Int] = [:]
+        /// Registered, idle instances to keep per pool and per Tart image (`min_idle`). Absent or 0 = off.
+        var minIdle: [IdleKey: Int] = [:]
         var now = Date()
     }
 
@@ -114,6 +118,12 @@ struct ScalePlan: Equatable {
             desired: desired, target: target, active: active.count, unmetByPool: unmet, slots: [], scaleDown: [],
             scaleDownHeld: false)
         plan.slots = slots(count: target - active.count, active: active, input: input, reserved: reservedByPool)
+        // `min_idle` top-ups take only the room the queue (and `min_runners`) left.
+        let idle = idleTopUps(
+            active: active, planned: plan.slots, room: cap - reserved - active.count - plan.slots.count,
+            reserved: reservedByPool, input: input)
+        plan.slots += idle
+        plan.target += idle.count
         applyWarm(warm, to: &plan, live: active.count, inFlight: pooledInFlight, cap: cap, input: input)
 
         if active.count > desired {
@@ -225,18 +235,18 @@ struct ScalePlan: Equatable {
 
     /// Whether `record` covers queued demand of its account. Busy instances
     /// cover only demand that counts running jobs.
-    private static func covers(_ record: VMRecord, includesRunning: Set<String>) -> Bool {
+    static func covers(_ record: VMRecord, includesRunning: Set<String>) -> Bool {
         record.phase != .busy || includesRunning.contains(record.platform ?? "")
     }
 
-    private static func pool(of record: VMRecord, input: Input) -> RuntimeID {
+    static func pool(of record: VMRecord, input: Input) -> RuntimeID {
         record.runtimeID ?? input.defaultRuntime
     }
 
     /// Unmet instances per pool: for each demand kind (queued-only, or
     /// including running) the instances its jobs need minus the instances of
     /// that kind that can serve them.
-    private static func unmetByPool(records: [VMRecord], input: Input) -> [RuntimeID: Int] {
+    static func unmetByPool(records: [VMRecord], input: Input) -> [RuntimeID: Int] {
         let rpv = max(1, input.runnersPerVM)
         var jobs: [RuntimeID: [Bool: Int]] = [:]  // pool → includesRunning → jobs
         for (account, pools) in input.demand {
@@ -258,13 +268,17 @@ struct ScalePlan: Equatable {
             }
             if unmet > 0 { result[pool] = unmet }
         }
+        // With a Tart `min_idle`, an idle runner of one image is no supply for another image's jobs.
+        if let byImage = tartUnmetByImage(records: records, input: input), byImage > (result[.tart] ?? 0) {
+            result[.tart] = byImage
+        }
         return result
     }
 
     /// How many more instances `pool` may take: the pool's cap minus the
     /// instances serving demand (`records`) and the reserved room (`reserved`)
     /// that in-flight pooled clones already hold.
-    private static func headroom(_ pool: RuntimeID, records: [VMRecord], input: Input, reserved: Int = 0) -> Int {
+    static func headroom(_ pool: RuntimeID, records: [VMRecord], input: Input, reserved: Int = 0) -> Int {
         guard input.existingPools.contains(pool), !input.heldRuntimes.contains(pool) else { return 0 }
         let running = records.count { Self.pool(of: $0, input: input) == pool }
         return max(0, (input.poolCaps[pool] ?? Int.max) - running - reserved)
@@ -307,7 +321,8 @@ struct ScalePlan: Equatable {
             var image: String?
             if chosen == .tart {
                 var served: [String: Int] = [:]
-                for record in sim where pool(of: record, input: input) == .tart {
+                for record in sim
+                where pool(of: record, input: input) == .tart && servesImageDemand(record, input: input) {
                     served[record.image ?? "", default: 0] += 1
                 }
                 image = chooseImage(queuedTart: queuedTart, byImage: input.imageDemand, active: served)
@@ -355,7 +370,8 @@ struct ScalePlan: Equatable {
     // MARK: - Scale down
 
     /// Idle (ready) instances beyond `desired`, oldest first, never one whose
-    /// removal would leave its pool short of its queued jobs.
+    /// removal would leave its pool short of its queued jobs or its pool or
+    /// image short of its `min_idle` floor.
     private static func scaleDown(active: [VMRecord], surplus: Int, input: Input) -> [String] {
         var remaining = active
         var surplus = surplus
@@ -364,7 +380,9 @@ struct ScalePlan: Equatable {
         for record in idle where surplus > 0 {
             let without = remaining.filter { $0.id != record.id }
             let poolID = pool(of: record, input: input)
-            guard unmetByPool(records: without, input: input)[poolID] == nil else { continue }
+            guard removalKeepsDemand(of: poolID, remaining: remaining, without: without, input: input),
+                idleShortfall(idleKey(of: record, input: input), records: without, input: input) == 0
+            else { continue }
             remaining = without
             doomed.append(record.id)
             surplus -= 1
