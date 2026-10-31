@@ -21,7 +21,9 @@ public struct KinhinConfig: Sendable, Equatable {
 
     /// Labels a job must request (subset of these) to be picked up by this fleet.
     public var labels: [String]
-    /// Never run fewer than this many idle runners.
+    /// Fleet-wide floor on instances (busy ones included), filled with instances of the default runtime.
+    /// For idle runners per pool or image, see `min_idle` (`ContainerConfig.minIdle`, `ImageConfig.minIdle`,
+    /// `imageMinIdle`).
     public var minRunners: Int
     /// Hard upper bound on simultaneous VMs.
     public var maxRunners: Int
@@ -51,6 +53,10 @@ public struct KinhinConfig: Sendable, Equatable {
     /// Follows the images-entry validation (at least one label outside the fleet labels; no label set
     /// shared with a named entry) and the macOS-strip rule. nil = no extra labels.
     public var imageLabels: [String]? = nil
+    /// Idle registered runners of the default `image:` to keep at all times (`image_min_idle:`), the counterpart
+    /// of `min_idle` on an `images:` entry. A busy runner does not count, so one is started as soon as a runner
+    /// picks up a job. 0 = off. See `ScalePlan.Input.minIdle`.
+    public var imageMinIdle: Int = 0
     /// What `image prepare` starts from: a curated tart reference (see
     /// `TartBaseImage.curated`), any other registry reference, or a local VM
     /// name (e.g. one created with `image prepare --linux`). nil = the
@@ -117,8 +123,8 @@ public struct KinhinConfig: Sendable, Equatable {
     /// `image:` needs a voice of its own — a synthesized entry named after `image:`.
     /// That is the case when `image_labels` is set (labels on the default image), or when the
     /// default base is a Linux image (its runners must have the fleet's `macos` label stripped).
-    /// The synthesized entry carries `warm_pool` 0: the default image's warm pool is the
-    /// top-level `warm_pool:`, which stays keyed separately (see `ScalePlan.warmPool`).
+    /// The synthesized entry carries `warm_pool` and `min_idle` 0: the default image's are the
+    /// top-level `warm_pool:` and `image_min_idle:`, which stay keyed separately (see `ScalePlan.warmPool`).
     public func effectiveImages() -> [ImageConfig] {
         let linuxDefault = baseImage.map { TartBaseImage.isLinux($0) } ?? false
         guard imageLabels != nil || linuxDefault else { return images }
@@ -230,18 +236,25 @@ public struct KinhinConfig: Sendable, Equatable {
         public var labels: [String]?
         /// Booted, unregistered clones of this image kept ready for its jobs; 0 = off.
         public var warmPool: Int
+        /// Registered, idle runners of this image kept at all times, so the forge always lists one for its
+        /// labels; a busy runner does not count. 0 = off.
+        public var minIdle: Int
 
-        public init(name: String, baseImage: String? = nil, labels: [String]? = nil, warmPool: Int = 0) {
+        public init(
+            name: String, baseImage: String? = nil, labels: [String]? = nil, warmPool: Int = 0, minIdle: Int = 0
+        ) {
             self.name = name
             self.baseImage = baseImage
             self.labels = labels
             self.warmPool = warmPool
+            self.minIdle = minIdle
         }
 
         enum CodingKeys: String, CodingKey {
             case name, labels
             case baseImage = "base_image"
             case warmPool = "warm_pool"
+            case minIdle = "min_idle"
         }
     }
 
@@ -290,6 +303,7 @@ public struct KinhinConfig: Sendable, Equatable {
     enum CodingKeys: String, CodingKey {
         case labels, image, images, baseImage = "base_image"
         case imageLabels = "image_labels"
+        case imageMinIdle = "image_min_idle"
         case minRunners = "min_runners"
         case maxRunners = "max_runners"
         case warmPool = "warm_pool"

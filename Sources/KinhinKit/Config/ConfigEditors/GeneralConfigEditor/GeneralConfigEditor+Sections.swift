@@ -49,6 +49,7 @@ extension GeneralConfigEditor {
         lines += ["  cpus: \(c.cpus)", "  memory_gb: \(c.memoryGB)"]
         if let labels = c.labels { lines.append("  labels: [\(labels.map(YAMLText.quoted).joined(separator: ", "))]") }
         if let fleetLabels = c.fleetLabels { lines.append("  fleet_labels: \(fleetLabels)") }
+        if c.minIdle > 0 { lines.append("  min_idle: \(c.minIdle)") }
         return lines.joined(separator: "\n")
     }
 
@@ -58,6 +59,7 @@ extension GeneralConfigEditor {
         lines += ["  cpus: \(d.cpus)", "  memory_gb: \(d.memoryGB)", "  max_slots: \(d.maxSlots)"]
         if let platform = d.platform, !platform.isEmpty { lines.append("  platform: \(YAMLText.quoted(platform))") }
         if let fleetLabels = d.fleetLabels { lines.append("  fleet_labels: \(fleetLabels)") }
+        if d.minIdle > 0 { lines.append("  min_idle: \(d.minIdle)") }
         return lines.joined(separator: "\n")
     }
 }

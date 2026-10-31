@@ -93,6 +93,7 @@ public struct ConfigLoader {
         if let telemetry = partial.telemetry { cfg.telemetry = try parseTelemetry(telemetry) }
         try validateHostScopes(cfg)
         try validateEphemeralForges(cfg)
+        try validateMinIdle(cfg)
         return cfg
     }
 

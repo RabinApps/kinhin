@@ -28,6 +28,7 @@ public struct PartialConfig: Decodable {
     var baseImage: String?
     var images: [PartialImage]?
     var imageLabels: [String]?
+    var imageMinIdle: Int?
     var vmBootTimeout: Int?
     var diskGB: Int?
     var tartPath: String?
@@ -89,6 +90,7 @@ public struct PartialConfig: Decodable {
         var labels: [String]?
         var baseImage: String?
         var fleetLabels: Bool?
+        var minIdle: Int?
         /// Only present so `container.platform` can be rejected with a clear message.
         var platform: String?
 
@@ -99,6 +101,7 @@ public struct PartialConfig: Decodable {
             case labels
             case baseImage = "base_image"
             case fleetLabels = "fleet_labels"
+            case minIdle = "min_idle"
             case platform
         }
     }
@@ -111,6 +114,7 @@ public struct PartialConfig: Decodable {
         var baseImage: String?
         var platform: String?
         var fleetLabels: Bool?
+        var minIdle: Int?
 
         enum CodingKeys: String, CodingKey, CaseIterable {
             case image
@@ -120,6 +124,7 @@ public struct PartialConfig: Decodable {
             case baseImage = "base_image"
             case platform
             case fleetLabels = "fleet_labels"
+            case minIdle = "min_idle"
         }
     }
 
@@ -152,11 +157,13 @@ public struct PartialConfig: Decodable {
         var baseImage: String?
         var labels: [String]?
         var warmPool: Int?
+        var minIdle: Int?
 
         enum CodingKeys: String, CodingKey, CaseIterable {
             case name, labels
             case baseImage = "base_image"
             case warmPool = "warm_pool"
+            case minIdle = "min_idle"
         }
     }
 
@@ -293,6 +300,7 @@ public struct PartialConfig: Decodable {
         case image
         case images
         case imageLabels = "image_labels"
+        case imageMinIdle = "image_min_idle"
         case baseImage = "base_image"
         case vmBootTimeout = "vm_boot_timeout"
         case diskGB = "disk_gb"

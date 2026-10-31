@@ -49,14 +49,15 @@ extension GeneralConfigEditor {
             public var image: String
             public var cpus: Int
             public var memoryGB: Int
-            /// See `KinhinConfig.ContainerConfig.baseImage` / `.labels` / `.fleetLabels`; carried so a
-            /// section rewrite doesn't drop them.
+            /// See `KinhinConfig.ContainerConfig.baseImage` / `.labels` / `.fleetLabels` / `.minIdle`; carried
+            /// so a section rewrite doesn't drop them.
             public var baseImage: String?
             public var labels: [String]?
             public var fleetLabels: Bool?
+            public var minIdle: Int
             public init(
                 image: String, cpus: Int, memoryGB: Int, baseImage: String? = nil, labels: [String]? = nil,
-                fleetLabels: Bool? = nil
+                fleetLabels: Bool? = nil, minIdle: Int = 0
             ) {
                 self.image = image
                 self.cpus = cpus
@@ -64,6 +65,7 @@ extension GeneralConfigEditor {
                 self.baseImage = baseImage
                 self.labels = labels
                 self.fleetLabels = fleetLabels
+                self.minIdle = minIdle
             }
         }
 
@@ -75,11 +77,13 @@ extension GeneralConfigEditor {
             public var baseImage: String?
             /// Raw `docker.platform:` value, carried so a rewrite of the section keeps it.
             public var platform: String?
-            /// See `KinhinConfig.DockerForgeConfig.fleetLabels`; carried so a section rewrite doesn't drop it.
+            /// See `KinhinConfig.DockerForgeConfig.fleetLabels` / `.minIdle`; carried so a section rewrite
+            /// doesn't drop them.
             public var fleetLabels: Bool?
+            public var minIdle: Int
             public init(
                 image: String, cpus: Int, memoryGB: Int, maxSlots: Int, baseImage: String? = nil,
-                platform: String? = nil, fleetLabels: Bool? = nil
+                platform: String? = nil, fleetLabels: Bool? = nil, minIdle: Int = 0
             ) {
                 self.image = image
                 self.cpus = cpus
@@ -88,6 +92,7 @@ extension GeneralConfigEditor {
                 self.baseImage = baseImage
                 self.platform = platform
                 self.fleetLabels = fleetLabels
+                self.minIdle = minIdle
             }
         }
     }
@@ -134,18 +139,20 @@ extension GeneralConfigEditor {
             container: partial.container.map {
                 .init(
                     image: $0.image ?? "kinhin-ci-linux", cpus: $0.cpus ?? 4, memoryGB: $0.memoryGB ?? 8,
-                    baseImage: $0.baseImage, labels: $0.labels, fleetLabels: $0.fleetLabels)
+                    baseImage: $0.baseImage, labels: $0.labels, fleetLabels: $0.fleetLabels, minIdle: $0.minIdle ?? 0)
             },
             docker: partial.docker.map {
                 .init(
                     image: $0.image ?? "kinhin-ci-linux", cpus: $0.cpus ?? 2, memoryGB: $0.memoryGB ?? 4,
                     maxSlots: $0.maxSlots ?? 8, baseImage: $0.baseImage, platform: $0.platform,
-                    fleetLabels: $0.fleetLabels)
+                    fleetLabels: $0.fleetLabels, minIdle: $0.minIdle ?? 0)
             },
             // Every per-image key is carried: the app rewrites the whole `images:` section from this list.
             images: (partial.images ?? []).compactMap { entry in
                 entry.name.map {
-                    .init(name: $0, baseImage: entry.baseImage, labels: entry.labels, warmPool: entry.warmPool ?? 0)
+                    .init(
+                        name: $0, baseImage: entry.baseImage, labels: entry.labels, warmPool: entry.warmPool ?? 0,
+                        minIdle: entry.minIdle ?? 0)
                 }
             }
         )
