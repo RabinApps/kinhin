@@ -125,6 +125,19 @@ final class MinIdleConfigTests: XCTestCase {
         XCTAssertTrue(why.contains("min_idle across"), why)
     }
 
+    func testHugeFloorsAreRejectedRatherThanOverflowing() {
+        let huge = Int.max
+        let base = invalidMessage("\(Self.head)\nmax_runners: \(huge)\nwarm_pool: 1\nimage_min_idle: \(huge)\n")
+        XCTAssertTrue(base.contains("image_min_idle"), base)
+        let image = invalidMessage(
+            "\(Self.head)\nmax_runners: \(huge)\nimages:\n  - name: xcode\n    warm_pool: 1\n    min_idle: \(huge)\n")
+        XCTAssertTrue(image.contains("images: xcode min_idle"), image)
+        let total = invalidMessage(
+            "\(Self.head)\nmax_runners: \(huge)\nimage_min_idle: \(huge)\n"
+                + "container:\n  image: kinhin-ci-linux\n  min_idle: \(huge)\n")
+        XCTAssertTrue(total.contains("min_idle across"), total)
+    }
+
     func testMacOSImageFloorsMustFitTwoMacOSVMs() {
         let why = invalidMessage(
             "\(Self.head)\nmax_runners: 10\nimage_min_idle: 1\n"

@@ -12,11 +12,11 @@ extension ConfigLoader {
     /// floors on macOS Tart images together must fit Apple's two-VM limit, or the fleet could never hold them.
     static func validateMinIdle(_ cfg: KinhinConfig) throws {
         let cap = cfg.maxRunners
-        if cfg.imageMinIdle + cfg.warmPool > cap {
+        if sum([cfg.imageMinIdle, cfg.warmPool]) > cap {
             throw ConfigError.invalid(
                 "image_min_idle (\(cfg.imageMinIdle)) plus warm_pool (\(cfg.warmPool)) must be <= max_runners (\(cap))")
         }
-        for image in cfg.images where image.minIdle + image.warmPool > cap {
+        for image in cfg.images where sum([image.minIdle, image.warmPool]) > cap {
             throw ConfigError.invalid(
                 "images: \(image.name) min_idle (\(image.minIdle)) plus its warm_pool (\(image.warmPool)) "
                     + "must be <= max_runners (\(cap))")
@@ -27,9 +27,8 @@ extension ConfigLoader {
         if let docker = cfg.docker, docker.minIdle > cap {
             throw ConfigError.invalid("docker.min_idle (\(docker.minIdle)) must be <= max_runners (\(cap))")
         }
-        let total =
-            cfg.imageMinIdle + cfg.images.reduce(0) { $0 + $1.minIdle } + (cfg.container?.minIdle ?? 0)
-            + (cfg.docker?.minIdle ?? 0)
+        let total = sum(
+            [cfg.imageMinIdle] + cfg.images.map(\.minIdle) + [cfg.container?.minIdle ?? 0, cfg.docker?.minIdle ?? 0])
         if total > cap {
             throw ConfigError.invalid(
                 "min_idle across image_min_idle, images:, container: and docker: (\(total)) must be <= max_runners (\(cap))"
@@ -38,13 +37,22 @@ extension ConfigLoader {
         // A Linux Tart image is not bound by Apple's macOS limit. A named image without base_image bakes on the
         // default macOS base.
         let defaultIsMacOS = !TartBaseImage.isLinux(cfg.baseImage)
-        let macOS =
-            (defaultIsMacOS ? cfg.imageMinIdle : 0)
-            + cfg.images.filter { !TartBaseImage.isLinux($0.baseImage) }.reduce(0) { $0 + $1.minIdle }
+        let macOS = sum(
+            [defaultIsMacOS ? cfg.imageMinIdle : 0]
+                + cfg.images.filter { !TartBaseImage.isLinux($0.baseImage) }.map(\.minIdle))
         if macOS > macOSVMsPerMac {
             throw ConfigError.invalid(
                 "min_idle on macOS Tart images (image_min_idle and images:) adds up to \(macOS), but a Mac runs at "
                     + "most \(macOSVMsPerMac) macOS VMs at once, so the fleet could never keep that many idle")
+        }
+    }
+
+    /// `values` (each `>= 0`) added up, stopping at `Int.max` rather than trapping, so a huge `min_idle` fails
+    /// validation with a message instead of crashing the loader.
+    private static func sum(_ values: [Int]) -> Int {
+        values.reduce(0) { total, value in
+            let (result, overflow) = total.addingReportingOverflow(value)
+            return overflow ? .max : result
         }
     }
 }
