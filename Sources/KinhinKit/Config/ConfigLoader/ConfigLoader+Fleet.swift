@@ -68,8 +68,8 @@ extension ConfigLoader {
         if let mem = vm.memoryGB { cfg.vm.memoryGB = mem }
     }
 
-    /// `image`, `base_image`, `images`, `vm_boot_timeout`, `disk_gb`, `tart_path`,
-    /// `tart_softnet`, `provision_script`: everything about the Tart VM images.
+    /// `image`, `base_image`, `images`, `image_labels`, `image_min_idle`, `vm_boot_timeout`, `disk_gb`,
+    /// `tart_path`, `tart_softnet`, `provision_script`: everything about the Tart VM images.
     static func parseImageSettings(_ partial: PartialConfig, into cfg: inout KinhinConfig) throws {
         if let image = partial.image {
             guard !image.isEmpty else { throw ConfigError.invalid("image must not be empty") }
@@ -88,6 +88,10 @@ extension ConfigLoader {
             cfg.imageLabels = try Self.validatedImageLabels(
                 imageLabels, fleetLabels: cfg.labels, images: cfg.images,
                 linuxBase: TartBaseImage.isLinux(cfg.baseImage))
+        }
+        if let minIdle = partial.imageMinIdle {
+            guard minIdle >= 0 else { throw ConfigError.invalid("image_min_idle must be >= 0") }
+            cfg.imageMinIdle = minIdle
         }
         // Warm VMs take slots under max_runners, so the base and every image's warm_pool share that ceiling.
         for image in cfg.images where image.warmPool > cfg.maxRunners {

@@ -36,6 +36,10 @@ extension ConfigLoader {
         labels: ["self-hosted", "macos", "arm64"]
 
         # Concurrency bounds. kinhin scales between these based on queued work.
+        # min_runners is one floor for the whole fleet: busy runners count
+        # toward it, and its instances run on the default runtime. To keep
+        # idle runners listed for each pool or image, use min_idle instead
+        # (image_min_idle, and min_idle on images:, container: and docker:).
         min_runners: 0
         max_runners: 2
 
@@ -86,6 +90,13 @@ extension ConfigLoader {
         # Linux default base that should answer a `linux` label.
         # image_labels: [linux]
 
+        # Optional: registered, idle runners of the top-level `image:` kept at
+        # all times, so the forge always lists one for its labels. A busy
+        # runner does not count: a replacement starts when one takes a job.
+        # Each images: entry, container: and docker: take their own min_idle.
+        # They share max_runners (and Apple's two-macOS-VM limit) with the rest.
+        # image_min_idle: 1
+
         # Extra named images beside image:, each baked on its own base (for
         # example one with full Xcode). Build one with
         # `kinhin image prepare --image <name>` (or --all), or in the app under
@@ -95,6 +106,7 @@ extension ConfigLoader {
         #   - name: xcode
         #     base_image: "ghcr.io/cirruslabs/macos-tahoe-xcode:latest"
         #     labels: [xcode]
+        #     min_idle: 1                # idle registered runners kept for this image
 
         # Seconds a freshly booted VM has to register as a runner.
         vm_boot_timeout: 300
@@ -226,6 +238,7 @@ extension ConfigLoader {
         #   memory_gb: 8
         #   labels: [docker, small]      # extra pool labels (optional)
         #   fleet_labels: false          # replace-not-add: drop the fleet labels entirely
+        #   min_idle: 1                  # idle registered runners kept for this pool
 
         # Optional: run Linux jobs in Docker containers inside your Docker
         # provider's shared Linux VM (Docker Desktop, OrbStack, or colima).
@@ -240,6 +253,7 @@ extension ConfigLoader {
         #   max_slots: 8   # hard cap on concurrent runner containers
         #   platform: "linux/arm64"   # native; "linux/amd64" runs x86_64 under emulation (slower, some gaps)
         #   fleet_labels: false   # pool labels = kinhin-docker (+x64) without the fleet labels
+        #   min_idle: 1           # idle registered runners kept for this pool (<= max_slots)
         """
     }
 }

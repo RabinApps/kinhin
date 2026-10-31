@@ -30,15 +30,19 @@ Every `poll_interval` seconds the engine:
 2. Asks each forge for queued jobs on its scope and filters them by `labels`.
 3. **Routes** each job to a runtime — workflow route → repo route → `runs-on:` label → default —
    and buckets the demand per pool.
-4. Computes the desired instance count **per pool**:
-   `desired = clamp(ceil(pool_queue / runners_per_vm), min_runners, pool_cap)`, where `pool_cap`
-   is that runtime's slice of the host budget (`budget` weights, applied to cores and RAM alike) when multiple runtimes are
-   configured, or the full [capacity cap](#capacity) for a single-pool fleet.
-5. Spawns instances up to `desired` (linked clone → boot → SSH → register `runners_per_vm`
+4. Computes the desired instance count **for the whole fleet**:
+   `desired = min(max(ceil(queue / runners_per_vm), min_runners), cap)`, where `queue` is the queued jobs of every
+   pool together and `cap` is `min(max_runners, capacity cap)`. Each new instance goes to the pool with the most unmet
+   demand that is still below its `pool_cap`: that runtime's slice of the host budget (`budget` weights, applied to
+   cores and RAM alike) when multiple runtimes are configured, or the full [capacity cap](#capacity) for a single-pool
+   fleet. Instances `min_runners` asks for beyond the queue go to `runtimes.default`.
+5. Spawns those instances (linked clone → boot → SSH → register `runners_per_vm`
    runners → `run.sh`) — Tart VMs for macOS pools and for Tart Linux VMs, apple containers or
    Docker slots for the container Linux pools (see [Choosing a Linux runtime](runtimes.md#choosing-a-linux-runtime)),
-   and a runner process on the Mac itself for host routes.
-6. Deletes idle instances when `desired` drops (scale to zero by default).
+   and a runner process on the Mac itself for host routes. Then it tops up each pool and image to its
+   [`min_idle`](#idle-runners-per-pool-and-image) floor with the room left.
+6. Deletes idle instances beyond `desired` (scale to zero by default), never one a pool's queued jobs or a `min_idle`
+   floor still needs.
 
 When starts keep failing.
 
@@ -63,6 +67,87 @@ cancelled on GitHub before a runner picks it up is not a failure: the idle insta
 GitHub reads are conditional, so a poll that finds nothing changed gets a 304, which doesn't count against the rate
 limit.
 
+### `min_runners`: a fleet-wide floor, not an idle one
+
+`min_runners: N` keeps at least `N` instances in the whole fleet. It does not keep idle runners:
+
+- **It counts busy instances.** While a job runs on the only instance, the floor is met, so no idle runner is
+  registered beside it, and none is listed until the job ends and a new instance registers.
+- **It fills `runtimes.default`.** The instances it adds beyond the queue all go to the default runtime, with the base
+  `image:` on Tart, so a mixed fleet never gets an idle runner for its other pools or for a named image's labels
+  from it.
+- **It is one count**, not one per pool: the queue of every pool counts toward it.
+
+To keep a runner listed as idle for each label set the fleet serves, use `min_idle` (below). `min_runners` still works
+as before and can be combined with it: an instance it starts counts toward the default pool's `min_idle` floor.
+
+## Idle runners per pool and image
+
+`min_idle: N` keeps at least `N` runners **registered and idle** for one pool or one Tart image, so the forge's runner
+list always shows a free runner for its labels, even before any job is queued. It is set per pool and per image:
+
+```yaml
+min_runners: 0
+image_min_idle: 1        # the top-level image:
+images:
+  - name: macos-27
+    labels: [macos]
+    min_idle: 1
+  - name: macos-27-xcode
+    labels: [macos, xcode]
+    min_idle: 1
+container:               # the Apple container pool
+  image: kinhin-ci-linux
+  min_idle: 1
+docker:                  # the Docker pool
+  image: kinhin-ci-linux
+  min_idle: 1
+```
+
+Each key defaults to `0` (off). How the floor is kept:
+
+- **What counts.** An instance of that pool or image that is starting (clone, boot, registration) or registered and
+  waiting for a job. A **busy runner does not count**: when an idle runner picks up a job, a replacement starts on the
+  next pass. (On a [GitHub scale set](forges/github.md#scale-set-mode-in-kinhin), whose queue counts running jobs too,
+  a busy runner covers its own job and nothing more.) Warm VMs are not registered, so they do not count.
+- **The queue comes first.** Queued jobs, and `min_runners`, get their instances first; floors are topped up with the
+  room left under `max_runners`, the capacity cap and each pool's `pool_cap`. When room is short, the floors take
+  turns, one instance each. A runtime backing off after failed starts gets no top-up until it recovers, and a pool
+  that is not configured (`container:` without a `runtimes:` section, for example, makes the fleet a single container
+  pool) ignores its floor.
+- **A queued job does not fill the floor.** With `min_idle: 1` and one job queued for that pool, kinhin starts two
+  instances: one for the job and one to stay idle.
+- **Warm VMs.** A Tart top-up claims a warm VM of its image when there is one, so registering it is all that is left.
+  Warm VMs of other images are evicted when the slot is needed, as for a job.
+- **Unprepared images.** A named image that was never prepared gets no idle runner. Its `min_idle` is skipped, with a
+  log line, until it exists.
+- **Scale-down** never removes a runner a floor needs.
+- **`min_idle` counts instances.** With `runners_per_vm` above 1, an idle instance holds that many idle runners.
+- **Status.** `desired` in `kinhin status` still counts the queue and `min_runners` only; instances kept for
+  `min_idle` come on top of it, and the log says `keeping idle runners (min_idle): starting …` when it starts one.
+
+Idle runners take slots under `max_runners`, so the loader checks that every floor fits: each `min_idle` (and Docker's
+within `docker.max_slots`), each image's `min_idle` plus its `warm_pool`, and all of them together must fit in
+`max_runners`.
+
+### Tart: two macOS VMs
+
+Apple's limit of two macOS VMs per Mac covers idle runners too, so the `min_idle` values of macOS Tart images (the
+top-level image and every `images:` entry, unless their `base_image` is a curated Linux image) must add up to 2 or
+less; the loader rejects more. On most Macs `runtimes.budget` gives Tart a `pool_cap` of 2 as well.
+
+That limit is the trade-off. With one idle runner for `macos-27` and one for `macos-27-xcode`, both macOS slots are
+taken by idle runners:
+
+- A job for either image starts at once on its idle runner. Its replacement waits for a free slot, so that image has no
+  idle runner listed until a job ends.
+- A job for a **third** Tart image (or the base image) waits until a job ends and frees a slot: kinhin **does not
+  retire a floor's idle runner** to make room for another image's job, the way it evicts a warm VM. An idle runner
+  that no floor needs can be scaled down to make room.
+
+With `min_idle` on any Tart image, Tart's queued demand is counted per image: an idle runner of one image is not
+counted as serving another image's queued job, since its labels differ and the forge cannot hand the job to it.
+
 ## Warm pool
 
 `warm_pool: N` keeps `N` Tart VMs cloned, booted and SSH-ready but **not registered** with any forge. When a job
@@ -73,10 +158,12 @@ Each Tart image has its own pool. The top-level `warm_pool` covers `image:`, and
 [`images:` entry](runtimes.md#multiple-macos-images) covers that image, so an Xcode image can stay warm while the base
 stays cold, or the other way round.
 
-- Warm VMs take slots under `max_runners` and count against the capacity cap, including Apple's limit of two macOS VMs
-  per Mac. They are evicted when a job needs the slot, so a warm VM never delays work that a cold start could serve.
-- The pool tops up only when nothing is queued and `min_runners` is met. In ephemeral mode the replacement for a
-  finished VM is started on the next pass, so the poll interval applies.
+- Warm VMs take slots under `max_runners` and count against the capacity cap and Tart's `pool_cap`, including Apple's
+  limit of two macOS VMs per Mac. They are evicted when a job or a `min_idle` top-up needs the slot, so a warm VM never
+  delays work that a cold start could serve.
+- The pool tops up only in a pass that starts nothing else: no queued job waiting for an instance, `min_runners` met
+  and every `min_idle` floor met. In ephemeral mode the replacement for a finished VM is started on the next pass, so
+  the poll interval applies.
 - A job claims a warm VM of the image it runs on. Jobs routed to a per-project image (`projects:`), and the other
   runtimes, start cold.
 - A named image that was never prepared gets no warm VMs. Its `warm_pool` is skipped, with a log line, until it exists. Kinhin reads `tart list` at most once a minute, so an
@@ -86,7 +173,8 @@ stays cold, or the other way round.
   `images:` entry was removed. After a restart, warm VMs are re-checked rather
   than trusted.
 
-This differs from `min_runners`, which keeps *registered* idle runners on the forge.
+Warm VMs are not registered, so the forge does not list them. To have a registered idle runner listed for an image,
+use [`min_idle`](#idle-runners-per-pool-and-image).
 
 ## Healing
 

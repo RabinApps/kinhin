@@ -8,7 +8,8 @@
 | `version` | Config schema version (optional, absent = `1`). Unknown keys are an error at version 1; see [Validation](#validation-and-defaults) |
 | `accounts` | The forges this fleet serves, each with its own token: `name`, `forge` (`github`, `gitlab`, `gitea`, `forgejo`; `azuredevops` is experimental; `buildkite` and `bitbucket` are planned and not supported yet), `scope` (`owner/name` for one repo, or a bare org name for org-level runners that serve **every repo in the organization**; PAT needs org runner-admin permission), and `instance` for self-hosted forges — see [Forges](/guide/forges#multiple-accounts). There is no top-level `repo:` key |
 | `labels`                                   | Jobs must request _all_ of these to be picked up                                                                                                                                                                                                                                                                                                             |
-| `min_runners` / `max_runners` | Scaling bounds (in VMs). Defaults `0` / `2` |
+| `min_runners` / `max_runners` | Scaling bounds (in VMs). Defaults `0` / `2`. `min_runners` is one floor for the whole fleet: busy instances count toward it and the instances it adds run on `runtimes.default` (see [Scaling](/guide/scaling#min-runners-a-fleet-wide-floor-not-an-idle-one)) |
+| `image_min_idle` / `min_idle` | Registered, idle runners kept at all times so the forge always lists one: `image_min_idle` for the top-level `image:`, `min_idle` on each `images:` entry, on `container:` and on `docker:`. A busy runner does not count, so a replacement starts as soon as one takes a job. Default `0` (off); see [Idle runners per pool and image](/guide/scaling#idle-runners-per-pool-and-image) |
 | `warm_pool` / `warm_max_age_minutes` | Pre-booted, unregistered Tart VMs kept for instant pickup (per image: also `warm_pool` on each `images:` entry), and when to recycle them. Defaults `0` (off) / `60` |
 | `runners_per_vm`                           | Runner processes per VM — many-to-one job density (1–8; 1 = one job per VM, most isolated)                                                                                                                                                                                                                                                                   |
 | `poll_interval` | Seconds between forge polls (≥ 5, default 20) |
@@ -52,6 +53,9 @@ the disk would dip below `reserve.disk_gb` plus one instance's footprint.
   does know are validated as usual. That lets an older build run a config written for a newer one.
 - **Ranges.** `vm_boot_timeout` must be 30–3600 seconds and `token_ttl` 60–3600 seconds, on top of
   the bounds on `poll_interval`, `runners_per_vm` and the resource keys.
+- **`min_idle`.** Every `min_idle` (and `image_min_idle`) must be 0 or more and fit in `max_runners`, each image's
+  together with its `warm_pool`, and all of them together too; `docker.min_idle` must also fit in `docker.max_slots`.
+  The values on macOS Tart images may add up to at most 2, Apple's limit of macOS VMs per Mac.
 - **Defaults** come from one place, so omitting a key and the starter template agree:
   `min_runners: 0`, `max_runners: 2`, `runners_per_vm: 1`, `poll_interval: 20`,
   `vm: {cpu: 4, memory_gb: 8}`, `reserve: {cpu: 2, memory_gb: 4, disk_gb: 10}`.

@@ -92,7 +92,11 @@ labels plus the image's labels. Notes:
   get one.
 - Changing `images:` restarts the fleet's engine; running VMs are kept.
 - `warm_pool` on an entry keeps booted VMs of that image ready, so its jobs skip the clone and boot. See
-  [warm pool](scaling.md#warm-pool).
+  [warm pool](scaling.md#warm-pool). Warm VMs are not registered, so the forge does not list them.
+- `min_idle` on an entry keeps that many runners of the image registered and idle, so the forge always lists one for
+  its labels (`image_min_idle:` does the same for the top-level `image:`). See
+  [Idle runners per pool and image](scaling.md#idle-runners-per-pool-and-image), including how this shares Apple's
+  limit of two macOS VMs.
 
 ```yaml
 images:
@@ -261,7 +265,9 @@ Once `container:` is configured, the setup checklist and `kinhin doctor` gain co
 Container runners register with the fleet `labels:` plus `kinhin-container` and any `container.labels:` — but **not**
 with the fleet's `macos` label, because these guests run Linux: a macOS job would never finish there. Set
 `fleet_labels: false` under `container:` to drop the inherited fleet labels entirely (replace-not-add): the pool then
-registers with `kinhin-container` and `container.labels:` alone.
+registers with `kinhin-container` and `container.labels:` alone. `min_idle: N` under `container:` keeps `N` container
+runners registered and idle, so one is always listed for these labels, even while another runs a job (see
+[Idle runners per pool and image](scaling.md#idle-runners-per-pool-and-image)).
 
 ### Docker
 
@@ -279,7 +285,8 @@ Install a provider with `kinhin setup repair docker` (Docker Desktop by default;
 for the others), see [Installing a Linux runtime](install.md#installing-a-linux-runtime). kinhin never starts or configures
 your Docker provider; it only runs containers in it. Run `kinhin image prepare --docker` to bake the agents. Docker slots register with `kinhin-docker`, so jobs opt in with
 `runs-on: [kinhin-docker]`. They also inherit the fleet `labels:` minus `macos` (Linux guests); `fleet_labels: false`
-trims the pool to `kinhin-docker` (plus the architecture label) alone.
+trims the pool to `kinhin-docker` (plus the architecture label) alone. `min_idle: N` under `docker:` keeps `N` slots
+registered and idle (at most `max_slots`; see [Idle runners per pool and image](scaling.md#idle-runners-per-pool-and-image)).
 
 Prefer a CI-built image? Write a Dockerfile that installs the GitHub Actions runner at `/opt/actions-runner` (with an
 executable `config.sh`) and the Gitea runner at `/opt/gitea-runner/gitea-runner`, push it, and set `docker.image:`. Bake

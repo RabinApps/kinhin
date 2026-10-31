@@ -19,7 +19,7 @@ extension KinhinConfig {
 
         public init(
             image: String, cpus: Int = defaultCPUs, memoryGB: Int = defaultMemoryGB, labels: [String]? = nil,
-            baseImage: String? = nil, fleetLabels: Bool? = nil
+            baseImage: String? = nil, fleetLabels: Bool? = nil, minIdle: Int = 0
         ) {
             self.image = image
             self.cpus = cpus
@@ -27,6 +27,7 @@ extension KinhinConfig {
             self.labels = labels
             self.baseImage = baseImage
             self.fleetLabels = fleetLabels
+            self.minIdle = minIdle
         }
 
         /// Extra labels the Apple-container pool's runners register with, so
@@ -39,11 +40,16 @@ extension KinhinConfig {
         /// labels come from `labels:` plus the "kinhin-container" marker alone.
         public var fleetLabels: Bool?
 
+        /// Registered, idle runners this pool keeps at all times (`container.min_idle`); a busy runner does not
+        /// count. 0 = off.
+        public var minIdle: Int
+
         enum CodingKeys: String, CodingKey {
             case image, cpus, labels
             case memoryGB = "memory_gb"
             case baseImage = "base_image"
             case fleetLabels = "fleet_labels"
+            case minIdle = "min_idle"
         }
     }
 }

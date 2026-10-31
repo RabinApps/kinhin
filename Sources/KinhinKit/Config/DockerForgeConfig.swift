@@ -29,7 +29,7 @@ extension KinhinConfig {
         public init(
             image: String, cpus: Int = defaultCPUs, memoryGB: Int = defaultMemoryGB, maxSlots: Int = defaultMaxSlots,
             baseImage: String? = nil,
-            platform: LinuxPlatform = .arm64, fleetLabels: Bool? = nil
+            platform: LinuxPlatform = .arm64, fleetLabels: Bool? = nil, minIdle: Int = 0
         ) {
             self.image = image
             self.cpus = cpus
@@ -38,6 +38,7 @@ extension KinhinConfig {
             self.baseImage = baseImage
             self.platform = platform
             self.fleetLabels = fleetLabels
+            self.minIdle = minIdle
         }
 
         /// How the pool builds its base labels. nil/true (default): inherit the fleet `labels:`,
@@ -45,12 +46,17 @@ extension KinhinConfig {
         /// labels come from the "kinhin-docker" marker (and the platform's arm64/x64) alone.
         public var fleetLabels: Bool?
 
+        /// Registered, idle runners this pool keeps at all times (`docker.min_idle`); a busy runner does not
+        /// count. 0 = off.
+        public var minIdle: Int
+
         enum CodingKeys: String, CodingKey {
             case image, cpus, platform
             case memoryGB = "memory_gb"
             case maxSlots = "max_slots"
             case baseImage = "base_image"
             case fleetLabels = "fleet_labels"
+            case minIdle = "min_idle"
         }
     }
 }

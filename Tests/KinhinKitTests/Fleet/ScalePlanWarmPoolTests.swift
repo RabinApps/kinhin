@@ -68,6 +68,25 @@ final class ScalePlanWarmPoolTests: XCTestCase {
         XCTAssertEqual(plan.evict, ["w2"], "the unclaimed warm instance cannot also fit under the cap")
     }
 
+    func testWarmInstanceIsEvictedWhenTheTartPartitionNeedsItsSlot() {
+        // Tart's partition is 2 (Apple's macOS VM limit) under a roomy global cap. Two base warm VMs and a queued
+        // Xcode job (which cannot claim them) would make three Tart VMs: the oldest warm VM must make way.
+        var i = input(records: [record("w1", .warm), record("w2", .warm, age: 1)], queued: 1, maxRunners: 10)
+        i.poolCaps = [.tart: 2]
+        i.imageDemand = ["xcode": 1]
+        let plan = ScalePlan.make(i)
+        XCTAssertEqual(plan.slots.map(\.image), ["xcode"])
+        XCTAssertTrue(plan.claims.isEmpty)
+        XCTAssertEqual(plan.evict, ["w1"], "the Tart partition holds the new Xcode VM and one warm VM, not two")
+    }
+
+    func testWarmInstancesWithinTheTartPartitionStay() {
+        var i = input(records: [record("w1", .warm)], queued: 1, maxRunners: 10)
+        i.poolCaps = [.tart: 2]
+        i.imageDemand = ["xcode": 1]
+        XCTAssertTrue(ScalePlan.make(i).evict.isEmpty, "one Xcode VM and one warm VM fit a partition of 2")
+    }
+
     func testStaleWarmInstanceIsRecycled() {
         var i = input(records: [record("old", .warm)], warmPool: 1)
         i.now = epoch.addingTimeInterval(3601)

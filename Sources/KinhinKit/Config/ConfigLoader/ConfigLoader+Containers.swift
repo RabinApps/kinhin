@@ -20,6 +20,9 @@ extension ConfigLoader {
                 "container.platform is not supported: Apple container runs linux/arm64 only "
                     + "(docker.platform can select linux/amd64)")
         }
+        if let minIdle = container.minIdle, minIdle < 0 {
+            throw ConfigError.invalid("container.min_idle must be >= 0")
+        }
         let containerBase = try Self.validatedBaseImage(container.baseImage, key: "container.base_image")
         return KinhinConfig.ContainerConfig(
             image: containerImage,
@@ -27,7 +30,8 @@ extension ConfigLoader {
             memoryGB: container.memoryGB ?? KinhinConfig.ContainerConfig.defaultMemoryGB,
             labels: container.labels,
             baseImage: containerBase,
-            fleetLabels: container.fleetLabels
+            fleetLabels: container.fleetLabels,
+            minIdle: container.minIdle ?? 0
         )
     }
 
@@ -45,6 +49,13 @@ extension ConfigLoader {
         if let slots = docker.maxSlots, slots < 1 {
             throw ConfigError.invalid("docker.max_slots must be >= 1")
         }
+        let maxSlots = docker.maxSlots ?? KinhinConfig.DockerForgeConfig.defaultMaxSlots
+        if let minIdle = docker.minIdle {
+            guard minIdle >= 0 else { throw ConfigError.invalid("docker.min_idle must be >= 0") }
+            guard minIdle <= maxSlots else {
+                throw ConfigError.invalid("docker.min_idle (\(minIdle)) must be <= docker.max_slots (\(maxSlots))")
+            }
+        }
         let dockerBase = try Self.validatedBaseImage(docker.baseImage, key: "docker.base_image")
         var dockerPlatform = LinuxPlatform.arm64
         if let raw = docker.platform {
@@ -57,10 +68,11 @@ extension ConfigLoader {
             image: dockerImage,
             cpus: docker.cpus ?? KinhinConfig.DockerForgeConfig.defaultCPUs,
             memoryGB: docker.memoryGB ?? KinhinConfig.DockerForgeConfig.defaultMemoryGB,
-            maxSlots: docker.maxSlots ?? KinhinConfig.DockerForgeConfig.defaultMaxSlots,
+            maxSlots: maxSlots,
             baseImage: dockerBase,
             platform: dockerPlatform,
-            fleetLabels: docker.fleetLabels
+            fleetLabels: docker.fleetLabels,
+            minIdle: docker.minIdle ?? 0
         )
     }
 

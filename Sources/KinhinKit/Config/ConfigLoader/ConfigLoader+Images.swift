@@ -70,7 +70,10 @@ extension ConfigLoader {
             }
             let warm = entry.warmPool ?? 0
             if warm < 0 { throw ConfigError.invalid("\(position).warm_pool must be >= 0") }
-            result.append(.init(name: name, baseImage: entry.baseImage, labels: entry.labels, warmPool: warm))
+            let minIdle = entry.minIdle ?? 0
+            if minIdle < 0 { throw ConfigError.invalid("\(position).min_idle must be >= 0") }
+            result.append(
+                .init(name: name, baseImage: entry.baseImage, labels: entry.labels, warmPool: warm, minIdle: minIdle))
         }
         return result
     }
