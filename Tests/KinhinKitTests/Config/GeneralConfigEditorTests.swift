@@ -187,6 +187,29 @@ final class GeneralConfigEditorTests: XCTestCase {
         XCTAssertEqual(snap.docker?.maxSlots, 4)
     }
 
+    func testSectionRewritesKeepFleetLabels() throws {
+        try write(
+            Self.sample
+                + "\ncontainer:\n  image: kinhin-ci-linux\n  fleet_labels: false\n"
+                + "docker:\n  image: docker-ci\n  fleet_labels: false\n")
+        _ = try GeneralConfigEditor.setBaseImage("ubuntu:24.04", for: .appleContainer, at: file)
+        _ = try GeneralConfigEditor.setDockerPlatform(.amd64, at: file)
+        let cfg = try ConfigLoader.load(from: file)
+        XCTAssertEqual(cfg.container?.fleetLabels, false, "a container section rewrite keeps fleet_labels")
+        XCTAssertEqual(cfg.docker?.fleetLabels, false, "a docker section rewrite keeps fleet_labels")
+        XCTAssertEqual(cfg.container?.baseImage, "ubuntu:24.04")
+        XCTAssertEqual(cfg.docker?.platform, .amd64)
+    }
+
+    func testSnapshotImagesKeepTheirWarmPool() throws {
+        try write(Self.sample + "\nimages:\n  - name: xcode\n    labels: [xcode]\n    warm_pool: 1\n")
+        let images = try XCTUnwrap(ConfigStore.snapshot(at: file)?.images)
+        XCTAssertEqual(images.first?.warmPool, 1)
+        // The app rewrites the whole section from the snapshot's list: the count must survive that.
+        try ImagesConfigEditor.apply(images, to: file)
+        XCTAssertEqual(try ConfigLoader.load(from: file).images.first?.warmPool, 1)
+    }
+
     func testIdempotentToggleKeepsSingleSection() throws {
         try write(Self.sample)
         _ = try GeneralConfigEditor.apply(.docker(.init(image: "a", cpus: 1, memoryGB: 2, maxSlots: 2)), to: file)

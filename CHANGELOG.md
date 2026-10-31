@@ -4,6 +4,12 @@
 
 <!-- changelog: entries for the next release go here -->
 
+**Fixed**
+
+- Editing a named image in the menu bar app (labels, base image, warm pool, add or remove) cleared every image's
+  `warm_pool`, and the app showed each image's warm pool as 0. Setting the Apple container or Docker base image, or
+  the Docker platform, dropped that section's `fleet_labels:`. Both are kept now.
+
 ## v0.0.1-beta-4
 
 **Added**
