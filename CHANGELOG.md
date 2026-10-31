@@ -4,7 +4,20 @@
 
 <!-- changelog: entries for the next release go here -->
 
+**Added**
+
+- `min_idle` keeps a number of registered, idle runners for each pool and each Tart image, so the forge's runner list
+  always shows a free runner for every label set the fleet serves, macOS and Xcode images included: set it on an
+  `images:` entry, on `container:` or on `docker:`, and `image_min_idle:` for the top-level `image:`. A busy runner does
+  not count, so a replacement starts as soon as an idle runner picks up a job. Queued jobs get slots first; floors fill
+  the room left under `max_runners`, each pool's cap and Apple's limit of two macOS VMs, and the loader rejects floors
+  that cannot fit. With a Tart floor set, an idle runner of one image no longer counts as serving another image's queued
+  job. `min_runners` is unchanged (#73). See [docs/scaling.md](docs/scaling.md#idle-runners-per-pool-and-image).
+
 **Fixed**
+
+- `docs/scaling.md` said `min_runners` applied per pool and kept idle registered runners. It is one count for the whole
+  fleet, its extra instances run on `runtimes.default`, and busy runners count toward it; the page now says so.
 
 - Editing a named image in the menu bar app (labels, base image, warm pool, add or remove) cleared every image's
   `warm_pool`, and the app showed each image's warm pool as 0. Setting the Apple container or Docker base image, or
