@@ -87,7 +87,7 @@ Beta 3 was going to be the "more forges" release. It is not. Buildkite, Azure Pi
 accounts and a dedicated test Mac that I have not set up, and I would rather ship what is done than claim support I have not
 run. **Azure Pipelines is now labelled experimental**: one user ran smoke jobs against Azure DevOps Services, two concurrent
 VMs and scale from zero, but not a real application build. **Buildkite and Bitbucket Pipelines are still planned.** Test fixtures for
-all three are written and have not run. This work moves to beta 4. GitHub, Gitea, Forgejo and GitLab CE remain the supported
+all three are written and have not run. This work moves to beta 5 (it did not make [beta 4](/blog/beta-4) either). GitHub, Gitea, Forgejo and GitLab CE remain the supported
 forges.
 
 ## What has been run

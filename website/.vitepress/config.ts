@@ -49,7 +49,6 @@ export default defineConfig({
     "{Sources,Tests,Plugins,scripts,dist,shots,assets,video}/**",
     "**/node_modules/**",
     "docs/plans/**",
-    "website/blog/beta-4.md", // launch day: remove this entry (docs/plans/beta-4-launch-checklist.md)
     "docs/{app,adding-a-forge}.md",
     "skills/**",
     "examples/**",
