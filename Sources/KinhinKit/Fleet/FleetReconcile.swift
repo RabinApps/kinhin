@@ -205,7 +205,8 @@ extension FleetEngine {
         let demand = try await pollDemand(attached, paused: state.paused)
 
         // 3. Decide the whole pass once (spawns, scale-down) and publish it.
-        let plan = scalePlan(demand: demand, attached: attached)
+        let unprepared = await unpreparedIdleImages(images: router.snapshot.images)
+        let plan = scalePlan(demand: demand, attached: attached, unpreparedIdleImages: unprepared)
         await publishDesired(plan.desired)
         // A paused pass masks the queue (see `pollDemand`), so it never
         // counts as idle.
@@ -353,8 +354,9 @@ extension FleetEngine {
     }
 
     /// The pure scaling decision for this pass, from the records, the forges'
-    /// demand, the caps and the spawn backoff.
-    func scalePlan(demand: Demand, attached: [Forge]) -> ScalePlan {
+    /// demand, the caps and the spawn backoff. Named images in `unpreparedIdleImages`
+    /// keep no `min_idle` floor (see `unpreparedIdleImages(images:)`).
+    func scalePlan(demand: Demand, attached: [Forge], unpreparedIdleImages: Set<String> = []) -> ScalePlan {
         let held = spawnBackoff.withLock { $0.blocked(now: Date()) }
         let routerState = router.snapshot
         let routing = routerState.model
@@ -367,7 +369,7 @@ extension FleetEngine {
                 heldRuntimes: held, existingPools: Set(routing.pools.keys), defaultRuntime: routing.defaultRuntime,
                 warmPool: warmTargets(images: routerState.images),
                 warmMaxAge: TimeInterval(config.warmMaxAgeMinutes) * 60, imageDemand: demand.byImage,
-                minIdle: minIdleTargets(images: routerState.images)))
+                minIdle: minIdleTargets(images: routerState.images, unprepared: unpreparedIdleImages)))
     }
 
     /// Warm instances to keep per Tart image: the base `warm_pool` ("") and each `images:` entry's own.
@@ -459,7 +461,7 @@ extension FleetEngine {
         var fetchedAt: Date?
         /// Named images whose warm pool was skipped as unprepared, so each skip is logged once.
         var skipped: Set<String> = []
-        /// The same for `min_idle` top-ups (see `admitIdleTopUps`).
+        /// The same for `min_idle` floors (see `unpreparedIdleImages`).
         var idleSkipped: Set<String> = []
     }
 
