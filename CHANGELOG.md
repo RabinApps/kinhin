@@ -13,6 +13,11 @@
   the room left under `max_runners`, each pool's cap and Apple's limit of two macOS VMs, and the loader rejects floors
   that cannot fit. With a Tart floor set, an idle runner of one image no longer counts as serving another image's queued
   job. `min_runners` is unchanged (#73). See [docs/scaling.md](docs/scaling.md#idle-runners-per-pool-and-image).
+- `container.docker: true` runs Docker inside each Apple container runner: the container gets every Linux capability,
+  and kinhin starts `dockerd` in it before the runner registers, so jobs can `docker run`, `docker build` and `docker
+  compose`. `kinhin image prepare --container` installs Docker when the base image lacks it. `container.flags:` passes
+  extra arguments to `container run` (for example `["--shm-size", "2g"]`); the loader rejects the flags kinhin sets
+  itself (#75). See [docs/runtimes.md](docs/runtimes.md#docker-inside-container-runners).
 
 **Fixed**
 

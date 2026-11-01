@@ -50,6 +50,8 @@ extension GeneralConfigEditor {
         if let labels = c.labels { lines.append("  labels: [\(labels.map(YAMLText.quoted).joined(separator: ", "))]") }
         if let fleetLabels = c.fleetLabels { lines.append("  fleet_labels: \(fleetLabels)") }
         if c.minIdle > 0 { lines.append("  min_idle: \(c.minIdle)") }
+        if c.docker { lines.append("  docker: true") }
+        if !c.flags.isEmpty { lines.append("  flags: [\(c.flags.map(YAMLText.quoted).joined(separator: ", "))]") }
         return lines.joined(separator: "\n")
     }
 

@@ -24,6 +24,7 @@ extension ConfigLoader {
             throw ConfigError.invalid("container.min_idle must be >= 0")
         }
         let containerBase = try Self.validatedBaseImage(container.baseImage, key: "container.base_image")
+        let flags = try Self.validatedContainerRunFlags(container.flags, key: "container.flags")
         return KinhinConfig.ContainerConfig(
             image: containerImage,
             cpus: container.cpus ?? KinhinConfig.ContainerConfig.defaultCPUs,
@@ -31,7 +32,9 @@ extension ConfigLoader {
             labels: container.labels,
             baseImage: containerBase,
             fleetLabels: container.fleetLabels,
-            minIdle: container.minIdle ?? 0
+            minIdle: container.minIdle ?? 0,
+            docker: container.docker ?? false,
+            flags: flags
         )
     }
 

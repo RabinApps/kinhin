@@ -18,13 +18,16 @@ public struct LinuxImageOptions {
     /// Architecture of the image being baked. Anything but arm64 (native on
     /// Apple Silicon) is Docker-only and runs under emulation.
     public var platform: LinuxPlatform
+    /// Install Docker when the base image lacks it (`container.docker`).
+    public var docker: Bool
 
     public init(
         image: String, target: String, user: String = "admin", toolchains: KinhinConfig.ToolchainsConfig? = nil,
         toolchainTimeout: TimeInterval = 1800, storedTokens: Set<ForgeID>? = nil,
-        platform: LinuxPlatform = .arm64
+        platform: LinuxPlatform = .arm64, docker: Bool = false
     ) {
         self.platform = platform
+        self.docker = docker
         self.image = image
         self.target = target
         self.user = user
@@ -89,6 +92,9 @@ struct LinuxImageBaker: Sendable {
         lines.append(
             "set -euo pipefail\n"
                 + RunnerBootstrap.linuxPrerequisitesScript(tools: RunnerBootstrap.ciPrerequisiteTools))
+        if options.docker {
+            lines.append("set -euo pipefail\n" + RunnerBootstrap.linuxDockerInstallScript())
+        }
         lines += selection.installScripts(versions: versions, tag: tag) { agent in
             agent.bake.container(versions, options.platform)
         }

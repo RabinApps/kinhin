@@ -49,15 +49,17 @@ extension GeneralConfigEditor {
             public var image: String
             public var cpus: Int
             public var memoryGB: Int
-            /// See `KinhinConfig.ContainerConfig.baseImage` / `.labels` / `.fleetLabels` / `.minIdle`; carried
-            /// so a section rewrite doesn't drop them.
+            /// See `KinhinConfig.ContainerConfig.baseImage` / `.labels` / `.fleetLabels` / `.minIdle` / `.docker`
+            /// / `.flags`; carried so a section rewrite doesn't drop them.
             public var baseImage: String?
             public var labels: [String]?
             public var fleetLabels: Bool?
             public var minIdle: Int
+            public var docker: Bool
+            public var flags: [String]
             public init(
                 image: String, cpus: Int, memoryGB: Int, baseImage: String? = nil, labels: [String]? = nil,
-                fleetLabels: Bool? = nil, minIdle: Int = 0
+                fleetLabels: Bool? = nil, minIdle: Int = 0, docker: Bool = false, flags: [String] = []
             ) {
                 self.image = image
                 self.cpus = cpus
@@ -66,6 +68,8 @@ extension GeneralConfigEditor {
                 self.labels = labels
                 self.fleetLabels = fleetLabels
                 self.minIdle = minIdle
+                self.docker = docker
+                self.flags = flags
             }
         }
 
@@ -139,7 +143,8 @@ extension GeneralConfigEditor {
             container: partial.container.map {
                 .init(
                     image: $0.image ?? "kinhin-ci-linux", cpus: $0.cpus ?? 4, memoryGB: $0.memoryGB ?? 8,
-                    baseImage: $0.baseImage, labels: $0.labels, fleetLabels: $0.fleetLabels, minIdle: $0.minIdle ?? 0)
+                    baseImage: $0.baseImage, labels: $0.labels, fleetLabels: $0.fleetLabels, minIdle: $0.minIdle ?? 0,
+                    docker: $0.docker ?? false, flags: $0.flags ?? [])
             },
             docker: partial.docker.map {
                 .init(

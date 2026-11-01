@@ -25,7 +25,7 @@ public enum ImageBuildService {
             let base = LinuxImageOptions.baseImage(
                 configured: container.image, localImages: await AppleContainerRuntime(shell: shell).localImageNames(),
                 fallback: LinuxBaseImage.resolve(configured: container.baseImage))
-            let options = ContainerImagePreparer.Options(image: base, target: container.image)
+            let options = ContainerImagePreparer.Options(image: base, target: container.image, docker: container.docker)
             try await ContainerImagePreparer(shell: shell).prepare(options)
         case .docker:
             guard let docker = cfg.docker else { throw ImageError.notConfigured(section: "docker") }

@@ -89,7 +89,8 @@ public struct BenchmarkEnvironment: Sendable {
                 return AppleContainerRuntime(
                     shell: shell, image: config.container?.image ?? Self.defaultLinuxImage,
                     cpus: config.container?.cpus ?? KinhinConfig.ContainerConfig.defaultCPUs,
-                    memoryGB: config.container?.memoryGB ?? KinhinConfig.ContainerConfig.defaultMemoryGB)
+                    memoryGB: config.container?.memoryGB ?? KinhinConfig.ContainerConfig.defaultMemoryGB,
+                    docker: config.container?.docker ?? false, flags: config.container?.flags ?? [])
             case .docker:
                 return DockerRuntime(
                     shell: shell, image: config.docker?.image ?? Self.defaultLinuxImage,

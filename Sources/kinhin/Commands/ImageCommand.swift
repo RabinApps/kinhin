@@ -164,7 +164,8 @@ enum ImageCommand {
                     configured: cfg.container?.baseImage, flagOverride: flag("--container-image", in: args))
                 let target = flag("--target", in: args) ?? "kinhin-ci-linux"
                 let preparer = ContainerImagePreparer(shell: shell)
-                let options = ContainerImagePreparer.Options(image: image, target: target)
+                let options = ContainerImagePreparer.Options(
+                    image: image, target: target, docker: cfg.container?.docker ?? false)
                 let baked = try await preparer.prepare(options)
                 print("container image ready: \(baked)")
                 print("set `container.image: \"\(baked)\"` in your config to use it")
