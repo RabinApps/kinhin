@@ -153,6 +153,42 @@ final class ScalePlanContainerPoolsTests: XCTestCase {
         XCTAssertEqual(ScalePlan.IdleKey(runtime: .appleContainer).description, "appleContainer")
     }
 
+    // MARK: - A pool left out (its image is not built)
+
+    func testALeftOutPoolsJobsLeaveTheDemandAndStartNothing() {
+        var planInput = input(pools: ["linux": 1, "big": 2], minIdle: [bigFloor: 1])
+        planInput.exclude(containerPools: ["big"], demandByAccount: ["github": ["linux": 1, "big": 2]])
+        XCTAssertEqual(planInput.demand["github"]?[.appleContainer], 1)
+        XCTAssertNil(planInput.containerPoolDemand["big"])
+        XCTAssertNil(planInput.minIdle[bigFloor])
+        let plan = ScalePlan.make(planInput)
+        XCTAssertEqual(pools(plan.slots), ["linux"], "big's jobs wait; they do not take a linux runner")
+        XCTAssertEqual(plan.desired, 1, "the left-out jobs take no room")
+    }
+
+    func testALeftOutPoolStartsNothingEvenAsTheFallback() {
+        var planInput = input()
+        planInput.minRunners = 1
+        planInput.exclude(containerPools: ["linux"], demandByAccount: [:])
+        XCTAssertEqual(pools(ScalePlan.make(planInput).slots), ["big"], "the default pool is out: the next that fits")
+        planInput.exclude(containerPools: ["big"], demandByAccount: [:])
+        XCTAssertTrue(ScalePlan.make(planInput).slots.isEmpty, "every pool out: nothing starts")
+    }
+
+    func testALeftOutPoolsRunningInstancesStillHoldTheirShare() {
+        let running = [record("b1", .busy, pool: "big"), record("b2", .busy, pool: "big")]
+        var planInput = input(records: running, pools: ["linux": 3])
+        planInput.exclude(containerPools: ["big"], demandByAccount: [:])
+        XCTAssertEqual(pools(ScalePlan.make(planInput).slots), ["linux"], "8 of the 11 CPU are still big's")
+    }
+
+    func testLeavingOutAllOfAnAccountsJobsDropsItsEntry() {
+        var planInput = input(pools: ["big": 2])
+        planInput.exclude(containerPools: ["big"], demandByAccount: ["github": ["big": 2]])
+        XCTAssertNil(planInput.demand["github"]?[.appleContainer])
+        XCTAssertTrue(ScalePlan.make(planInput).slots.isEmpty)
+    }
+
     // MARK: - Without named pools
 
     func testWithoutNamedPoolsSlotsCarryNoPool() {

@@ -153,6 +153,11 @@ public struct AppleContainerRuntime: Runtime {
         await cli.localImageNames()
     }
 
+    /// The local image names; throws when the CLI cannot list them (`localImageNames` reads that as none).
+    func listedImageNames() async throws -> [String] {
+        try await cli.listImageNames()
+    }
+
     /// Disk usage of every local image, in whole GB — the shared inventory's
     /// size column and per-runtime total. Empty when the CLI can't say: the
     /// rows then read "—", never a wrong number.

@@ -20,6 +20,7 @@ import Synchronization
 /// | `deletes`         | in-flight deletes and their background tasks                     |
 /// | `spawnBackoff`    | per-runtime failure counters and holds                           |
 /// | `tartListing`     | the last `tart list` and which named images were skipped         |
+/// | `containerImageListing` | the last local container image list and which named container pools were skipped |
 /// | `orphanState`     | first-seen times of instances without a record                   |
 /// | `pendingAdoptions` | recovered instances held until their forge answers, and since when |
 /// | `_reconcileTask`, `_cachePruneTask` | the two loop task handles                      |
@@ -145,6 +146,9 @@ public final class FleetEngine: Sendable {
     /// The last `tart list`, so a reconcile pass does not list again, and the named images whose warm
     /// pool was skipped for being unprepared, so the skip is logged once rather than every pass.
     let tartListing = Mutex(TartListing())
+    /// The last local Apple container image list, and the named container pools skipped for an unbuilt image, so
+    /// a pass does not list again and each skip is logged once (see `FleetReconcile+ContainerPools`).
+    let containerImageListing = Mutex(ContainerImageListing())
     var routing: RuntimeConfigModel { router.snapshot.model }
     var capsByRuntime: [RuntimeID: Int] { router.snapshot.caps }
     var images: [KinhinConfig.ImageConfig] { router.snapshot.images }

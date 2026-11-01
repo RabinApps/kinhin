@@ -435,12 +435,16 @@ final class AppleContainerRuntimeTests: XCTestCase {
 /// A shell double that models `container list` as real state: `run --name X`
 /// creates container X, `delete --force X` removes it, and list returns the
 /// current names — so provision/awaitRunning/provision-after-recovery behave
-/// like the real CLI. Other argvs return success. Matches the binary on any
+/// like the real CLI. `image list` prints the images `setImages` stored (one
+/// per line, like `container image list --quiet`), or fails after
+/// `failImageList()`. Other argvs return success. Matches the binary on any
 /// install prefix so the test stays independent of the host PATH.
 final class ContainerFakingShell: ShellRunning, Sendable {
     private struct State: Sendable {
         var argvs: [[String]] = []
         var containers: Set<String> = []
+        var images: [String] = []
+        var imageListFails = false
 
         mutating func handle(_ argv: [String]) -> ShellResult {
             argvs.append(argv)
@@ -460,6 +464,9 @@ final class ContainerFakingShell: ShellRunning, Sendable {
                 return ShellResult(exitCode: 0, stdout: "", stderr: "")
             case "start":
                 return ShellResult(exitCode: 0, stdout: "", stderr: "")
+            case "image" where argv.dropFirst(2).first == "list":
+                if imageListFails { return ShellResult(exitCode: 1, stdout: "", stderr: "XPC connection error") }
+                return ShellResult(exitCode: 0, stdout: images.joined(separator: "\n"), stderr: "")
             case "delete":
                 if let last = argv.last { containers.remove(last) }
                 return ShellResult(exitCode: 0, stdout: "", stderr: "")
@@ -483,5 +490,15 @@ final class ContainerFakingShell: ShellRunning, Sendable {
 
     func argvSnapshot() -> [[String]] {
         state.withLock { $0.argvs }
+    }
+
+    /// The local images `image list` prints from now on.
+    func setImages(_ images: [String]) {
+        state.withLock { $0.images = images }
+    }
+
+    /// Makes `image list` fail, like a CLI whose system service is down.
+    func failImageList() {
+        state.withLock { $0.imageListFails = true }
     }
 }

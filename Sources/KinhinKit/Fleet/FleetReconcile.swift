@@ -206,7 +206,10 @@ extension FleetEngine {
 
         // 3. Decide the whole pass once (spawns, scale-down) and publish it.
         let unprepared = await unpreparedIdleImages(images: router.snapshot.images)
-        let plan = scalePlan(demand: demand, attached: attached, unpreparedIdleImages: unprepared)
+        let unbuiltPools = await unpreparedContainerPools()
+        let plan = scalePlan(
+            demand: demand, attached: attached, unpreparedIdleImages: unprepared, unpreparedContainerPools: unbuiltPools
+        )
         await publishDesired(plan.desired)
         // A paused pass masks the queue (see `pollDemand`), so it never
         // counts as idle.
@@ -234,6 +237,8 @@ extension FleetEngine {
         var byImage: [String: Int] = [:]
         /// Queued Apple container jobs per named container pool (empty without `container.pools:`).
         var byContainerPool: [String: Int] = [:]
+        /// The same jobs per account and named container pool.
+        var byForgeContainerPool: [String: [String: Int]] = [:]
         /// Jobs waiting on an image bake, for the status snapshot.
         var imageNotices: Set<String> = []
         /// Accounts whose queue could not be read this pass. A failed read is
@@ -305,7 +310,9 @@ extension FleetEngine {
                     demand.byPool[poolID, default: 0] += count
                 }
                 for (image, count) in projectDemand.byImage { demand.byImage[image, default: 0] += count }
-                for (pool, count) in routerState.model.demandByContainerPool(for: jobs) {
+                let containerPools = routerState.model.demandByContainerPool(for: jobs)
+                if !containerPools.isEmpty { demand.byForgeContainerPool[forge.account] = containerPools }
+                for (pool, count) in containerPools {
                     demand.byContainerPool[pool, default: 0] += count
                 }
                 demand.imageNotices.formUnion(projectDemand.notices)
@@ -360,8 +367,13 @@ extension FleetEngine {
 
     /// The pure scaling decision for this pass, from the records, the forges'
     /// demand, the caps and the spawn backoff. Named images in `unpreparedIdleImages`
-    /// keep no `min_idle` floor (see `unpreparedIdleImages(images:)`).
-    func scalePlan(demand: Demand, attached: [Forge], unpreparedIdleImages: Set<String> = []) -> ScalePlan {
+    /// keep no `min_idle` floor (see `unpreparedIdleImages(images:)`), and named
+    /// container pools in `unpreparedContainerPools` are left out of the plan
+    /// altogether (see `unpreparedContainerPools()`).
+    func scalePlan(
+        demand: Demand, attached: [Forge], unpreparedIdleImages: Set<String> = [],
+        unpreparedContainerPools: Set<String> = []
+    ) -> ScalePlan {
         let held = spawnBackoff.withLock { $0.blocked(now: Date()) }
         let routerState = router.snapshot
         let routing = routerState.model
@@ -383,6 +395,7 @@ extension FleetEngine {
                 })
             input.defaultContainerPool = container.defaultPool.name
             input.containerBudget = routerState.containerBudget
+            input.exclude(containerPools: unpreparedContainerPools, demandByAccount: demand.byForgeContainerPool)
         }
         return ScalePlan.make(input)
     }

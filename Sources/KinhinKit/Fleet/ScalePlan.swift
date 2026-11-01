@@ -68,6 +68,8 @@ struct ScalePlan: Equatable {
         var defaultContainerPool = ""
         /// The CPU and memory the named container pools share; nil = no limit beyond the count caps.
         var containerBudget: RuntimeCapacity.Budget?
+        /// Named container pools that may start nothing this pass (their image is not built; see `exclude`).
+        var unavailableContainerPools: Set<String> = []
         var now = Date()
     }
 

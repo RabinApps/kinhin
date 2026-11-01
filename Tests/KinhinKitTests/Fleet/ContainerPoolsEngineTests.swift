@@ -9,7 +9,7 @@ import XCTest
 final class ContainerPoolsEngineTests: XCTestCase {
     private func makeEngine(
         shell: ContainerFakingShell, github: FakeGitHub, store: FleetStore = makeTestStore(),
-        configure: (inout KinhinConfig) -> Void = { _ in }
+        images: [String] = ["kinhin-ci-linux", "kinhin-ci-big"], configure: (inout KinhinConfig) -> Void = { _ in }
     ) -> FleetEngine {
         var config = makeTestConfig()
         config.container = .init(
@@ -21,6 +21,8 @@ final class ContainerPoolsEngineTests: XCTestCase {
                 .init(name: "linux", image: "kinhin-ci-linux", cpus: 2, memoryGB: 4, labels: ["linux"], docker: true),
             ])
         configure(&config)
+        // Both pools' images are built unless a test says otherwise (an unbuilt pool's runners never start).
+        shell.setImages(images)
         return FleetEngine(
             config: config, github: github, tart: FakeTart(), store: store, ssh: FakeSSH(), host: testHost,
             containerShell: shell,
@@ -111,6 +113,61 @@ final class ContainerPoolsEngineTests: XCTestCase {
         XCTAssertEqual(reloaded.all.first?.pool, "big", "the pool is persisted with the record")
     }
 
+    // MARK: - A pool whose image is not built
+
+    func testAnUnbuiltPoolsJobWaitsInsteadOfStartingAnotherPool() async throws {
+        let shell = ContainerFakingShell()
+        let github = FakeGitHub()
+        github.queueDepth = 1
+        github.queueExtraLabels = ["linux", "big"]
+        let engine = makeEngine(shell: shell, github: github, images: ["kinhin-ci-linux:latest"])
+
+        try await engine.reconcileOnce()
+        try await engine.reconcileOnce()
+
+        XCTAssertNil(runArgv(shell), "nothing starts: big's image is missing and linux cannot take big's job")
+        let records = await engine.status().records
+        XCTAssertTrue(records.isEmpty)
+        XCTAssertTrue(engine.spawnBackoff.withLock { $0.blocked(now: Date()) }.isEmpty, "no failed start, no backoff")
+        let listings = shell.argvSnapshot().filter { $0.dropFirst().first == "image" }
+        XCTAssertEqual(listings.count, 1, "the image listing is cached across passes")
+    }
+
+    func testAnUnbuiltPoolsFloorIsSkippedAndTheOtherPoolsRun() async throws {
+        let shell = ContainerFakingShell()
+        let github = FakeGitHub()
+        github.queueDepth = 1
+        github.queueExtraLabels = ["linux"]
+        let engine = makeEngine(shell: shell, github: github, images: ["kinhin-ci-linux"]) {
+            $0.container?.pools[0].minIdle = 1
+        }
+
+        try await engine.reconcileOnce()
+        try await waitUntil(timeout: 10) { runArgv(shell) != nil }
+
+        let runs = shell.argvSnapshot().filter { $0.dropFirst().first == "run" }
+        XCTAssertEqual(runs.count, 1, "linux's job starts; big's floor is left out")
+        XCTAssertTrue(runs.first?.contains("kinhin-ci-linux") == true)
+        let records = await engine.status().records
+        XCTAssertEqual(records.map(\.pool), ["linux"])
+    }
+
+    func testAFailedImageListingSkipsNoPool() async throws {
+        let shell = ContainerFakingShell()
+        let engine = makeEngine(shell: shell, github: FakeGitHub()) { $0.container?.pools[0].minIdle = 1 }
+        shell.failImageList()
+
+        let unbuilt = await engine.unpreparedContainerPools()
+        XCTAssertEqual(unbuilt, [], "an unknown listing is not proof that every pool is unbuilt")
+    }
+
+    func testAPoolIsUnbuiltWhenNoLocalTagMatchesItsImage() async {
+        let shell = ContainerFakingShell()
+        let engine = makeEngine(shell: shell, github: FakeGitHub(), images: ["kinhin-ci-linux:latest", "other"])
+        let unbuilt = await engine.unpreparedContainerPools()
+        XCTAssertEqual(unbuilt, ["big"])
+    }
+
     func testASectionWithoutPoolsStartsExactlyAsBefore() async throws {
         let shell = ContainerFakingShell()
         let github = FakeGitHub()
@@ -123,6 +180,8 @@ final class ContainerPoolsEngineTests: XCTestCase {
         let run = try XCTUnwrap(runArgv(shell))
         let cpus = try XCTUnwrap(run.firstIndex(of: "--cpus"))
         XCTAssertEqual(Array(run[cpus...].prefix(6)), ["--cpus", "2", "--memory", "4096M", "--rm", "kinhin-ci-linux"])
+        XCTAssertFalse(
+            shell.argvSnapshot().contains { $0.dropFirst().first == "image" }, "no image listing without pools")
         let records = await engine.status().records
         XCTAssertNil(records.first?.pool)
     }

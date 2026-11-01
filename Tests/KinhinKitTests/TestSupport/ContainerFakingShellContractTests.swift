@@ -76,6 +76,25 @@ final class ContainerFakingShellContractTests: XCTestCase {
         XCTAssertEqual(after, [], "`container delete --force` must take the container out of the next list")
     }
 
+    func testTheRealDriverReadsTheFakesImageListing() async throws {
+        let shell = ContainerFakingShell()
+        let runtime = AppleContainerRuntime(
+            shell: shell, binPath: "/usr/local/bin/container", exists: { _ in true })
+        let none = try await runtime.listedImageNames()
+        XCTAssertEqual(none, [], "an empty store lists nothing, successfully")
+        shell.setImages(["kinhin-ci-linux:latest", "ubuntu:24.04"])
+        let listed = try await runtime.listedImageNames()
+        XCTAssertEqual(listed, ["kinhin-ci-linux:latest", "ubuntu:24.04"], "one name per line, as `--quiet` prints")
+        shell.failImageList()
+        do {
+            _ = try await runtime.listedImageNames()
+            XCTFail("a failed listing must throw, not read as no images")
+        } catch {
+            let fallback = await runtime.localImageNames()
+            XCTAssertEqual(fallback, [], "the non-throwing listing still reads a failure as none")
+        }
+    }
+
     // MARK: - Recording
 
     func testEveryInvocationIsRecordedAndForeignCommandsNeverMutateState() async throws {

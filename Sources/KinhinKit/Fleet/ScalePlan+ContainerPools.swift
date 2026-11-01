@@ -45,7 +45,9 @@ extension ScalePlan {
     /// Whether one more instance of the named pool `name` fits beside `records`: under the pool's `max:`, and with
     /// its CPU and memory within what the Apple container instances leave of the shared budget.
     static func containerPoolFits(_ name: String, records: [VMRecord], input: Input) -> Bool {
-        guard let shape = input.containerPools[name] else { return false }
+        guard let shape = input.containerPools[name], !input.unavailableContainerPools.contains(name) else {
+            return false
+        }
         if let max = shape.max {
             let running = records.count {
                 pool(of: $0, input: input) == .appleContainer && containerPool(of: $0, input: input) == name
@@ -92,5 +94,26 @@ extension ScalePlan {
         if let best { return best.name }
         if waiting { return nil }
         return fitting.contains(input.defaultContainerPool) ? input.defaultContainerPool : fitting.first
+    }
+}
+
+// MARK: - Pools left out of a pass
+
+extension ScalePlan.Input {
+    /// Leaves the named container pools `names` out of this pass, before anything is sized: their queued jobs
+    /// (`demandByAccount`: per account and pool) leave the demand, their `min_idle` floors go, and they may start
+    /// nothing, not even a `min_runners` top-up. Their jobs then wait unserved rather than start another pool's runner
+    /// (its labels could not take them), and they take no room, evict nothing and cause no failed start. Their running
+    /// instances still count, for their CPU and memory.
+    mutating func exclude(containerPools names: Set<String>, demandByAccount: [String: [String: Int]]) {
+        guard !names.isEmpty else { return }
+        unavailableContainerPools.formUnion(names)
+        for name in names { containerPoolDemand[name] = nil }
+        for (account, pools) in demandByAccount {
+            let dropped = names.reduce(0) { $0 + (pools[$1] ?? 0) }
+            guard dropped > 0, let jobs = demand[account]?[.appleContainer] else { continue }
+            demand[account]?[.appleContainer] = jobs > dropped ? jobs - dropped : nil
+        }
+        minIdle = minIdle.filter { !($0.key.runtime == .appleContainer && names.contains($0.key.pool)) }
     }
 }
