@@ -22,11 +22,15 @@ public enum ImageBuildService {
         case .appleContainer:
             guard let container = cfg.container else { throw ImageError.notConfigured(section: "container") }
             try await AppleContainerRuntime.startSystem(shell: shell)
-            let base = LinuxImageOptions.baseImage(
-                configured: container.image, localImages: await AppleContainerRuntime(shell: shell).localImageNames(),
-                fallback: LinuxBaseImage.resolve(configured: container.baseImage))
-            let options = ContainerImagePreparer.Options(image: base, target: container.image, docker: container.docker)
-            try await ContainerImagePreparer(shell: shell).prepare(options)
+            // Every pool's image, each once (one image without `container.pools:`).
+            for target in container.poolImages {
+                let base = LinuxImageOptions.baseImage(
+                    configured: target, localImages: await AppleContainerRuntime(shell: shell).localImageNames(),
+                    fallback: LinuxBaseImage.resolve(configured: container.baseImage(forImage: target)))
+                let options = ContainerImagePreparer.Options(
+                    image: base, target: target, docker: container.bakesDocker(image: target))
+                try await ContainerImagePreparer(shell: shell).prepare(options)
+            }
         case .docker:
             guard let docker = cfg.docker else { throw ImageError.notConfigured(section: "docker") }
             let base = LinuxImageOptions.baseImage(

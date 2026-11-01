@@ -91,4 +91,20 @@ extension KinhinConfig.ContainerConfig {
         var seen = Set<String>()
         return effectivePools.map(\.image).filter { seen.insert($0).inserted }
     }
+
+    // MARK: - Baking a pool's image
+
+    /// Whether the bake of `image` installs Docker: some named pool that runs it has `docker: true`. An image no
+    /// named pool runs (and every image of a section without `pools:`) follows the section's own `docker`, as before
+    /// pools. A shared image is baked once, so a pool without Docker that shares it simply never starts dockerd.
+    public func bakesDocker(image: String) -> Bool {
+        let running = pools.filter { $0.image == image }
+        return running.isEmpty ? docker : running.contains(where: \.docker)
+    }
+
+    /// What `image` is baked on: the `base_image` of the named pools that run it (the loader keeps it to one), else
+    /// the section's own.
+    public func baseImage(forImage image: String) -> String? {
+        pools.first { $0.image == image }.map(\.baseImage) ?? baseImage
+    }
 }

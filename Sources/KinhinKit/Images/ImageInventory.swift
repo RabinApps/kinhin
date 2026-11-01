@@ -181,9 +181,9 @@ public struct ImageInventory: Sendable, Equatable, Codable {
         case .tart:
             return tartSection(config, images, fleet: fleet, projectRecords: projectRecords)
         case .container:
-            return ociSection(.container, images, wanted: config.container?.image)
+            return ociSection(.container, images, wanted: config.container?.poolImages ?? [])
         case .docker:
-            return ociSection(.docker, images, wanted: config.docker?.image)
+            return ociSection(.docker, images, wanted: config.docker.map { [$0.image] } ?? [])
         }
     }
 
@@ -373,20 +373,23 @@ public struct ImageInventory: Sendable, Equatable, Codable {
 
     // MARK: - Container / Docker
 
-    private static func ociSection(_ runtime: Runtime, _ images: RuntimeImages, wanted: String?) -> Section {
+    /// `wanted` are the configured images (every container pool's, or the Docker image): each is a base entry,
+    /// listed as missing when no local tag matches it.
+    private static func ociSection(_ runtime: Runtime, _ images: RuntimeImages, wanted: [String]) -> Section {
         var entries: [Entry] = []
         let listed = Set(images.names.filter { !$0.isEmpty && !$0.contains("<none>") })
         for name in listed.sorted() {
-            let matches = wanted.map { ociMatches(name: name, wanted: $0) } ?? false
-            let uses = matches && wanted.map { ociUses(name: name, wanted: $0) } == true
+            let matches = wanted.contains { ociMatches(name: name, wanted: $0) }
+            let uses = wanted.contains { ociMatches(name: name, wanted: $0) && ociUses(name: name, wanted: $0) }
             entries.append(
                 Entry(
                     name: name, runtime: runtime, role: matches ? .base : .local, present: true,
                     sizeGB: images.sizesGB[name],
                     usedBy: uses ? images.instances.sorted() : []))
         }
-        if let wanted, images.unavailable == nil, !listed.contains(where: { ociMatches(name: $0, wanted: wanted) }) {
-            entries.append(Entry(name: wanted, runtime: runtime, role: .base, present: false))
+        for image in wanted
+        where images.unavailable == nil && !listed.contains(where: { ociMatches(name: $0, wanted: image) }) {
+            entries.append(Entry(name: image, runtime: runtime, role: .base, present: false))
         }
         return Section(
             runtime: runtime, unavailable: images.unavailable, usageUnknown: images.usageUnknown,

@@ -259,10 +259,11 @@ enum CommandCatalog {
                     flags: [
                         .value("--provision-script", "FILE", "Run this script in the VM after the agents install"),
                         .value("--image", "NAME", "Build one named image from the config's images: list"),
-                        .bool("--all", "Build image: and every images: entry, one after another"),
+                        .bool("--all", "Build image: and every images: entry (--container: every pool)"),
                         .value("--project", "OWNER/NAME", "Bake that repo's toolchains into a derived image now"),
                         .value("--ref", "REF", "Branch or tag whose .kinhin.yml --project reads"),
                         .bool("--container", "Build the Linux image for apple container"),
+                        .value("--pool", "NAME", "With --container: build that container.pools: entry's image"),
                         .bool("--docker", "Build the Linux image for Docker"),
                         .value("--platform", "P", "Docker platform, e.g. linux/amd64 (runs under emulation)"),
                         .value("--container-image", "REF", "Base OCI image for --container"),
