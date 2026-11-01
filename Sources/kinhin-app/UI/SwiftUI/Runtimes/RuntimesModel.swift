@@ -172,6 +172,7 @@ final class RuntimesModel: ConfigFormModel {
         }
         refreshLabelFields()
         refreshBudgetPreviews(budget: currentRuntimeConfig?.budget ?? [:])
+        await refreshContainerPoolImages()
 
         // Health pass: probe each enabled pool's runtime concurrently.
         let withHealth = await RuntimesPaneViewModel.load(
@@ -300,6 +301,23 @@ final class RuntimesModel: ConfigFormModel {
     var isYAMLEditorOpen = false
     /// The config's exact on-disk bytes, captured when the YAML editor opened.
     var yamlAtOpen = ""
+    /// The open container pool sheet (add or edit). `RuntimesView` presents `ContainerPoolSheet` while non-nil.
+    var containerPoolOffer: ContainerPoolOffer?
+
+    // MARK: - Container pools
+
+    /// The named container pools whose image is not built yet; nil until the images were listed, or when the
+    /// listing failed (the cards then say nothing rather than call every pool unbuilt).
+    var unbuiltContainerPools: Set<String>?
+    /// The local Apple container image names (tests inject a listing). Throws when the CLI cannot list them.
+    @ObservationIgnored var listContainerImages: () async throws -> [String] = {
+        try await AppleContainerRuntime().listedImageNames()
+    }
+    /// Confirms removing a container pool. Real UI shows an alert; tests answer for it.
+    @ObservationIgnored var confirmRemoval: (_ title: String, _ message: String, _ button: String) -> Bool = {
+        title, message, button in
+        AlertKit.confirm(title: title, message: message, confirmTitle: button, destructive: true)
+    }
 
     // MARK: - Errors
 

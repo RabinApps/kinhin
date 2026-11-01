@@ -1,9 +1,9 @@
 import KinhinKit
 import SwiftUI
 
-/// Advanced → Routing: the fleet's runtime pools, routes, default pool and
+/// Advanced → Routing: the fleet's runtime pools, the named Apple container pools, routes, default pool and
 /// labels (the capacity split lives in Advanced → Capacity). State and actions live in `RuntimesModel`, which owns the
-/// Add Route and Edit YAML sheets too (presented from `routeOffer` and
+/// Add Route, container pool and Edit YAML sheets too (presented from `routeOffer`, `containerPoolOffer` and
 /// `isYAMLEditorOpen`).
 struct RuntimesView: View {
     @Bindable var model: RuntimesModel
@@ -20,6 +20,11 @@ struct RuntimesView: View {
                         SectionHeader("Pools")
                         ForEach(model.poolRows) { pool in
                             poolCard(pool)
+                        }
+
+                        if model.showsContainerPools {
+                            SectionHeader("Container pools")
+                            ContainerPoolsSection(model: model)
                         }
 
                         SectionHeader("Routes")
@@ -55,6 +60,14 @@ struct RuntimesView: View {
             )
         ) { offer in
             AddRouteSheet(model: model, runtimes: offer.runtimes)
+        }
+        .sheet(
+            item: Binding(
+                get: { model.containerPoolOffer },
+                set: { if $0 == nil { model.cancelContainerPool() } }
+            )
+        ) { offer in
+            ContainerPoolSheet(model: model, offer: offer)
         }
     }
 

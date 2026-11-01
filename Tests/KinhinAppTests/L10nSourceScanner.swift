@@ -308,7 +308,8 @@ struct L10nSourceScanner {
     /// placeholder, so a miss just leaves a `%@` that translators can't pluralize.
     static let numericNames: Set<String> = [
         "count", "cap", "n", "logicalCores", "memoryGB", "freeDiskGB", "activeCount", "capacityCap", "queueDepth",
-        "maxConcurrent", "jobSlots", "macOSDiskGB", "failed", "size", "instanceCount", "busyCount",
+        "maxConcurrent", "jobSlots", "macOSDiskGB", "failed", "size", "instanceCount", "busyCount", "cpus", "minIdle",
+        "poolMax",
     ]
 
     /// Whether an interpolated expression is a number (so its catalog placeholder is `%lld`).
