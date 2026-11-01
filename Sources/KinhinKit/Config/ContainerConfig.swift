@@ -19,7 +19,8 @@ extension KinhinConfig {
 
         public init(
             image: String, cpus: Int = defaultCPUs, memoryGB: Int = defaultMemoryGB, labels: [String]? = nil,
-            baseImage: String? = nil, fleetLabels: Bool? = nil, minIdle: Int = 0
+            baseImage: String? = nil, fleetLabels: Bool? = nil, minIdle: Int = 0, docker: Bool = false,
+            flags: [String] = []
         ) {
             self.image = image
             self.cpus = cpus
@@ -28,6 +29,8 @@ extension KinhinConfig {
             self.baseImage = baseImage
             self.fleetLabels = fleetLabels
             self.minIdle = minIdle
+            self.docker = docker
+            self.flags = flags
         }
 
         /// Extra labels the Apple-container pool's runners register with, so
@@ -44,12 +47,22 @@ extension KinhinConfig {
         /// count. 0 = off.
         public var minIdle: Int
 
+        /// Docker inside each runner container (`container.docker`): the container starts with every Linux
+        /// capability, and `dockerd` is started in it before the runner registers. The bake installs Docker when the
+        /// base image lacks it.
+        public var docker: Bool
+
+        /// Extra `container run` arguments (`container.flags`), passed as separate argv elements after kinhin's own
+        /// flags. The loader rejects the flags kinhin sets itself (`ConfigLoader.validatedContainerRunFlags`).
+        public var flags: [String]
+
         enum CodingKeys: String, CodingKey {
             case image, cpus, labels
             case memoryGB = "memory_gb"
             case baseImage = "base_image"
             case fleetLabels = "fleet_labels"
             case minIdle = "min_idle"
+            case docker, flags
         }
     }
 }

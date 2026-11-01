@@ -91,6 +91,8 @@ public struct PartialConfig: Decodable {
         var baseImage: String?
         var fleetLabels: Bool?
         var minIdle: Int?
+        var docker: Bool?
+        var flags: [String]?
         /// Only present so `container.platform` can be rejected with a clear message.
         var platform: String?
 
@@ -102,6 +104,8 @@ public struct PartialConfig: Decodable {
             case baseImage = "base_image"
             case fleetLabels = "fleet_labels"
             case minIdle = "min_idle"
+            case docker
+            case flags
             case platform
         }
     }
