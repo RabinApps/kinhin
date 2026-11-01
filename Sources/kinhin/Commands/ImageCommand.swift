@@ -26,14 +26,23 @@ enum ImageCommand {
     /// `kinhin-ci-linux`) on the section's `base_image`. `--pool NAME`: that `container.pools:` entry's image on its
     /// base. `--all`: every pool's image, each once. `--container-image` overrides the base of each; `--target`
     /// renames the one image a bare or `--pool` bake writes, so `--all` refuses it. Docker is installed when a pool
-    /// that runs the image has `docker: true` (bare, without pools: the section's `docker`).
+    /// that runs the image has `docker: true` (bare, without pools: the section's `docker`). Each image is baked for
+    /// the platform of the pools that run it (bare: the section's); `--platform` overrides that for this run.
     static func containerBakes(args: [String], container: KinhinConfig.ContainerConfig?) throws -> [LinuxImageOptions] {
         let baseOverride = flag("--container-image", in: args)
+        var platformOverride: LinuxPlatform?
+        if let raw = flag("--platform", in: args) {
+            guard let parsed = LinuxPlatform(configValue: raw) else {
+                throw CLIError("--platform must be linux/arm64 or linux/amd64, got \"\(raw)\"", exit: .usage)
+            }
+            platformOverride = parsed
+        }
         func bake(_ image: String, target: String? = nil) -> LinuxImageOptions {
             LinuxImageOptions(
                 image: LinuxBaseImage.resolve(
                     configured: container?.baseImage(forImage: image), flagOverride: baseOverride),
-                target: target ?? image, platform: container?.platform(forImage: image) ?? .arm64,
+                target: target ?? image,
+                platform: platformOverride ?? container?.platform(forImage: image) ?? .arm64,
                 docker: container?.bakesDocker(image: image) ?? false)
         }
         if args.contains("--all") {

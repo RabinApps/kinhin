@@ -44,6 +44,19 @@ final class ImageCommandContainerPoolsTests: XCTestCase {
             ["debian:12 -> kinhin-ci-big", "ubuntu:24.04 -> kinhin-ci-linux +docker"])
     }
 
+    func testEachImageIsBakedForItsPoolsPlatform() throws {
+        var pooled = container
+        pooled.pools.append(.init(name: "x64", image: "kinhin-ci-x64", labels: ["x64-only"], platform: .amd64))
+        let all = try ImageCommand.containerBakes(args: ["--container", "--all"], container: pooled)
+        XCTAssertEqual(all.map(\.target), ["kinhin-ci-big", "kinhin-ci-linux", "kinhin-ci-x64"])
+        XCTAssertEqual(all.map(\.platform), [.arm64, .arm64, .amd64])
+        let flagged = try ImageCommand.containerBakes(
+            args: ["--container", "--target", "x", "--platform", "linux/amd64"], container: container)
+        XCTAssertEqual(flagged.map(\.platform), [.amd64], "--platform overrides the config for this bake")
+        XCTAssertThrowsError(
+            try ImageCommand.containerBakes(args: ["--container", "--platform", "s390x"], container: container))
+    }
+
     func testUnknownPoolsAndTargetWithAllAreUsageErrors() {
         for args in [["--container", "--pool", "nope"], ["--container", "--all", "--target", "x"]] {
             XCTAssertThrowsError(try ImageCommand.containerBakes(args: args, container: container)) { error in

@@ -303,6 +303,7 @@ that is not a flag. Run `container run --help` for what the rest do.
 `container run --platform linux/amd64`, and Apple container runs their code under Rosetta for Linux. `kinhin image
 prepare --container` bakes the image as amd64 (an amd64 scratch container from the base image, the x64 runner agents,
 and the image tagged `linux/amd64`), so re-bake after changing `platform`, and give an amd64 pool an image of its own.
+`--platform linux/amd64` on `kinhin image prepare --container` bakes for amd64 without changing the config.
 If an amd64 container does not start on your Mac, install Rosetta with `softwareupdate --install-rosetta`.
 
 An amd64 runner registers with `x64` in place of the fleet's `arm64` label, so `runs-on: [self-hosted, x64, linux]`
