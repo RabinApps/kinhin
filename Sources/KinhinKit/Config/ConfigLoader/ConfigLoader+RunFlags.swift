@@ -17,9 +17,9 @@ extension ConfigLoader {
         .init(spellings: ["--detach", "-d"], reason: "kinhin already starts each runner container detached"),
         .init(spellings: ["--cpus", "-c"], reason: "kinhin sets it from cpus"),
         .init(spellings: ["--memory", "-m"], reason: "kinhin sets it from memory_gb"),
-        .init(spellings: ["--platform"], reason: "Apple container runs linux/arm64 only"),
-        .init(spellings: ["--arch", "-a"], reason: "Apple container runs linux/arm64 only"),
-        .init(spellings: ["--os"], reason: "Apple container runs linux/arm64 only"),
+        .init(spellings: ["--platform"], reason: "kinhin sets it from platform"),
+        .init(spellings: ["--arch", "-a"], reason: "kinhin sets the architecture from platform"),
+        .init(spellings: ["--os"], reason: "Apple container runs Linux runner containers only"),
         .init(spellings: ["--help", "-h", "--version"], reason: "container run would print it and start nothing"),
         .init(spellings: ["--"], reason: "it would turn kinhin's own arguments into the container's command"),
     ]

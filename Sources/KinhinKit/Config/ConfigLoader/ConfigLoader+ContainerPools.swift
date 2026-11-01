@@ -28,8 +28,8 @@ extension ConfigLoader {
 
     /// Every pool of `container.pools`, sorted by name: each key a pool leaves out comes from `defaults` (the
     /// section's top-level keys), and every value is checked as the same key on `container:` is, under the pool's own
-    /// key path. Across pools: no two with the same labels (a job could not tell them apart), and no image baked from
-    /// two different bases.
+    /// key path. Across pools: no two with the same labels and platform (a job could not tell them apart), and no image
+    /// baked from two different bases or for two platforms.
     private static func parsedPools(
         _ container: PartialConfig.PartialContainer, defaults: KinhinConfig.ContainerConfig, defaultImage: String?
     ) throws -> [KinhinConfig.ContainerConfig.Pool] {
@@ -42,22 +42,32 @@ extension ConfigLoader {
             guard let entry = entries[name] else { continue }
             pools.append(try parsedPool(name: name, entry, defaults: defaults, defaultImage: defaultImage))
         }
-        var labelSets: [Set<String>: String] = [:]
-        var bases: [String: (pool: String, base: String?)] = [:]
+        struct LabelSet: Hashable {
+            let labels: Set<String>
+            let platform: LinuxPlatform
+        }
+        var labelSets: [LabelSet: String] = [:]
+        var bakes: [String: (pool: String, base: String?, platform: LinuxPlatform)] = [:]
         for pool in pools {
-            let own = Set((pool.labels ?? []).map { $0.lowercased() })
+            let own = LabelSet(labels: Set((pool.labels ?? []).map { $0.lowercased() }), platform: pool.platform)
             if let other = labelSets[own] {
                 throw ConfigError.invalid(
-                    "container.pools \(other) and \(pool.name) have the same labels, so jobs could not tell them apart "
-                        + "(give each pool a label of its own)")
+                    "container.pools \(other) and \(pool.name) have the same labels and platform, so jobs could not tell "
+                        + "them apart (give each pool a label of its own)")
             }
             labelSets[own] = pool.name
-            if let other = bases[pool.image], other.base != pool.baseImage {
+            if let other = bakes[pool.image], other.base != pool.baseImage {
                 throw ConfigError.invalid(
                     "container.pools \(other.pool) and \(pool.name) both run image \(pool.image) but name different "
                         + "base_image values; one image is baked from one base")
             }
-            bases[pool.image] = (pool.name, pool.baseImage)
+            if let other = bakes[pool.image], other.platform != pool.platform {
+                throw ConfigError.invalid(
+                    "container.pools \(other.pool) and \(pool.name) both run image \(pool.image) but for different "
+                        + "platforms; one image is baked for one platform (give the \(pool.platform.rawValue) pool an "
+                        + "image of its own)")
+            }
+            bakes[pool.image] = (pool.name, pool.baseImage, pool.platform)
         }
         return pools
     }
@@ -79,11 +89,7 @@ extension ConfigLoader {
         try requireSafeImageReference(image, key: "\(key).image")
         if let cpus = entry.cpus, cpus < 1 { throw ConfigError.invalid("\(key).cpus must be >= 1") }
         if let mem = entry.memoryGB, mem < 2 { throw ConfigError.invalid("\(key).memory_gb must be >= 2") }
-        if entry.platform != nil {
-            throw ConfigError.invalid(
-                "\(key).platform is not supported: Apple container runs linux/arm64 only "
-                    + "(docker.platform can select linux/amd64)")
-        }
+        let platform = try parsedContainerPlatform(entry.platform, key: "\(key).platform") ?? defaults.platform
         if let labels = entry.labels, labels.contains(where: { $0.trimmingCharacters(in: .whitespaces).isEmpty }) {
             throw ConfigError.invalid("\(key).labels must not contain empty labels")
         }
@@ -102,6 +108,6 @@ extension ConfigLoader {
             name: name, image: image, baseImage: base, cpus: entry.cpus ?? defaults.cpus,
             memoryGB: entry.memoryGB ?? defaults.memoryGB, labels: entry.labels ?? defaults.labels,
             fleetLabels: entry.fleetLabels ?? defaults.fleetLabels, minIdle: minIdle,
-            docker: entry.docker ?? defaults.docker, flags: flags, max: entry.max)
+            docker: entry.docker ?? defaults.docker, flags: flags, max: entry.max, platform: platform)
     }
 }

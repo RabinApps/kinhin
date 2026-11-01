@@ -93,7 +93,7 @@ public struct PartialConfig: Decodable {
         var minIdle: Int?
         var docker: Bool?
         var flags: [String]?
-        /// Only present so `container.platform` can be rejected with a clear message.
+        /// `linux/arm64` (default) or `linux/amd64`, the architecture of the runner containers.
         var platform: String?
         /// Named pools, keyed by name; the keys above are their defaults.
         var pools: [String: PartialContainerPool]?
@@ -126,7 +126,7 @@ public struct PartialConfig: Decodable {
         var docker: Bool?
         var flags: [String]?
         var max: Int?
-        /// Only present so a pool's `platform` can be rejected with a clear message.
+        /// The pool's own `platform` (see `PartialContainer.platform`).
         var platform: String?
 
         enum CodingKeys: String, CodingKey, CaseIterable {

@@ -166,7 +166,7 @@ final class ContainerPoolsConfigTests: XCTestCase {
             ("{ min_idle: -1 }", "container.pools.a.min_idle must be >= 0"),
             ("{ max: 0 }", "container.pools.a.max must be >= 1"),
             ("{ min_idle: 3, max: 2 }", "container.pools.a.min_idle (3) must be <= container.pools.a.max (2)"),
-            ("{ platform: linux/amd64 }", "container.pools.a.platform is not supported"),
+            ("{ platform: linux/riscv64 }", "container.pools.a.platform must be linux/arm64 or linux/amd64"),
             ("{ flags: [\"--cpus\", \"2\"] }", "container.pools.a.flags must not set --cpus"),
             ("{ flags: [\"2g\"] }", "container.pools.a.flags must start with an option"),
             ("{ base_image: \"-bad\" }", "container.pools.a.base_image"),

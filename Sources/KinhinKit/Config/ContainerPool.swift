@@ -23,12 +23,14 @@ extension KinhinConfig.ContainerConfig {
         /// At most this many of the pool's runners at once (`max:`); nil = only the shared budget and
         /// `max_runners` limit it. Only named pools have one.
         public var max: Int?
+        /// See `ContainerConfig.platform`.
+        public var platform: LinuxPlatform
 
         public init(
             name: String, image: String, baseImage: String? = nil, cpus: Int = KinhinConfig.ContainerConfig.defaultCPUs,
             memoryGB: Int = KinhinConfig.ContainerConfig.defaultMemoryGB, labels: [String]? = nil,
             fleetLabels: Bool? = nil, minIdle: Int = 0,
-            docker: Bool = false, flags: [String] = [], max: Int? = nil
+            docker: Bool = false, flags: [String] = [], max: Int? = nil, platform: LinuxPlatform = .arm64
         ) {
             self.name = name
             self.image = image
@@ -41,6 +43,7 @@ extension KinhinConfig.ContainerConfig {
             self.docker = docker
             self.flags = flags
             self.max = max
+            self.platform = platform
         }
 
         /// The section without `pools:`, as its one unnamed pool.
@@ -48,7 +51,7 @@ extension KinhinConfig.ContainerConfig {
             self.init(
                 name: "", image: section.image, baseImage: section.baseImage, cpus: section.cpus,
                 memoryGB: section.memoryGB, labels: section.labels, fleetLabels: section.fleetLabels,
-                minIdle: section.minIdle, docker: section.docker, flags: section.flags)
+                minIdle: section.minIdle, docker: section.docker, flags: section.flags, platform: section.platform)
         }
 
         /// Whether this is a `pools:` entry rather than the section itself.
@@ -116,5 +119,11 @@ extension KinhinConfig.ContainerConfig {
     /// the section's own.
     public func baseImage(forImage image: String) -> String? {
         pools.first { $0.image == image }.map(\.baseImage) ?? baseImage
+    }
+
+    /// The architecture `image` is baked for: the `platform` of the named pools that run it (the loader keeps it to
+    /// one), else the section's own.
+    public func platform(forImage image: String) -> LinuxPlatform {
+        pools.first { $0.image == image }?.platform ?? platform
     }
 }
