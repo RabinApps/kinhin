@@ -32,6 +32,12 @@
   CPUs and memory, `max:`, `min_idle`, Docker, image and whether it is built) and **Add Container Pool…**, **Edit…** and
   **Remove**, whose sheet leaves a blank field to inherit the `container:` value. The Fleet tab and **Advanced →
   Containers** show each container runner's pool. Every app editor that rewrites `container:` keeps the pools (#75).
+- `container.platform: linux/amd64` (on the section or one pool) runs x86_64 Linux runners on Apple container under
+  Rosetta: `kinhin image prepare --container` bakes the image as amd64 with the x64 runner agents, each runner starts
+  with `container run --platform linux/amd64` and registers with `x64` in place of the fleet's `arm64`. A job that asks
+  for `x64` goes to an amd64 pool (and to Apple container even when another runtime is the default), and GitHub
+  demand counts such jobs. `kinhin doctor` shows each pool's platform. arm64, the default, is unchanged (#75). See
+  [docs/runtimes.md](docs/runtimes.md#x86-64-amd64-container-runners).
 
 **Fixed**
 

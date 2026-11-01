@@ -233,7 +233,7 @@ Linux jobs can run three ways:
 | Isolation             | Own kernel per container            | Shared kernel with every other slot      | Own kernel, disk and network                       |
 | Density               | High                                | Highest (bounded by `max_slots`)         | Lowest (bounded by VM shapes)                      |
 | Disk per instance     | 8 GB                                | 8 GB                                     | 50 GB planning default (`disk_gb`)                 |
-| amd64                 | No                                  | Yes, emulated                            | No                                                 |
+| amd64                 | Yes, under Rosetta (`platform`)     | Yes, emulated                            | No                                                 |
 | Needs                 | The `container` CLI and its service | Docker Desktop, OrbStack or colima       | Only tart                                          |
 | Mixes with macOS jobs | Yes                                 | Yes                                      | Yes — a tart fleet can serve macOS and Linux VMs together when using named images with distinct labels |
 | Best for              | The default for Linux CI            | Teams already running Docker             | Full control: your distro, system services, `sudo` |
@@ -256,6 +256,7 @@ container:
   memory_gb: 8
   docker: true # optional: Docker inside each runner container (see below)
   flags: ["--shm-size", "2g"] # optional: extra `container run` arguments
+  platform: "linux/arm64" # default; "linux/amd64" runs x86_64 under Rosetta (see below)
 ```
 
 Install it with `kinhin setup repair container`, or by hand with `brew install container` and
@@ -293,13 +294,27 @@ root on its microVM; the microVM is still the isolation boundary, as without Doc
 own flags and before the image. Give each flag and each value as its own list element (`["--shm-size", "2g", "--dns",
 "1.1.1.1"]`, or `"--shm-size=2g"`); they are passed as arguments, never through a shell. The loader rejects the flags
 kinhin sets itself, in any spelling (`--name`, `--rm`, `--detach`/`-d`, `--cpus`/`-c`, `--memory`/`-m`, `--platform`,
-`--arch`/`-a`, `--os`, plus `--help` and `--version`), empty elements, and a first element that is not a flag. Run
-`container run --help` for what the rest do.
+`--arch`/`-a` (both come from `platform`), `--os`, plus `--help` and `--version`), empty elements, and a first element
+that is not a flag. Run `container run --help` for what the rest do.
+
+#### x86_64 (amd64) container runners
+
+`platform: "linux/amd64"` under `container:` (or on one pool) runs x86_64 runner containers: kinhin starts them with
+`container run --platform linux/amd64`, and Apple container runs their code under Rosetta for Linux. `kinhin image
+prepare --container` bakes the image as amd64 (an amd64 scratch container from the base image, the x64 runner agents,
+and the image tagged `linux/amd64`), so re-bake after changing `platform`, and give an amd64 pool an image of its own.
+If an amd64 container does not start on your Mac, install Rosetta with `softwareupdate --install-rosetta`.
+
+An amd64 runner registers with `x64` in place of the fleet's `arm64` label, so `runs-on: [self-hosted, x64, linux]`
+lands there and an `arm64` job never does. kinhin counts queued jobs that carry the fleet labels with `x64` in place of
+`arm64` as demand, and a job that asks for `x64` goes to Apple container even when another runtime is the default.
+Expect jobs to run slower than on arm64, and some software fails under Rosetta (JITs, certain Go/Java/.NET builds,
+AVX-512). Prefer arm64 unless a job needs x86_64.
 
 #### Several container pools
 
 `pools:` under `container:` splits Apple container into named pools, each with its own image, shape, labels, floor,
-Docker and flags. The keys at the top of `container:` are the defaults every pool inherits; a pool sets only what it
+Docker, flags and platform. The keys at the top of `container:` are the defaults every pool inherits; a pool sets only what it
 changes, plus an optional `max:` (at most that many of its runners at once):
 
 ```yaml
@@ -316,6 +331,7 @@ container:
       memory_gb: 12
       flags: ["--shm-size", "2g"]
       max: 2
+    linux-x64: { image: kinhin-ci-linux-x64, labels: [linux], platform: linux/amd64 }
 ```
 
 - **Routing.** A job routed to Apple container (by a route, the `kinhin-container` label or the default runtime) lands
@@ -324,7 +340,9 @@ container:
   linux]` to `linux`. A job no pool's labels claim goes to the **default pool**: the one with the fewest labels (a pool
   without labels catches everything else), then the first by name. Each pool's runners also register with
   `kinhin-container-<name>`, which targets that pool alone and routes the job to Apple container even without a route;
-  `kinhin workflow route FILE appleContainer --pool NAME` adds it for you. On a
+  `kinhin workflow route FILE appleContainer --pool NAME` adds it for you. A job that asks for `x64` or `arm64` only
+  lands in a pool of that architecture (`[self-hosted, x64, linux]` goes to `linux-x64` above, `[self-hosted, arm64,
+  linux]` to `linux`); when the default pool runs the other one, the same rule picks among the pools of the job's. On a
   [GitHub scale set](forges/github.md#scale-set-mode-in-kinhin), each pool gets its own set, `kinhin-container-<name>`.
 - **Capacity.** The pools share Apple container's budget: its `runtimes.budget` share in a mixed fleet, else the Mac
   minus `reserve:`. A runner starts only if its pool's `cpus` and `memory_gb` fit in what the running containers (each
@@ -336,7 +354,7 @@ container:
 - **Images.** `kinhin image prepare --container --pool NAME` bakes one pool's image on its `base_image`;
   `--container --all` bakes every pool's image, each shared image once. A shared image gets Docker when any pool that
   runs it has `docker: true` (dockerd only starts in the pools that ask for it), and two pools sharing an image must
-  name the same `base_image`. `kinhin image prune` keeps every pool's image. A pool whose image is not built yet is
+  name the same `base_image` and `platform`. `kinhin image prune` keeps every pool's image. A pool whose image is not built yet is
   left out (logged once, and `kinhin doctor` says so): its jobs wait and its `min_idle` is skipped, instead of failed
   starts holding every pool back. kinhin rechecks the local images every minute, so a pool starts within a minute of
   its bake.
@@ -352,8 +370,8 @@ container:
   **Advanced → Containers** show the pool each container runner belongs to.
 
 Pool names are lowercase letters, digits and inner `-`, up to 32 characters (they end up in a label). The loader also
-rejects two pools with the same labels, a `max:` below the pool's `min_idle`, a pool `platform:` (Apple container runs
-linux/arm64 only) and each pool's `flags` by the rules above. Without `pools:`, the `container:` section is one pool and
+rejects two pools with the same labels and platform, a `max:` below the pool's `min_idle`, a `platform` other than
+`linux/arm64` or `linux/amd64`, and each pool's `flags` by the rules above. Without `pools:`, the `container:` section is one pool and
 behaves exactly as before.
 
 ### Docker
