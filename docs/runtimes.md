@@ -342,6 +342,14 @@ container:
   its bake.
 - **Restarts.** Each instance remembers its pool. One adopted without a record, or from a pool you since removed, runs
   as the default pool.
+- **In the app.** **Advanced → Routing** has a **Container pools** group with a card per pool: its labels (with
+  `kinhin-container-<name>`), CPUs and memory, `max:`, `min_idle`, Docker, image, whether that image is built (with
+  the `kinhin image prepare --container --pool NAME` command when it is not) and which pool takes unmatched jobs.
+  **Add Container Pool…**, **Edit…** and **Remove** write `container.pools:`; in the sheet, a blank field leaves the
+  key out so the pool inherits the `container:` value its placeholder shows, and **Run flags** takes one argument per
+  line. The edit is validated like any config edit and rewrites only the `container:` section (comments inside it are
+  not kept); the engine restarts to apply it and keeps the runners it has. The Fleet tab's instance rows and
+  **Advanced → Containers** show the pool each container runner belongs to.
 
 Pool names are lowercase letters, digits and inner `-`, up to 32 characters (they end up in a label). The loader also
 rejects two pools with the same labels, a `max:` below the pool's `min_idle`, a pool `platform:` (Apple container runs
@@ -509,7 +517,8 @@ each runtime gets its share of the host's CPU cores and of its RAM, and may only
 `kinhin status` shows the result. If a split would leave a configured route with zero capacity, the app warns you
 before you can save it.
 
-Manage routes in **Advanced → Routing** (pools with a live health chip, routes, the default pool, and labels) or with
+Manage routes in **Advanced → Routing** (pools with a live health chip, the named
+[container pools](#several-container-pools), routes, the default pool, and labels) or with
 `kinhin runtimes route add|remove`. The capacity split lives in **Advanced → Capacity**: a budget slider per runtime —
 drag it or type a percent, and lock a pool to keep its share fixed while the others rebalance. `kinhin runtimes` prints the same summary. Changes edit only the relevant
 part of `config.yaml`, must pass full validation, and reach a running fleet without a restart.

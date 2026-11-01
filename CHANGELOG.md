@@ -28,6 +28,10 @@
   labels Apple container series with `kinhin.container.pool`, splits the Apple container queue depth by pool, and reports
   an unbuilt pool as `kinhin.spawn.held` with `hold_reason` `image_missing`. Without `pools:` nothing changes (#75). See
   [docs/runtimes.md](docs/runtimes.md#several-container-pools).
+- The app shows and edits container pools: **Advanced → Routing** has a card per `container.pools:` entry (labels,
+  CPUs and memory, `max:`, `min_idle`, Docker, image and whether it is built) and **Add Container Pool…**, **Edit…** and
+  **Remove**, whose sheet leaves a blank field to inherit the `container:` value. The Fleet tab and **Advanced →
+  Containers** show each container runner's pool. Every app editor that rewrites `container:` keeps the pools (#75).
 
 **Fixed**
 
