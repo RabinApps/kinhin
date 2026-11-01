@@ -127,7 +127,8 @@ Each key defaults to `0` (off). How the floor is kept:
 - **Warm VMs.** A Tart top-up claims a warm VM of its image when there is one, so registering it is all that is left.
   Warm VMs of other images are evicted when the slot is needed, as for a job.
 - **Unprepared images.** A named image that was never prepared gets no idle runner. Its `min_idle` is skipped, with a
-  log line, until it exists.
+  log line, until it exists. A named container pool whose image is not built is left out entirely: no idle runner and
+  no runner for its queued jobs, which wait for the image rather than land in another pool.
 - **Named container pools.** Each pool keeps its own floor, and an idle runner of one pool is no runner for another
   pool's jobs (their labels differ), as with Tart images. A top-up only starts where the pool fits under its `max:`
   and the CPU and RAM left.

@@ -336,7 +336,10 @@ container:
 - **Images.** `kinhin image prepare --container --pool NAME` bakes one pool's image on its `base_image`;
   `--container --all` bakes every pool's image, each shared image once. A shared image gets Docker when any pool that
   runs it has `docker: true` (dockerd only starts in the pools that ask for it), and two pools sharing an image must
-  name the same `base_image`. `kinhin image prune` keeps every pool's image.
+  name the same `base_image`. `kinhin image prune` keeps every pool's image. A pool whose image is not built yet is
+  left out (logged once, and `kinhin doctor` says so): its jobs wait and its `min_idle` is skipped, instead of failed
+  starts holding every pool back. kinhin rechecks the local images every minute, so a pool starts within a minute of
+  its bake.
 - **Restarts.** Each instance remembers its pool. One adopted without a record, or from a pool you since removed, runs
   as the default pool.
 

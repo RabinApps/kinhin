@@ -24,7 +24,8 @@
   targets one pool. Each pool keeps its own idle runners and demand, and the pools share Apple container's CPU and RAM:
   a runner starts only when its pool's size fits what is left. `kinhin image prepare --container --pool NAME` (or
   `--all`) bakes a pool's image, `kinhin workflow route --pool NAME` routes to one, and `kinhin doctor` lists each pool.
-  Without `pools:` nothing changes (#75). See [docs/runtimes.md](docs/runtimes.md#several-container-pools).
+  A pool whose image is not built is left out (its jobs wait) instead of holding every pool in spawn backoff. Without
+  `pools:` nothing changes (#75). See [docs/runtimes.md](docs/runtimes.md#several-container-pools).
 
 **Fixed**
 
