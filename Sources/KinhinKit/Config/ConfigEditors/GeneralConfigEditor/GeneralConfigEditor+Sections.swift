@@ -44,7 +44,8 @@ extension GeneralConfigEditor {
     }
 
     static func sectionText(_ c: Snapshot.Container) -> String {
-        var lines = ["container:", "  image: \(YAMLText.quoted(c.image))"]
+        var lines = ["container:"]
+        if !c.image.isEmpty || c.pools.isEmpty { lines.append("  image: \(YAMLText.quoted(c.image))") }
         if let base = c.baseImage, !base.isEmpty { lines.append("  base_image: \(YAMLText.quoted(base))") }
         lines += ["  cpus: \(c.cpus)", "  memory_gb: \(c.memoryGB)"]
         if let labels = c.labels { lines.append("  labels: [\(labels.map(YAMLText.quoted).joined(separator: ", "))]") }
@@ -52,6 +53,10 @@ extension GeneralConfigEditor {
         if c.minIdle > 0 { lines.append("  min_idle: \(c.minIdle)") }
         if c.docker { lines.append("  docker: true") }
         if !c.flags.isEmpty { lines.append("  flags: [\(c.flags.map(YAMLText.quoted).joined(separator: ", "))]") }
+        if !c.pools.isEmpty {
+            lines.append("  pools:")
+            lines += c.pools.flatMap { $0.lines(indent: "    ") }
+        }
         return lines.joined(separator: "\n")
     }
 

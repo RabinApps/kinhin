@@ -20,7 +20,7 @@ extension KinhinConfig {
         public init(
             image: String, cpus: Int = defaultCPUs, memoryGB: Int = defaultMemoryGB, labels: [String]? = nil,
             baseImage: String? = nil, fleetLabels: Bool? = nil, minIdle: Int = 0, docker: Bool = false,
-            flags: [String] = []
+            flags: [String] = [], pools: [Pool] = []
         ) {
             self.image = image
             self.cpus = cpus
@@ -31,6 +31,7 @@ extension KinhinConfig {
             self.minIdle = minIdle
             self.docker = docker
             self.flags = flags
+            self.pools = pools
         }
 
         /// Extra labels the Apple-container pool's runners register with, so
@@ -56,13 +57,18 @@ extension KinhinConfig {
         /// flags. The loader rejects the flags kinhin sets itself (`ConfigLoader.validatedContainerRunFlags`).
         public var flags: [String]
 
+        /// The named pools (`container.pools:`), sorted by name, each with the keys above filled in where it leaves
+        /// one out. Empty: the section itself is the one pool, exactly as before pools existed. Read the pools
+        /// through `effectivePools`, which covers both shapes.
+        public var pools: [Pool]
+
         enum CodingKeys: String, CodingKey {
             case image, cpus, labels
             case memoryGB = "memory_gb"
             case baseImage = "base_image"
             case fleetLabels = "fleet_labels"
             case minIdle = "min_idle"
-            case docker, flags
+            case docker, flags, pools
         }
     }
 }

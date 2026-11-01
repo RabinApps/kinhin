@@ -21,18 +21,21 @@ extension ConfigLoader {
                 "images: \(image.name) min_idle (\(image.minIdle)) plus its warm_pool (\(image.warmPool)) "
                     + "must be <= max_runners (\(cap))")
         }
-        if let container = cfg.container, container.minIdle > cap {
-            throw ConfigError.invalid("container.min_idle (\(container.minIdle)) must be <= max_runners (\(cap))")
+        for pool in cfg.container?.effectivePools ?? [] where pool.minIdle > cap {
+            let key = pool.isNamed ? "container.pools.\(pool.name).min_idle" : "container.min_idle"
+            throw ConfigError.invalid("\(key) (\(pool.minIdle)) must be <= max_runners (\(cap))")
         }
         if let docker = cfg.docker, docker.minIdle > cap {
             throw ConfigError.invalid("docker.min_idle (\(docker.minIdle)) must be <= max_runners (\(cap))")
         }
+        // With `container.pools:`, the section's own min_idle is only the pools' default: each pool's floor counts.
         let floors =
-            [cfg.imageMinIdle] + cfg.images.map(\.minIdle) + [cfg.container?.minIdle ?? 0, cfg.docker?.minIdle ?? 0]
+            [cfg.imageMinIdle] + cfg.images.map(\.minIdle) + (cfg.container?.effectivePools.map(\.minIdle) ?? [])
+            + [cfg.docker?.minIdle ?? 0]
         if exceeds(floors, cap) {
             throw ConfigError.invalid(
-                "min_idle across image_min_idle, images:, container: and docker: (\(total(floors))) must be <= "
-                    + "max_runners (\(cap))")
+                "min_idle across image_min_idle, images:, container: (every pool) and docker: (\(total(floors))) must "
+                    + "be <= max_runners (\(cap))")
         }
         // A Linux Tart image is not bound by Apple's macOS limit. A named image without base_image bakes on the
         // default macOS base.

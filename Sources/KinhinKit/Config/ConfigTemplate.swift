@@ -241,6 +241,9 @@ extension ConfigLoader {
         #   min_idle: 1                  # idle registered runners kept for this pool
         #   docker: true                 # Docker inside each runner (dockerd starts before it registers)
         #   flags: ["--shm-size", "2g"]  # extra `container run` arguments, one list element each
+        #   pools:                       # optional: several named pools; the keys above are their defaults
+        #     linux: { labels: [linux], min_idle: 1 }
+        #     big: { labels: [linux, big], cpus: 8, memory_gb: 16, max: 2 }   # runs-on: [..., linux, big]
 
         # Optional: run Linux jobs in Docker containers inside your Docker
         # provider's shared Linux VM (Docker Desktop, OrbStack, or colima).
