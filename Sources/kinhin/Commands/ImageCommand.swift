@@ -33,7 +33,8 @@ enum ImageCommand {
             LinuxImageOptions(
                 image: LinuxBaseImage.resolve(
                     configured: container?.baseImage(forImage: image), flagOverride: baseOverride),
-                target: target ?? image, docker: container?.bakesDocker(image: image) ?? false)
+                target: target ?? image, platform: container?.platform(forImage: image) ?? .arm64,
+                docker: container?.bakesDocker(image: image) ?? false)
         }
         if args.contains("--all") {
             if hasFlag("--target", in: args) {
@@ -200,6 +201,7 @@ enum ImageCommand {
                 }
                 let bakes = try Self.containerBakes(args: args, container: cfg.container)
                 let preparer = ContainerImagePreparer(shell: shell)
+                if bakes.contains(where: { $0.platform.isEmulated }) { warn(LinuxPlatform.containerEmulationNotice) }
                 for options in bakes {
                     let baked = try await preparer.prepare(options)
                     print("container image ready: \(baked)")

@@ -32,6 +32,9 @@ extension FleetEngine {
         if let platform = config.docker?.platform, platform.isEmulated {
             Log.warn("engine", LinuxPlatform.emulationNotice)
         }
+        if let container = config.container, container.effectivePools.contains(where: { $0.platform.isEmulated }) {
+            Log.warn("engine", LinuxPlatform.containerEmulationNotice)
+        }
         // One-line reproducibility nudge: base_image is set but not pinned,
         // so the next prepare may bake different bits than the last one.
         // The default (no key) is never nagged about.

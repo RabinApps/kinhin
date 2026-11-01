@@ -16,7 +16,8 @@ public struct LinuxImageOptions {
     /// probe (tests). nil = probe the Keychain for every forge.
     public var storedTokens: Set<ForgeID>?
     /// Architecture of the image being baked. Anything but arm64 (native on
-    /// Apple Silicon) is Docker-only and runs under emulation.
+    /// Apple Silicon) runs under emulation: Rosetta for Linux on Apple
+    /// `container`, the provider's emulation on Docker.
     public var platform: LinuxPlatform
     /// Install Docker when the base image lacks it (`container.docker`).
     public var docker: Bool
@@ -70,6 +71,8 @@ struct LinuxImageBaker: Sendable {
         var recoverStartFailure: (@Sendable (_ shell: ShellRunning, _ stderr: String) async -> Bool)? = nil
         /// Turns the scratch container into the tagged target image.
         let commit: (@Sendable (_ shell: ShellRunning, _ scratch: String, _ target: String) async throws -> Void)
+        /// What a non-native bake warns about the emulation it runs under.
+        var emulationNotice = LinuxPlatform.emulationNotice
     }
 
     let shell: ShellRunning
@@ -125,7 +128,7 @@ struct LinuxImageBaker: Sendable {
         // Native arm64 keeps the argv unchanged; anything else is pinned
         // explicitly so the scratch container (and the committed image) match.
         if options.platform != .arm64 {
-            Log.warn(tag, LinuxPlatform.emulationNotice)
+            Log.warn(tag, backend.emulationNotice)
             startArgv += ["--platform", options.platform.rawValue]
         }
         startArgv += [

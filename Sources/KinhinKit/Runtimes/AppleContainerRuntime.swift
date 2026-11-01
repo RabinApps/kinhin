@@ -23,6 +23,8 @@ public struct AppleContainerRuntime: Runtime {
     let docker: Bool
     /// Extra `container run` arguments (`container.flags`), already validated by the loader.
     let flags: [String]
+    /// The architecture each runner container runs (`container.platform`); amd64 runs under Rosetta for Linux.
+    let platform: LinuxPlatform
     /// Binary-path override (tests); nil resolves from PATH/brew prefixes.
     let binPath: String?
     /// Existence probe for the binary (tests inject a constant; production
@@ -36,6 +38,7 @@ public struct AppleContainerRuntime: Runtime {
         memoryGB: Int = 8,
         docker: Bool = false,
         flags: [String] = [],
+        platform: LinuxPlatform = .arm64,
         binPath: String? = nil,
         exists: @escaping @Sendable (String) -> Bool = { FileManager.default.isExecutableFile(atPath: $0) }
     ) {
@@ -45,6 +48,7 @@ public struct AppleContainerRuntime: Runtime {
         self.memoryBytes = Int64(memoryGB) * 1_073_741_824
         self.docker = docker
         self.flags = flags
+        self.platform = platform
         self.binPath = binPath
         self.exists = exists
     }
@@ -66,17 +70,23 @@ public struct AppleContainerRuntime: Runtime {
             dialect: .init(
                 tag: "container", listVerb: "list", removeVerb: "delete",
                 listNameArguments: ["--quiet"], imageListArguments: ["image", "list", "--quiet"],
-                imageRemoveArguments: ["image", "delete"], runFlags: [],
-                shapeNote: nil),
+                imageRemoveArguments: ["image", "delete"], runFlags: Self.platformRunFlags(platform),
+                shapeNote: platform == .arm64 ? nil : platform.rawValue),
             image: image, cpus: cpus, memoryBytes: memoryBytes,
             poolRunFlags: Self.poolRunFlags(docker: docker, flags: flags), startsDocker: docker)
     }
 
-    /// The runtime for one Apple container pool: its image, shape, Docker and flags.
+    /// The runtime for one Apple container pool: its image, shape, Docker, flags and platform.
     init(shell: ShellRunning, pool: KinhinConfig.ContainerConfig.Pool) {
         self.init(
             shell: shell, image: pool.image, cpus: pool.cpus, memoryGB: pool.memoryGB, docker: pool.docker,
-            flags: pool.flags)
+            flags: pool.flags, platform: pool.platform)
+    }
+
+    /// The `container run` flags that pick the architecture: none on native arm64 (the argv is exactly as before
+    /// platforms), `--platform linux/amd64` otherwise, which Apple container runs under Rosetta for Linux.
+    static func platformRunFlags(_ platform: LinuxPlatform) -> [String] {
+        platform == .arm64 ? [] : ["--platform", platform.rawValue]
     }
 
     /// The `container run` flags a pool adds after kinhin's own: every Linux capability when it runs Docker (dockerd

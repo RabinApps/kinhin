@@ -31,7 +31,9 @@ struct GitHubDescriptor: ForgeDescriptor {
                 account: account, token: build.token, client: client,
                 labels: account.labels ?? build.fleetLabels, targets: targets)
         }
-        return GitHubForge(account: account, token: build.token, client: client, labels: build.fleetLabels)
+        return GitHubForge(
+            account: account, token: build.token, client: client, labels: build.fleetLabels,
+            servedLabels: build.poolLabels)
     }
 
     func makeAdmin(account: AccountConfig, token: String) -> any ForgeAdmin {

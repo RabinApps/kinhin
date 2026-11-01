@@ -22,9 +22,12 @@ struct RuntimePool: Sendable, Equatable {
     /// `macos` fleet label stripped by default (see `servesMacOS`); pass
     /// `inheritingFleetLabels: false` for replace-not-add — the pool's base
     /// labels come from `labels:`-style config of that runtime alone.
+    /// `dockerPlatform` and `containerPlatform` are the architectures of the
+    /// Docker and Apple container runners: an amd64 one registers with `x64`.
     static func labelsFor(
         _ runtime: RuntimeID, fleetLabels: [String], containerExtra: [String]? = nil,
-        dockerPlatform: LinuxPlatform = .arm64, inheritingFleetLabels: Bool = true
+        dockerPlatform: LinuxPlatform = .arm64, containerPlatform: LinuxPlatform = .arm64,
+        inheritingFleetLabels: Bool = true
     ) -> [String] {
         // The fleet's `macos` OS label names the macOS runners' guests; Linux
         // guest runtimes must never advertise it, or macOS jobs would land there.
@@ -41,10 +44,10 @@ struct RuntimePool: Sendable, Equatable {
         var labels = base
         // The pool's own `labels:`-style extras come first (replace-not-add is
         // "own labels plus the marker"), then the exclusive marker appended
-        // when missing. The amd64 swap runs last: an emulated-x64 Docker pool
-        // must not advertise the fleet's native `arm64` label, so it is
-        // dropped and `x64` appended when absent — after the marker, like any
-        // other post-fleet addition.
+        // when missing. The amd64 swap runs last: an emulated-x64 Docker or
+        // Apple container pool must not advertise the fleet's native `arm64`
+        // label, so it is dropped and `x64` appended when absent — after the
+        // marker, like any other post-fleet addition.
         if runtime == .appleContainer {
             for extra in containerExtra ?? [] where !labels.contains(extra) {
                 labels.append(extra)
@@ -53,10 +56,16 @@ struct RuntimePool: Sendable, Equatable {
         if let marker = exclusiveMarker(for: runtime) {
             if !labels.contains(marker) { labels.append(marker) }
         }
-        if runtime == .docker, dockerPlatform == .amd64 {
+        let platform: LinuxPlatform =
+            switch runtime {
+            case .docker: dockerPlatform
+            case .appleContainer: containerPlatform
+            default: .arm64
+            }
+        if platform == .amd64 {
             labels.removeAll { $0.lowercased() == LinuxPlatform.arm64.runnerLabel }
-            if !labels.contains(where: { $0.lowercased() == dockerPlatform.runnerLabel }) {
-                labels.append(dockerPlatform.runnerLabel)
+            if !labels.contains(where: { $0.lowercased() == platform.runnerLabel }) {
+                labels.append(platform.runnerLabel)
             }
         }
         return labels
@@ -189,7 +198,20 @@ enum RuntimeRouter {
             }
         }
 
-        // 4. Default.
+        // 4. Architecture: a job that asks for x64 goes to the runtime whose
+        // runners register with x64 (an amd64 Apple container pool, or Docker
+        // on amd64) when the default runtime's do not; arm64-only runtimes
+        // could never take it.
+        let x64 = LinuxPlatform.amd64.runnerLabel
+        if Set((job.labels ?? []).map { $0.lowercased() }).contains(x64), !defaultPool.servesX64(config: config) {
+            for runtimeID in [RuntimeID.appleContainer, .docker] {
+                if let pool = pools[runtimeID], pool.servesX64(config: config) {
+                    return Decision(pool: pool, via: "label:\(x64)")
+                }
+            }
+        }
+
+        // 5. Default.
         return Decision(pool: defaultPool, via: "default")
     }
 }
@@ -208,8 +230,9 @@ public struct RuntimeConfigModel: Sendable {
     init(
         config: KinhinConfig.RuntimeConfig?, fleetLabels: [String], containerLabels: [String]? = nil,
         containerConfigured: Bool = false, dockerConfigured: Bool = false, dockerPlatform: LinuxPlatform = .arm64,
-        containerInheritsFleetLabels: Bool? = nil, dockerInheritsFleetLabels: Bool? = nil,
-        hostConfigured: Bool = false, containerPools: [KinhinConfig.ContainerConfig.Pool] = []
+        containerPlatform: LinuxPlatform = .arm64, containerInheritsFleetLabels: Bool? = nil,
+        dockerInheritsFleetLabels: Bool? = nil, hostConfigured: Bool = false,
+        containerPools: [KinhinConfig.ContainerConfig.Pool] = []
     ) {
         if let config {
             // Explicit routing: tart is always available (macOS workloads),
@@ -224,6 +247,7 @@ public struct RuntimeConfigModel: Sendable {
                     runtime: .appleContainer,
                     labels: RuntimePool.labelsFor(
                         .appleContainer, fleetLabels: fleetLabels, containerExtra: containerLabels,
+                        containerPlatform: containerPlatform,
                         inheritingFleetLabels: containerInheritsFleetLabels ?? true)
                 )
             }
@@ -255,7 +279,7 @@ public struct RuntimeConfigModel: Sendable {
                     runtime: primary,
                     labels: RuntimePool.labelsFor(
                         primary, fleetLabels: fleetLabels, containerExtra: containerLabels,
-                        dockerPlatform: dockerPlatform)
+                        dockerPlatform: dockerPlatform, containerPlatform: containerPlatform)
                 )
             ]
             self.containerPools =
@@ -341,6 +365,7 @@ extension RuntimeConfigModel {
             containerConfigured: config.container != nil,
             dockerConfigured: config.docker != nil,
             dockerPlatform: config.docker?.platform ?? .arm64,
+            containerPlatform: config.container?.platform ?? .arm64,
             containerInheritsFleetLabels: config.container?.fleetLabels,
             dockerInheritsFleetLabels: config.docker?.fleetLabels,
             hostConfigured: routing?.routes.contains { $0.runtime == .host } ?? false,
