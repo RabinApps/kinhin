@@ -10,7 +10,7 @@
 | `labels`                                   | Jobs must request _all_ of these to be picked up                                                                                                                                                                                                                                                                                                             |
 | `min_runners` / `max_runners` | Scaling bounds (in VMs). Defaults `0` / `2`. `min_runners` is one floor for the whole fleet: busy instances count toward it and the instances it adds run on `runtimes.default` (see [Scaling](/guide/scaling#min-runners-a-fleet-wide-floor-not-an-idle-one)) |
 | `image_min_idle` / `min_idle` | Registered, idle runners kept at all times so the forge always lists one: `image_min_idle` for the top-level `image:`, `min_idle` on each `images:` entry, on `container:` and on `docker:`. A busy runner does not count, so a replacement starts as soon as one takes a job. Default `0` (off); see [Idle runners per pool and image](/guide/scaling#idle-runners-per-pool-and-image) |
-| `container` | Linux jobs in Apple `container` microVMs: `image`, `base_image`, `cpus` (4), `memory_gb` (8), `labels`, `fleet_labels`, `min_idle`, `docker` (false: Docker inside each runner) and `flags` (extra `container run` arguments). See [apple/container](/guide/runtimes#apple-container) |
+| `container` | Linux jobs in Apple `container` microVMs: `image`, `base_image`, `cpus` (4), `memory_gb` (8), `labels`, `fleet_labels`, `min_idle`, `docker` (false: Docker inside each runner), `flags` (extra `container run` arguments) and `pools` (named pools: each takes those keys plus `max`, the top-level ones are their defaults). See [apple/container](/guide/runtimes#apple-container) and [Several container pools](/guide/runtimes#several-container-pools) |
 | `warm_pool` / `warm_max_age_minutes` | Pre-booted, unregistered Tart VMs kept for instant pickup (per image: also `warm_pool` on each `images:` entry), and when to recycle them. Defaults `0` (off) / `60` |
 | `runners_per_vm`                           | Runner processes per VM — many-to-one job density (1–8; 1 = one job per VM, most isolated)                                                                                                                                                                                                                                                                   |
 | `poll_interval` | Seconds between forge polls (≥ 5, default 20) |
@@ -57,6 +57,11 @@ the disk would dip below `reserve.disk_gb` plus one instance's footprint.
 - **`container.flags`** must not set what kinhin sets itself (`--name`, `--rm`, `--detach`, `--cpus`, `--memory`,
   `--platform`, `--arch`, `--os`, in long, `--flag=value` and short forms), and each element must be non-empty with the
   first one a flag. See [Extra `container run` flags](/guide/runtimes#extra-container-run-flags).
+- **`container.pools`.** Pool names are lowercase letters, digits and inner `-` (at most 32 characters); every pool
+  needs an image (its own or `container.image`); no two pools may have the same labels or bake one image from two
+  `base_image` values; `max` must be at least 1 and the pool's `min_idle`; each pool's keys are checked like the same
+  keys on `container:`, and a pool's `platform` is rejected. See
+  [Several container pools](/guide/runtimes#several-container-pools).
 - **`min_idle`.** Every `min_idle` (and `image_min_idle`) must be 0 or more and fit in `max_runners`, each image's
   together with its `warm_pool`, and all of them together too; `docker.min_idle` must also fit in `docker.max_slots`.
   The values on macOS Tart images may add up to at most 2, Apple's limit of macOS VMs per Mac.

@@ -18,6 +18,13 @@
   compose`. `kinhin image prepare --container` installs Docker when the base image lacks it. `container.flags:` passes
   extra arguments to `container run` (for example `["--shm-size", "2g"]`); the loader rejects the flags kinhin sets
   itself (#75). See [docs/runtimes.md](docs/runtimes.md#docker-inside-container-runners).
+- `container.pools:` splits Apple container into named pools, each with its own image, `cpus`, `memory_gb`, labels,
+  `min_idle`, `docker`, `flags` and an optional `max:`; the section's own keys are their defaults. A job goes to the
+  pool whose labels it carries (the most specific, like named Tart images), and `runs-on: [..., kinhin-container-NAME]`
+  targets one pool. Each pool keeps its own idle runners and demand, and the pools share Apple container's CPU and RAM:
+  a runner starts only when its pool's size fits what is left. `kinhin image prepare --container --pool NAME` (or
+  `--all`) bakes a pool's image, `kinhin workflow route --pool NAME` routes to one, and `kinhin doctor` lists each pool.
+  Without `pools:` nothing changes (#75). See [docs/runtimes.md](docs/runtimes.md#several-container-pools).
 
 **Fixed**
 
