@@ -247,7 +247,7 @@ public struct DoctorReportBuilder: Sendable {
         let authReport = AuthStatusReporter.report(config: parsed, load: authLoad, loadAccount: sharedAccountLoad)
 
         let containerSection = Self.containerSection(
-            config: parsed, health: resolvedContainerHealth, images: resolvedContainerImages)
+            config: parsed, health: resolvedContainerHealth, images: resolvedContainerImages, host: resolvedHost)
         let dockerSection = Self.dockerSection(
             config: parsed, health: resolvedDockerHealth, images: resolvedDockerImages,
             imageArchitecture: dockerArchitecture)

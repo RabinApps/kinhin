@@ -52,6 +52,26 @@ extension DoctorReport {
         return line
     }
 
+    /// One named container pool for the plain-text report: its shape, its image (and how to prepare it when missing),
+    /// and a warning when its shape never fits the budget.
+    static func containerPoolLine(_ pool: ContainerPoolStatus, runtimeReady: Bool) -> String {
+        var shape = "\(pool.cpus) CPU, \(pool.memoryGB) GB"
+        if let max = pool.max { shape += ", max \(max)" }
+        if pool.docker { shape += ", docker" }
+        var line = "\(pool.name) (\(shape)): \(pool.image)"
+        if runtimeReady {
+            line +=
+                pool.imageFound
+                ? " ✓" : " NOT LOCAL — prepare with: kinhin image prepare --container --pool \(pool.name)"
+        }
+        if !pool.fits {
+            line +=
+                " ✗ never fits the Apple container budget (\(pool.budgetCPU) CPU, \(pool.budgetMemoryGB) GB): "
+                + "lower its cpus/memory_gb or the reserve"
+        }
+        return line
+    }
+
     /// The report as aligned "label: value" lines (no trailing newline).
     public var plainText: String {
         var lines = ["kinhin doctor"]
@@ -89,7 +109,10 @@ extension DoctorReport {
 
         if let container {
             row("container", container.ok ? "apple container ready ✓ (Linux microVM runners)" : container.fix ?? "✗")
-            if container.ok {
+            if let pools = container.pools {
+                row("cont pools", "\(pools.count) named pools")
+                pools.forEach { more(Self.containerPoolLine($0, runtimeReady: container.ok)) }
+            } else if container.ok {
                 row(
                     "cont image",
                     container.imageFound

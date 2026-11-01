@@ -137,6 +137,7 @@ public enum FleetStatusFormatter {
                 var line = "  \(record.id)  \(record.phase.rawValue)"
                 if let platform = record.platform, platform != "github" { line += " [\(platform)]" }
                 if let ip = record.ip { line += "  ip=\(ip)" }
+                if let pool = record.pool { line += "  pool=\(pool)" }
                 line += "  up=\(Int(now.timeIntervalSince(record.createdAt)))s"
                 let stamps = runningJobs(of: record)
                 if stamps.count > 1 {

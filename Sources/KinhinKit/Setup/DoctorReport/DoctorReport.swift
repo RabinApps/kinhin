@@ -34,10 +34,30 @@ public struct DoctorReport: Codable, Equatable, Sendable {
         public let ok: Bool
         /// Install/start command or breakage reason, null when ready.
         public let fix: String?
-        /// The configured Linux OCI image.
+        /// The configured Linux OCI image. With named pools: the first pool image not built yet, else the default
+        /// pool's.
         public let image: String
-        /// Whether that image is available locally.
+        /// Whether that image (with named pools: every pool's image) is available locally.
         public let imageFound: Bool
+        /// The named container pools (`container.pools:`); nil without them.
+        public var pools: [ContainerPoolStatus]? = nil
+    }
+
+    /// One named container pool in the doctor's container section.
+    public struct ContainerPoolStatus: Codable, Equatable, Sendable {
+        public let name: String
+        public let image: String
+        public let imageFound: Bool
+        public let cpus: Int
+        public let memoryGB: Int
+        /// The pool's `max:`; nil = none.
+        public let max: Int?
+        public let docker: Bool
+        /// Whether one runner of this shape fits the Apple container budget at all (false: it can never start).
+        public let fits: Bool
+        /// The budget the pools share, for the message when the pool does not fit.
+        public let budgetCPU: Int
+        public let budgetMemoryGB: Int
     }
 
     /// Docker runtime state — present only when config.yaml declares a

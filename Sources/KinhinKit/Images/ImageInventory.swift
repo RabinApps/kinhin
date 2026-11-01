@@ -76,6 +76,12 @@ public struct ImageInventory: Sendable, Equatable, Codable {
             self.entries = entries
         }
 
+        /// Whether every configured image of this runtime (each container pool's, with `container.pools:`) is local:
+        /// some configured entry is present and none is missing. False when the images could not be listed.
+        public var configuredImagesPresent: Bool {
+            entries.contains { $0.role == .base && $0.present } && !entries.contains { $0.role == .base && !$0.present }
+        }
+
         /// Total disk usage of this runtime's installed images, in GB — what
         /// makes bloat visible at a glance (`kinhin image list` prints it
         /// under the section title). nil when the runtime reported no sizes:
