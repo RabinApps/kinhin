@@ -361,6 +361,39 @@ enum RuntimeCapacity {
         let summary: String
     }
 
+    /// CPU and memory: a runtime's share of the host, or one instance's shape.
+    struct Budget: Sendable, Equatable {
+        var cpu: Int
+        var memoryGB: Int
+
+        /// How many instances of `cpu` cores and `memoryGB` fit (0 for a shape without CPU).
+        func count(cpu shapeCPU: Int, memoryGB shapeMemory: Int) -> Int {
+            guard shapeCPU > 0 else { return 0 }
+            return max(0, min(cpu / shapeCPU, shapeMemory > 0 ? memoryGB / shapeMemory : Int.max))
+        }
+    }
+
+    /// Each weighted runtime's share of the usable host (rounded down), and the remainder for the default runtime.
+    static func shares(
+        hostUsableCPU: Int, hostUsableMemoryGB: Int, weights: [String: Double], defaultRuntime: RuntimeID
+    ) -> [RuntimeID: Budget] {
+        var shares: [RuntimeID: Budget] = [:]
+        var allocatedCPU = 0
+        var allocatedMem = 0
+        for (name, weight) in weights.sorted(by: { $0.key < $1.key }) {
+            guard let runtime = RuntimeID(rawValue: name), name != defaultRuntime.rawValue else { continue }
+            let cpuShare = Int((Double(hostUsableCPU) * weight).rounded(.down))
+            let memShare = Int((Double(hostUsableMemoryGB) * weight).rounded(.down))
+            shares[runtime] = Budget(cpu: cpuShare, memoryGB: memShare)
+            allocatedCPU += cpuShare
+            allocatedMem += memShare
+        }
+        // Default runtime gets the remainder.
+        shares[defaultRuntime] = Budget(
+            cpu: max(0, hostUsableCPU - allocatedCPU), memoryGB: max(0, hostUsableMemoryGB - allocatedMem))
+        return shares
+    }
+
     static func partition(
         hostUsableCPU: Int,
         hostUsableMemoryGB: Int,
@@ -368,37 +401,14 @@ enum RuntimeCapacity {
         defaultRuntime: RuntimeID,
         shape: (RuntimeID) -> (cpu: Int, memoryGB: Int)
     ) -> Partition {
+        let split = shares(
+            hostUsableCPU: hostUsableCPU, hostUsableMemoryGB: hostUsableMemoryGB, weights: weights,
+            defaultRuntime: defaultRuntime)
         var caps: [RuntimeID: Int] = [:]
-        var allocatedCPU = 0
-        var allocatedMem = 0
-
-        for (name, weight) in weights.sorted(by: { $0.key < $1.key }) {
-            guard let runtime = RuntimeID(rawValue: name), name != defaultRuntime.rawValue else { continue }
-            let cpuShare = Int((Double(hostUsableCPU) * weight).rounded(.down))
-            let memShare = Int((Double(hostUsableMemoryGB) * weight).rounded(.down))
+        for (runtime, share) in split {
             let shapeFor = shape(runtime)
-            let cap =
-                shapeFor.cpu > 0
-                ? min(
-                    shapeFor.cpu > 0 ? cpuShare / shapeFor.cpu : 0,
-                    shapeFor.memoryGB > 0 ? memShare / shapeFor.memoryGB : Int.max
-                ) : 0
-            caps[runtime] = max(0, cap)
-            allocatedCPU += cpuShare
-            allocatedMem += memShare
+            caps[runtime] = share.count(cpu: shapeFor.cpu, memoryGB: shapeFor.memoryGB)
         }
-
-        // Default runtime gets the remainder.
-        let restCPU = max(0, hostUsableCPU - allocatedCPU)
-        let restMem = max(0, hostUsableMemoryGB - allocatedMem)
-        let defShape = shape(defaultRuntime)
-        let defCap =
-            defShape.cpu > 0
-            ? min(
-                restCPU / defShape.cpu,
-                defShape.memoryGB > 0 ? restMem / defShape.memoryGB : Int.max
-            ) : 0
-        caps[defaultRuntime] = max(0, defCap)
 
         let summary = caps.keys.sorted { $0.rawValue < $1.rawValue }
             .map { "\($0.rawValue): \(caps[$0] ?? 0)" }

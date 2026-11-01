@@ -28,6 +28,9 @@ final class Router: Sendable {
         /// apart from the synthesized default-image entry (which keys base-image
         /// demand as the empty string).
         var baseImage: String
+        /// The CPU and memory the named container pools share
+        /// (`RuntimeCapacity.containerBudget`); nil without named pools.
+        var containerBudget: RuntimeCapacity.Budget? = nil
 
         /// The union of the labels every pool (every named container pool and
         /// every named image included) registers runners with, de-duplicated
@@ -54,7 +57,8 @@ final class Router: Sendable {
                 images: config.effectiveImages(),
                 projects: config.projects,
                 labels: config.labels,
-                baseImage: config.image)
+                baseImage: config.image,
+                containerBudget: RuntimeCapacity.containerBudget(for: config, host: host))
         }
 
         /// Job slots the pool of `runtime` offers: its instance cap (the
@@ -62,6 +66,18 @@ final class Router: Sendable {
         /// alone), times the runners each instance hosts.
         func jobCapacity(for runtime: RuntimeID, maxRunners: Int, capacityCap: Int, runnersPerVM: Int) -> Int {
             let instances = min(maxRunners, capacityCap, caps[runtime] ?? .max)
+            return instances * max(1, runnersPerVM)
+        }
+
+        /// Job slots the named container pool `pool` offers on its own: the
+        /// Apple container pool's slots, within the pool's `max:` and the
+        /// instances of its shape the shared budget holds.
+        func jobCapacity(
+            forContainerPool pool: KinhinConfig.ContainerConfig.Pool, maxRunners: Int, capacityCap: Int,
+            runnersPerVM: Int
+        ) -> Int {
+            let fit = containerBudget?.count(cpu: pool.cpus, memoryGB: pool.memoryGB) ?? .max
+            let instances = min(maxRunners, capacityCap, caps[.appleContainer] ?? .max, pool.max ?? .max, fit)
             return instances * max(1, runnersPerVM)
         }
     }

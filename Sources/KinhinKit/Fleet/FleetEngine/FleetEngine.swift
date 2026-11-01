@@ -231,6 +231,7 @@ public final class FleetEngine: Sendable {
             policy: config.healing, timings: dependencies.healingTimings,
             advisor: dependencies.healingAdvisor ?? NoHealingAdvisor(),
             journalURL: HealingJournal.fileURL(in: store.directory))
+        warnAboutUnfittableContainerPools(router.snapshot)
     }
 
     /// Convenience initializer matching the production wiring: GitHub
