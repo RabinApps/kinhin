@@ -64,4 +64,60 @@ final class LinuxImageBakerTests: XCTestCase {
         let syntax = try await Shell().run(["/bin/bash", "-n", "-c", script], cwd: nil, timeout: 10)
         XCTAssertTrue(syntax.succeeded, "composed bake script: \(syntax.stderr)")
     }
+
+    // MARK: - Docker (container.docker)
+
+    private func bakeScript(docker: Bool) async throws -> String {
+        let shell = FakeShell()
+        let opts = LinuxImageOptions(image: "ubuntu:24.04", target: "out", storedTokens: [.github], docker: docker)
+        _ = try await ContainerImagePreparer(shell: shell).prepare(opts, versions: .init(github: "1", gitea: "1"))
+        let install = try XCTUnwrap(shell.calls.first { $0.contains("-lc") }, "\(shell.calls)")
+        return try XCTUnwrap(install.last, "\(install)")
+    }
+
+    func testBakeInstallsDockerOnlyWhenAsked() async throws {
+        let plain = try await bakeScript(docker: false)
+        XCTAssertFalse(plain.contains("docker.io"), "no Docker unless container.docker is on")
+
+        let script = try await bakeScript(docker: true)
+        XCTAssertTrue(script.contains(RunnerBootstrap.linuxDockerInstallScript()), script)
+        let common = try XCTUnwrap(script.range(of: "command -v jq"), "no CI prerequisites")
+        let docker = try XCTUnwrap(script.range(of: "docker_packages=\"docker.io\""), "no Docker install")
+        let agent = try XCTUnwrap(script.range(of: "mkdir -p /opt/actions-runner"), "no GitHub agent install")
+        XCTAssertLessThan(common.upperBound, docker.lowerBound, "Docker installs after the CI prerequisites")
+        XCTAssertLessThan(docker.upperBound, agent.lowerBound, "Docker installs before the agents")
+
+        let syntax = try await Shell().run(["/bin/bash", "-n", "-c", script], cwd: nil, timeout: 10)
+        XCTAssertTrue(syntax.succeeded, "composed bake script: \(syntax.stderr)")
+    }
+
+    func testDockerInstallAddsTheOptionalPluginsAndHoldsBackServices() {
+        let script = RunnerBootstrap.linuxDockerInstallScript()
+        XCTAssertTrue(script.hasPrefix("# Docker"), script)
+        XCTAssertTrue(script.contains("if ! command -v dockerd >/dev/null 2>&1; then"), "skipped when present")
+        XCTAssertTrue(script.contains("docker_packages=\"$docker_packages iptables\""))
+        XCTAssertTrue(script.contains("for optional in docker-buildx docker-compose-v2; do"))
+        XCTAssertTrue(script.contains("apt-cache show \"$optional\""), "plugins only where the distribution has them")
+        XCTAssertTrue(script.contains("apt-get install -y --no-install-recommends $docker_packages"))
+        XCTAssertTrue(script.contains("printf '#!/bin/sh\\nexit 101\\n' > /usr/sbin/policy-rc.d"))
+    }
+
+    func testDockerInstallDoesNothingWhenTheBaseHasDockerd() async throws {
+        // A fake dockerd on PATH and an apt-get that records any call: with dockerd present, apt is never run.
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("docker-bake-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: dir) }
+        let calls = dir.appendingPathComponent("apt-calls")
+        for (tool, body) in [("dockerd", "echo 'Docker version 99'"), ("apt-get", "echo \"$@\" >> '\(calls.path)'")] {
+            let url = dir.appendingPathComponent(tool)
+            try "#!/bin/sh\n\(body)\n".write(to: url, atomically: true, encoding: .utf8)
+            try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
+        }
+        let script =
+            "PATH='\(dir.path)':/usr/bin:/bin\nset -euo pipefail\n" + RunnerBootstrap.linuxDockerInstallScript()
+        let result = try await Shell().run(["/bin/bash", "-c", script], cwd: nil, timeout: 10)
+        XCTAssertTrue(result.succeeded, result.stderr)
+        XCTAssertTrue(result.stdout.contains("Docker version 99"), result.stdout)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: calls.path), "apt-get must not run")
+    }
 }

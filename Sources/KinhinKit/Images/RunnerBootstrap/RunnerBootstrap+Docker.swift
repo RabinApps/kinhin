@@ -47,4 +47,39 @@ extension RunnerBootstrap {
         fi
         """
     }
+
+    // MARK: - Installing Docker into a baked image
+
+    /// Installs Docker into a Linux image for `container.docker` (baked during `kinhin image prepare --container`):
+    /// `docker.io` (the daemon and CLI), `iptables` when missing, and `docker-buildx` / `docker-compose-v2` when the
+    /// distribution has them (Ubuntu 24.04 and later do). Skipped entirely when the base image already has `dockerd`,
+    /// so a base that ships Docker CE keeps its own packages. Runs as root through apt, like
+    /// `linuxPrerequisitesScript`, with services held back (`policy-rc.d`) while the packages install.
+    static func linuxDockerInstallScript() -> String {
+        """
+        # Docker (container.docker): installed unless the base image already has dockerd
+        if ! command -v dockerd >/dev/null 2>&1; then
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update -qq
+          docker_packages="docker.io"
+          command -v iptables >/dev/null 2>&1 || docker_packages="$docker_packages iptables"
+          for optional in docker-buildx docker-compose-v2; do
+            if apt-cache show "$optional" >/dev/null 2>&1; then
+              docker_packages="$docker_packages $optional"
+            fi
+          done
+          # Keep the package scripts from starting dockerd in the bake's container (it would fail there, and could
+          # leave a pid file in the image): runners start it themselves.
+          policy_added=""
+          if [ ! -e /usr/sbin/policy-rc.d ]; then
+            printf '#!/bin/sh\\nexit 101\\n' > /usr/sbin/policy-rc.d
+            chmod +x /usr/sbin/policy-rc.d
+            policy_added=1
+          fi
+          apt-get install -y --no-install-recommends $docker_packages
+          [ -z "$policy_added" ] || rm -f /usr/sbin/policy-rc.d
+        fi
+        dockerd --version
+        """
+    }
 }
