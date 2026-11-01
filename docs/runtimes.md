@@ -254,6 +254,8 @@ container:
   base_image: "ubuntu:24.04" # optional: any Debian/Ubuntu-based image
   cpus: 4
   memory_gb: 8
+  docker: true # optional: Docker inside each runner container (see below)
+  flags: ["--shm-size", "2g"] # optional: extra `container run` arguments
 ```
 
 Install it with `kinhin setup repair container`, or by hand with `brew install container` and
@@ -268,6 +270,31 @@ with the fleet's `macos` label, because these guests run Linux: a macOS job woul
 registers with `kinhin-container` and `container.labels:` alone. `min_idle: N` under `container:` keeps `N` container
 runners registered and idle, so one is always listed for these labels, even while another runs a job (see
 [Idle runners per pool and image](scaling.md#idle-runners-per-pool-and-image)).
+
+#### Docker inside container runners
+
+`docker: true` under `container:` gives every runner container its own Docker daemon, so jobs can run `docker run`,
+`docker build` (with buildx), `docker compose`, published ports and networks. Each runner starts with every Linux
+capability (`--cap-add ALL`), which dockerd needs for its iptables chains; before the runner registers, kinhin remounts
+`/proc/sys` read-write (Apple container mounts it read-only, and dockerd writes `net.ipv4.ip_forward`), starts
+`dockerd` in the background (log: `/var/log/dockerd.log` in the container) and waits up to 60 seconds for `docker info`
+to answer. A runner whose daemon does not start fails registration with the end of that log. Jobs run as root, so no
+`sudo` is needed. The daemon lives and dies with its runner container, so images and build cache are not shared
+between jobs.
+
+The image needs Docker: with `docker: true`, `kinhin image prepare --container` (and **Prepare** in the app) installs
+`docker.io`, `iptables`, and `docker-buildx` and `docker-compose-v2` where the distribution has them, unless the base
+image already has `dockerd`. Re-bake after turning it on. Every capability makes the container's root much closer to
+root on its microVM; the microVM is still the isolation boundary, as without Docker.
+
+#### Extra `container run` flags
+
+`flags:` under `container:` appends arguments to the `container run` that starts each runner container, after kinhin's
+own flags and before the image. Give each flag and each value as its own list element (`["--shm-size", "2g", "--dns",
+"1.1.1.1"]`, or `"--shm-size=2g"`); they are passed as arguments, never through a shell. The loader rejects the flags
+kinhin sets itself, in any spelling (`--name`, `--rm`, `--detach`/`-d`, `--cpus`/`-c`, `--memory`/`-m`, `--platform`,
+`--arch`/`-a`, `--os`, plus `--help` and `--version`), empty elements, and a first element that is not a flag. Run
+`container run --help` for what the rest do.
 
 ### Docker
 
