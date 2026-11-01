@@ -162,7 +162,10 @@ final class WindowModels {
             ensureRuntimesModel()
         case .containers:
             guard containersModel == nil else { return }
-            containersModel = ContainersModel()
+            let model = ContainersModel()
+            // A runner container is named after its fleet instance, whose record knows its container pool.
+            model.poolOfInstance = { [fleet] id in fleet.status?.records.first { $0.id == id }?.pool }
+            containersModel = model
         case .toolchains:
             guard toolchainsModel == nil else { return }
             let model = ToolchainsModel()

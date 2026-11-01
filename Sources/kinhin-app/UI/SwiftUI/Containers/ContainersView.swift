@@ -101,7 +101,12 @@ struct ContainersView: View {
 
     private func detail(_ item: ManagedContainer) -> String {
         let usage = model.usage[item.name].flatMap(FleetStatusFormatter.describe)
-        return [item.image, item.status.isEmpty ? item.state : item.status, usage ?? ""]
+        let pool = model.pool(of: item).map {
+            String(
+                localized: "pool \($0)", bundle: .l10n,
+                comment: "Instance detail: the named container pool it runs in; %@ is the pool name")
+        }
+        return [item.image, pool ?? "", item.status.isEmpty ? item.state : item.status, usage ?? ""]
             .filter { !$0.isEmpty }.joined(separator: " · ")
     }
 }

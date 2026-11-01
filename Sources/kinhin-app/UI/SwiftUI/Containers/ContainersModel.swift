@@ -52,6 +52,9 @@ final class ContainersModel {
     }
     /// Builds the manager for a tool (tests inject a fake shell).
     @ObservationIgnored var makeManager: (ContainerTool) -> ContainerManager = { ContainerManager(tool: $0) }
+    /// The named container pool of the fleet instance with this id (its container's name), from the latest fleet
+    /// status; nil when the instance is unknown or not in a named pool. The window wires it to the fleet.
+    @ObservationIgnored var poolOfInstance: (String) -> String? = { _ in nil }
 
     private(set) var tool: ContainerTool = .docker
     private(set) var containers: [ManagedContainer] = []
@@ -131,6 +134,12 @@ final class ContainersModel {
         defer { refreshingUsage = false }
         // Best effort (documented above): a failed tick keeps the last figures.
         usage = (try? await makeManager(tool).stats()) ?? usage
+    }
+
+    /// The named container pool a kinhin runner container runs in; nil for other containers and unnamed pools.
+    func pool(of item: ManagedContainer) -> String? {
+        guard item.isKinhinRunner, let pool = poolOfInstance(item.name), !pool.isEmpty else { return nil }
+        return pool
     }
 
     // MARK: - Actions

@@ -17,7 +17,7 @@ struct FleetDiagramModel {
         let style: StatusStyle
         /// Row title: "• kinhin-x — busy" (monospaced in the row).
         let title: String
-        /// Row detail line — repos · job · usage · ⚠ error; "" when none.
+        /// Row detail line — container pool · repos · job · usage · ⚠ error; "" when none.
         let detail: String
         /// The detail line is red: the instance carries an error.
         let hasError: Bool
@@ -201,6 +201,7 @@ struct FleetDiagramModel {
             }
         }
         var parts: [String] = []
+        if let pool = poolText(of: record) { parts.append(pool) }
         if let repos = FleetStatusFormatter.repos(of: record) { parts.append(repos) }
         let stamps = FleetStatusFormatter.runningJobs(of: record)
         if stamps.count > 1 {
@@ -221,6 +222,14 @@ struct FleetDiagramModel {
             opensPipeline: opensPipeline(record),
             phaseDescription: phaseDescription(of: record)
         )
+    }
+
+    /// "pool big" for an Apple container instance of a named `container.pools:` entry; nil for every other one.
+    static func poolText(of record: VMRecord) -> String? {
+        guard let pool = record.pool, !pool.isEmpty else { return nil }
+        return String(
+            localized: "pool \(pool)", bundle: .l10n,
+            comment: "Instance detail: the named container pool it runs in; %@ is the pool name")
     }
 
     /// "busy, running a job", "failed", "has an error": the state the icon colour stands for.

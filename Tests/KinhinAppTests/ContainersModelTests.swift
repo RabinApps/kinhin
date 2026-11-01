@@ -97,6 +97,16 @@ final class ContainersModelTests: XCTestCase {
         await controller.reloadAndWait()
     }
 
+    func testAKinhinRunnerShowsItsContainerPool() throws {
+        controller.poolOfInstance = { ["kinhin-1": "big", "web": "big"][$0] }
+        let runner = try XCTUnwrap(controller.containers.first { $0.name == "kinhin-1" })
+        let other = try XCTUnwrap(controller.containers.first { $0.name == "web" })
+        XCTAssertEqual(controller.pool(of: runner), "big")
+        XCTAssertNil(controller.pool(of: other), "only kinhin's own runner containers have a pool")
+        controller.poolOfInstance = { _ in "" }
+        XCTAssertNil(controller.pool(of: runner), "the unnamed pool is not shown")
+    }
+
     func testListsContainersAndVolumes() {
         XCTAssertEqual(controller.containers.map(\.name), ["web", "kinhin-1"])
         XCTAssertEqual(controller.volumes.map(\.name), ["data"])
