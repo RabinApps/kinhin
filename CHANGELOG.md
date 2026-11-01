@@ -31,6 +31,9 @@
   third Tart VM beside two warm ones when `runtimes.budget` gives Tart a partition of 2, which is Apple's limit for
   macOS VMs. Warm VMs are now evicted to keep the Tart partition, not only `max_runners`. See
   [docs/scaling.md](docs/scaling.md#warm-pool).
+- `fleet_labels: false` on `container:` or `docker:` was ignored by the running fleet and the Advanced → Routing tab:
+  the pool's runners still registered with the fleet labels, although `kinhin workflow route` left them out. All three
+  now build the routing table in one place.
 
 ## v0.0.1-beta-4
 

@@ -289,8 +289,22 @@ public extension RuntimeConfigModel {
         // labels are the fleet labels plus the marker either way, exactly as
         // `RuntimePool.labelsFor` builds them once the route exists.
         if runtime == .host { return RuntimePool.labelsFor(.host, fleetLabels: config.labels) }
-        let model = RuntimeConfigModel(
-            config: config.runtimes,
+        return RuntimeConfigModel(config: config).pools[runtime]?.labels
+    }
+}
+
+extension RuntimeConfigModel {
+    /// The routing table `config` describes. The engine's router, `kinhin workflow route` and the Runtimes pane all
+    /// build their table here, so none of them can drop a section's setting (such as `fleet_labels: false`) that the
+    /// others honour.
+    init(config: KinhinConfig) {
+        self.init(config: config, routing: config.runtimes)
+    }
+
+    /// The same, with `routing` in place of `config`'s `runtimes:` section (the Runtimes pane previews an edited one).
+    init(config: KinhinConfig, routing: KinhinConfig.RuntimeConfig?) {
+        self.init(
+            config: routing,
             fleetLabels: config.labels,
             containerLabels: config.container?.labels,
             containerConfigured: config.container != nil,
@@ -300,7 +314,6 @@ public extension RuntimeConfigModel {
             dockerInheritsFleetLabels: config.docker?.fleetLabels,
             hostConfigured: config.hostRoutesConfigured
         )
-        return model.pools[runtime]?.labels
     }
 }
 

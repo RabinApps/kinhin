@@ -45,15 +45,7 @@ final class Router: Sendable {
         /// The routing state `config` describes, on `host`.
         static func make(config: KinhinConfig, host: HostResources) -> Snapshot {
             Snapshot(
-                model: RuntimeConfigModel(
-                    config: config.runtimes,
-                    fleetLabels: config.labels,
-                    containerLabels: config.container?.labels,
-                    containerConfigured: config.container != nil,
-                    dockerConfigured: config.docker != nil,
-                    dockerPlatform: config.docker?.platform ?? .arm64,
-                    hostConfigured: config.hostRoutesConfigured
-                ),
+                model: RuntimeConfigModel(config: config),
                 // Mixed fleets partition the usable host budget between
                 // runtimes; single-pool fleets keep the fleet cap.
                 caps: RuntimeCapacity.caps(for: config, host: host),
