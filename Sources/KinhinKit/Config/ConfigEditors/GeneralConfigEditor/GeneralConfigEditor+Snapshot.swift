@@ -59,12 +59,14 @@ extension GeneralConfigEditor {
             public var minIdle: Int
             public var docker: Bool
             public var flags: [String]
+            /// Raw `container.platform:` value, carried so a rewrite of the section keeps it.
+            public var platform: String?
             /// `container.pools:` as written (see `ContainerPool`), carried so a section rewrite keeps every pool.
             public var pools: [ContainerPool]
             public init(
                 image: String, cpus: Int, memoryGB: Int, baseImage: String? = nil, labels: [String]? = nil,
                 fleetLabels: Bool? = nil, minIdle: Int = 0, docker: Bool = false, flags: [String] = [],
-                pools: [ContainerPool] = []
+                platform: String? = nil, pools: [ContainerPool] = []
             ) {
                 self.image = image
                 self.cpus = cpus
@@ -75,6 +77,7 @@ extension GeneralConfigEditor {
                 self.minIdle = minIdle
                 self.docker = docker
                 self.flags = flags
+                self.platform = platform
                 self.pools = pools
             }
         }
@@ -152,7 +155,7 @@ extension GeneralConfigEditor {
                     image: $0.image ?? (pools.isEmpty ? "kinhin-ci-linux" : ""), cpus: $0.cpus ?? 4,
                     memoryGB: $0.memoryGB ?? 8, baseImage: $0.baseImage, labels: $0.labels,
                     fleetLabels: $0.fleetLabels, minIdle: $0.minIdle ?? 0, docker: $0.docker ?? false,
-                    flags: $0.flags ?? [], pools: pools)
+                    flags: $0.flags ?? [], platform: $0.platform, pools: pools)
             },
             docker: partial.docker.map {
                 .init(

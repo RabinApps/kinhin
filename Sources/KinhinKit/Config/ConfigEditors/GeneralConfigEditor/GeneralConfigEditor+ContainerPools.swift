@@ -18,11 +18,12 @@ extension GeneralConfigEditor.Snapshot {
         public var docker: Bool?
         public var flags: [String]?
         public var max: Int?
+        public var platform: String?
 
         public init(
             name: String, image: String? = nil, baseImage: String? = nil, cpus: Int? = nil, memoryGB: Int? = nil,
             labels: [String]? = nil, fleetLabels: Bool? = nil, minIdle: Int? = nil, docker: Bool? = nil,
-            flags: [String]? = nil, max: Int? = nil
+            flags: [String]? = nil, max: Int? = nil, platform: String? = nil
         ) {
             self.name = name
             self.image = image
@@ -35,6 +36,7 @@ extension GeneralConfigEditor.Snapshot {
             self.docker = docker
             self.flags = flags
             self.max = max
+            self.platform = platform
         }
 
         /// The decoded `pools:` map as entries sorted by name (the loader's order).
@@ -43,7 +45,8 @@ extension GeneralConfigEditor.Snapshot {
                 ContainerPool(
                     name: name, image: entry.image, baseImage: entry.baseImage, cpus: entry.cpus,
                     memoryGB: entry.memoryGB, labels: entry.labels, fleetLabels: entry.fleetLabels,
-                    minIdle: entry.minIdle, docker: entry.docker, flags: entry.flags, max: entry.max)
+                    minIdle: entry.minIdle, docker: entry.docker, flags: entry.flags, max: entry.max,
+                    platform: entry.platform)
             }
         }
 
@@ -63,6 +66,7 @@ extension GeneralConfigEditor.Snapshot {
             if let docker { body.append("\(key)docker: \(docker)") }
             if let flags { body.append("\(key)flags: \(list(flags))") }
             if let max { body.append("\(key)max: \(max)") }
+            if let platform { body.append("\(key)platform: \(YAMLText.quoted(platform))") }
             return body.isEmpty ? ["\(indent)\(name): {}"] : ["\(indent)\(name):"] + body
         }
     }

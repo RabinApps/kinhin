@@ -53,6 +53,7 @@ extension GeneralConfigEditor {
         if c.minIdle > 0 { lines.append("  min_idle: \(c.minIdle)") }
         if c.docker { lines.append("  docker: true") }
         if !c.flags.isEmpty { lines.append("  flags: [\(c.flags.map(YAMLText.quoted).joined(separator: ", "))]") }
+        if let platform = c.platform, !platform.isEmpty { lines.append("  platform: \(YAMLText.quoted(platform))") }
         if !c.pools.isEmpty {
             lines.append("  pools:")
             lines += c.pools.flatMap { $0.lines(indent: "    ") }
