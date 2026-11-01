@@ -15,9 +15,14 @@ enum WorkflowRouteCommand {
         var workflowName: String?
         var runtime: RuntimeID
         var job: String?
+        /// A named `container.pools:` entry to target (appleContainer only).
+        var pool: String?
         var dryRun = false
         var json = false
         var consent = false
+
+        /// What the jobs are routed to, for the summaries: the runtime, and the named container pool if any.
+        var target: String { runtime.rawValue + (pool.map { " (pool \($0))" } ?? "") }
     }
     static func run(_ args: [String], configURL: URL = Paths.config, notifyDaemon: Bool = true) async throws {
         let options = try parse(args)
@@ -31,11 +36,13 @@ enum WorkflowRouteCommand {
 
         // 1. The target pool must exist — checked against the exact table the
         //    engine builds, so a wrong guess is told how to set the runtime up.
-        guard let poolLabels = RuntimeConfigModel.poolLabels(for: runtime, config: config) else {
+        guard let runtimeLabels = RuntimeConfigModel.poolLabels(for: runtime, config: config) else {
             throw WorkflowRouteCLIError.usage(
                 "target runtime '\(runtime.rawValue)' has no configured pool — \(prerequisiteHint(for: runtime, in: config))"
             )
         }
+        let poolLabels = try containerPoolLabels(options, config: config) ?? runtimeLabels
+        let poolMarker = options.pool.map(KinhinConfig.ContainerConfig.Pool.marker(forName:))
 
         // 2. Scope + forge gate: label targeting only. GitLab / Buildkite /
         //    Azure queue by tags, queues or demands — those route through
@@ -58,7 +65,8 @@ enum WorkflowRouteCommand {
         // 4. What the editor will do to each editable job.
         let planned: [PlannedEdit] = try editableJobs.map { job in
             let current = try WorkflowRouteEditor.labels(job)
-            let after = WorkflowRouteEditor.editJobLabels(current: current, runtime: runtime, poolLabels: poolLabels)
+            let after = WorkflowRouteEditor.editJobLabels(
+                current: current, runtime: runtime, poolLabels: poolLabels, poolMarker: poolMarker)
             return PlannedEdit(jobID: job.id, before: current, after: after, wrote: after != current)
         }
 

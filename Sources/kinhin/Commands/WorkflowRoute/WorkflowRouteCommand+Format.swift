@@ -28,7 +28,7 @@ extension WorkflowRouteCommand {
         _ options: Options, document: WorkflowDocument, planned: [PlannedEdit], uneditableJobs: [WorkflowJob],
         routeAction: RouteAction
     ) -> String {
-        var lines: [String] = ["[dry-run] would edit \(document.path.lastPathComponent) → \(options.runtime.rawValue)"]
+        var lines: [String] = ["[dry-run] would edit \(document.path.lastPathComponent) → \(options.target)"]
         for plan in planned where plan.changed {
             lines.append(
                 "  job \(plan.jobID): \(plan.before.joined(separator: ", ")) → \(plan.after.joined(separator: ", "))")
@@ -87,7 +87,7 @@ extension WorkflowRouteCommand {
         routeAction: RouteAction, file: URL
     ) -> String {
         var lines: [String] = [
-            "routed \(document.path.lastPathComponent) → \(options.runtime.rawValue)",
+            "routed \(document.path.lastPathComponent) → \(options.target)",
             "",
             "edits:",
         ]
@@ -136,6 +136,7 @@ extension WorkflowRouteCommand {
             "dryRun": dryRun,
             "jobs": jobs,
         ]
+        if let pool = options.pool { payload["pool"] = pool }
         switch routeAction {
         case .unchanged:
             payload["route"] = ["action": "unchanged"]

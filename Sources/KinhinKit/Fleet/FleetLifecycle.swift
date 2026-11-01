@@ -132,6 +132,7 @@ extension FleetEngine {
             let stored = store.all.first { $0.id == id }
             probe.runtime = stored?.runtime
             probe.image = stored?.image
+            probe.pool = stored?.pool
             let recordRuntime = runtime(for: probe)
             let ip: String?
             if claimed {

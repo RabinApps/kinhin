@@ -19,6 +19,10 @@ extension FleetEngine {
     func poolLabels(for record: VMRecord) -> [String]? {
         guard let runtimeID = record.runtimeID else { return nil }
         let routerState = router.snapshot
+        // A named container pool's runners carry that pool's labels (its own and `kinhin-container-<name>`).
+        if runtimeID == .appleContainer, let entry = routerState.model.containerPools.entry(named: record.pool) {
+            return entry.labels
+        }
         let pool = routerState.model.pools[runtimeID]?.labels
         // A tart instance cloned from a named image also advertises that image's labels, so
         // the jobs that ask for them (`runs-on: [..., xcode]`) can land on it. The default

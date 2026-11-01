@@ -120,8 +120,10 @@ extension FleetEngine {
     ///   `kinhin-docker`     Docker slots
     ///   `kinhin-host`       the unisolated host pool
     ///   `kinhin-<image>`    a named `images:` entry (a Tart image)
+    ///   `kinhin-container-<pool>`  a named `container.pools:` entry
     ///
-    /// A fleet with a single pool and no named images keeps just the base name.
+    /// A fleet with a single pool and no named images keeps the base name for that pool (named container pools
+    /// still add their own sets beside it).
     func scaleSetPlan(account: AccountConfig, baseName: String) -> [(
         name: String, runtime: RuntimeID, labels: [String]
     )] {
@@ -129,19 +131,29 @@ extension FleetEngine {
         let pools = routerState.model.pools
         var plan: [(name: String, runtime: RuntimeID, labels: [String])] = []
         let images = routerState.images.filter { !($0.labels ?? []).isEmpty }
+        let containerPools = routerState.model.containerPools
         let single = pools.count == 1 && images.isEmpty
+        // "kinhin-container" etc. — the marker already names the pool.
+        func setName(marker: String) -> String {
+            marker.hasPrefix("kinhin") ? baseName + marker.dropFirst("kinhin".count) : "\(baseName)-\(marker)"
+        }
         for (runtime, pool) in pools.sorted(by: { $0.key.rawValue < $1.key.rawValue }) {
             let name: String
             if single || runtime == .tart {
                 name = baseName
             } else if let marker = RuntimePool.exclusiveMarker(for: runtime) {
-                // "kinhin-container" etc. — the marker already names the pool.
-                name =
-                    marker.hasPrefix("kinhin") ? baseName + marker.dropFirst("kinhin".count) : "\(baseName)-\(marker)"
+                name = setName(marker: marker)
             } else {
                 name = "\(baseName)-\(runtime.rawValue)"
             }
             plan.append((name, runtime, pool.labels))
+        }
+        // One set per named container pool: its jobs arrive stamped with the pool's labels, marker included, so
+        // container pool routing sends them to that pool.
+        if pools[.appleContainer] != nil {
+            for entry in containerPools.entries {
+                plan.append((setName(marker: entry.marker), .appleContainer, entry.labels))
+            }
         }
         if let tart = pools[.tart] {
             for image in images {

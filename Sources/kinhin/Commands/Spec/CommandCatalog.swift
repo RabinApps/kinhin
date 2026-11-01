@@ -797,6 +797,7 @@ enum CommandCatalog {
                     positionals: "<FILE|name> <runtime>",
                     flags: [
                         .value("--job", "NAME", "Route one job instead of every job"),
+                        .value("--pool", "NAME", "With appleContainer: route to one container.pools: entry"),
                         .bool("--dry-run", "Print what would change; write nothing"),
                         jsonFlag,
                         .bool("--consent", "Required for host (jobs run unisolated on this Mac)"),
@@ -804,7 +805,9 @@ enum CommandCatalog {
                     details: [
                         "<runtime> is tart, appleContainer, docker or host. Edits the workflow's runs-on: labels "
                             + "(comment-preserving; ${{ }} and mapping forms are refused) and, when precedence "
-                            + "needs it, adds an owner/repo@Workflow route to the config."
+                            + "needs it, adds an owner/repo@Workflow route to the config.",
+                        "With container.pools:, --pool NAME adds that pool's kinhin-container-NAME label; without "
+                            + "it the job lands in the pool its labels select.",
                     ],
                     docs: "docs/runtimes.md"),
             ],

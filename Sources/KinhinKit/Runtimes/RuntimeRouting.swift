@@ -94,8 +94,9 @@ struct RuntimePool: Sendable, Equatable {
 /// 1. Workflow route (`owner/name@Workflow`) — most specific.
 /// 2. Repo route (`owner/name`).
 /// 3. Label capability: a job whose labels include a pool's exclusive
-///    marker ("kinhin-container") routes to that pool even without a
-///    config route (per-workflow `runs-on:` opt-in).
+///    marker ("kinhin-container", or a named container pool's
+///    "kinhin-container-<name>") routes to that pool even without a config
+///    route (per-workflow `runs-on:` opt-in).
 /// 4. The default runtime for unmatched jobs.
 enum RuntimeRouter {
     struct Decision: Sendable, Equatable {
@@ -175,6 +176,10 @@ enum RuntimeRouter {
 
         // 3. Label opt-in: jobs requesting a pool's exclusive marker go there
         // (kinhin-container for Apple containers, kinhin-docker for Docker).
+        // A named container pool's own marker opts in to Apple containers too.
+        if let pool = pools[.appleContainer], let named = config.containerPools.explicitPool(for: job.labels) {
+            return Decision(pool: pool, via: "label:\(named.marker)")
+        }
         for (runtimeID, pool) in pools.sorted(by: { $0.key.rawValue < $1.key.rawValue }) {
             if let marker = RuntimePool.exclusiveMarker(for: runtimeID),
                 pool.labels.contains(marker),
@@ -196,12 +201,15 @@ public struct RuntimeConfigModel: Sendable {
     let routes: [KinhinConfig.RuntimeConfig.Route]
     let pools: [RuntimeID: RuntimePool]
     let defaultRuntime: RuntimeID
+    /// The named Apple container pools within the Apple container runtime (empty without `container.pools:`, or
+    /// without an Apple container pool at all).
+    let containerPools: ContainerPoolRouting
 
     init(
         config: KinhinConfig.RuntimeConfig?, fleetLabels: [String], containerLabels: [String]? = nil,
         containerConfigured: Bool = false, dockerConfigured: Bool = false, dockerPlatform: LinuxPlatform = .arm64,
         containerInheritsFleetLabels: Bool? = nil, dockerInheritsFleetLabels: Bool? = nil,
-        hostConfigured: Bool = false
+        hostConfigured: Bool = false, containerPools: [KinhinConfig.ContainerConfig.Pool] = []
     ) {
         if let config {
             // Explicit routing: tart is always available (macOS workloads),
@@ -232,6 +240,8 @@ public struct RuntimeConfigModel: Sendable {
                     runtime: .host, labels: RuntimePool.labelsFor(.host, fleetLabels: fleetLabels))
             }
             self.pools = pools
+            self.containerPools =
+                containerConfigured ? ContainerPoolRouting(pools: containerPools, fleetLabels: fleetLabels) : .none
         } else {
             // No routing config: the fleet is a single pool on its primary
             // runtime — containers when configured (the established Linux
@@ -248,6 +258,10 @@ public struct RuntimeConfigModel: Sendable {
                         dockerPlatform: dockerPlatform)
                 )
             ]
+            self.containerPools =
+                primary == .appleContainer
+                ? ContainerPoolRouting(pools: containerPools, fleetLabels: fleetLabels, honoursFleetLabels: false)
+                : .none
         }
     }
 
@@ -258,6 +272,16 @@ public struct RuntimeConfigModel: Sendable {
         for job in jobs {
             let decision = RuntimeRouter.assign(job: job, config: self, defaultPool: defaultPool, pools: pools)
             counts[decision.pool.runtime, default: 0] += 1
+        }
+        return counts
+    }
+
+    /// Queued Apple container jobs per named container pool (`ContainerPoolRouting`); empty without pools.
+    func demandByContainerPool(for jobs: [ForgeJob]) -> [String: Int] {
+        guard !containerPools.isEmpty else { return [:] }
+        var counts: [String: Int] = [:]
+        for job in jobs where runtime(for: job) == .appleContainer {
+            if let pool = containerPools.pool(for: job.labels) { counts[pool.name, default: 0] += 1 }
         }
         return counts
     }
@@ -291,6 +315,13 @@ public extension RuntimeConfigModel {
         if runtime == .host { return RuntimePool.labelsFor(.host, fleetLabels: config.labels) }
         return RuntimeConfigModel(config: config).pools[runtime]?.labels
     }
+
+    /// The labels the runners of the named container pool `name` register with under `config`, or nil when the
+    /// fleet has no Apple container pool, or no named pool `name`. Built from the engine's own table, like
+    /// `poolLabels(for:config:)`.
+    static func containerPoolLabels(named name: String, config: KinhinConfig) -> [String]? {
+        RuntimeConfigModel(config: config).containerPools.entries.first { $0.name == name }?.labels
+    }
 }
 
 extension RuntimeConfigModel {
@@ -312,7 +343,8 @@ extension RuntimeConfigModel {
             dockerPlatform: config.docker?.platform ?? .arm64,
             containerInheritsFleetLabels: config.container?.fleetLabels,
             dockerInheritsFleetLabels: config.docker?.fleetLabels,
-            hostConfigured: config.hostRoutesConfigured
+            hostConfigured: config.hostRoutesConfigured,
+            containerPools: config.container?.pools ?? []
         )
     }
 }

@@ -58,7 +58,7 @@ extension KinhinConfig.ContainerConfig {
         /// whose runners register exactly as they did before pools existed.
         public var marker: String? { isNamed ? Self.marker(forName: name) : nil }
 
-        static func marker(forName name: String) -> String { "kinhin-container-\(name)" }
+        public static func marker(forName name: String) -> String { "kinhin-container-\(name)" }
 
         /// What a pool name may be: it becomes part of a runner label (`kinhin-container-<name>`) and of a GitHub
         /// scale-set name, so lowercase letters, digits and inner hyphens only, like a DNS label, at most 32
@@ -74,9 +74,11 @@ extension KinhinConfig.ContainerConfig {
     /// The pool that serves container jobs no pool's labels claim, and the instances whose pool is unknown (adopted
     /// without a record, or from a pool since removed): the one with the fewest labels, then the first by name. With
     /// no `pools:`, the section itself.
-    public var defaultPool: Pool {
-        let pools = effectivePools
-        return pools.min { ($0.labels?.count ?? 0, $0.name) < ($1.labels?.count ?? 0, $1.name) } ?? Pool(section: self)
+    public var defaultPool: Pool { Self.defaultPool(of: effectivePools) ?? Pool(section: self) }
+
+    /// The default pool among `pools` (see `defaultPool`); nil when there are none.
+    static func defaultPool(of pools: [Pool]) -> Pool? {
+        pools.min { ($0.labels?.count ?? 0, $0.name) < ($1.labels?.count ?? 0, $1.name) }
     }
 
     /// The pool `name` resolves to: that named pool, else the default pool ("" and names no longer configured).

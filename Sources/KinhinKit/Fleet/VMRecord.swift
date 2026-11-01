@@ -73,6 +73,11 @@ public struct VMRecord: Codable, Sendable, Identifiable, Equatable {
     /// The derived per-project image this instance was cloned from (nil =
     /// the fleet's base image). Recovery re-derives the route from it.
     public var image: String?
+    /// The named `container.pools:` entry this Apple container instance runs in: its image, shape, flags and labels.
+    /// Nil for the single pool of a `container:` section without `pools:`, and for every other runtime. Persisted, so
+    /// a daemon restart drives the instance as the pool it was started in; an instance adopted without a record, or
+    /// whose pool was removed, runs as the default pool (`ContainerConfig.defaultPool`).
+    public var pool: String?
     /// Repositories with a job currently executing on this VM (org scope
     /// attribution, stamped by the reconcile loop from in-progress jobs;
     /// nil when nothing is running or the scope is a single repo).
