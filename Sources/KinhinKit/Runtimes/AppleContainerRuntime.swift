@@ -19,6 +19,10 @@ public struct AppleContainerRuntime: Runtime {
     let cpus: Int
     /// Memory per runner container (bytes).
     let memoryBytes: Int64
+    /// Docker inside each runner container (`container.docker`).
+    let docker: Bool
+    /// Extra `container run` arguments (`container.flags`), already validated by the loader.
+    let flags: [String]
     /// Binary-path override (tests); nil resolves from PATH/brew prefixes.
     let binPath: String?
     /// Existence probe for the binary (tests inject a constant; production
@@ -30,6 +34,8 @@ public struct AppleContainerRuntime: Runtime {
         image: String = "kinhin-ci-linux",
         cpus: Int = 4,
         memoryGB: Int = 8,
+        docker: Bool = false,
+        flags: [String] = [],
         binPath: String? = nil,
         exists: @escaping @Sendable (String) -> Bool = { FileManager.default.isExecutableFile(atPath: $0) }
     ) {
@@ -37,6 +43,8 @@ public struct AppleContainerRuntime: Runtime {
         self.image = image
         self.cpus = cpus
         self.memoryBytes = Int64(memoryGB) * 1_073_741_824
+        self.docker = docker
+        self.flags = flags
         self.binPath = binPath
         self.exists = exists
     }
@@ -60,7 +68,14 @@ public struct AppleContainerRuntime: Runtime {
                 listNameArguments: ["--quiet"], imageListArguments: ["image", "list", "--quiet"],
                 imageRemoveArguments: ["image", "delete"], runFlags: [],
                 shapeNote: nil),
-            image: image, cpus: cpus, memoryBytes: memoryBytes)
+            image: image, cpus: cpus, memoryBytes: memoryBytes,
+            poolRunFlags: Self.poolRunFlags(docker: docker, flags: flags), startsDocker: docker)
+    }
+
+    /// The `container run` flags a pool adds after kinhin's own: every Linux capability when it runs Docker (dockerd
+    /// needs them for its iptables chains and to remount `/proc/sys`), then the user's `flags:` as given.
+    static func poolRunFlags(docker: Bool, flags: [String]) -> [String] {
+        (docker ? ["--cap-add", "ALL"] : []) + flags
     }
 
     // MARK: - Health

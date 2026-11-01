@@ -195,7 +195,8 @@ public final class FleetEngine: Sendable {
         var runtimes: [RuntimeID: any Runtime] = [.tart: tartRuntime]
         if let container = config.container {
             runtimes[.appleContainer] = AppleContainerRuntime(
-                shell: shell, image: container.image, cpus: container.cpus, memoryGB: container.memoryGB)
+                shell: shell, image: container.image, cpus: container.cpus, memoryGB: container.memoryGB,
+                docker: container.docker, flags: container.flags)
         }
         if let docker = config.docker {
             runtimes[.docker] = DockerRuntime(

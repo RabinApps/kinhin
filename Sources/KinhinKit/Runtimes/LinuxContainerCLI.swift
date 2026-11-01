@@ -35,6 +35,10 @@ struct LinuxContainerCLI: Sendable {
     let image: String
     let cpus: Int
     let memoryBytes: Int64
+    /// The pool's own `run` flags, after kinhin's and the dialect's (`AppleContainerRuntime.poolRunFlags`).
+    var poolRunFlags: [String] = []
+    /// Start `dockerd` inside the container before the runner registers (`container.docker`).
+    var startsDocker = false
 
     var memoryLabel: String { "\(memoryBytes / 1_048_576)M" }
 
@@ -56,7 +60,7 @@ struct LinuxContainerCLI: Sendable {
             let host = ToolchainCacheMount.hostDirectory(scope: route.cacheScope)
             argv += ["--volume", ToolchainCacheMount.volumeSpec(host: host.path)]
         }
-        argv += ["--name", id, "--cpus", String(cpus), "--memory", memoryLabel] + dialect.runFlags
+        argv += ["--name", id, "--cpus", String(cpus), "--memory", memoryLabel] + dialect.runFlags + poolRunFlags
         argv += [
             "--rm",  // a container that stops (crash, engine kill) removes itself
             image,
@@ -79,7 +83,9 @@ struct LinuxContainerCLI: Sendable {
         let request = RegistrationRequest(
             forge: forge, token: token, runnerTokens: runnerTokens, name: name, runnerCount: runnerCount,
             route: route, labels: labels)
-        return cachePrefix
+        // Docker first: a runner must not take a job before its daemon answers.
+        let dockerPrefix = startsDocker ? RunnerBootstrap.linuxDockerDaemonScript() + "\n\n" : ""
+        return dockerPrefix + cachePrefix
             + (try forge.credentials.forge.descriptor.registrationScript(for: .linuxContainer, request))
     }
 
