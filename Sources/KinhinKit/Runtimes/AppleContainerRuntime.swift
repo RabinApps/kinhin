@@ -154,7 +154,7 @@ public struct AppleContainerRuntime: Runtime {
     }
 
     /// The local image names; throws when the CLI cannot list them (`localImageNames` reads that as none).
-    func listedImageNames() async throws -> [String] {
+    public func listedImageNames() async throws -> [String] {
         try await cli.listImageNames()
     }
 

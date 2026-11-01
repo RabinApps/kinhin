@@ -92,6 +92,13 @@ extension KinhinConfig.ContainerConfig {
         return effectivePools.map(\.image).filter { seen.insert($0).inserted }
     }
 
+    /// The named pools whose image is not among `listed` (local Apple container image names, as `container image
+    /// list` prints them; `x` matches `x:latest` and every tag of `x`). What the engine leaves out of the plan and
+    /// the app marks "not built"; empty for a section without `pools:`.
+    public func poolsMissingImage(listed: [String]) -> [Pool] {
+        pools.filter { pool in !listed.contains { ImageInventory.ociMatches(name: $0, wanted: pool.image) } }
+    }
+
     // MARK: - Baking a pool's image
 
     /// Whether the bake of `image` installs Docker: some named pool that runs it has `docker: true`. An image no
