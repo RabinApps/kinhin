@@ -12,22 +12,29 @@ import Foundation
 extension ScalePlan {
     // MARK: - Keys
 
-    /// A pool, or one Tart image within the Tart pool, that keeps its own floor. Tart instances key by image
-    /// ("" = the base `image:`); every other runtime is a single key with image "".
+    /// A pool, one Tart image within the Tart pool, or one named container pool within Apple container, that keeps
+    /// its own floor. Tart instances key by image ("" = the base `image:`), Apple container instances by named pool
+    /// ("" = the unnamed pool of a section without `pools:`); every other runtime is a single key.
     struct IdleKey: Hashable, Comparable, CustomStringConvertible {
         var runtime: RuntimeID
         var image: String = ""
+        var pool: String = ""
 
         static func < (lhs: IdleKey, rhs: IdleKey) -> Bool {
-            (lhs.runtime.rawValue, lhs.image) < (rhs.runtime.rawValue, rhs.image)
+            (lhs.runtime.rawValue, lhs.image, lhs.pool) < (rhs.runtime.rawValue, rhs.image, rhs.pool)
         }
 
-        var description: String { image.isEmpty ? runtime.rawValue : "\(runtime.rawValue)/\(image)" }
+        var description: String {
+            let member = image.isEmpty ? pool : image
+            return member.isEmpty ? runtime.rawValue : "\(runtime.rawValue)/\(member)"
+        }
     }
 
     static func idleKey(of record: VMRecord, input: Input) -> IdleKey {
         let runtime = pool(of: record, input: input)
-        return IdleKey(runtime: runtime, image: runtime == .tart ? record.image ?? "" : "")
+        return IdleKey(
+            runtime: runtime, image: runtime == .tart ? record.image ?? "" : "",
+            pool: runtime == .appleContainer ? containerPool(of: record, input: input) : "")
     }
 
     /// True when some Tart image keeps a floor. Idle runners of one image must then not count as supply for another
@@ -52,6 +59,8 @@ extension ScalePlan {
             } else {
                 jobs = input.imageDemand[key.image] ?? 0
             }
+        } else if key.runtime == .appleContainer, !key.pool.isEmpty {
+            jobs = input.containerPoolDemand[key.pool] ?? 0
         } else {
             jobs = input.demand.values.reduce(0) { $0 + ($1[key.runtime] ?? 0) }
         }
@@ -99,7 +108,9 @@ extension ScalePlan {
         of pool: RuntimeID, remaining: [VMRecord], without: [VMRecord], input: Input
     ) -> Bool {
         let after = unmetByPool(records: without, input: input)[pool]
-        guard imageAware(input) else { return after == nil }
+        guard imageAware(input) || (pool == .appleContainer && !input.containerPools.isEmpty) else {
+            return after == nil
+        }
         return (after ?? 0) <= (unmetByPool(records: remaining, input: input)[pool] ?? 0)
     }
 
@@ -125,7 +136,8 @@ extension ScalePlan {
             for key in keys where room > 0 {
                 let reservedHere = reserved[key.runtime] ?? 0
                 guard idleShortfall(key, records: sim, input: input) > 0,
-                    headroom(key.runtime, records: sim, input: input, reserved: reservedHere) > 0
+                    headroom(key.runtime, records: sim, input: input, reserved: reservedHere) > 0,
+                    key.pool.isEmpty || containerPoolFits(key.pool, records: sim, input: input)
                 else { continue }
                 var coverage: [String: Int] = [:]
                 for record in sim where covers(record, includesRunning: input.includesRunning) {
@@ -133,7 +145,8 @@ extension ScalePlan {
                 }
                 let account = ForgeDemand.assignAccount(demand: totals, active: coverage, attached: input.attached)
                 let slot = Slot(
-                    account: account, runtime: key.runtime, image: key.image.isEmpty ? nil : key.image, idle: true)
+                    account: account, runtime: key.runtime, image: key.image.isEmpty ? nil : key.image,
+                    pool: key.pool.isEmpty ? nil : key.pool, idle: true)
                 out.append(slot)
                 sim.append(simulated(slot, id: "idle-\(out.count)"))
                 room -= 1
@@ -149,6 +162,7 @@ extension ScalePlan {
         record.platform = slot.account
         record.runtimeID = slot.runtime
         record.image = slot.image
+        record.pool = slot.pool
         return record
     }
 }

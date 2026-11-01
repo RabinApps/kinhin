@@ -72,6 +72,13 @@ public struct AppleContainerRuntime: Runtime {
             poolRunFlags: Self.poolRunFlags(docker: docker, flags: flags), startsDocker: docker)
     }
 
+    /// The runtime for one Apple container pool: its image, shape, Docker and flags.
+    init(shell: ShellRunning, pool: KinhinConfig.ContainerConfig.Pool) {
+        self.init(
+            shell: shell, image: pool.image, cpus: pool.cpus, memoryGB: pool.memoryGB, docker: pool.docker,
+            flags: pool.flags)
+    }
+
     /// The `container run` flags a pool adds after kinhin's own: every Linux capability when it runs Docker (dockerd
     /// needs them for its iptables chains and to remount `/proc/sys`), then the user's `flags:` as given.
     static func poolRunFlags(docker: Bool, flags: [String]) -> [String] {

@@ -232,6 +232,8 @@ extension FleetEngine {
         var includesRunning: Set<String> = []
         /// Queued tart jobs served by a ready derived per-project image.
         var byImage: [String: Int] = [:]
+        /// Queued Apple container jobs per named container pool (empty without `container.pools:`).
+        var byContainerPool: [String: Int] = [:]
         /// Jobs waiting on an image bake, for the status snapshot.
         var imageNotices: Set<String> = []
         /// Accounts whose queue could not be read this pass. A failed read is
@@ -303,6 +305,9 @@ extension FleetEngine {
                     demand.byPool[poolID, default: 0] += count
                 }
                 for (image, count) in projectDemand.byImage { demand.byImage[image, default: 0] += count }
+                for (pool, count) in routerState.model.demandByContainerPool(for: jobs) {
+                    demand.byContainerPool[pool, default: 0] += count
+                }
                 demand.imageNotices.formUnion(projectDemand.notices)
             case .failed(let message, let type):
                 countError(type == .unknown ? .forgeAPIFailure : type, component: .forge)
@@ -360,16 +365,26 @@ extension FleetEngine {
         let held = spawnBackoff.withLock { $0.blocked(now: Date()) }
         let routerState = router.snapshot
         let routing = routerState.model
-        return ScalePlan.make(
-            ScalePlan.Input(
-                records: store.all, demand: demand.byForgePool, includesRunning: demand.includesRunning,
-                attached: Set(attached.map(\.account)), failedForges: demand.failedForges,
-                runnersPerVM: max(1, config.runnersPerVM), minRunners: config.minRunners,
-                maxRunners: config.maxRunners, capacityCap: capacity.maxConcurrent, poolCaps: routerState.caps,
-                heldRuntimes: held, existingPools: Set(routing.pools.keys), defaultRuntime: routing.defaultRuntime,
-                warmPool: warmTargets(images: routerState.images),
-                warmMaxAge: TimeInterval(config.warmMaxAgeMinutes) * 60, imageDemand: demand.byImage,
-                minIdle: minIdleTargets(images: routerState.images, unprepared: unpreparedIdleImages)))
+        var input = ScalePlan.Input(
+            records: store.all, demand: demand.byForgePool, includesRunning: demand.includesRunning,
+            attached: Set(attached.map(\.account)), failedForges: demand.failedForges,
+            runnersPerVM: max(1, config.runnersPerVM), minRunners: config.minRunners,
+            maxRunners: config.maxRunners, capacityCap: capacity.maxConcurrent, poolCaps: routerState.caps,
+            heldRuntimes: held, existingPools: Set(routing.pools.keys), defaultRuntime: routing.defaultRuntime,
+            warmPool: warmTargets(images: routerState.images),
+            warmMaxAge: TimeInterval(config.warmMaxAgeMinutes) * 60, imageDemand: demand.byImage,
+            minIdle: minIdleTargets(images: routerState.images, unprepared: unpreparedIdleImages))
+        // Named container pools: their demand, shapes and the budget they share (none without `pools:`).
+        if let container = config.container, !container.pools.isEmpty {
+            input.containerPoolDemand = demand.byContainerPool
+            input.containerPools = Dictionary(
+                uniqueKeysWithValues: container.pools.map {
+                    ($0.name, ScalePlan.ContainerPoolShape(cpus: $0.cpus, memoryGB: $0.memoryGB, max: $0.max))
+                })
+            input.defaultContainerPool = container.defaultPool.name
+            input.containerBudget = routerState.containerBudget
+        }
+        return ScalePlan.make(input)
     }
 
     /// Warm instances to keep per Tart image: the base `warm_pool` ("") and each `images:` entry's own.
@@ -433,6 +448,7 @@ extension FleetEngine {
             record.platform = slot.account
             record.runtime = slot.runtime.rawValue
             record.image = slot.image
+            record.pool = slot.pool
             store.upsert(record)
             // The lifecycle waits its turn at the engine's `SpawnPacer`, so disk I/O does not
             // stampede; the pass itself never sleeps.

@@ -127,7 +127,13 @@ public final class FleetEngine: Sendable {
     /// Every runtime this fleet can execute on, keyed by id. Lifecycle and
     /// recovery dispatch through this map — no per-runtime branches in the
     /// engine. Fixed per engine (config changes rebuild it via the daemon).
+    /// With named container pools, the Apple container entry is the default
+    /// pool's runtime (listing and teardown work for every pool's instances).
     let runtimesByRuntime: [RuntimeID: any Runtime]
+    /// One Apple container runtime per named container pool (its image,
+    /// shape, Docker and flags), keyed by pool name; empty without
+    /// `container.pools:`. `runtime(for:)` picks a record's from here.
+    let containerPoolRuntimes: [String: any Runtime]
     /// Routing model, caps, named images, project rules and fleet labels as
     /// one atomic snapshot, reloaded live by `applyReloaded(config:)` so a
     /// running fleet picks up route changes without a restart. Take
@@ -193,10 +199,12 @@ public final class FleetEngine: Sendable {
             tart: tart, bootTimeout: { [config] in config.vmBootTimeout }, tartPath: config.tartPath, ssh: ssh,
             cpuCount: { [config] in config.vm.cpuCount }, memoryMB: { [config] in config.vm.memoryGB * 1024 })
         var runtimes: [RuntimeID: any Runtime] = [.tart: tartRuntime]
+        var containerPoolRuntimes: [String: any Runtime] = [:]
         if let container = config.container {
-            runtimes[.appleContainer] = AppleContainerRuntime(
-                shell: shell, image: container.image, cpus: container.cpus, memoryGB: container.memoryGB,
-                docker: container.docker, flags: container.flags)
+            runtimes[.appleContainer] = AppleContainerRuntime(shell: shell, pool: container.defaultPool)
+            for pool in container.pools {
+                containerPoolRuntimes[pool.name] = AppleContainerRuntime(shell: shell, pool: pool)
+            }
         }
         if let docker = config.docker {
             runtimes[.docker] = DockerRuntime(
@@ -207,6 +215,7 @@ public final class FleetEngine: Sendable {
             runtimes[.host] = HostRuntime(shell: shell)
         }
         self.runtimesByRuntime = runtimes
+        self.containerPoolRuntimes = containerPoolRuntimes
         self.usageSampler = UsageSampler(
             tart: tart, shell: shell, tartMemoryMB: { [config] in config.vm.memoryGB * 1024 },
             tartCPUCount: { [config] in config.vm.cpuCount })

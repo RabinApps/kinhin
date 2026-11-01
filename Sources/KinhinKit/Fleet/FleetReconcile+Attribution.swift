@@ -7,6 +7,10 @@ extension FleetEngine {
     /// per-record; legacy: the engine's single runtime). Dispatches through
     /// the runtime map; the fallback is the engine's primary runtime.
     func runtime(for record: VMRecord) -> any Runtime {
+        // A named container pool's instance runs on its pool's runtime (the default pool's when unknown).
+        if record.runtimeID == .appleContainer, let instance = record.pool.flatMap({ containerPoolRuntimes[$0] }) {
+            return instance
+        }
         if let id = record.runtimeID, let instance = runtimesByRuntime[id] {
             return instance
         }
