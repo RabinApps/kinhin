@@ -53,8 +53,8 @@ public enum ContainerPoolsConfigEditor {
 
     /// `container` without the pool named `name`. Removing the last pool turns the section back into its one
     /// unnamed pool, which needs an image of its own: when the section has none, it takes the removed pool's image
-    /// and the base image that image is baked from (the pool's own, else the section's), so the file keeps a
-    /// runnable Linux pool that re-bakes the same image.
+    /// and the base image and platform that image is baked for (the pool's own, else the section's), so the file
+    /// keeps a runnable Linux pool that re-bakes the same image and runs it on its architecture.
     static func removing(_ name: String, from container: Container) throws -> Container {
         guard let removed = container.pools.first(where: { $0.name == name }) else {
             throw ConfigEditError.unsupported("no container pool named '\(name)' in config.yaml")
@@ -64,6 +64,7 @@ public enum ContainerPoolsConfigEditor {
         if updated.pools.isEmpty, updated.image.isEmpty {
             updated.image = removed.image ?? "kinhin-ci-linux"
             if let base = removed.baseImage { updated.baseImage = base }
+            if let platform = removed.platform { updated.platform = platform }
         }
         return updated
     }
