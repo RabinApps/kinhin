@@ -324,7 +324,8 @@ extension FleetEngine {
             }
         }
         publishQueueTelemetry(
-            byForge: demand.byForge, byPool: demand.byPool, oldestEnqueuedAt: demand.oldestEnqueuedAt)
+            byForge: demand.byForge, byPool: demand.byPool, byContainerPool: demand.byContainerPool,
+            oldestEnqueuedAt: demand.oldestEnqueuedAt)
         if paused {
             // Paused with auto-resume: hold while demand remains, release once
             // the queue is empty. A forge outage (every fetch failed) must NOT

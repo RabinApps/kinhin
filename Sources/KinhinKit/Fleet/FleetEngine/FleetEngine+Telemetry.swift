@@ -15,14 +15,26 @@ extension FleetEngine {
         (record.flatMap { poolLabels(for: $0) } ?? fleetLabels).sorted().joined(separator: ",")
     }
 
-    /// The bounded metric attributes of an instance: pool (runtime), image, forge and runner labels.
+    /// The named container pool an Apple container instance counts toward, as the `kinhin.container.pool` value: its
+    /// own while still configured, else the default pool. Nil for other runtimes and for a section without `pools:`.
+    func containerPoolValue(of record: VMRecord?) -> String? {
+        guard let record, record.runtime == RuntimeID.appleContainer.rawValue, let container = config.container,
+            !container.pools.isEmpty
+        else { return nil }
+        return container.pool(named: record.pool).name
+    }
+
+    /// The bounded metric attributes of an instance: pool (runtime), image, forge and runner labels, plus the named
+    /// container pool for an Apple container instance of a section with `pools:`.
     func metricAttributes(of id: String) -> MetricAttributes {
         let record = store.all.first { $0.id == id }
-        return [
+        var attributes = [
             Metric.Attr.pool: record?.runtime ?? RuntimeID.tart.rawValue, Metric.Attr.image: record?.image ?? "default",
             Metric.Attr.forge: record?.platform ?? ForgeID.github.rawValue,
             Metric.Attr.labels: runnerLabelsValue(of: record),
         ]
+        if let containerPool = containerPoolValue(of: record) { attributes[Metric.Attr.containerPool] = containerPool }
+        return attributes
     }
 
     func makeJobTrace(id: String) -> JobTrace {
@@ -31,7 +43,7 @@ extension FleetEngine {
         return JobTrace(
             telemetry: telemetry, vm: id, pool: attributes[Metric.Attr.pool] ?? "tart",
             image: attributes[Metric.Attr.image] ?? "default", forge: attributes[Metric.Attr.forge] ?? "github",
-            labels: record.flatMap { poolLabels(for: $0) })
+            labels: record.flatMap { poolLabels(for: $0) }, containerPool: attributes[Metric.Attr.containerPool])
     }
 
     func jobTrace(for id: String) -> JobTrace? { jobTraces.withLock { $0[id] } }
@@ -213,36 +225,44 @@ extension FleetEngine {
         let records = store.all
 
         // Workers.
-        struct Key: Hashable { var pool: String, image: String, labels: String, state: String }
+        struct Key: Hashable { var pool: String, image: String, labels: String, state: String, containerPool: String? }
+        struct WarmKey: Hashable { var pool: String, image: String, containerPool: String? }
         var workers: [Key: Int] = [:]
-        var warm: [Key: Int] = [:]
+        var warm: [WarmKey: Int] = [:]
         for record in records {
-            let labels = runnerLabelsValue(of: record)
+            let pool = record.runtime ?? RuntimeID.tart.rawValue
+            let image = record.image ?? "default"
+            let containerPool = containerPoolValue(of: record)
             let key = Key(
-                pool: record.runtime ?? RuntimeID.tart.rawValue, image: record.image ?? "default", labels: labels,
-                state: record.phase.rawValue)
+                pool: pool, image: image, labels: runnerLabelsValue(of: record), state: record.phase.rawValue,
+                containerPool: containerPool)
             workers[key, default: 0] += 1
-            if record.phase == .warm { warm[key, default: 0] += 1 }
+            if record.phase == .warm {
+                warm[WarmKey(pool: pool, image: image, containerPool: containerPool), default: 0] += 1
+            }
+        }
+        func withContainerPool(_ attributes: MetricAttributes, _ containerPool: String?) -> MetricAttributes {
+            guard let containerPool else { return attributes }
+            return attributes.merging([Metric.Attr.containerPool: containerPool]) { $1 }
         }
         telemetry.publish(
             .workers,
             workers.map {
                 series(
                     Double($0.value),
-                    [
-                        Metric.Attr.pool: $0.key.pool, Metric.Attr.image: $0.key.image,
-                        Metric.Attr.labels: $0.key.labels, Metric.Attr.state: $0.key.state,
-                    ])
+                    withContainerPool(
+                        [
+                            Metric.Attr.pool: $0.key.pool, Metric.Attr.image: $0.key.image,
+                            Metric.Attr.labels: $0.key.labels, Metric.Attr.state: $0.key.state,
+                        ], $0.key.containerPool))
             })
-        var warmByPool: [String: Int] = [:]
-        for (key, count) in warm { warmByPool["\(key.pool)\u{1f}\(key.image)", default: 0] += count }
         telemetry.publish(
             .warmSize,
-            warmByPool.map { entry in
-                let parts = entry.key.split(separator: "\u{1f}", maxSplits: 1).map(String.init)
-                return series(
-                    Double(entry.value),
-                    [Metric.Attr.pool: parts[0], Metric.Attr.image: parts.count > 1 ? parts[1] : "default"])
+            warm.map {
+                series(
+                    Double($0.value),
+                    withContainerPool(
+                        [Metric.Attr.pool: $0.key.pool, Metric.Attr.image: $0.key.image], $0.key.containerPool))
             })
 
         // Fleet size and state.
@@ -274,7 +294,7 @@ extension FleetEngine {
 
         // Resource use: aggregated per pool and image, from the sampler (unavailable stays absent).
         let usage = await usageSampler.snapshot(for: records)
-        struct Pool: Hashable { var pool: String, image: String, labels: String }
+        struct Pool: Hashable { var pool: String, image: String, labels: String, containerPool: String? }
         var cpu: [Pool: [Double]] = [:]
         var memory: [Pool: Int] = [:]
         var limitMB: [Pool: Int] = [:]
@@ -283,14 +303,16 @@ extension FleetEngine {
             guard let sample = usage.byInstance[record.id] else { continue }
             let pool = Pool(
                 pool: record.runtime ?? RuntimeID.tart.rawValue, image: record.image ?? "default",
-                labels: runnerLabelsValue(of: record))
+                labels: runnerLabelsValue(of: record), containerPool: containerPoolValue(of: record))
             if let value = sample.cpuPercent { cpu[pool, default: []].append(value / 100) }
             if let value = sample.memoryUsedMB { memory[pool, default: 0] += value }
             if let value = sample.memoryLimitMB { limitMB[pool, default: 0] += value }
             if let value = sample.diskUsedGB { diskGB[pool, default: 0] += value }
         }
         func attributes(_ pool: Pool) -> MetricAttributes {
-            [Metric.Attr.pool: pool.pool, Metric.Attr.image: pool.image, Metric.Attr.labels: pool.labels]
+            withContainerPool(
+                [Metric.Attr.pool: pool.pool, Metric.Attr.image: pool.image, Metric.Attr.labels: pool.labels],
+                pool.containerPool)
         }
         telemetry.publish(
             .runnerCPU, cpu.map { series($0.value.reduce(0, +) / Double($0.value.count), attributes($0.key)) })
@@ -317,14 +339,25 @@ extension FleetEngine {
     }
 
     /// Per-forge queue depth and the age of the oldest queued job, from one pass's demand read. The age
-    /// is reported only for jobs whose forge supplied a queue timestamp; with none it is absent.
+    /// is reported only for jobs whose forge supplied a queue timestamp; with none it is absent. With named container
+    /// pools (`byContainerPool` not empty) the Apple container depth is published per pool instead of as one series,
+    /// so the series still sum to the runtime's depth.
     func publishQueueTelemetry(
-        byForge: [String: Int], byPool: [RuntimeID: Int] = [:], oldestEnqueuedAt: Date?, now: Date = Date()
+        byForge: [String: Int], byPool: [RuntimeID: Int] = [:], byContainerPool: [String: Int] = [:],
+        oldestEnqueuedAt: Date?, now: Date = Date()
     ) {
         guard telemetry.isEnabled else { return }
         telemetry.publish(.queueDepth, byForge.map { series(Double($0.value), [Metric.Attr.account: $0.key]) })
-        telemetry.publish(
-            .queueDepthByPool, byPool.map { series(Double($0.value), [Metric.Attr.pool: $0.key.rawValue]) })
+        var depths = byPool.compactMap { runtime, count -> GaugeSeries? in
+            guard runtime != .appleContainer || byContainerPool.isEmpty else { return nil }
+            return series(Double(count), [Metric.Attr.pool: runtime.rawValue])
+        }
+        depths += byContainerPool.map {
+            series(
+                Double($0.value),
+                [Metric.Attr.pool: RuntimeID.appleContainer.rawValue, Metric.Attr.containerPool: $0.key])
+        }
+        telemetry.publish(.queueDepthByPool, depths)
         telemetry.publish(
             .queueAge, oldestEnqueuedAt.map { [series(max(0, now.timeIntervalSince($0)))] } ?? [])
     }
@@ -347,6 +380,16 @@ extension FleetEngine {
             series(1, [Metric.Attr.pool: $0.rawValue, Metric.Attr.holdReason: "backoff"])
         }
         if diskHold.withLock({ $0 }) { holds.append(series(1, [Metric.Attr.holdReason: "disk_pressure"])) }
+        // Named container pools left out because their image is not built (still configured ones only).
+        let configuredPools = Set(config.container?.pools.map(\.name) ?? [])
+        holds += containerImageListing.withLock { $0.skipped }.intersection(configuredPools).sorted().map {
+            series(
+                1,
+                [
+                    Metric.Attr.pool: RuntimeID.appleContainer.rawValue, Metric.Attr.containerPool: $0,
+                    Metric.Attr.holdReason: "image_missing",
+                ])
+        }
         telemetry.publish(.spawnHeld, holds)
     }
 

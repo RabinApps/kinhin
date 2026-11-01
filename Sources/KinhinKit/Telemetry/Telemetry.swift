@@ -253,6 +253,9 @@ enum Metric {
     /// (`cicd.worker.*`, `cicd.pipeline.*`, `cicd.system.*`, `error.type`) and are `kinhin.`-prefixed otherwise.
     enum Attr {
         static let pool = "kinhin.pool"
+        /// The named `container.pools:` entry an Apple container runner belongs to. Only on Apple container series,
+        /// and only when the section has `pools:`.
+        static let containerPool = "kinhin.container.pool"
         static let image = "kinhin.image"
         static let forge = "kinhin.forge"
         static let account = "kinhin.account"

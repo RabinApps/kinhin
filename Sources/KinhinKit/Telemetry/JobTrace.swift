@@ -167,7 +167,10 @@ final class JobTrace: Sendable {
     /// The log context of this instance's lifecycle; its `job` follows the job the forge reports.
     let logContext: Log.Context
 
-    init(telemetry: Telemetry, vm: String, pool: String, image: String, forge: String, labels: [String]?) {
+    init(
+        telemetry: Telemetry, vm: String, pool: String, image: String, forge: String, labels: [String]?,
+        containerPool: String? = nil
+    ) {
         self.telemetry = telemetry
         self.pool = pool
         self.image = image
@@ -179,6 +182,7 @@ final class JobTrace: Sendable {
         if let labels, !labels.isEmpty {
             attributes[Metric.Attr.labels] = .string(labels.sorted().joined(separator: ","))
         }
+        if let containerPool { attributes[Metric.Attr.containerPool] = .string(containerPool) }
         let root = telemetry.startSpan("kinhin.job", attributes: attributes)
         state = Mutex(State(root: root))
         logContext = Log.Context(vm: vm, trace: root.context)
