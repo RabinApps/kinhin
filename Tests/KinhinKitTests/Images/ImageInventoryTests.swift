@@ -224,7 +224,8 @@ final class ImageInventoryTests: XCTestCase {
         XCTAssertFalse(ImageInventory.ociUses(name: "x:v1", wanted: "x"), "an old tag is not what is running")
     }
 
-    /// Another tag of a configured image does not make it present: `container run runner` needs `runner:latest`.
+    /// With named pools, another tag of a pool's image does not make it present: `container run runner` needs
+    /// `runner:latest`. (A section without pools keeps the looser rule: `ContainerPoolsDoctorTests`.)
     func testAConfiguredImageIsPresentOnlyWithTheTagItsRunnersStart() {
         var cfg = KinhinConfig.default
         cfg.container = .init(

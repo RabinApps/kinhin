@@ -187,7 +187,10 @@ public struct ImageInventory: Sendable, Equatable, Codable {
         case .tart:
             return tartSection(config, images, fleet: fleet, projectRecords: projectRecords)
         case .container:
-            return ociSection(.container, images, wanted: config.container?.poolImages ?? [])
+            // With named pools, an image counts only with the tag its runners start, as the engine decides which pools
+            // can run (`poolsMissingImage`); a single-image section keeps the looser rule it always had.
+            let pooled = !(config.container?.pools.isEmpty ?? true)
+            return ociSection(.container, images, wanted: config.container?.poolImages ?? [], exactTag: pooled)
         case .docker:
             return ociSection(.docker, images, wanted: config.docker.map { [$0.image] } ?? [])
         }
@@ -380,8 +383,11 @@ public struct ImageInventory: Sendable, Equatable, Codable {
     // MARK: - Container / Docker
 
     /// `wanted` are the configured images (every container pool's, or the Docker image): each is a base entry,
-    /// listed as missing unless the tag a runner starts from is local (`ociUses`; another tag of it does not count).
-    private static func ociSection(_ runtime: Runtime, _ images: RuntimeImages, wanted: [String]) -> Section {
+    /// listed as missing when no local tag matches it, or with `exactTag` unless the tag a runner starts from is local
+    /// (`ociUses`; another tag of it does not count).
+    private static func ociSection(
+        _ runtime: Runtime, _ images: RuntimeImages, wanted: [String], exactTag: Bool = false
+    ) -> Section {
         var entries: [Entry] = []
         let listed = Set(images.names.filter { !$0.isEmpty && !$0.contains("<none>") })
         for name in listed.sorted() {
@@ -393,8 +399,10 @@ public struct ImageInventory: Sendable, Equatable, Codable {
                     sizeGB: images.sizesGB[name],
                     usedBy: uses ? images.instances.sorted() : []))
         }
-        for image in wanted
-        where images.unavailable == nil && !listed.contains(where: { ociUses(name: $0, wanted: image) }) {
+        func present(_ image: String) -> Bool {
+            listed.contains { exactTag ? ociUses(name: $0, wanted: image) : ociMatches(name: $0, wanted: image) }
+        }
+        for image in wanted where images.unavailable == nil && !present(image) {
             entries.append(Entry(name: image, runtime: runtime, role: .base, present: false))
         }
         return Section(
