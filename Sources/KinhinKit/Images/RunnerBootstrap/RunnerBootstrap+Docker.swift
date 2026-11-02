@@ -51,6 +51,9 @@ extension RunnerBootstrap {
     /// The buildx builder an amd64 runner's builds go through (`linuxDockerBuilderScript`).
     static let rosettaBuilderName = "kinhin"
 
+    /// The oldest buildx whose `docker-container` driver takes `default-load=true`.
+    static let rosettaBuilderMinimumBuildx = "0.14.0"
+
     /// Points `docker build` on an amd64 runner (`container.platform: linux/amd64`) at a `docker-container` buildx
     /// builder. dockerd runs under Rosetta there, and its built-in BuildKit cannot start a `RUN` step on the bridge
     /// network: the libnetwork-setkey prestart hook re-executes `/proc/<dockerd>/exe`, which is Rosetta rather than
@@ -59,21 +62,40 @@ extension RunnerBootstrap {
     /// the built-in builder does. Runs after dockerd answers (creating the builder needs it); the BuildKit container
     /// itself starts on the first build.
     ///
-    /// `docker build` ignores `docker buildx use` and picks the builder from `BUILDX_BUILDER`, so the script sets
-    /// that for jobs: in every baked GitHub runner directory's `.env` (which `config.sh` keeps and the runner passes to
-    /// each job) and for login shells. A runner without buildx keeps the built-in builder, with a warning.
+    /// `docker build` ignores `docker buildx use`: it asks buildx for `BUILDX_BUILDER`, or else for the builder named
+    /// after the current Docker context. So the script sets both. `BUILDX_BUILDER=kinhin` goes in every baked GitHub
+    /// runner directory's `.env` (which `config.sh` keeps and the runner passes to each job) and to login shells, and
+    /// a context named `kinhin`, pointing at the same local dockerd, becomes the current one. The context also reaches
+    /// tools that run `docker build` with a cleaned environment (no `BUILDX_BUILDER`, not even `HOME`: the CLI then
+    /// finds root's config through the user database); a job that sets `DOCKER_HOST` or `DOCKER_CONTEXT` bypasses
+    /// it. It needs buildx `rosettaBuilderMinimumBuildx` or later (Ubuntu 24.04 ships
+    /// 0.30; Debian 12 has none, Debian 13 has 0.13). Without it, or when the builder cannot be made, the runner still
+    /// registers, since `docker run` and pulls work, and says that builds will fail. A builder of that name left with
+    /// another driver is replaced.
     static func linuxDockerBuilderScript() -> String {
         let name = rosettaBuilderName
+        let minimum = rosettaBuilderMinimumBuildx
         return """
             # Docker under Rosetta (container.platform: linux/amd64): builds go through a docker-container builder,
             # since dockerd's built-in BuildKit cannot start RUN steps under Rosetta.
-            if docker buildx inspect \(name) >/dev/null 2>&1 \\
-              || docker buildx create --name \(name) --driver docker-container --driver-opt default-load=true >/dev/null; then
+            buildx_version="$(docker buildx version 2>/dev/null | awk '{print $2}' | sed 's/^v//')"
+            if [ -z "$buildx_version" ] \\
+              || [ "$(printf '%s\\n' \(minimum) "$buildx_version" | sort -V | head -n 1)" != "\(minimum)" ]; then
+              echo "kinhin: warning: docker build fails under Rosetta on this runner: kinhin's builder needs buildx" \\
+                "\(minimum) or later (found ${buildx_version:-none}); install docker-buildx in the image" >&2
+            elif docker buildx inspect \(name) 2>/dev/null | grep -q '^Driver: *docker-container$' \\
+              || { docker buildx rm \(name) >/dev/null 2>&1
+                   docker buildx create --name \(name) --driver docker-container --driver-opt default-load=true >/dev/null; }; then
               for runner_dir in /opt/actions-runner /opt/actions-runner-*; do
                 [ -d "$runner_dir" ] || continue
                 grep -qs '^BUILDX_BUILDER=' "$runner_dir/.env" || echo 'BUILDX_BUILDER=\(name)' >> "$runner_dir/.env"
               done
               echo 'export BUILDX_BUILDER=\(name)' > /etc/profile.d/kinhin-buildx.sh
+              { docker context inspect \(name) >/dev/null 2>&1 \\
+                  || docker context create \(name) --description "local dockerd; builds via the \(name) buildx builder" \\
+                       --docker host=unix:///var/run/docker.sock >/dev/null 2>&1; } \\
+                && docker context use \(name) >/dev/null 2>&1 \\
+                || echo "kinhin: warning: could not make \(name) the current Docker context; builds need BUILDX_BUILDER" >&2
               echo "docker build uses the \(name) buildx builder"
             else
               echo "kinhin: warning: could not create the \(name) buildx builder; docker build fails under Rosetta" >&2

@@ -314,11 +314,14 @@ AVX-512). Prefer arm64 unless a job needs x86_64.
 
 With `docker: true`, dockerd runs under Rosetta too, and its built-in builder cannot start a `RUN` step there
 (`rosetta error: failed to open elf at -exec-root=/var/run/docker`: the network setup hook re-runs dockerd through
-`/proc/<pid>/exe`, which is Rosetta). So once dockerd answers, kinhin creates a `docker-container` buildx builder named
-`kinhin` (`default-load=true`, so built images land in the local store as usual) and selects it for every job with
-`BUILDX_BUILDER=kinhin` in the runner's `.env` (and for login shells). `docker build` and `docker compose build` work
-unchanged; the first build on a runner also starts the builder's BuildKit container. A job that switches back to the
-`default` builder hits the error again. `docker run`, `docker pull` and port mappings are unaffected.
+`/proc/<pid>/exe`, which is Rosetta). So once dockerd answers, kinhin creates a `docker-container` buildx builder
+named `kinhin` (`default-load=true`, so built images land in the local store as usual) and selects it for every job
+with `BUILDX_BUILDER=kinhin` in the runner's `.env` (and for login shells) and with a Docker context named `kinhin` on
+the same local dockerd, which also reaches tools that run `docker build` with a cleaned environment. `docker build`
+and `docker compose build` work unchanged; the first build on a runner also starts the builder's BuildKit container. A
+job that switches back to the `default` builder hits the error again. The builder needs buildx 0.14 or later in the
+image (Ubuntu 24.04's `docker-buildx` is 0.30; Debian 12 has none and Debian 13 has 0.13): without it the runner still
+registers, and its log says builds will fail. `docker run`, `docker pull` and port mappings are unaffected.
 
 #### Several container pools
 
