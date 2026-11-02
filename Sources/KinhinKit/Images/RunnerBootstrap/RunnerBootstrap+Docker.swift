@@ -105,14 +105,22 @@ extension RunnerBootstrap {
 
     /// Writes `json` to `/etc/docker/daemon.json` ahead of `linuxDockerDaemonScript`, so dockerd starts with it: the
     /// image's own file with the Docker Hub cache's `registry-mirrors` merged in (`AppleContainerRuntime+DockerCache`).
-    /// A write that fails only warns: dockerd then starts with the image's file and pulls from Docker Hub. The quoted
+    /// The file is written next to the old one and renamed over it, so a write that fails leaves the image's file as
+    /// it was: the script only warns, and dockerd starts with the image's file and pulls from Docker Hub. The quoted
     /// heredoc keeps the JSON literal, and pretty-printed JSON never has a line equal to the delimiter.
     static func linuxDockerDaemonConfigScript(json: String) -> String {
         """
         # Docker Hub cache (container.docker): dockerd pulls through kinhin's registry cache.
-        mkdir -p /etc/docker && cat > /etc/docker/daemon.json <<'KINHIN_DAEMON_JSON' || echo "kinhin: warning: could not write /etc/docker/daemon.json; dockerd pulls straight from Docker Hub" >&2
+        if mkdir -p /etc/docker && cat > /etc/docker/daemon.json.kinhin-new <<'KINHIN_DAEMON_JSON'
         \(json)
         KINHIN_DAEMON_JSON
+        then
+          mv -f /etc/docker/daemon.json.kinhin-new /etc/docker/daemon.json && kinhin_daemon_json_written=1
+        fi
+        if [ -z "${kinhin_daemon_json_written:-}" ]; then
+          rm -rf /etc/docker/daemon.json.kinhin-new 2>/dev/null
+          echo "kinhin: warning: could not write /etc/docker/daemon.json; dockerd pulls straight from Docker Hub" >&2
+        fi
         """
     }
 

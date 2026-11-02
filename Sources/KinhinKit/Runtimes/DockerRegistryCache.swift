@@ -83,11 +83,38 @@ actor DockerRegistryCache {
     /// The cache's current IPv4 address, starting the container first when it is stopped or missing. Throws when it
     /// cannot be started or read; the caller then pulls from Docker Hub directly.
     func address() async throws -> String {
-        if let inFlight { return try await joined(inFlight) }
-        let task = Task { try await self.runningAddress() }
+        try await joined(startOrJoin())
+    }
+
+    /// The cache's address when it is running, or once a start finishes within `limit`; nil when the start takes
+    /// longer (a first pull of `registry:3`, say). The start goes on in the background, and later callers join or
+    /// adopt it, so one slow start never holds a runner's registration for long. Throws like `address()`.
+    func address(waitingAtMost limit: Duration) async throws -> String? {
+        let start = startOrJoin()
+        let first = FirstOutcome<String?>()
+        Task {
+            do { await first.offer(.success(try await start.value)) } catch { await first.offer(.failure(error)) }
+        }
+        Task {
+            // Nothing cancels this sleep; if something ever did, answering nil early only skips the cache sooner.
+            try? await Task.sleep(for: limit)
+            await first.offer(.success(nil))
+        }
+        let address = try await first.value()
+        try Task.checkCancellation()
+        return address
+    }
+
+    /// The start in progress, or a new one. The start clears itself when it ends, so a caller that stopped waiting
+    /// early does not leave a finished start behind for later callers to join.
+    private func startOrJoin() -> Task<String, any Error> {
+        if let inFlight { return inFlight }
+        let task = Task {
+            defer { self.inFlight = nil }
+            return try await self.runningAddress()
+        }
         inFlight = task
-        defer { inFlight = nil }
-        return try await joined(task)
+        return task
     }
 
     /// The start's answer, unless the caller was cancelled while it waited (the start itself goes on for the others).
@@ -233,5 +260,23 @@ actor DockerRegistryCache {
             total += Int64(values.totalFileAllocatedSize ?? 0)
         }
         return total
+    }
+}
+
+/// The first of several racing outcomes; later offers are ignored.
+private actor FirstOutcome<Value: Sendable> {
+    private var outcome: Result<Value, any Error>?
+    private var waiters: [CheckedContinuation<Value, any Error>] = []
+
+    func offer(_ result: Result<Value, any Error>) {
+        guard outcome == nil else { return }
+        outcome = result
+        waiters.forEach { $0.resume(with: result) }
+        waiters = []
+    }
+
+    func value() async throws -> Value {
+        if let outcome { return try outcome.get() }
+        return try await withCheckedThrowingContinuation { waiters.append($0) }
     }
 }

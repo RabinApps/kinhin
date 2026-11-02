@@ -19,6 +19,10 @@ extension AppleContainerRuntime {
     static let cacheReachabilitySeconds = 20
     static let cacheProbeTimeout: TimeInterval = 30
 
+    /// How long a runner's registration waits for the cache to start (its first start pulls `registry:3`). Past it,
+    /// the runner registers without the cache while the start finishes for the next runners.
+    static let cacheStartDeadline: Duration = .seconds(60)
+
     /// A bash command that succeeds once `address`:5000 accepts a TCP connection, retrying every second for up to
     /// `seconds` (bash's `/dev/tcp`, so the image needs nothing extra; exits 124 when time runs out).
     static func cacheReachabilityScript(address: String, seconds: Int = cacheReachabilitySeconds) -> String {
@@ -58,7 +62,10 @@ extension AppleContainerRuntime {
         }
         let address: String
         do {
-            address = try await registryCache.address()
+            guard let started = try await registryCache.address(waitingAtMost: Self.cacheStartDeadline) else {
+                return skip("the cache is still starting after \(Self.cacheStartDeadline); later runners use it")
+            }
+            address = started
         } catch {
             if error is CancellationError || Task.isCancelled { throw CancellationError() }
             return skip(error.localizedDescription)

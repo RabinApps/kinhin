@@ -82,7 +82,8 @@ final class AppleContainerDockerCacheTests: XCTestCase {
     func testTheRegistrationScriptWritesItBeforeDockerdStarts() async throws {
         let shell = fakeShell(probe: Self.probeAnswer(Self.githubImageFile))
         let script = try await registrationScript(makeRuntime(shell))
-        let write = try XCTUnwrap(script.range(of: "cat > /etc/docker/daemon.json <<'KINHIN_DAEMON_JSON'"))
+        let write = try XCTUnwrap(
+            script.range(of: "mv -f /etc/docker/daemon.json.kinhin-new /etc/docker/daemon.json"))
         let dockerd = try XCTUnwrap(script.range(of: "setsid nohup dockerd"))
         let register = try XCTUnwrap(script.range(of: "./config.sh --url"))
         XCTAssertLessThan(write.upperBound, dockerd.lowerBound, "dockerd starts with the merged file")
@@ -113,6 +114,25 @@ final class AppleContainerDockerCacheTests: XCTestCase {
         let result = try await Shell().run(["/bin/bash", "-c", script + "\necho next"], cwd: nil, timeout: 10)
         XCTAssertTrue(result.stderr.contains("kinhin: warning: could not write"), result.stderr)
         XCTAssertTrue(result.stdout.contains("next"), "the script goes on to start dockerd")
+    }
+
+    func testAFailedWriteLeavesTheImagesFileAsItWas() async throws {
+        let target = dataDirectory.appendingPathComponent("etc/docker", isDirectory: true)
+        try FileManager.default.createDirectory(at: target, withIntermediateDirectories: true)
+        let original = "{\"mtu\": 1280}\n"
+        try original.write(to: target.appendingPathComponent("daemon.json"), atomically: true, encoding: .utf8)
+        // A directory where the new file goes makes the write fail after the old file was already in place.
+        try FileManager.default.createDirectory(
+            at: target.appendingPathComponent("daemon.json.kinhin-new"), withIntermediateDirectories: true)
+        let script = RunnerBootstrap.linuxDockerDaemonConfigScript(json: "{\"registry-mirrors\": []}")
+            .replacingOccurrences(of: "/etc/docker", with: target.path)
+        let result = try await Shell().run(["/bin/bash", "-c", script + "\necho next"], cwd: nil, timeout: 10)
+        XCTAssertTrue(result.stderr.contains("kinhin: warning: could not write"), result.stderr)
+        XCTAssertTrue(result.stdout.contains("next"))
+        let kept = try String(contentsOf: target.appendingPathComponent("daemon.json"), encoding: .utf8)
+        XCTAssertEqual(kept, original, "never truncated: dockerd still starts with the image's settings")
+        let leftover = target.appendingPathComponent("daemon.json.kinhin-new").path
+        XCTAssertFalse(FileManager.default.fileExists(atPath: leftover), "the failed attempt is cleaned up")
     }
 
     // MARK: - Every failure is skipped

@@ -167,6 +167,38 @@ final class DockerRegistryCacheTests: XCTestCase {
         XCTAssertEqual(runs.count, 1, "one cache container, however many runners asked at once: \(runs)")
     }
 
+    // MARK: - A deadline for registration
+
+    func testAStartWithinTheDeadlineAnswers() async throws {
+        let address = try await cache(ContainerFakingShell()).address(waitingAtMost: .seconds(30))
+        XCTAssertEqual(address, "192.168.64.2")
+    }
+
+    func testASlowStartIsLeftAtTheDeadlineAndFinishesForTheNextCaller() async throws {
+        let gate = RunGate()
+        let shell = GatedRunShell(gate: gate)
+        let cache = cache(shell)
+        let first = try await cache.address(waitingAtMost: .milliseconds(50))
+        XCTAssertNil(first, "the runner registers without the cache instead of waiting for the pull")
+        await gate.open()
+        let later = try await cache.address()
+        XCTAssertEqual(later, "192.168.64.2", "the start went on in the background")
+        let runs = shell.inner.argvSnapshot().filter { $0.dropFirst().first == "run" }
+        XCTAssertEqual(runs.count, 1, "the later caller joined the same start: \(runs)")
+    }
+
+    func testAStartThatFailsWithinTheDeadlineStillThrows() async {
+        let shell = FakeShell()
+        shell.responses = [Self.notFound, ShellResult(exitCode: 1, stdout: "", stderr: "pull access denied")]
+        shell.scriptedResponses = [ScriptedResponse(whenContains: "inspect", Self.notFound)]
+        do {
+            _ = try await cache(shell).address(waitingAtMost: .seconds(30))
+            XCTFail("expected an error")
+        } catch {
+            XCTAssertTrue(error.localizedDescription.contains("pull access denied"), error.localizedDescription)
+        }
+    }
+
     func testTheMirrorURLUsesTheRegistryPort() {
         XCTAssertEqual(DockerRegistryCache.mirrorURL(address: "192.168.64.3"), "http://192.168.64.3:5000")
     }
@@ -254,5 +286,39 @@ final class DockerRegistryCacheTests: XCTestCase {
         let status = await cache(shell).status()
         XCTAssertFalse(status.running)
         XCTAssertTrue(status.problem?.contains("XPC connection error") == true, status.problem ?? "")
+    }
+}
+
+/// Holds `container run` (the cache's first start) until the test opens it.
+private actor RunGate {
+    private var isOpen = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func wait() async {
+        if isOpen { return }
+        await withCheckedContinuation { waiters.append($0) }
+    }
+
+    func open() {
+        isOpen = true
+        waiters.forEach { $0.resume() }
+        waiters = []
+    }
+}
+
+/// A `ContainerFakingShell` whose `container run` waits at `gate`, like a first pull of `registry:3`.
+private final class GatedRunShell: ShellRunning, Sendable {
+    let inner = ContainerFakingShell()
+    let gate: RunGate
+
+    init(gate: RunGate) { self.gate = gate }
+
+    func run(_ argv: [String], cwd: URL?, timeout: TimeInterval) async throws -> ShellResult {
+        if argv.dropFirst().first == "run" { await gate.wait() }
+        return try await inner.run(argv, cwd: cwd, timeout: timeout)
+    }
+
+    func run(_ argv: [String], input: Data, cwd: URL?, timeout: TimeInterval) async throws -> ShellResult {
+        try await inner.run(argv, input: input, cwd: cwd, timeout: timeout)
     }
 }
