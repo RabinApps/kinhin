@@ -34,6 +34,22 @@ final class ContainerPoolImagesTests: XCTestCase {
         XCTAssertFalse(container.bakesDocker(image: "unrelated"), "an image no pool runs follows the section")
     }
 
+    /// `runner` and `runner:latest` are one baked image: Docker, the base and the platform come from every pool that
+    /// runs it, however each names it (the loader keeps their base and platform to one).
+    func testABakeCountsEveryPoolThatRunsTheImageUnderEitherName() {
+        let container = KinhinConfig.ContainerConfig(
+            image: "runner",
+            pools: [
+                .init(name: "plain", image: "runner", baseImage: "debian:12", labels: ["plain"]),
+                .init(name: "dind", image: "runner:latest", labels: ["dind"], docker: true),
+            ])
+        XCTAssertTrue(container.bakesDocker(image: "runner"), "dind runs runner:latest with Docker")
+        XCTAssertTrue(container.bakesDocker(image: "runner:latest"))
+        XCTAssertEqual(container.baseImage(forImage: "runner:latest"), "debian:12")
+        XCTAssertEqual(container.pools(running: "runner").map(\.name), ["plain", "dind"])
+        XCTAssertFalse(container.bakesDocker(image: "runner:v1"), "another tag is another image")
+    }
+
     func testWithoutPoolsTheSectionsDockerDecidesEveryBake() {
         let section = KinhinConfig.ContainerConfig(image: "kinhin-ci-linux", docker: true)
         XCTAssertTrue(section.bakesDocker(image: "kinhin-ci-linux"))

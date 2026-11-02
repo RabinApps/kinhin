@@ -107,23 +107,30 @@ extension KinhinConfig.ContainerConfig {
 
     // MARK: - Baking a pool's image
 
+    /// The named pools that run `image`, compared by the tag a runner starts (`runner` and `runner:latest` are the one
+    /// image a bake writes).
+    func pools(running image: String) -> [Pool] {
+        let runnable = ImageInventory.ociRunnableReference(image)
+        return pools.filter { ImageInventory.ociRunnableReference($0.image) == runnable }
+    }
+
     /// Whether the bake of `image` installs Docker: some named pool that runs it has `docker: true`. An image no
     /// named pool runs (and every image of a section without `pools:`) follows the section's own `docker`, as before
     /// pools. A shared image is baked once, so a pool without Docker that shares it simply never starts dockerd.
     public func bakesDocker(image: String) -> Bool {
-        let running = pools.filter { $0.image == image }
+        let running = pools(running: image)
         return running.isEmpty ? docker : running.contains(where: \.docker)
     }
 
     /// What `image` is baked on: the `base_image` of the named pools that run it (the loader keeps it to one), else
     /// the section's own.
     public func baseImage(forImage image: String) -> String? {
-        pools.first { $0.image == image }.map(\.baseImage) ?? baseImage
+        pools(running: image).first.map(\.baseImage) ?? baseImage
     }
 
     /// The architecture `image` is baked for: the `platform` of the named pools that run it (the loader keeps it to
     /// one), else the section's own.
     public func platform(forImage image: String) -> LinuxPlatform {
-        pools.first { $0.image == image }?.platform ?? platform
+        pools(running: image).first?.platform ?? platform
     }
 }
