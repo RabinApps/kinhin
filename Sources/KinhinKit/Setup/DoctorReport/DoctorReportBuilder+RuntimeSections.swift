@@ -16,8 +16,7 @@ extension DoctorReportBuilder {
         guard let cfg, let container = cfg.container else { return nil }
         let verdict = RuntimeSectionVerdict.from(health: health ?? .broken("container health was not probed"))
         let section = images.map { ImageInventory.section(.container, config: cfg, images: $0) }
-        let imageFound = section?.configuredImagesPresent ?? false
-        let missing = Set(section?.entries.filter { $0.role == .base && !$0.present }.map(\.name) ?? [])
+        var imageFound = section?.configuredImagesPresent ?? false
         var wanted = container.image
         var fix = verdict.fix
         var pools: [DoctorReport.ContainerPoolStatus]?
@@ -27,14 +26,19 @@ extension DoctorReportBuilder {
             if verdict.ok, !imageFound { fix = "kinhin image prepare --container --target \(wanted)" }
         } else {
             let budget = host.flatMap { RuntimeCapacity.containerBudget(for: cfg, host: $0) }
+            // The pools' own rule, the one the engine and the app use: the tag `container run` starts from. When the
+            // images could not be listed, no pool counts as built.
+            let listed = images.flatMap { $0.unavailable == nil ? $0.names : nil }
+            let unbuilt = listed.map { container.poolsMissingImage(listed: $0) } ?? container.pools
+            let unbuiltNames = Set(unbuilt.map(\.name))
+            imageFound = listed != nil && unbuilt.isEmpty
             pools = container.pools.map { pool in
                 DoctorReport.ContainerPoolStatus(
-                    name: pool.name, image: pool.image, imageFound: section != nil && !missing.contains(pool.image),
+                    name: pool.name, image: pool.image, imageFound: !unbuiltNames.contains(pool.name),
                     cpus: pool.cpus, memoryGB: pool.memoryGB, max: pool.max, docker: pool.docker,
                     fits: budget.map { $0.count(cpu: pool.cpus, memoryGB: pool.memoryGB) > 0 } ?? true,
                     budgetCPU: budget?.cpu ?? 0, budgetMemoryGB: budget?.memoryGB ?? 0)
             }
-            let unbuilt = container.pools.filter { missing.contains($0.image) }
             if let first = unbuilt.first { wanted = first.image }
             if verdict.ok, !imageFound {
                 fix =

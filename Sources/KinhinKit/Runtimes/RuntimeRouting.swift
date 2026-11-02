@@ -343,7 +343,7 @@ extension RuntimeConfigModel {
             dockerPlatform: config.docker?.platform ?? .arm64,
             containerInheritsFleetLabels: config.container?.fleetLabels,
             dockerInheritsFleetLabels: config.docker?.fleetLabels,
-            hostConfigured: config.hostRoutesConfigured,
+            hostConfigured: routing?.routes.contains { $0.runtime == .host } ?? false,
             containerPools: config.container?.pools ?? []
         )
     }

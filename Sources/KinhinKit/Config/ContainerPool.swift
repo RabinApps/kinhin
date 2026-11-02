@@ -64,7 +64,8 @@ extension KinhinConfig.ContainerConfig {
         /// scale-set name, so lowercase letters, digits and inner hyphens only, like a DNS label, at most 32
         /// characters. Lowercase only, because the forges compare labels without case.
         public static func isValidName(_ name: String) -> Bool {
-            name.count <= 32 && name.range(of: "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$", options: .regularExpression) != nil
+            // `\z`, not `$`: `$` also matches before a trailing newline, which would let "a\n" through.
+            name.count <= 32 && name.range(of: "^[a-z0-9]([a-z0-9-]*[a-z0-9])?\\z", options: .regularExpression) != nil
         }
     }
 
@@ -93,10 +94,12 @@ extension KinhinConfig.ContainerConfig {
     }
 
     /// The named pools whose image is not among `listed` (local Apple container image names, as `container image
-    /// list` prints them; `x` matches `x:latest` and every tag of `x`). What the engine leaves out of the plan and
-    /// the app marks "not built"; empty for a section without `pools:`.
+    /// list` prints them): the exact reference, or `x:latest` for an untagged `x`, the tag `container run` starts
+    /// from (`ImageInventory.ociUses`). Another tag of `x` does not count, since the runner could not start from it.
+    /// What the engine leaves out of the plan, doctor reports and the app marks "not built"; empty for a section
+    /// without `pools:`.
     public func poolsMissingImage(listed: [String]) -> [Pool] {
-        pools.filter { pool in !listed.contains { ImageInventory.ociMatches(name: $0, wanted: pool.image) } }
+        pools.filter { pool in !listed.contains { ImageInventory.ociUses(name: $0, wanted: pool.image) } }
     }
 
     // MARK: - Baking a pool's image

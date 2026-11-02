@@ -86,11 +86,12 @@ public struct BenchmarkEnvironment: Sendable {
                 return TartRuntime(
                     tart: tart, bootTimeout: { config.vmBootTimeout }, tartPath: config.tartPath, ssh: ssh)
             case .appleContainer:
-                return AppleContainerRuntime(
-                    shell: shell, image: config.container?.image ?? Self.defaultLinuxImage,
-                    cpus: config.container?.cpus ?? KinhinConfig.ContainerConfig.defaultCPUs,
-                    memoryGB: config.container?.memoryGB ?? KinhinConfig.ContainerConfig.defaultMemoryGB,
-                    docker: config.container?.docker ?? false, flags: config.container?.flags ?? [])
+                // The default pool, as `FleetEngine` builds it: with `pools:`, the section's own keys are only the
+                // pools' defaults, so the benchmark times the shape the fleet actually starts.
+                guard let container = config.container else {
+                    return AppleContainerRuntime(shell: shell, image: Self.defaultLinuxImage)
+                }
+                return AppleContainerRuntime(shell: shell, pool: container.defaultPool)
             case .docker:
                 return DockerRuntime(
                     shell: shell, image: config.docker?.image ?? Self.defaultLinuxImage,
