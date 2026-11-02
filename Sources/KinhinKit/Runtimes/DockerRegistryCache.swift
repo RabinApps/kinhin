@@ -100,7 +100,12 @@ actor DockerRegistryCache {
             try? await Task.sleep(for: limit)
             await first.offer(.success(nil))
         }
-        let address = try await first.value()
+        // A cancelled caller stops waiting at once; the start itself goes on for the other runners.
+        let address = try await withTaskCancellationHandler {
+            try await first.value()
+        } onCancel: {
+            Task { await first.offer(.failure(CancellationError())) }
+        }
         try Task.checkCancellation()
         return address
     }

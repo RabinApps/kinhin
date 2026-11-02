@@ -305,10 +305,11 @@ limit. So with `docker: true`, kinhin runs a pull-through cache of Docker Hub an
   runner can reach it (waiting up to 20 seconds for a cache that is still starting), and merges `"registry-mirrors":
   ["http://<address>:5000"]` into the image's `/etc/docker/daemon.json`. Every other setting in that file is kept;
   a mirror the image already lists is replaced.
-- **If anything on that path fails** (the cache does not start, or takes more than 60 seconds to, as its first start
-  can while it pulls `registry:3`; the runner cannot reach it; the image's daemon.json is not valid JSON), the runner
-  logs why and registers anyway, pulling straight from Docker Hub. A slow start goes on in the background for the next
-  runners. The new daemon.json is written beside the old one and renamed over it, so a failed write leaves the image's
+- **If anything on that path fails** (the cache does not start, or takes more than 60 seconds to start because its
+  first start may pull `registry:3`; the runner cannot reach it), the runner logs why and registers anyway, pulling
+  straight from Docker Hub. A slow start goes on in the background for the next runners. An image whose daemon.json
+  is not valid JSON is left as it is: dockerd fails on that file with or without the cache, and the runner does not
+  register. The new daemon.json is written beside the old one and renamed over it, so a failed write leaves the image's
   file as it was. dockerd also falls back to Docker Hub by itself whenever the mirror stops answering.
 
 It can be on by default, unlike the shared toolchain cache (`share_cache`), because jobs cannot write to it: a

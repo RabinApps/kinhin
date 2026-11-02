@@ -187,6 +187,26 @@ final class DockerRegistryCacheTests: XCTestCase {
         XCTAssertEqual(runs.count, 1, "the later caller joined the same start: \(runs)")
     }
 
+    func testACancelledCallerStopsWaitingWhileTheStartGoesOn() async throws {
+        let gate = RunGate()
+        let shell = GatedRunShell(gate: gate)
+        let cache = cache(shell)
+        let waiting = Task { try await cache.address(waitingAtMost: .seconds(30)) }
+        try await Task.sleep(for: .milliseconds(50))
+        waiting.cancel()
+        do {
+            _ = try await waiting.value
+            XCTFail("expected the cancelled caller to stop waiting")
+        } catch {
+            XCTAssertTrue(error is CancellationError, "\(error)")
+        }
+        await gate.open()
+        let later = try await cache.address()
+        XCTAssertEqual(later, "192.168.64.2", "the start went on for the next caller")
+        let runs = shell.inner.argvSnapshot().filter { $0.dropFirst().first == "run" }
+        XCTAssertEqual(runs.count, 1, "the later caller joined the same start: \(runs)")
+    }
+
     func testAStartThatFailsWithinTheDeadlineStillThrows() async {
         let shell = FakeShell()
         shell.responses = [Self.notFound, ShellResult(exitCode: 1, stdout: "", stderr: "pull access denied")]

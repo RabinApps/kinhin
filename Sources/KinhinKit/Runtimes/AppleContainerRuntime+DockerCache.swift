@@ -6,7 +6,7 @@ import Foundation
 // and containers get no DNS names, so the mirror cannot be baked into the image: at each Docker runner's registration,
 // before dockerd starts, kinhin asks the cache for its current address, checks the runner can reach it, reads the
 // image's /etc/docker/daemon.json, and merges the mirror into it. Every failure on this path is logged and skipped:
-// the runner still registers, and its dockerd pulls from Docker Hub directly. Only cancellation propagates.
+// dockerd starts with the image's own file and pulls from Docker Hub directly. Only cancellation propagates.
 extension AppleContainerRuntime {
     /// Printed before the image's daemon.json, so a login shell's own output above it is never read as the file.
     static let daemonJSONMarker = "--- kinhin: /etc/docker/daemon.json ---"
@@ -52,8 +52,8 @@ extension AppleContainerRuntime {
     }
 
     /// The daemon.json runner `id` should start dockerd with: the image's own file with the cache's mirror merged in.
-    /// nil when this pool does not use the cache, and on every failure (logged with the runner id), so the runner
-    /// registers with the image's file and pulls from Docker Hub. Throws only `CancellationError`.
+    /// nil when this pool does not use the cache, and on every failure (logged with the runner id), so dockerd starts
+    /// with the image's file and pulls from Docker Hub. Throws only `CancellationError`.
     func dockerDaemonJSON(for id: String) async throws -> String? {
         guard docker, let registryCache else { return nil }
         func skip(_ why: String) -> String? {
