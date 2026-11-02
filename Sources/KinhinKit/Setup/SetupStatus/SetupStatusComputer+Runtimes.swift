@@ -63,7 +63,8 @@ extension SetupStatusComputer {
             }
         }
 
-        let wanted = cfg.container?.image ?? "kinhin-ci-linux"
+        // Every pool's image, with `container.pools:` (one image without them).
+        let wanted = cfg.container?.poolImages.joined(separator: "', '") ?? "kinhin-ci-linux"
         // The listing and the presence rule come from the shared image
         // inventory — one implementation for the checklist, the doctor and
         // `kinhin image list`. Health decides whether we may ask at all.
@@ -76,10 +77,7 @@ extension SetupStatusComputer {
             listed = nil
         }
         let imageFound =
-            listed.map { images in
-                ImageInventory.section(.container, config: cfg, images: images)
-                    .entries.contains { $0.role == .base && $0.present }
-            } ?? false
+            listed.map { ImageInventory.section(.container, config: cfg, images: $0).configuredImagesPresent } ?? false
         checks.append(
             SetupCheckResult(
                 id: "container-image",

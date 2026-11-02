@@ -160,6 +160,18 @@ extension FleetEngine {
         }
     }
 
+    /// Logs each named container pool whose shape is larger than the whole budget the pools share: the scale plan
+    /// never starts one, so its jobs would wait without a word otherwise. `kinhin doctor` reports the same.
+    func warnAboutUnfittableContainerPools(_ snapshot: Router.Snapshot) {
+        guard let budget = snapshot.containerBudget else { return }
+        for pool in config.container?.pools ?? [] where budget.count(cpu: pool.cpus, memoryGB: pool.memoryGB) == 0 {
+            Log.warn(
+                "engine",
+                "container pool \(pool.name) (\(pool.cpus) CPU, \(pool.memoryGB) GB) can never start: the Apple "
+                    + "container budget is \(budget.cpu) CPU, \(budget.memoryGB) GB")
+        }
+    }
+
     /// Swap in routing state from a freshly loaded config: the routing model
     /// (pools + routes), the capacity partition, the pool set, the named
     /// `images:` entries and the `projects:` rules. Callable while running —
@@ -182,6 +194,7 @@ extension FleetEngine {
                     fleetLabels: snapshot.labels, servedLabels: snapshot.servedLabels)
             }
         }
+        warnAboutUnfittableContainerPools(snapshot)
         let poolNames = snapshot.model.pools.keys.map(\.rawValue).sorted().joined(separator: ", ")
         let capNote = snapshot.caps.isEmpty ? "fleet cap" : "partitioned caps"
         Log.info("engine", "routing reloaded (pools: \(poolNames), \(capNote))")

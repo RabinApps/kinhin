@@ -22,6 +22,11 @@ When several runtimes are configured, this budget is partitioned across their po
 bounded by its RAM share too (see [Runtimes](runtimes.md#per-repo-and-per-workflow-routing)). The default pool gets
 whatever share the others leave.
 
+With [named container pools](runtimes.md#several-container-pools) of different sizes, the Apple container cap above is
+counted with the smallest pool's CPU and memory, an upper bound, and each runner is admitted by its own pool's
+`cpus` and `memory_gb` against what the running containers leave of Apple container's CPU and RAM, and by its pool's
+`max:`. One pool, or none, keeps exactly the numbers above.
+
 ## The scaling loop
 
 Every `poll_interval` seconds the engine:
@@ -98,7 +103,9 @@ images:
     min_idle: 1
 container:               # the Apple container pool
   image: kinhin-ci-linux
-  min_idle: 1
+  min_idle: 1            # with pools:, the default for each pool
+  # pools:               # named container pools: each keeps its own floor
+  #   big: { labels: [big], min_idle: 1 }
 docker:                  # the Docker pool
   image: kinhin-ci-linux
   min_idle: 1
@@ -120,15 +127,19 @@ Each key defaults to `0` (off). How the floor is kept:
 - **Warm VMs.** A Tart top-up claims a warm VM of its image when there is one, so registering it is all that is left.
   Warm VMs of other images are evicted when the slot is needed, as for a job.
 - **Unprepared images.** A named image that was never prepared gets no idle runner. Its `min_idle` is skipped, with a
-  log line, until it exists.
+  log line, until it exists. A named container pool whose image is not built is left out entirely: no idle runner and
+  no runner for its queued jobs, which wait for the image rather than land in another pool.
+- **Named container pools.** Each pool keeps its own floor, and an idle runner of one pool is no runner for another
+  pool's jobs (their labels differ), as with Tart images. A top-up only starts where the pool fits under its `max:`
+  and the CPU and RAM left.
 - **Scale-down** never removes a runner a floor needs.
 - **`min_idle` counts instances.** With `runners_per_vm` above 1, an idle instance holds that many idle runners.
 - **Status.** `desired` in `kinhin status` still counts the queue and `min_runners` only; instances kept for
   `min_idle` come on top of it, and the log says `keeping idle runners (min_idle): starting …` when it starts one.
 
 Idle runners take slots under `max_runners`, so the loader checks that every floor fits: each `min_idle` (and Docker's
-within `docker.max_slots`), each image's `min_idle` plus its `warm_pool`, and all of them together must fit in
-`max_runners`.
+within `docker.max_slots`, a container pool's within its `max:`), each image's `min_idle` plus its `warm_pool`, and all
+of them together (every container pool's counted) must fit in `max_runners`.
 
 ### Tart: two macOS VMs
 

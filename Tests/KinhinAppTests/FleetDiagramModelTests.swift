@@ -163,6 +163,16 @@ final class FleetDiagramModelTests: XCTestCase {
         XCTAssertTrue(row.tooltip.hasPrefix("• kinhin-g — busy"), row.tooltip)
     }
 
+    func testAContainerInstanceSaysWhichNamedPoolItRunsIn() {
+        var named = record("kinhin-c1", phase: .busy)
+        named.pool = "big"
+        XCTAssertTrue(instance(for: named).detail.hasPrefix("pool big"), instance(for: named).detail)
+        var unnamed = record("kinhin-c2", phase: .ready)
+        unnamed.pool = ""
+        XCTAssertEqual(instance(for: unnamed).detail, "", "the unnamed pool of a section without pools: says nothing")
+        XCTAssertEqual(instance(for: record("kinhin-c3")).detail, "")
+    }
+
     // MARK: - Counts
 
     func testCountsAggregateAcrossLanes() {

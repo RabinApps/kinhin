@@ -26,6 +26,44 @@ enum ImageCommand {
     /// reference) and `--target NAME` writes the result there, for a tart bake. Both were accepted and silently
     /// ignored, so the documented `image prepare --linux …` then `image prepare --source <vm>` flow baked from the
     /// default macOS image instead (found by the e2e Tart lanes).
+    /// The Apple container bakes one `image prepare --container` run makes. Bare: one image, `--target` (default
+    /// `kinhin-ci-linux`) on the section's `base_image`. `--pool NAME`: that `container.pools:` entry's image on its
+    /// base. `--all`: every pool's image, each once. `--container-image` overrides the base of each; `--target`
+    /// renames the one image a bare or `--pool` bake writes, so `--all` refuses it. Docker is installed when a pool
+    /// that runs the image has `docker: true` (bare, without pools: the section's `docker`).
+    static func containerBakes(args: [String], container: KinhinConfig.ContainerConfig?) throws -> [LinuxImageOptions] {
+        let baseOverride = flag("--container-image", in: args)
+        func bake(_ image: String, target: String? = nil) -> LinuxImageOptions {
+            LinuxImageOptions(
+                image: LinuxBaseImage.resolve(
+                    configured: container?.baseImage(forImage: image), flagOverride: baseOverride),
+                target: target ?? image, docker: container?.bakesDocker(image: image) ?? false)
+        }
+        if args.contains("--all") {
+            if hasFlag("--target", in: args) {
+                throw CLIError(
+                    "--all bakes every container pool's own image, so --target (which names one image) cannot be "
+                        + "combined with it; use --pool NAME --target IMAGE for one",
+                    exit: .usage)
+            }
+            guard let container else { throw CLIError("--all needs a container: section", exit: .usage) }
+            return container.poolImages.map { bake($0) }
+        }
+        if let name = flag("--pool", in: args) {
+            guard let pool = container?.pools.first(where: { $0.name == name }) else {
+                let names = container?.pools.map(\.name) ?? []
+                throw CLIError(
+                    names.isEmpty
+                        ? "--pool needs named container pools, and the config has no container.pools:"
+                        : "no container pool '\(name)' — the config has: \(names.joined(separator: ", "))",
+                    exit: .usage)
+            }
+            return [bake(pool.image, target: flag("--target", in: args))]
+        }
+        let target = flag("--target", in: args) ?? "kinhin-ci-linux"
+        return [bake(target)]
+    }
+
     static func applySourceAndTarget(_ args: [String], to options: inout ImagePreparer.Options) throws {
         if let source = flag("--source", in: args) {
             if let problem = TartBaseImage.problem(with: source) {
@@ -160,15 +198,15 @@ enum ImageCommand {
                         "the container system service is not running. Start it first: container system start",
                         exit: .runtime)
                 }
-                let image = LinuxBaseImage.resolve(
-                    configured: cfg.container?.baseImage, flagOverride: flag("--container-image", in: args))
-                let target = flag("--target", in: args) ?? "kinhin-ci-linux"
+                let bakes = try Self.containerBakes(args: args, container: cfg.container)
                 let preparer = ContainerImagePreparer(shell: shell)
-                let options = ContainerImagePreparer.Options(
-                    image: image, target: target, docker: cfg.container?.docker ?? false)
-                let baked = try await preparer.prepare(options)
-                print("container image ready: \(baked)")
-                print("set `container.image: \"\(baked)\"` in your config to use it")
+                for options in bakes {
+                    let baked = try await preparer.prepare(options)
+                    print("container image ready: \(baked)")
+                }
+                if bakes.count == 1, !hasFlag("--pool", in: args), let baked = bakes.first?.target {
+                    print("set `container.image: \"\(baked)\"` in your config to use it")
+                }
             } catch {
                 fail(error)
             }

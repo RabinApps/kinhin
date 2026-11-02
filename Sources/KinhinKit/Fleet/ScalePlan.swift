@@ -21,6 +21,9 @@ struct ScalePlan: Equatable {
         var image: String? = nil
         /// A warm instance of `image` to bind instead of cloning.
         var claim: String? = nil
+        /// The named container pool a new Apple container instance starts in: nil = the unnamed pool (or not
+        /// Apple container). See `ScalePlan+ContainerPools`.
+        var pool: String? = nil
         /// A `min_idle` top-up rather than queued demand (see `ScalePlan+MinIdle`).
         var idle = false
     }
@@ -56,6 +59,17 @@ struct ScalePlan: Equatable {
         var imageDemand: [String: Int] = [:]
         /// Registered, idle instances to keep per pool and per Tart image (`min_idle`). Absent or 0 = off.
         var minIdle: [IdleKey: Int] = [:]
+        /// Queued Apple container jobs per named container pool (`ScalePlan+ContainerPools`).
+        var containerPoolDemand: [String: Int] = [:]
+        /// The named container pools' shapes and caps, by name. Empty: the `container:` section is one pool, sized by
+        /// `poolCaps` alone, exactly as before pools.
+        var containerPools: [String: ContainerPoolShape] = [:]
+        /// The pool an Apple container instance without a known pool counts as.
+        var defaultContainerPool = ""
+        /// The CPU and memory the named container pools share; nil = no limit beyond the count caps.
+        var containerBudget: RuntimeCapacity.Budget?
+        /// Named container pools that may start nothing this pass (their image is not built; see `exclude`).
+        var unavailableContainerPools: Set<String> = []
         var now = Date()
     }
 
@@ -272,6 +286,10 @@ struct ScalePlan: Equatable {
         if let byImage = tartUnmetByImage(records: records, input: input), byImage > (result[.tart] ?? 0) {
             result[.tart] = byImage
         }
+        // Nor is an idle runner of one container pool for another pool's jobs.
+        if let byPool = containerUnmetByPool(records: records, input: input), byPool > (result[.appleContainer] ?? 0) {
+            result[.appleContainer] = byPool
+        }
         return result
     }
 
@@ -293,7 +311,10 @@ struct ScalePlan: Equatable {
         let queuedTart = input.demand.values.reduce(0) { $0 + ($1[.tart] ?? 0) }
         var sim = active
         var out: [Slot] = []
-        for _ in 0..<count {
+        // Runtimes that cannot take another instance although their count cap has room: Apple container when no
+        // named pool's shape fits what is left of the budget.
+        var exhausted: Set<RuntimeID> = []
+        while out.count < count {
             // The account with the most unmet demand (its jobs minus the
             // instances that can serve them).
             var coverage: [String: Int] = [:]
@@ -305,7 +326,7 @@ struct ScalePlan: Equatable {
             // The pool with the most unmet demand within its capacity.
             let unmet = unmetByPool(records: sim, input: input)
             var caps = input.poolCaps
-            for held in input.heldRuntimes { caps[held] = 0 }
+            for held in input.heldRuntimes.union(exhausted) { caps[held] = 0 }
             var running: [RuntimeID: Int] = [:]
             for record in sim { running[pool(of: record, input: input), default: 0] += 1 }
             // The in-flight pooled clones already hold a slot in their pool.
@@ -316,6 +337,7 @@ struct ScalePlan: Equatable {
                     poolExists: input.existingPools.contains)
             else { break }  // unmet demand but no pool may take another instance
             if input.heldRuntimes.contains(chosen) { break }  // every pool with demand is backing off
+            if exhausted.contains(chosen) { break }  // the fallback runtime is out of room
 
             // The image for a Tart slot, counting only instances that serve demand (warm ones do not).
             var image: String?
@@ -327,13 +349,18 @@ struct ScalePlan: Equatable {
                 }
                 image = chooseImage(queuedTart: queuedTart, byImage: input.imageDemand, active: served)
             }
+            // The named container pool for an Apple container slot; none fits: try the other runtimes.
+            var pool: String?
+            if chosen == .appleContainer, !input.containerPools.isEmpty {
+                guard let picked = chooseContainerPool(records: sim, input: input) else {
+                    exhausted.insert(.appleContainer)
+                    continue
+                }
+                pool = picked
+            }
 
-            out.append(Slot(account: account, runtime: chosen, image: image))
-            var record = VMRecord(id: "plan-\(out.count)", phase: .cloning)
-            record.platform = account
-            record.runtimeID = chosen
-            record.image = image
-            sim.append(record)
+            out.append(Slot(account: account, runtime: chosen, image: image, pool: pool))
+            sim.append(simulated(out[out.count - 1], id: "plan-\(out.count)"))
         }
         return out
     }
@@ -388,44 +415,5 @@ struct ScalePlan: Equatable {
             surplus -= 1
         }
         return doomed
-    }
-
-    // MARK: - Disk
-
-    /// The slots the disk can hold. Each new instance costs its per-instance disk plus the reserve;
-    /// the first that does not fit ends the new instances and is reported. Host slots and warm
-    /// claims cost none (a claimed VM is already on disk), so they are always admitted.
-    /// The disk is per slot, not per runtime, because a named Tart image can be larger than the base.
-    static func admitByDisk(
-        _ slots: [Slot], freeDiskGB: Int, reserveGB: Int, diskPerInstanceGB: (Slot) -> Int
-    ) -> (admitted: [Slot], blocked: (runtime: RuntimeID, availableGB: Int, neededGB: Int)?) {
-        var free = freeDiskGB
-        var admitted: [Slot] = []
-        var blocked: (runtime: RuntimeID, availableGB: Int, neededGB: Int)?
-        for slot in slots {
-            if slot.runtime != .host, slot.claim == nil {
-                if blocked != nil { continue }
-                let perVM = diskPerInstanceGB(slot)
-                let needed = perVM + reserveGB
-                if free < needed {
-                    blocked = (slot.runtime, free, needed)
-                    continue
-                }
-                free -= perVM
-            }
-            admitted.append(slot)
-        }
-        return (admitted, blocked)
-    }
-}
-
-extension Forge {
-    /// Whether `queuedJobs()` counts jobs already running on a runner. True
-    /// for the GitHub scale-set forge (`totalAssignedJobs`); classic forges
-    /// report queued-only work, so a busy VM is no longer part of it.
-    /// Scale-set is the only `.jitConfig` forge.
-    var queueIncludesRunning: Bool {
-        if case .jitConfig = registration { return true }
-        return false
     }
 }

@@ -6,26 +6,49 @@ import Foundation
 // onto one JSON section, so it can be tested without a machine.
 extension DoctorReportBuilder {
     /// Apple-container section — present only when the config enables it,
-    /// with the same image-matching rule the checklist row uses.
+    /// with the same image-matching rule the checklist row uses. With named
+    /// pools, every pool's image must be local, and each pool is listed with
+    /// its image and whether its shape fits the budget on `host`.
     static func containerSection(
-        config cfg: KinhinConfig?, health: RuntimeHealth?, images: ImageInventory.RuntimeImages?
+        config cfg: KinhinConfig?, health: RuntimeHealth?, images: ImageInventory.RuntimeImages?,
+        host: HostResources? = nil
     ) -> DoctorReport.ContainerSection? {
         guard let cfg, let container = cfg.container else { return nil }
         let verdict = RuntimeSectionVerdict.from(health: health ?? .broken("container health was not probed"))
-        let wanted = container.image
-        let imageFound =
-            images.map { images in
-                ImageInventory.section(.container, config: cfg, images: images)
-                    .entries.contains { $0.role == .base && $0.present }
-            } ?? false
+        let section = images.map { ImageInventory.section(.container, config: cfg, images: $0) }
+        var imageFound = section?.configuredImagesPresent ?? false
+        var wanted = container.image
         var fix = verdict.fix
-        // A working runtime with a missing image gets the prepare command
-        // — the same advice the human doctor prints for that case.
-        if verdict.ok, !imageFound {
-            fix = "kinhin image prepare --container --target \(wanted)"
+        var pools: [DoctorReport.ContainerPoolStatus]?
+        if container.pools.isEmpty {
+            // A working runtime with a missing image gets the prepare command
+            // — the same advice the human doctor prints for that case.
+            if verdict.ok, !imageFound { fix = "kinhin image prepare --container --target \(wanted)" }
+        } else {
+            let budget = host.flatMap { RuntimeCapacity.containerBudget(for: cfg, host: $0) }
+            // The pools' own rule, the one the engine and the app use: the tag `container run` starts from. When the
+            // images could not be listed, no pool counts as built.
+            let listed = images.flatMap { $0.unavailable == nil ? $0.names : nil }
+            let unbuilt = listed.map { container.poolsMissingImage(listed: $0) } ?? container.pools
+            let unbuiltNames = Set(unbuilt.map(\.name))
+            imageFound = listed != nil && unbuilt.isEmpty
+            pools = container.pools.map { pool in
+                DoctorReport.ContainerPoolStatus(
+                    name: pool.name, image: pool.image, imageFound: !unbuiltNames.contains(pool.name),
+                    cpus: pool.cpus, memoryGB: pool.memoryGB, max: pool.max, docker: pool.docker,
+                    fits: budget.map { $0.count(cpu: pool.cpus, memoryGB: pool.memoryGB) > 0 } ?? true,
+                    budgetCPU: budget?.cpu ?? 0, budgetMemoryGB: budget?.memoryGB ?? 0)
+            }
+            if let first = unbuilt.first { wanted = first.image }
+            if verdict.ok, !imageFound {
+                fix =
+                    Set(unbuilt.map(\.image)).count == 1
+                    ? "kinhin image prepare --container --pool \(unbuilt.first?.name ?? "")"
+                    : "kinhin image prepare --container --all"
+            }
         }
         return DoctorReport.ContainerSection(
-            state: verdict.state, ok: verdict.ok, fix: fix, image: wanted, imageFound: imageFound
+            state: verdict.state, ok: verdict.ok, fix: fix, image: wanted, imageFound: imageFound, pools: pools
         )
     }
 

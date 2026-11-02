@@ -99,7 +99,8 @@ public struct ImagePrunePlan: Sendable, Equatable {
     }
 
     /// Every name the config cares about: the configured images themselves
-    /// plus every `base_image:` (top-level, per-image, container, docker).
+    /// (every container pool's included) plus every `base_image:` (top-level,
+    /// per-image, container and its pools, docker).
     private static func protectedNames(_ config: KinhinConfig?) -> Set<String> {
         guard let config else { return [] }
         var names: Set<String> = [config.image]
@@ -108,6 +109,8 @@ public struct ImagePrunePlan: Sendable, Equatable {
         if let container = config.container {
             if let base = container.baseImage { names.insert(base) }
             names.insert(container.image)
+            names.formUnion(container.poolImages)
+            names.formUnion(container.pools.compactMap(\.baseImage))
         }
         if let docker = config.docker {
             if let base = docker.baseImage { names.insert(base) }

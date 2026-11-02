@@ -46,6 +46,8 @@ extension GeneralConfigEditor {
         }
 
         public struct Container: Equatable, Sendable {
+            /// The section's own `image:`. "" when it has none, which only a section with `pools:` may (each pool
+            /// then names its own); a rewrite leaves the key out.
             public var image: String
             public var cpus: Int
             public var memoryGB: Int
@@ -57,9 +59,12 @@ extension GeneralConfigEditor {
             public var minIdle: Int
             public var docker: Bool
             public var flags: [String]
+            /// `container.pools:` as written (see `ContainerPool`), carried so a section rewrite keeps every pool.
+            public var pools: [ContainerPool]
             public init(
                 image: String, cpus: Int, memoryGB: Int, baseImage: String? = nil, labels: [String]? = nil,
-                fleetLabels: Bool? = nil, minIdle: Int = 0, docker: Bool = false, flags: [String] = []
+                fleetLabels: Bool? = nil, minIdle: Int = 0, docker: Bool = false, flags: [String] = [],
+                pools: [ContainerPool] = []
             ) {
                 self.image = image
                 self.cpus = cpus
@@ -70,6 +75,7 @@ extension GeneralConfigEditor {
                 self.minIdle = minIdle
                 self.docker = docker
                 self.flags = flags
+                self.pools = pools
             }
         }
 
@@ -141,10 +147,12 @@ extension GeneralConfigEditor {
             reserveCPU: reserve?.cpu ?? d.reserve.cpu,
             reserveMemoryGB: reserve?.memoryGB ?? d.reserve.memoryGB,
             container: partial.container.map {
-                .init(
-                    image: $0.image ?? "kinhin-ci-linux", cpus: $0.cpus ?? 4, memoryGB: $0.memoryGB ?? 8,
-                    baseImage: $0.baseImage, labels: $0.labels, fleetLabels: $0.fleetLabels, minIdle: $0.minIdle ?? 0,
-                    docker: $0.docker ?? false, flags: $0.flags ?? [])
+                let pools = Snapshot.ContainerPool.pools(from: $0.pools)
+                return .init(
+                    image: $0.image ?? (pools.isEmpty ? "kinhin-ci-linux" : ""), cpus: $0.cpus ?? 4,
+                    memoryGB: $0.memoryGB ?? 8, baseImage: $0.baseImage, labels: $0.labels,
+                    fleetLabels: $0.fleetLabels, minIdle: $0.minIdle ?? 0, docker: $0.docker ?? false,
+                    flags: $0.flags ?? [], pools: pools)
             },
             docker: partial.docker.map {
                 .init(

@@ -28,14 +28,19 @@ final class Router: Sendable {
         /// apart from the synthesized default-image entry (which keys base-image
         /// demand as the empty string).
         var baseImage: String
+        /// The CPU and memory the named container pools share
+        /// (`RuntimeCapacity.containerBudget`); nil without named pools.
+        var containerBudget: RuntimeCapacity.Budget? = nil
 
-        /// The union of the labels every pool (and every named image) registers
-        /// runners with, de-duplicated case-insensitively, in first-seen order.
+        /// The union of the labels every pool (every named container pool and
+        /// every named image included) registers runners with, de-duplicated
+        /// case-insensitively, in first-seen order.
         var servedLabels: [String] {
             var seen = Set<String>()
             var union: [String] = []
             let pools = model.pools.values.sorted { $0.runtime.rawValue < $1.runtime.rawValue }
-            for label in pools.flatMap(\.labels) + images.flatMap({ $0.labels ?? [] })
+            let containerPools = model.containerPools.entries.flatMap(\.labels)
+            for label in pools.flatMap(\.labels) + containerPools + images.flatMap({ $0.labels ?? [] })
             where seen.insert(label.lowercased()).inserted {
                 union.append(label)
             }
@@ -45,22 +50,15 @@ final class Router: Sendable {
         /// The routing state `config` describes, on `host`.
         static func make(config: KinhinConfig, host: HostResources) -> Snapshot {
             Snapshot(
-                model: RuntimeConfigModel(
-                    config: config.runtimes,
-                    fleetLabels: config.labels,
-                    containerLabels: config.container?.labels,
-                    containerConfigured: config.container != nil,
-                    dockerConfigured: config.docker != nil,
-                    dockerPlatform: config.docker?.platform ?? .arm64,
-                    hostConfigured: config.hostRoutesConfigured
-                ),
+                model: RuntimeConfigModel(config: config),
                 // Mixed fleets partition the usable host budget between
                 // runtimes; single-pool fleets keep the fleet cap.
                 caps: RuntimeCapacity.caps(for: config, host: host),
                 images: config.effectiveImages(),
                 projects: config.projects,
                 labels: config.labels,
-                baseImage: config.image)
+                baseImage: config.image,
+                containerBudget: RuntimeCapacity.containerBudget(for: config, host: host))
         }
 
         /// Job slots the pool of `runtime` offers: its instance cap (the
@@ -68,6 +66,18 @@ final class Router: Sendable {
         /// alone), times the runners each instance hosts.
         func jobCapacity(for runtime: RuntimeID, maxRunners: Int, capacityCap: Int, runnersPerVM: Int) -> Int {
             let instances = min(maxRunners, capacityCap, caps[runtime] ?? .max)
+            return instances * max(1, runnersPerVM)
+        }
+
+        /// Job slots the named container pool `pool` offers on its own: the
+        /// Apple container pool's slots, within the pool's `max:` and the
+        /// instances of its shape the shared budget holds.
+        func jobCapacity(
+            forContainerPool pool: KinhinConfig.ContainerConfig.Pool, maxRunners: Int, capacityCap: Int,
+            runnersPerVM: Int
+        ) -> Int {
+            let fit = containerBudget?.count(cpu: pool.cpus, memoryGB: pool.memoryGB) ?? .max
+            let instances = min(maxRunners, capacityCap, caps[.appleContainer] ?? .max, pool.max ?? .max, fit)
             return instances * max(1, runnersPerVM)
         }
     }

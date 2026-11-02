@@ -110,6 +110,10 @@ extension FleetEngine {
 
     // MARK: - GitHub scale-set targets
 
+    /// One scale set an account listens on: its name, the pool it feeds, the labels its jobs and runners carry, and
+    /// the named container pool when it feeds one.
+    typealias ScaleSetPlanEntry = (name: String, runtime: RuntimeID, labels: [String], pool: String?)
+
     /// The scale sets an account listens on. GitHub keeps only a scale set's
     /// name (plus its own system labels) on github.com, so a workflow can only
     /// reach kinhin through `runs-on: <set name>`; one set per pool, and one
@@ -120,32 +124,42 @@ extension FleetEngine {
     ///   `kinhin-docker`     Docker slots
     ///   `kinhin-host`       the unisolated host pool
     ///   `kinhin-<image>`    a named `images:` entry (a Tart image)
+    ///   `kinhin-container-<pool>`  a named `container.pools:` entry
     ///
-    /// A fleet with a single pool and no named images keeps just the base name.
-    func scaleSetPlan(account: AccountConfig, baseName: String) -> [(
-        name: String, runtime: RuntimeID, labels: [String]
-    )] {
+    /// A fleet with a single pool and no named images keeps the base name for that pool (named container pools
+    /// still add their own sets beside it).
+    func scaleSetPlan(account: AccountConfig, baseName: String) -> [ScaleSetPlanEntry] {
         let routerState = router.snapshot
         let pools = routerState.model.pools
-        var plan: [(name: String, runtime: RuntimeID, labels: [String])] = []
+        var plan: [ScaleSetPlanEntry] = []
         let images = routerState.images.filter { !($0.labels ?? []).isEmpty }
+        let containerPools = routerState.model.containerPools
         let single = pools.count == 1 && images.isEmpty
+        // "kinhin-container" etc. — the marker already names the pool.
+        func setName(marker: String) -> String {
+            marker.hasPrefix("kinhin") ? baseName + marker.dropFirst("kinhin".count) : "\(baseName)-\(marker)"
+        }
         for (runtime, pool) in pools.sorted(by: { $0.key.rawValue < $1.key.rawValue }) {
             let name: String
             if single || runtime == .tart {
                 name = baseName
             } else if let marker = RuntimePool.exclusiveMarker(for: runtime) {
-                // "kinhin-container" etc. — the marker already names the pool.
-                name =
-                    marker.hasPrefix("kinhin") ? baseName + marker.dropFirst("kinhin".count) : "\(baseName)-\(marker)"
+                name = setName(marker: marker)
             } else {
                 name = "\(baseName)-\(runtime.rawValue)"
             }
-            plan.append((name, runtime, pool.labels))
+            plan.append((name, runtime, pool.labels, nil))
+        }
+        // One set per named container pool: its jobs arrive stamped with the pool's labels, marker included, so
+        // container pool routing sends them to that pool.
+        if pools[.appleContainer] != nil {
+            for entry in containerPools.entries {
+                plan.append((setName(marker: entry.marker), .appleContainer, entry.labels, entry.name))
+            }
         }
         if let tart = pools[.tart] {
             for image in images {
-                plan.append(("\(baseName)-\(image.name)", .tart, tart.labels + (image.labels ?? [])))
+                plan.append(("\(baseName)-\(image.name)", .tart, tart.labels + (image.labels ?? []), nil))
             }
         }
         // The base-named set (primary) first.
@@ -163,7 +177,7 @@ extension FleetEngine {
         for entry in plan {
             let listener = await makeGitHubScaleSetListener(
                 account: account, token: token, client: client, scaleSet: scaleSet, setName: entry.name,
-                runtime: entry.runtime)
+                runtime: entry.runtime, containerPool: entry.pool)
             targets.append(
                 ScaleSetTarget(
                     setName: entry.name, runtime: entry.runtime, routingLabels: entry.labels, listener: listener))
@@ -184,7 +198,7 @@ extension FleetEngine {
     /// object is. A closure that outlives the engine fails the request instead.
     private func makeGitHubScaleSetListener(
         account: AccountConfig, token: String, client: GitHubServing, scaleSet: AccountConfig.ScaleSetConfig,
-        setName: String, runtime: RuntimeID
+        setName: String, runtime: RuntimeID, containerPool: String? = nil
     ) async -> GitHubScaleSetListener {
         let credentials = GitHubCredentials(
             token: token, scope: account.scope, instance: account.instance,
@@ -209,7 +223,7 @@ extension FleetEngine {
             fallbackRepository: account.scope.contains("/") ? account.scope : nil,
             pollInterval: .seconds(2),
             // Read on every poll: a reload that changes the caps reaches the open session.
-            capacity: { [weak self] in self?.scaleSetJobCapacity(for: runtime) ?? 0 },
+            capacity: { [weak self] in self?.scaleSetJobCapacity(for: runtime, containerPool: containerPool) ?? 0 },
             onDemandUpdate: { [weak self] in self?.pollSoon() },
             sessionStore: ScaleSetSessionStore(
                 directory: Paths.stateDirectory, account: account.name, scaleSet: setName)
@@ -218,8 +232,14 @@ extension FleetEngine {
 
     /// The job slots a scale set feeding `runtime`'s pool offers GitHub right
     /// now, from the latest reloaded caps.
-    func scaleSetJobCapacity(for runtime: RuntimeID) -> Int {
-        router.snapshot.jobCapacity(
+    func scaleSetJobCapacity(for runtime: RuntimeID, containerPool: String? = nil) -> Int {
+        let snapshot = router.snapshot
+        if let name = containerPool, let pool = config.container?.pools.first(where: { $0.name == name }) {
+            return snapshot.jobCapacity(
+                forContainerPool: pool, maxRunners: config.maxRunners, capacityCap: capacity.maxConcurrent,
+                runnersPerVM: config.runnersPerVM)
+        }
+        return snapshot.jobCapacity(
             for: runtime, maxRunners: config.maxRunners, capacityCap: capacity.maxConcurrent,
             runnersPerVM: config.runnersPerVM)
     }

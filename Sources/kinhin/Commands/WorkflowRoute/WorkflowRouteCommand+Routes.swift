@@ -89,6 +89,18 @@ extension WorkflowRouteCommand {
         return jobs.contains { !WorkflowRouteEditor.canEdit($0) && !WorkflowRouteEditor.hasMarker($0, marker: marker) }
     }
 
+    /// The registered labels of the named container pool `--pool` targets; nil without `--pool`. A name the config
+    /// does not have is a usage error listing the pools it does.
+    static func containerPoolLabels(_ options: Options, config: KinhinConfig) throws -> [String]? {
+        guard let name = options.pool else { return nil }
+        if let labels = RuntimeConfigModel.containerPoolLabels(named: name, config: config) { return labels }
+        let names = config.container?.pools.map(\.name) ?? []
+        throw WorkflowRouteCLIError.usage(
+            names.isEmpty
+                ? "--pool needs named container pools, and the container: section has no pools:"
+                : "no container pool '\(name)' — the config has: \(names.joined(separator: ", "))")
+    }
+
     /// The default a fleet *without* a `runtimes:` section actually serves
     /// on — the same primary-runtime rule `RuntimeConfigModel` applies.
     private static func effectivePrimary(of config: KinhinConfig) -> RuntimeID {

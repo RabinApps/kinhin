@@ -3,8 +3,8 @@ import Foundation
 // FleetEngine — `min_idle`: the floors the scale plan keeps, and the engine-side check on its top-ups.
 extension FleetEngine {
     /// Idle registered instances to keep per pool and per Tart image: the default image's `image_min_idle`
-    /// (keyed "", like its warm pool), each `images:` entry's `min_idle`, and `container.min_idle` /
-    /// `docker.min_idle`. `images` is the router snapshot's table, so a reload applies on the next pass; its
+    /// (keyed "", like its warm pool), each `images:` entry's `min_idle`, `container.min_idle` (each named
+    /// container pool's own, with `container.pools:`) and `docker.min_idle`. `images` is the router snapshot's table, so a reload applies on the next pass; its
     /// synthesized default-image entry carries 0, so the base image is only ever keyed "". Named images in
     /// `unprepared` keep no floor this pass (see `unpreparedIdleImages`).
     func minIdleTargets(images: [KinhinConfig.ImageConfig], unprepared: Set<String> = []) -> [ScalePlan.IdleKey: Int] {
@@ -13,8 +13,8 @@ extension FleetEngine {
         for image in images where image.minIdle > 0 && !unprepared.contains(image.name) {
             targets[.init(runtime: .tart, image: image.name)] = image.minIdle
         }
-        if let container = config.container, container.minIdle > 0 {
-            targets[.init(runtime: .appleContainer)] = container.minIdle
+        for pool in config.container?.effectivePools ?? [] where pool.minIdle > 0 {
+            targets[.init(runtime: .appleContainer, pool: pool.name)] = pool.minIdle
         }
         if let docker = config.docker, docker.minIdle > 0 { targets[.init(runtime: .docker)] = docker.minIdle }
         return targets
@@ -58,7 +58,7 @@ extension FleetEngine {
             !(slot.idle && slot.claim == nil && slot.image.map { missing.contains($0) } == true)
         }
         let started = admitted.filter(\.idle).map { slot in
-            ScalePlan.IdleKey(runtime: slot.runtime, image: slot.image ?? "").description
+            ScalePlan.IdleKey(runtime: slot.runtime, image: slot.image ?? "", pool: slot.pool ?? "").description
         }
         if !started.isEmpty {
             Log.info("engine", "keeping idle runners (min_idle): starting \(started.joined(separator: ", "))")

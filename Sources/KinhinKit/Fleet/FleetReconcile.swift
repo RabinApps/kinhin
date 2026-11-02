@@ -206,7 +206,10 @@ extension FleetEngine {
 
         // 3. Decide the whole pass once (spawns, scale-down) and publish it.
         let unprepared = await unpreparedIdleImages(images: router.snapshot.images)
-        let plan = scalePlan(demand: demand, attached: attached, unpreparedIdleImages: unprepared)
+        let unbuiltPools = await unpreparedContainerPools()
+        let plan = scalePlan(
+            demand: demand, attached: attached, unpreparedIdleImages: unprepared, unpreparedContainerPools: unbuiltPools
+        )
         await publishDesired(plan.desired)
         // A paused pass masks the queue (see `pollDemand`), so it never
         // counts as idle.
@@ -232,6 +235,10 @@ extension FleetEngine {
         var includesRunning: Set<String> = []
         /// Queued tart jobs served by a ready derived per-project image.
         var byImage: [String: Int] = [:]
+        /// Queued Apple container jobs per named container pool (empty without `container.pools:`).
+        var byContainerPool: [String: Int] = [:]
+        /// The same jobs per account and named container pool.
+        var byForgeContainerPool: [String: [String: Int]] = [:]
         /// Jobs waiting on an image bake, for the status snapshot.
         var imageNotices: Set<String> = []
         /// Accounts whose queue could not be read this pass. A failed read is
@@ -303,6 +310,11 @@ extension FleetEngine {
                     demand.byPool[poolID, default: 0] += count
                 }
                 for (image, count) in projectDemand.byImage { demand.byImage[image, default: 0] += count }
+                let containerPools = routerState.model.demandByContainerPool(for: jobs)
+                if !containerPools.isEmpty { demand.byForgeContainerPool[forge.account] = containerPools }
+                for (pool, count) in containerPools {
+                    demand.byContainerPool[pool, default: 0] += count
+                }
                 demand.imageNotices.formUnion(projectDemand.notices)
             case .failed(let message, let type):
                 countError(type == .unknown ? .forgeAPIFailure : type, component: .forge)
@@ -312,7 +324,8 @@ extension FleetEngine {
             }
         }
         publishQueueTelemetry(
-            byForge: demand.byForge, byPool: demand.byPool, oldestEnqueuedAt: demand.oldestEnqueuedAt)
+            byForge: demand.byForge, byPool: demand.byPool, byContainerPool: demand.byContainerPool,
+            oldestEnqueuedAt: demand.oldestEnqueuedAt)
         if paused {
             // Paused with auto-resume: hold while demand remains, release once
             // the queue is empty. A forge outage (every fetch failed) must NOT
@@ -355,21 +368,37 @@ extension FleetEngine {
 
     /// The pure scaling decision for this pass, from the records, the forges'
     /// demand, the caps and the spawn backoff. Named images in `unpreparedIdleImages`
-    /// keep no `min_idle` floor (see `unpreparedIdleImages(images:)`).
-    func scalePlan(demand: Demand, attached: [Forge], unpreparedIdleImages: Set<String> = []) -> ScalePlan {
+    /// keep no `min_idle` floor (see `unpreparedIdleImages(images:)`), and named
+    /// container pools in `unpreparedContainerPools` are left out of the plan
+    /// altogether (see `unpreparedContainerPools()`).
+    func scalePlan(
+        demand: Demand, attached: [Forge], unpreparedIdleImages: Set<String> = [],
+        unpreparedContainerPools: Set<String> = []
+    ) -> ScalePlan {
         let held = spawnBackoff.withLock { $0.blocked(now: Date()) }
         let routerState = router.snapshot
         let routing = routerState.model
-        return ScalePlan.make(
-            ScalePlan.Input(
-                records: store.all, demand: demand.byForgePool, includesRunning: demand.includesRunning,
-                attached: Set(attached.map(\.account)), failedForges: demand.failedForges,
-                runnersPerVM: max(1, config.runnersPerVM), minRunners: config.minRunners,
-                maxRunners: config.maxRunners, capacityCap: capacity.maxConcurrent, poolCaps: routerState.caps,
-                heldRuntimes: held, existingPools: Set(routing.pools.keys), defaultRuntime: routing.defaultRuntime,
-                warmPool: warmTargets(images: routerState.images),
-                warmMaxAge: TimeInterval(config.warmMaxAgeMinutes) * 60, imageDemand: demand.byImage,
-                minIdle: minIdleTargets(images: routerState.images, unprepared: unpreparedIdleImages)))
+        var input = ScalePlan.Input(
+            records: store.all, demand: demand.byForgePool, includesRunning: demand.includesRunning,
+            attached: Set(attached.map(\.account)), failedForges: demand.failedForges,
+            runnersPerVM: max(1, config.runnersPerVM), minRunners: config.minRunners,
+            maxRunners: config.maxRunners, capacityCap: capacity.maxConcurrent, poolCaps: routerState.caps,
+            heldRuntimes: held, existingPools: Set(routing.pools.keys), defaultRuntime: routing.defaultRuntime,
+            warmPool: warmTargets(images: routerState.images),
+            warmMaxAge: TimeInterval(config.warmMaxAgeMinutes) * 60, imageDemand: demand.byImage,
+            minIdle: minIdleTargets(images: routerState.images, unprepared: unpreparedIdleImages))
+        // Named container pools: their demand, shapes and the budget they share (none without `pools:`).
+        if let container = config.container, !container.pools.isEmpty {
+            input.containerPoolDemand = demand.byContainerPool
+            input.containerPools = Dictionary(
+                uniqueKeysWithValues: container.pools.map {
+                    ($0.name, ScalePlan.ContainerPoolShape(cpus: $0.cpus, memoryGB: $0.memoryGB, max: $0.max))
+                })
+            input.defaultContainerPool = container.defaultPool.name
+            input.containerBudget = routerState.containerBudget
+            input.exclude(containerPools: unpreparedContainerPools, demandByAccount: demand.byForgeContainerPool)
+        }
+        return ScalePlan.make(input)
     }
 
     /// Warm instances to keep per Tart image: the base `warm_pool` ("") and each `images:` entry's own.
@@ -433,6 +462,7 @@ extension FleetEngine {
             record.platform = slot.account
             record.runtime = slot.runtime.rawValue
             record.image = slot.image
+            record.pool = slot.pool
             store.upsert(record)
             // The lifecycle waits its turn at the engine's `SpawnPacer`, so disk I/O does not
             // stampede; the pass itself never sleeps.

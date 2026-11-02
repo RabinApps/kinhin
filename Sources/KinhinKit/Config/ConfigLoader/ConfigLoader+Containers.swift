@@ -4,6 +4,8 @@ import Foundation
 
 extension ConfigLoader {
     static func parseContainer(_ container: PartialConfig.PartialContainer) throws -> KinhinConfig.ContainerConfig {
+        // With `pools:`, the section's own image is only the default for pools that leave theirs out.
+        if container.pools != nil, container.image == nil { return try parseContainerPools(container) }
         guard let containerImage = container.image, !containerImage.isEmpty else {
             throw ConfigError.invalid(
                 "container.image must not be empty (a Linux OCI image baked with runner agents)")
@@ -25,7 +27,7 @@ extension ConfigLoader {
         }
         let containerBase = try Self.validatedBaseImage(container.baseImage, key: "container.base_image")
         let flags = try Self.validatedContainerRunFlags(container.flags, key: "container.flags")
-        return KinhinConfig.ContainerConfig(
+        let section = KinhinConfig.ContainerConfig(
             image: containerImage,
             cpus: container.cpus ?? KinhinConfig.ContainerConfig.defaultCPUs,
             memoryGB: container.memoryGB ?? KinhinConfig.ContainerConfig.defaultMemoryGB,
@@ -36,6 +38,8 @@ extension ConfigLoader {
             docker: container.docker ?? false,
             flags: flags
         )
+        guard container.pools != nil else { return section }
+        return try parseContainerPools(container, section: section)
     }
 
     static func parseDocker(_ docker: PartialConfig.PartialDocker) throws -> KinhinConfig.DockerForgeConfig {

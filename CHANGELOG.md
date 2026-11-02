@@ -18,6 +18,20 @@
   compose`. `kinhin image prepare --container` installs Docker when the base image lacks it. `container.flags:` passes
   extra arguments to `container run` (for example `["--shm-size", "2g"]`); the loader rejects the flags kinhin sets
   itself (#75). See [docs/runtimes.md](docs/runtimes.md#docker-inside-container-runners).
+- `container.pools:` splits Apple container into named pools, each with its own image, `cpus`, `memory_gb`, labels,
+  `min_idle`, `docker`, `flags` and an optional `max:`; the section's own keys are their defaults. A job goes to the
+  pool whose labels it carries (the most specific, like named Tart images), and `runs-on: [..., kinhin-container-NAME]`
+  targets one pool. Each pool keeps its own idle runners and demand, and the pools share Apple container's CPU and RAM:
+  a runner starts only when its pool's size fits what is left. `kinhin image prepare --container --pool NAME` (or
+  `--all`) bakes a pool's image, `kinhin workflow route --pool NAME` routes to one, and `kinhin doctor` lists each pool.
+  A pool whose image is not built is left out (its jobs wait) instead of holding every pool in spawn backoff. Telemetry
+  labels Apple container series with `kinhin.container.pool`, splits the Apple container queue depth by pool, and reports
+  an unbuilt pool as `kinhin.spawn.held` with `hold_reason` `image_missing`. Without `pools:` nothing changes (#75). See
+  [docs/runtimes.md](docs/runtimes.md#several-container-pools).
+- The app shows and edits container pools: **Advanced → Routing** has a card per `container.pools:` entry (labels,
+  CPUs and memory, `max:`, `min_idle`, Docker, image and whether it is built) and **Add Container Pool…**, **Edit…** and
+  **Remove**, whose sheet leaves a blank field to inherit the `container:` value. The Fleet tab and **Advanced →
+  Containers** show each container runner's pool. Every app editor that rewrites `container:` keeps the pools (#75).
 
 **Fixed**
 
@@ -31,6 +45,9 @@
   third Tart VM beside two warm ones when `runtimes.budget` gives Tart a partition of 2, which is Apple's limit for
   macOS VMs. Warm VMs are now evicted to keep the Tart partition, not only `max_runners`. See
   [docs/scaling.md](docs/scaling.md#warm-pool).
+- `fleet_labels: false` on `container:` or `docker:` was ignored by the running fleet and the Advanced → Routing tab:
+  the pool's runners still registered with the fleet labels, although `kinhin workflow route` left them out. All three
+  now build the routing table in one place.
 
 ## v0.0.1-beta-4
 

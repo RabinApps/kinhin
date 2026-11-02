@@ -85,9 +85,13 @@ extension WorkflowRouteEditor {
     ///   picks the pool by label opt-in. For a markerless runtime (tart),
     ///   every stale `kinhin-*` marker is stripped instead — a marker-only
     ///   job would otherwise land in the wrong pool once a tart route applies.
+    /// - `poolMarker` (a named container pool's `kinhin-container-<name>`) is
+    ///   appended after it when missing, so the job lands in that pool.
     /// - When nothing matchable survives (a GitHub-hosted scalar, an
     ///   all-stale list), the pool's exact label list is written instead.
-    public static func editJobLabels(current: [String], runtime: RuntimeID, poolLabels: [String]) -> [String] {
+    public static func editJobLabels(
+        current: [String], runtime: RuntimeID, poolLabels: [String], poolMarker: String? = nil
+    ) -> [String] {
         let matchable = Set(poolLabels.map { $0.lowercased() })
         var out = current.filter { matchable.contains($0.lowercased()) }
         // Nothing matchable survived (a GitHub-hosted scalar, an all-stale
@@ -95,7 +99,8 @@ extension WorkflowRouteEditor {
         // runner match included.
         if out.isEmpty { return poolLabels }
         if let marker = marker(for: runtime) {
-            if !out.contains(where: { $0.caseInsensitiveCompare(marker) == .orderedSame }) {
+            for marker in [marker] + [poolMarker].compactMap({ $0 })
+            where !out.contains(where: { $0.caseInsensitiveCompare(marker) == .orderedSame }) {
                 out.append(marker)
             }
         } else {

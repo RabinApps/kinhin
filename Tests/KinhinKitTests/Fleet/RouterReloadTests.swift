@@ -112,6 +112,29 @@ final class RouterReloadTests: XCTestCase {
         XCTAssertEqual(engine.poolLabels(for: record), ["self-hosted", "arm64", "gpu"])
     }
 
+    /// `fleet_labels: false` on `container:` and `docker:` (replace-not-add) reaches the engine's table, so its
+    /// runners register with what `kinhin workflow route` promised, not the fleet labels too.
+    func testFleetLabelsFalseReachesTheEngineTable() {
+        var cfg = Self.mixedConfig(labels: ["self-hosted", "arm64"])
+        cfg.container = .init(image: "c", cpus: 1, memoryGB: 4, labels: ["linux"], fleetLabels: false)
+        cfg.docker = .init(image: "d", fleetLabels: false)
+        let engine = makeEngine(cfg)
+        var container = VMRecord(id: "kinhin-1", phase: .cloning)
+        container.runtimeID = .appleContainer
+        var docker = VMRecord(id: "kinhin-2", phase: .cloning)
+        docker.runtimeID = .docker
+        XCTAssertEqual(engine.poolLabels(for: container), ["linux", "kinhin-container"])
+        XCTAssertEqual(engine.poolLabels(for: docker), ["arm64", "kinhin-docker"])
+        for runtime in [RuntimeID.appleContainer, .docker] {
+            XCTAssertEqual(
+                Router.Snapshot.make(config: cfg, host: host).model.pools[runtime]?.labels,
+                RuntimeConfigModel.poolLabels(for: runtime, config: cfg), "the engine and the CLI agree on \(runtime)")
+        }
+
+        engine.applyReloaded(config: cfg, host: host)
+        XCTAssertEqual(engine.poolLabels(for: container), ["linux", "kinhin-container"], "a reload keeps it")
+    }
+
     func testReloadedCapsReachTheNextScalePlan() async throws {
         let cfg = Self.mixedConfig(budget: ["tart": 0.5, "appleContainer": 0.5])
         let engine = makeEngine(cfg)

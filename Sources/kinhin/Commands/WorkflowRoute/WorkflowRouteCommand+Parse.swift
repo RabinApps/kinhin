@@ -11,6 +11,7 @@ extension WorkflowRouteCommand {
     /// there would be no workflow to route).
     static func parse(_ args: [String]) throws -> Options {
         var job: String?
+        var pool: String?
         var dryRun = false
         var json = false
         var consent = false
@@ -30,6 +31,12 @@ extension WorkflowRouteCommand {
                     throw WorkflowRouteCLIError.usage("--job needs a job name")
                 }
                 job = args[index]
+            case "--pool":
+                index += 1
+                guard index < args.count else {
+                    throw WorkflowRouteCLIError.usage("--pool needs a container pool name")
+                }
+                pool = args[index]
             case let v where v.hasPrefix("--"):
                 throw WorkflowRouteCLIError.usage("unknown option: \(v)")
             default:
@@ -59,7 +66,11 @@ extension WorkflowRouteCommand {
                 } ?? "missing target runtime — expected one of: tart, appleContainer, docker, host"
             )
         }
-        var opt = Options(runtime: runtime, job: job, dryRun: dryRun, json: json, consent: consent)
+        var opt = Options(runtime: runtime, job: job, pool: pool, dryRun: dryRun, json: json, consent: consent)
+        if pool != nil, runtime != .appleContainer {
+            throw WorkflowRouteCLIError.usage(
+                "--pool names a container.pools: entry: it applies to appleContainer only")
+        }
 
         switch positionals.count {
         case 0:
@@ -94,13 +105,14 @@ extension WorkflowRouteCommand {
 
     static let help = """
         usage: kinhin workflow route <FILE|workflow name> <tart|appleContainer|docker|host> \\
-                [--job NAME] [--dry-run] [--json] [--consent]
+                [--job NAME] [--pool NAME] [--dry-run] [--json] [--consent]
 
         Route a workflow's jobs to a kinhin runtime: edits the workflow's runs-on: labels
         (comment-preserving; ${{ }} expressions, group mappings and reusable-workflow jobs
         are refused) and, when routing precedence needs it, adds an owner/repo@Workflow
         route to config.yaml — a running daemon reloads it live.
           --job NAME   Route one job instead of every job in the workflow
+          --pool NAME  With appleContainer: route to one container.pools: entry
           --dry-run    Print what would change; write nothing
           --json       Machine-readable report
           --consent    Required for host (jobs run unisolated on this Mac)

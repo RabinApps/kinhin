@@ -13,6 +13,8 @@ struct ConfigSchema {
         case object(ConfigSchema)
         /// A list of mappings that each follow the schema.
         case list(ConfigSchema)
+        /// A mapping from names the user picks (`container.pools:`) to mappings that each follow the schema.
+        case map(ConfigSchema)
     }
 
     /// Keys valid at this level.
@@ -36,7 +38,10 @@ struct ConfigSchema {
                     PartialConfig.PartialHealing.CodingKeys.self,
                     ["ollama": .object(.init(PartialConfig.PartialHealing.PartialOllama.CodingKeys.self))])),
             "telemetry": .object(.init(PartialConfig.PartialTelemetry.CodingKeys.self)),
-            "container": .object(.init(PartialConfig.PartialContainer.CodingKeys.self)),
+            "container": .object(
+                .init(
+                    PartialConfig.PartialContainer.CodingKeys.self,
+                    ["pools": .map(.init(PartialConfig.PartialContainerPool.CodingKeys.self))])),
             "docker": .object(.init(PartialConfig.PartialDocker.CodingKeys.self)),
             "toolchain_cache": .object(.init(PartialConfig.PartialCachePolicy.CodingKeys.self)),
             "runtimes": .object(
@@ -108,6 +113,12 @@ struct ConfigSchema {
                 guard let items = value.sequence else { continue }
                 for (index, item) in items.enumerated() {
                     schema.collect(item, path: "\(full)[\(index)]", isRoot: false, into: &found)
+                }
+            case .map(let schema):
+                guard let entries = value.mapping else { continue }
+                for (nameNode, item) in entries {
+                    guard let name = nameNode.string else { continue }
+                    schema.collect(item, path: "\(full).\(name)", isRoot: false, into: &found)
                 }
             case nil:
                 break

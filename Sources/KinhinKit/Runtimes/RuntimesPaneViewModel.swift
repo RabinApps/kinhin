@@ -89,20 +89,10 @@ public struct RuntimesPaneViewModel: Sendable, Equatable {
         }
         let rc = routing ?? parsed.runtimes
         vm.routingConfigured = rc != nil
-        let fleetLabels = parsed.labels
 
         // Pools: same construction the engine uses (RuntimeConfigModel), so
         // the pane never disagrees with what the fleet actually registers.
-        let hostConfigured = parsed.hostRoutesConfigured
-        let model = RuntimeConfigModel(
-            config: rc,
-            fleetLabels: fleetLabels,
-            containerLabels: parsed.container?.labels,
-            containerConfigured: vm.containerConfigured,
-            dockerConfigured: vm.dockerConfigured,
-            dockerPlatform: parsed.docker?.platform ?? .arm64,
-            hostConfigured: hostConfigured
-        )
+        let model = RuntimeConfigModel(config: parsed, routing: rc)
 
         // Capacity: the engine's own caps for this config (with the pane's
         // routing and reserve), so the pane never disagrees with the fleet.

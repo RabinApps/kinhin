@@ -296,6 +296,66 @@ kinhin sets itself, in any spelling (`--name`, `--rm`, `--detach`/`-d`, `--cpus`
 `--arch`/`-a`, `--os`, plus `--help` and `--version`), empty elements, and a first element that is not a flag. Run
 `container run --help` for what the rest do.
 
+#### Several container pools
+
+`pools:` under `container:` splits Apple container into named pools, each with its own image, shape, labels, floor,
+Docker and flags. The keys at the top of `container:` are the defaults every pool inherits; a pool sets only what it
+changes, plus an optional `max:` (at most that many of its runners at once):
+
+```yaml
+container:
+  cpus: 2 # defaults for every pool
+  memory_gb: 7
+  docker: true
+  pools:
+    linux: { image: kinhin-ci-linux, labels: [linux], min_idle: 1 }
+    big:
+      image: kinhin-ci-linux
+      labels: [linux, big]
+      cpus: 4
+      memory_gb: 12
+      flags: ["--shm-size", "2g"]
+      max: 2
+```
+
+- **Routing.** A job routed to Apple container (by a route, the `kinhin-container` label or the default runtime) lands
+  in the pool whose labels it carries, the most specific one when several match, the same rule as
+  [named Tart images](#choosing-the-image-per-job): `runs-on: [self-hosted, arm64, linux, big]` goes to `big`, `[...,
+  linux]` to `linux`. A job no pool's labels claim goes to the **default pool**: the one with the fewest labels (a pool
+  without labels catches everything else), then the first by name. Each pool's runners also register with
+  `kinhin-container-<name>`, which targets that pool alone and routes the job to Apple container even without a route;
+  `kinhin workflow route FILE appleContainer --pool NAME` adds it for you. On a
+  [GitHub scale set](forges/github.md#scale-set-mode-in-kinhin), each pool gets its own set, `kinhin-container-<name>`.
+- **Capacity.** The pools share Apple container's budget: its `runtimes.budget` share in a mixed fleet, else the Mac
+  minus `reserve:`. A runner starts only if its pool's `cpus` and `memory_gb` fit in what the running containers (each
+  at its own pool's size) leave of it, and the pool is under its `max:`. When the pool a job needs is full, kinhin does
+  not start another pool's runner for it (that runner's labels could not take the job). A pool larger than the whole
+  budget never starts: `kinhin doctor` and the log say so.
+- **Floors.** Each pool's `min_idle` is its own (the top-level one is only their default), and an idle runner of one
+  pool never counts for another's jobs (see [Idle runners per pool and image](scaling.md#idle-runners-per-pool-and-image)).
+- **Images.** `kinhin image prepare --container --pool NAME` bakes one pool's image on its `base_image`;
+  `--container --all` bakes every pool's image, each shared image once. A shared image gets Docker when any pool that
+  runs it has `docker: true` (dockerd only starts in the pools that ask for it), and two pools sharing an image must
+  name the same `base_image`. `kinhin image prune` keeps every pool's image. A pool whose image is not built yet is
+  left out (logged once, and `kinhin doctor` says so): its jobs wait and its `min_idle` is skipped, instead of failed
+  starts holding every pool back. kinhin rechecks the local images every minute, so a pool starts within a minute of
+  its bake.
+- **Restarts.** Each instance remembers its pool. One adopted without a record, or from a pool you since removed, runs
+  as the default pool.
+- **In the app.** **Advanced → Routing** has a **Container pools** group with a card per pool: its labels (with
+  `kinhin-container-<name>`), CPUs and memory, `max:`, `min_idle`, Docker, image, whether that image is built (with
+  the `kinhin image prepare --container --pool NAME` command when it is not) and which pool takes unmatched jobs.
+  **Add Container Pool…**, **Edit…** and **Remove** write `container.pools:`; in the sheet, a blank field leaves the
+  key out so the pool inherits the `container:` value its placeholder shows, and **Run flags** takes one argument per
+  line. The edit is validated like any config edit and rewrites only the `container:` section (comments inside it are
+  not kept); the engine restarts to apply it and keeps the runners it has. The Fleet tab's instance rows and
+  **Advanced → Containers** show the pool each container runner belongs to.
+
+Pool names are lowercase letters, digits and inner `-`, up to 32 characters (they end up in a label). The loader also
+rejects two pools with the same labels, a `max:` below the pool's `min_idle`, a pool `platform:` (Apple container runs
+linux/arm64 only) and each pool's `flags` by the rules above. Without `pools:`, the `container:` section is one pool and
+behaves exactly as before.
+
 ### Docker
 
 ```yaml
@@ -457,7 +517,8 @@ each runtime gets its share of the host's CPU cores and of its RAM, and may only
 `kinhin status` shows the result. If a split would leave a configured route with zero capacity, the app warns you
 before you can save it.
 
-Manage routes in **Advanced → Routing** (pools with a live health chip, routes, the default pool, and labels) or with
+Manage routes in **Advanced → Routing** (pools with a live health chip, the named
+[container pools](#several-container-pools), routes, the default pool, and labels) or with
 `kinhin runtimes route add|remove`. The capacity split lives in **Advanced → Capacity**: a budget slider per runtime —
 drag it or type a percent, and lock a pool to keep its share fixed while the others rebalance. `kinhin runtimes` prints the same summary. Changes edit only the relevant
 part of `config.yaml`, must pass full validation, and reach a running fleet without a restart.
@@ -475,8 +536,9 @@ kinhin workflow route ci.yml tart --dry-run --json # plan only, machine-readable
 It:
 
 - rewrites each job's `runs-on:` **comment-preservingly** — appending the pool's marker (`kinhin-container`,
-  `kinhin-docker`, `kinhin-host`), replacing GitHub-hosted labels the fleet's runners can never satisfy with the
-  target pool's exact labels, and stripping stale markers when targeting tart (tart is markerless);
+  `kinhin-docker`, `kinhin-host`, and `kinhin-container-<name>` with `--pool NAME` for a
+  [named container pool](#several-container-pools)), replacing GitHub-hosted labels the fleet's runners can never
+  satisfy with the target pool's exact labels, and stripping stale markers when targeting tart (tart is markerless);
 - **reconciles the config route only when precedence requires it** — a repo route that outranks the marker, or a
   markerless target off the default — through the same validated editor `runtimes route add` uses; a running
   daemon reloads it live;

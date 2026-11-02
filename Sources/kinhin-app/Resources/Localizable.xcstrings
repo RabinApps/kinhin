@@ -42897,6 +42897,2497 @@
           }
         }
       }
+    },
+    "  No named pools — every container job runs in the one pool container: describes." : {
+      "comment" : "Routing tab, Container pools group without pools:; keep container: verbatim",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "  Sin pools con nombre: cada trabajo de contenedor se ejecuta en el único pool que describe container:."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "  名前付きプールはありません。コンテナのジョブはすべて container: が定義する 1 つのプールで実行されます。"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "  Keine benannten Pools – jeder Container-Job läuft im einen Pool, den container: beschreibt."
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "  אין מאגרים בעלי שם — כל משימת קונטיינר רצה במאגר היחיד ש-container: מתאר."
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "  لا توجد مجمّعات مسمّاة — كل مهمة حاوية تعمل في المجمّع الوحيد الذي يصفه container:."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "  Nessun pool con nome: ogni job container gira nell'unico pool descritto da container:."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "  Aucun pool nommé : chaque tâche conteneur s’exécute dans l’unique pool décrit par container:."
+          }
+        }
+      }
+    },
+    "%lld vCPU · %lld GB" : {
+      "comment" : "Container pool card: each runner's CPUs, then its memory in GB",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld vCPU · %lld GB"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld vCPU · %lld GB"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld vCPU · %lld GB"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld vCPU · %lld GB"
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld vCPU · %lld GB"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld vCPU · %lld GB"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld vCPU · %lld Go"
+          }
+        }
+      }
+    },
+    "A pool name is lowercase letters, digits and inner hyphens, up to 32 characters (it becomes part of a runner label)." : {
+      "comment" : "Container pool sheet validation",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un nombre de pool lleva minúsculas, dígitos y guiones internos, hasta 32 caracteres (forma parte de una etiqueta de runner)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プール名は小文字、数字、途中のハイフンのみで、32 文字以内です（ランナーのラベルの一部になります）。"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ein Pool-Name besteht aus Kleinbuchstaben, Ziffern und inneren Bindestrichen, höchstens 32 Zeichen (er wird Teil eines Runner-Labels)."
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "שם מאגר מורכב מאותיות קטנות, ספרות ומקפים פנימיים, עד 32 תווים (הוא הופך לחלק מתווית של runner)."
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "اسم المجمّع أحرف صغيرة وأرقام وشرطات داخلية، حتى 32 حرفًا (يصبح جزءًا من وسم المشغّل)."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un nome di pool è fatto di lettere minuscole, cifre e trattini interni, fino a 32 caratteri (diventa parte di un'etichetta del runner)."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un nom de pool se compose de minuscules, de chiffres et de tirets internes, 32 caractères au plus (il fait partie d’un label de runner)."
+          }
+        }
+      }
+    },
+    "Add Container Pool" : {
+      "comment" : "Title of the container pool sheet when adding a pool",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Añadir pool de contenedores"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コンテナプールを追加"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Container-Pool hinzufügen"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "הוספת מאגר קונטיינרים"
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "إضافة مجمّع حاويات"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aggiungi pool di container"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajouter un pool de conteneurs"
+          }
+        }
+      }
+    },
+    "Add Container Pool…" : {
+      "comment" : "Routing tab button that opens the container pool sheet",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Añadir pool de contenedores…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コンテナプールを追加…"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Container-Pool hinzufügen …"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "הוספת מאגר קונטיינרים…"
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "إضافة مجمّع حاويات…"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aggiungi pool di container…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajouter un pool de conteneurs…"
+          }
+        }
+      }
+    },
+    "Apple container isn't enabled in config.yaml." : {
+      "comment" : "Routing tab: error when a container pool is edited without a container: section; keep config.yaml",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple container no está activado en config.yaml."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "config.yaml で Apple container が有効になっていません。"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple container ist in config.yaml nicht aktiviert."
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple container אינו מופעל ב-config.yaml."
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple container غير مفعّل في config.yaml."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple container non è attivo in config.yaml."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple container n’est pas activé dans config.yaml."
+          }
+        }
+      }
+    },
+    "CPUs" : {
+      "comment" : "Container pool sheet field label: CPUs per runner",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPUs"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "מעבדים"
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "المعالجات"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU"
+          }
+        }
+      }
+    },
+    "CPUs must be a whole number, 1 or more." : {
+      "comment" : "Container pool sheet validation",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Las CPU deben ser un número entero, 1 o más."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU は 1 以上の整数で指定してください。"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPUs müssen eine ganze Zahl sein, 1 oder mehr."
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "מספר המעבדים חייב להיות מספר שלם, 1 או יותר."
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "يجب أن يكون عدد المعالجات عددًا صحيحًا، 1 أو أكثر."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le CPU devono essere un numero intero, 1 o più."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les CPU doivent être un nombre entier, 1 ou plus."
+          }
+        }
+      }
+    },
+    "CPUs per runner" : {
+      "comment" : "VoiceOver label of the container pool CPUs field",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU por runner"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ランナーあたりの CPU"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPUs pro Runner"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "מעבדים לכל runner"
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "المعالجات لكل مشغّل"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU per runner"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU par runner"
+          }
+        }
+      }
+    },
+    "Container pools" : {
+      "comment" : "Routing tab section header above the named Apple container pools",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pools de contenedores"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コンテナプール"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Container-Pools"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "מאגרי קונטיינרים"
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "مجمّعات الحاويات"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pool di container"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pools de conteneurs"
+          }
+        }
+      }
+    },
+    "Default (off)" : {
+      "comment" : "Container pool Docker picker: inherit the section's docker: false",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Predeterminado (no)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "既定（オフ）"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Standard (aus)"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ברירת מחדל (כבוי)"
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "الافتراضي (معطّل)"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Predefinito (off)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Par défaut (non)"
+          }
+        }
+      }
+    },
+    "Default (on)" : {
+      "comment" : "Container pool Docker picker: inherit the section's docker: true",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Predeterminado (sí)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "既定（オン）"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Standard (an)"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ברירת מחדל (מופעל)"
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "الافتراضي (مفعّل)"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Predefinito (on)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Par défaut (oui)"
+          }
+        }
+      }
+    },
+    "Docker off" : {
+      "comment" : "Container pool card: docker: false; keep Docker",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker desactivado"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker オフ"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker aus"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker כבוי"
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker معطّل"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker disattivato"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker désactivé"
+          }
+        }
+      }
+    },
+    "Docker on" : {
+      "comment" : "Container pool card: docker: true; keep Docker",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker activado"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker オン"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker an"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker מופעל"
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker مفعّل"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker attivo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker activé"
+          }
+        }
+      }
+    },
+    "Edit Container Pool" : {
+      "comment" : "Title of the container pool sheet when editing a pool",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Editar pool de contenedores"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コンテナプールを編集"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Container-Pool bearbeiten"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "עריכת מאגר קונטיינרים"
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تعديل مجمّع حاويات"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modifica pool di container"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modifier le pool de conteneurs"
+          }
+        }
+      }
+    },
+    "Edit container pool %@" : {
+      "comment" : "VoiceOver label of a container pool card's Edit button; %@ is the pool name",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Editar el pool de contenedores %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コンテナプール %@ を編集"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Container-Pool %@ bearbeiten"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "עריכת מאגר הקונטיינרים %@"
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تعديل مجمّع الحاويات %@"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modifica il pool di container %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modifier le pool de conteneurs %@"
+          }
+        }
+      }
+    },
+    "Edit…" : {
+      "comment" : "Container pool card button that opens the pool sheet",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Editar…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "編集…"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bearbeiten …"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "עריכה…"
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تعديل…"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modifica…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modifier…"
+          }
+        }
+      }
+    },
+    "Enter a pool name." : {
+      "comment" : "Container pool sheet validation",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escribe un nombre de pool."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プール名を入力してください。"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gib einen Pool-Namen ein."
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "יש להזין שם מאגר."
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "أدخل اسم المجمّع."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inserisci un nome per il pool."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saisissez un nom de pool."
+          }
+        }
+      }
+    },
+    "Extra container run arguments, one per line" : {
+      "comment" : "VoiceOver label of the container pool Run flags editor; keep container run",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Argumentos extra de container run, uno por línea"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "container run の追加引数（1 行に 1 つ）"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zusätzliche Argumente für container run, eines pro Zeile"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ארגומנטים נוספים ל-container run, אחד בכל שורה"
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "وسائط إضافية لـ container run، واحدة في كل سطر"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Argomenti extra di container run, uno per riga"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arguments supplémentaires de container run, un par ligne"
+          }
+        }
+      }
+    },
+    "Idle runners" : {
+      "comment" : "Container pool sheet field label: min_idle",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Runners inactivos"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "待機ランナー"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Leerlauf-Runner"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "runners פנויים"
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "المشغّلات الخاملة"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Runner inattivi"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Runners inactifs"
+          }
+        }
+      }
+    },
+    "Idle runners kept" : {
+      "comment" : "VoiceOver label of the container pool Idle runners field",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Runners inactivos que se mantienen"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "維持する待機ランナー"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vorgehaltene Leerlauf-Runner"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "runners פנויים שנשמרים"
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "المشغّلات الخاملة المحتفَظ بها"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Runner inattivi mantenuti"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Runners inactifs conservés"
+          }
+        }
+      }
+    },
+    "Idle runners must be a whole number, 0 or more." : {
+      "comment" : "Container pool sheet validation",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los runners inactivos deben ser un número entero, 0 o más."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "待機ランナーは 0 以上の整数で指定してください。"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Leerlauf-Runner müssen eine ganze Zahl sein, 0 oder mehr."
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "מספר ה-runners הפנויים חייב להיות מספר שלם, 0 או יותר."
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "يجب أن يكون عدد المشغّلات الخاملة عددًا صحيحًا، 0 أو أكثر."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I runner inattivi devono essere un numero intero, 0 o più."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les runners inactifs doivent être un nombre entier, 0 ou plus."
+          }
+        }
+      }
+    },
+    "Leave a field blank to use the container: section's value. Run flags take one argument per line. The pool's runners also carry the label kinhin-container-<name>; build its image with kinhin image prepare --container --pool <name>." : {
+      "comment" : "Container pool sheet hint; keep container:, kinhin-container-<name> and the command verbatim",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deja un campo vacío para usar el valor de la sección container:. Las opciones de ejecución llevan un argumento por línea. Los runners del pool también llevan la etiqueta kinhin-container-<name>; construye su imagen con kinhin image prepare --container --pool <name>."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "空欄のフィールドは container: セクションの値を使います。実行フラグは 1 行に 1 つの引数です。プールのランナーには kinhin-container-<name> ラベルも付きます。イメージは kinhin image prepare --container --pool <name> でビルドします。"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lass ein Feld leer, um den Wert aus dem Abschnitt container: zu verwenden. Run-Flags nehmen ein Argument pro Zeile. Die Runner des Pools tragen zusätzlich das Label kinhin-container-<name>; baue sein Image mit kinhin image prepare --container --pool <name>."
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "השארת שדה ריק משתמשת בערך מהמקטע container:. דגלי ההרצה מקבלים ארגומנט אחד בכל שורה. ה-runners של המאגר נושאים גם את התווית kinhin-container-<name>; בונים את האימג׳ שלו עם kinhin image prepare --container --pool <name>."
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "اترك الحقل فارغًا لاستخدام قيمة القسم container:. تأخذ خيارات التشغيل وسيطة واحدة في كل سطر. تحمل مشغّلات المجمّع أيضًا الوسم kinhin-container-<name>؛ ابنِ صورته باستخدام kinhin image prepare --container --pool <name>."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lascia un campo vuoto per usare il valore della sezione container:. I flag di esecuzione vogliono un argomento per riga. I runner del pool portano anche l'etichetta kinhin-container-<name>; crea la sua immagine con kinhin image prepare --container --pool <name>."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Laissez un champ vide pour reprendre la valeur de la section container:. Les options d’exécution prennent un argument par ligne. Les runners du pool portent aussi le label kinhin-container-<name> ; construisez son image avec kinhin image prepare --container --pool <name>."
+          }
+        }
+      }
+    },
+    "Max runners" : {
+      "comment" : "Container pool sheet field label: the pool's max:",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Máximo de runners"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最大ランナー数"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Max. Runner"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "מקסימום runners"
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "الحد الأقصى للمشغّلات"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Runner massimi"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Runners max."
+          }
+        }
+      }
+    },
+    "Max runners at once" : {
+      "comment" : "VoiceOver label of the container pool Max runners field",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Máximo de runners a la vez"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同時に動かす最大ランナー数"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Max. gleichzeitige Runner"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "מקסימום runners בו-זמנית"
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "الحد الأقصى للمشغّلات في وقت واحد"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Runner massimi contemporanei"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Runners max. simultanés"
+          }
+        }
+      }
+    },
+    "Max runners must be a whole number, 1 or more." : {
+      "comment" : "Container pool sheet validation",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El máximo de runners debe ser un número entero, 1 o más."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最大ランナー数は 1 以上の整数で指定してください。"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Max. Runner muss eine ganze Zahl sein, 1 oder mehr."
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "מקסימום ה-runners חייב להיות מספר שלם, 1 או יותר."
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "يجب أن يكون الحد الأقصى للمشغّلات عددًا صحيحًا، 1 أو أكثر."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I runner massimi devono essere un numero intero, 1 o più."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le maximum de runners doit être un nombre entier, 1 ou plus."
+          }
+        }
+      }
+    },
+    "Memory must be a whole number of GB, 1 or more." : {
+      "comment" : "Container pool sheet validation",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La memoria debe ser un número entero de GB, 1 o más."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メモリは 1 以上の整数（GB）で指定してください。"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Arbeitsspeicher muss eine ganze Zahl in GB sein, 1 oder mehr."
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "הזיכרון חייב להיות מספר שלם של GB, 1 או יותר."
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "يجب أن تكون الذاكرة عددًا صحيحًا بالغيغابايت، 1 أو أكثر."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La memoria deve essere un numero intero di GB, 1 o più."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La mémoire doit être un nombre entier de Go, 1 ou plus."
+          }
+        }
+      }
+    },
+    "Memory per runner in GB" : {
+      "comment" : "VoiceOver label of the container pool Memory field",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Memoria por runner en GB"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ランナーあたりのメモリ（GB）"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arbeitsspeicher pro Runner in GB"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "זיכרון לכל runner ב-GB"
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "الذاكرة لكل مشغّل بالغيغابايت"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Memoria per runner in GB"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mémoire par runner en Go"
+          }
+        }
+      }
+    },
+    "Name" : {
+      "comment" : "Container pool sheet field label: the pool's name",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nombre"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "名前"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Name"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "שם"
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "الاسم"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nome"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nom"
+          }
+        }
+      }
+    },
+    "Named pools replace the single container pool: the keys under container: become each pool's defaults, and a job no pool's labels claim goes to the pool with the fewest labels." : {
+      "comment" : "Container pool sheet hint shown when adding the first pool; keep container: verbatim",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los pools con nombre sustituyen al pool de contenedores único: las claves de container: pasan a ser los valores predeterminados de cada pool, y un trabajo que ninguna etiqueta de pool reclama va al pool con menos etiquetas."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "名前付きプールは単一のコンテナプールを置き換えます。container: のキーは各プールの既定値になり、どのプールのラベルにも当てはまらないジョブはラベルが最も少ないプールに送られます。"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Benannte Pools ersetzen den einzelnen Container-Pool: Die Schlüssel unter container: werden zu den Standardwerten jedes Pools, und ein Job, den keine Pool-Labels beanspruchen, geht an den Pool mit den wenigsten Labels."
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "מאגרים בעלי שם מחליפים את מאגר הקונטיינרים היחיד: המפתחות תחת container: הופכים לברירות המחדל של כל מאגר, ומשימה שאף תווית מאגר אינה תובעת עוברת למאגר עם הכי מעט תוויות."
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تحلّ المجمّعات المسمّاة محلّ مجمّع الحاويات الوحيد: تصبح المفاتيح تحت container: القيم الافتراضية لكل مجمّع، والمهمة التي لا تطالب بها وسوم أي مجمّع تذهب إلى المجمّع ذي أقل عدد من الوسوم."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I pool con nome sostituiscono il pool di container unico: le chiavi sotto container: diventano i valori predefiniti di ogni pool, e un job che nessuna etichetta di pool reclama va al pool con meno etichette."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les pools nommés remplacent le pool de conteneurs unique : les clés sous container: deviennent les valeurs par défaut de chaque pool, et une tâche qu’aucun label de pool ne réclame va au pool qui a le moins de labels."
+          }
+        }
+      }
+    },
+    "Not built yet, so its jobs wait. Build it: kinhin image prepare --container --pool %@" : {
+      "comment" : "Container pool card; %@ is the pool name, inside a command that stays verbatim",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aún no está construida, así que sus trabajos esperan. Constrúyela: kinhin image prepare --container --pool %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "まだビルドされていないため、ジョブは待機します。ビルド: kinhin image prepare --container --pool %@"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noch nicht gebaut, daher warten seine Jobs. Bauen: kinhin image prepare --container --pool %@"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "עדיין לא נבנה, ולכן המשימות שלו ממתינות. לבנייה: kinhin image prepare --container --pool %@"
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "لم تُبنَ بعد، لذا تنتظر مهامه. ابنِها: kinhin image prepare --container --pool %@"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Non ancora creata, quindi i suoi job aspettano. Creala: kinhin image prepare --container --pool %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pas encore construite, ses tâches attendent donc. Construisez-la : kinhin image prepare --container --pool %@"
+          }
+        }
+      }
+    },
+    "On" : {
+      "comment" : "Container pool Docker picker: docker: true for this pool",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sí"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オン"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "An"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "מופעל"
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "مفعّل"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Oui"
+          }
+        }
+      }
+    },
+    "Pool base image" : {
+      "comment" : "VoiceOver label of the container pool Base image field",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Imagen base del pool"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プールのベースイメージ"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Basis-Image des Pools"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "אימג׳ הבסיס של המאגר"
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "الصورة الأساسية للمجمّع"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Immagine di base del pool"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Image de base du pool"
+          }
+        }
+      }
+    },
+    "Pool image" : {
+      "comment" : "VoiceOver label of the container pool Image field",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Imagen del pool"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プールのイメージ"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Image des Pools"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "האימג׳ של המאגר"
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "صورة المجمّع"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Immagine del pool"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Image du pool"
+          }
+        }
+      }
+    },
+    "Pool labels" : {
+      "comment" : "VoiceOver label of the container pool Labels field",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Etiquetas del pool"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プールのラベル"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Labels des Pools"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "תוויות המאגר"
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "وسوم المجمّع"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Etichette del pool"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Labels du pool"
+          }
+        }
+      }
+    },
+    "Pool name" : {
+      "comment" : "VoiceOver label of the container pool Name field",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nombre del pool"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プール名"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pool-Name"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "שם המאגר"
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "اسم المجمّع"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nome del pool"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nom du pool"
+          }
+        }
+      }
+    },
+    "Remove container pool %@" : {
+      "comment" : "VoiceOver label of a container pool card's Remove button; %@ is the pool name",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quitar el pool de contenedores %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コンテナプール %@ を削除"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Container-Pool %@ entfernen"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "הסרת מאגר הקונטיינרים %@"
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "إزالة مجمّع الحاويات %@"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rimuovi il pool di container %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retirer le pool de conteneurs %@"
+          }
+        }
+      }
+    },
+    "Remove container pool “%@”?" : {
+      "comment" : "Confirmation title; %@ is a container pool name",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Quitar el pool de contenedores “%@”?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コンテナプール「%@」を削除しますか?"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Container-Pool „%@“ entfernen?"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "להסיר את מאגר הקונטיינרים “%@”?"
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "إزالة مجمّع الحاويات “%@”؟"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rimuovere il pool di container “%@”?"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retirer le pool de conteneurs « %@ » ?"
+          }
+        }
+      }
+    },
+    "Run flags" : {
+      "comment" : "Container pool sheet field label: extra container run arguments (flags:)",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opciones de ejecución"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "実行フラグ"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Run-Flags"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "דגלי הרצה"
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "خيارات التشغيل"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flag di esecuzione"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Options d’exécution"
+          }
+        }
+      }
+    },
+    "Save container pool" : {
+      "comment" : "VoiceOver label of the container pool sheet's Save button",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guardar pool de contenedores"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コンテナプールを保存"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Container-Pool sichern"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "שמירת מאגר הקונטיינרים"
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "حفظ مجمّع الحاويات"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Salva pool di container"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enregistrer le pool de conteneurs"
+          }
+        }
+      }
+    },
+    "at most %lld at once" : {
+      "comment" : "Container pool card: the pool's max: (runners at once)",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "como máximo %lld a la vez"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同時に最大 %lld"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "höchstens %lld gleichzeitig"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "לכל היותר %lld בו-זמנית"
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld كحد أقصى في وقت واحد"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "al massimo %lld alla volta"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "au plus %lld à la fois"
+          }
+        }
+      }
+    },
+    "e.g. big" : {
+      "comment" : "Placeholder of the container pool Name field; keep the example name",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "p. ej. big"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "例: big"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "z. B. big"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "לדוגמה big"
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "مثلًا big"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "es. big"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "p. ex. big"
+          }
+        }
+      }
+    },
+    "e.g. linux, big" : {
+      "comment" : "Placeholder of the container pool Labels field; keep the example labels",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "p. ej. linux, big"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "例: linux, big"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "z. B. linux, big"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "לדוגמה linux, big"
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "مثلًا linux, big"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "es. linux, big"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "p. ex. linux, big"
+          }
+        }
+      }
+    },
+    "image: %@" : {
+      "comment" : "Container pool card: the pool's image; %@ is an image name",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "imagen: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "イメージ: %@"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Image: %@"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "אימג׳: %@"
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "الصورة: %@"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "immagine: %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "image : %@"
+          }
+        }
+      }
+    },
+    "inherits %@" : {
+      "comment" : "Placeholder of a blank container pool field; %@ is the value it inherits from container:",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "hereda %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ を継承"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "erbt %@"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "יורש %@"
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "يرث %@"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "eredita %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "hérite de %@"
+          }
+        }
+      }
+    },
+    "kinhin stops starting runners for this pool, and jobs that ask for its labels wait. Its image stays on disk." : {
+      "comment" : "Confirmation body for removing a container pool; keep kinhin",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "kinhin deja de iniciar runners para este pool, y los trabajos que piden sus etiquetas esperan. Su imagen se queda en el disco."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "kinhin はこのプールのランナーを起動しなくなり、そのラベルを要求するジョブは待機します。イメージはディスクに残ります。"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "kinhin startet keine Runner mehr für diesen Pool, und Jobs, die seine Labels anfordern, warten. Sein Image bleibt auf der Festplatte."
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "kinhin מפסיק להפעיל runners עבור מאגר זה, ומשימות שמבקשות את התוויות שלו ממתינות. האימג׳ שלו נשאר בדיסק."
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "يتوقف kinhin عن تشغيل مشغّلات لهذا المجمّع، وتنتظر المهام التي تطلب وسومه. تبقى صورته على القرص."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "kinhin smette di avviare runner per questo pool e i job che chiedono le sue etichette aspettano. La sua immagine resta sul disco."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "kinhin cesse de lancer des runners pour ce pool, et les tâches qui demandent ses labels attendent. Son image reste sur le disque."
+          }
+        }
+      }
+    },
+    "min idle %lld" : {
+      "comment" : "Container pool card: idle runners the pool keeps (min_idle)",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "mín. inactivos %lld"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最小待機 %lld"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "min. Leerlauf %lld"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "מינימום פנויים %lld"
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "الحد الأدنى للخامل %lld"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "min. inattivi %lld"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "min. inactifs %lld"
+          }
+        }
+      }
+    },
+    "no limit" : {
+      "comment" : "Placeholder of the container pool Max runners field: blank sets no max",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "sin límite"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上限なし"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "keine Grenze"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ללא הגבלה"
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "بلا حد"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "nessun limite"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "sans limite"
+          }
+        }
+      }
+    },
+    "pool %@" : {
+      "comment" : "Instance detail: the named container pool it runs in; %@ is the pool name",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "pool %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プール %@"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pool %@"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "מאגר %@"
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "المجمّع %@"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "pool %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "pool %@"
+          }
+        }
+      }
+    },
+    "required (container: names no image)" : {
+      "comment" : "Placeholder of the container pool Image field when the section has no image; keep container:",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "obligatorio (container: no indica imagen)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "必須（container: にイメージがありません）"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "erforderlich (container: nennt kein Image)"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "חובה (container: אינו מציין אימג׳)"
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "مطلوب (container: لا يحدّد صورة)"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "obbligatorio (container: non indica un'immagine)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "obligatoire (container: n’indique aucune image)"
+          }
+        }
+      }
+    },
+    "takes unmatched jobs" : {
+      "comment" : "Container pool card: this is the default pool, for jobs no pool's labels claim",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "recibe los trabajos sin coincidencia"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一致しないジョブを受け持つ"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "übernimmt nicht zugeordnete Jobs"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "מקבל משימות ללא התאמה"
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "يستقبل المهام غير المطابقة"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "riceve i job senza corrispondenza"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "reçoit les tâches sans correspondance"
+          }
+        }
+      }
+    },
+    "● built" : {
+      "comment" : "Container pool chip: the pool's image is built",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "● construida"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "● ビルド済み"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "● gebaut"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "● נבנה"
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "● مبنية"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "● creata"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "● construite"
+          }
+        }
+      }
+    },
+    "● not built" : {
+      "comment" : "Container pool chip: the pool's image is not built yet",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "● sin construir"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "● 未ビルド"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "● nicht gebaut"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "● לא נבנה"
+          }
+        },
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "● غير مبنية"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "● non creata"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "● non construite"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

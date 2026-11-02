@@ -95,6 +95,8 @@ public struct PartialConfig: Decodable {
         var flags: [String]?
         /// Only present so `container.platform` can be rejected with a clear message.
         var platform: String?
+        /// Named pools, keyed by name; the keys above are their defaults.
+        var pools: [String: PartialContainerPool]?
 
         enum CodingKeys: String, CodingKey, CaseIterable {
             case image
@@ -106,6 +108,38 @@ public struct PartialConfig: Decodable {
             case minIdle = "min_idle"
             case docker
             case flags
+            case platform
+            case pools
+        }
+    }
+
+    /// One `container.pools:` entry: every key `container:` takes (each one optional, falling back to the section's
+    /// own) plus `max`.
+    struct PartialContainerPool: Decodable {
+        var image: String?
+        var cpus: Int?
+        var memoryGB: Int?
+        var labels: [String]?
+        var baseImage: String?
+        var fleetLabels: Bool?
+        var minIdle: Int?
+        var docker: Bool?
+        var flags: [String]?
+        var max: Int?
+        /// Only present so a pool's `platform` can be rejected with a clear message.
+        var platform: String?
+
+        enum CodingKeys: String, CodingKey, CaseIterable {
+            case image
+            case cpus
+            case memoryGB = "memory_gb"
+            case labels
+            case baseImage = "base_image"
+            case fleetLabels = "fleet_labels"
+            case minIdle = "min_idle"
+            case docker
+            case flags
+            case max
             case platform
         }
     }

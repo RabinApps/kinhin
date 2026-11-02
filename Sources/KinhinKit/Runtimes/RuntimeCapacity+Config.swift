@@ -7,10 +7,17 @@ extension RuntimeCapacity {
     /// One instance's shape on `runtime` under `config`, with the engine's
     /// defaults when a section leaves a value out. Host slots cost the Mac
     /// nothing beyond the user's own processes (1/1 keeps the math non-zero
-    /// without shrinking other pools).
+    /// without shrinking other pools). With named container pools, the
+    /// Apple container shape is the smallest CPU and the smallest memory of
+    /// any pool, so the count it yields is an upper bound and the scale plan
+    /// admits each instance by its own pool's shape (`containerBudget`).
     static func shape(of runtime: RuntimeID, in config: KinhinConfig) -> (cpu: Int, memoryGB: Int) {
         switch runtime {
-        case .appleContainer: return (config.container?.cpus ?? 4, config.container?.memoryGB ?? 8)
+        case .appleContainer:
+            if let pools = config.container?.pools, !pools.isEmpty {
+                return (pools.map(\.cpus).min() ?? 4, pools.map(\.memoryGB).min() ?? 8)
+            }
+            return (config.container?.cpus ?? 4, config.container?.memoryGB ?? 8)
         case .docker: return (config.docker?.cpus ?? 2, config.docker?.memoryGB ?? 4)
         case .host: return (1, 1)
         case .tart: return (config.vm.cpuCount, config.vm.memoryGB)
@@ -22,6 +29,21 @@ extension RuntimeCapacity {
     /// the fleet cap (and the legacy status shape: no per-runtime caps).
     static func isPartitioned(_ config: KinhinConfig) -> Bool {
         config.runtimes != nil && (config.container != nil || config.docker != nil)
+    }
+
+    /// The CPU and memory the Apple container runtime may use in all, which
+    /// its named pools share: its partition share in a mixed fleet, else the
+    /// host minus the reserve. Nil without named pools, whose one shape the
+    /// count caps already size exactly.
+    static func containerBudget(for config: KinhinConfig, host: HostResources) -> Budget? {
+        guard let pools = config.container?.pools, !pools.isEmpty else { return nil }
+        let usable = Budget(
+            cpu: max(0, host.logicalCores - config.reserve.cpu),
+            memoryGB: max(0, host.memoryGB - config.reserve.memoryGB))
+        guard isPartitioned(config), let routing = config.runtimes else { return usable }
+        return shares(
+            hostUsableCPU: usable.cpu, hostUsableMemoryGB: usable.memoryGB, weights: routing.budget,
+            defaultRuntime: routing.defaultRuntime)[.appleContainer] ?? Budget(cpu: 0, memoryGB: 0)
     }
 
     /// Per-runtime instance caps for `config` on `host`; empty for a

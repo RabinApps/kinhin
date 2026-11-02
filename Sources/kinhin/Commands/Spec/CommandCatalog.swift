@@ -259,10 +259,11 @@ enum CommandCatalog {
                     flags: [
                         .value("--provision-script", "FILE", "Run this script in the VM after the agents install"),
                         .value("--image", "NAME", "Build one named image from the config's images: list"),
-                        .bool("--all", "Build image: and every images: entry, one after another"),
+                        .bool("--all", "Build image: and every images: entry (--container: every pool)"),
                         .value("--project", "OWNER/NAME", "Bake that repo's toolchains into a derived image now"),
                         .value("--ref", "REF", "Branch or tag whose .kinhin.yml --project reads"),
                         .bool("--container", "Build the Linux image for apple container"),
+                        .value("--pool", "NAME", "With --container: build that container.pools: entry's image"),
                         .bool("--docker", "Build the Linux image for Docker"),
                         .value("--platform", "P", "Docker platform, e.g. linux/amd64 (runs under emulation)"),
                         .value("--container-image", "REF", "Base OCI image for --container"),
@@ -797,6 +798,7 @@ enum CommandCatalog {
                     positionals: "<FILE|name> <runtime>",
                     flags: [
                         .value("--job", "NAME", "Route one job instead of every job"),
+                        .value("--pool", "NAME", "With appleContainer: route to one container.pools: entry"),
                         .bool("--dry-run", "Print what would change; write nothing"),
                         jsonFlag,
                         .bool("--consent", "Required for host (jobs run unisolated on this Mac)"),
@@ -804,7 +806,9 @@ enum CommandCatalog {
                     details: [
                         "<runtime> is tart, appleContainer, docker or host. Edits the workflow's runs-on: labels "
                             + "(comment-preserving; ${{ }} and mapping forms are refused) and, when precedence "
-                            + "needs it, adds an owner/repo@Workflow route to the config."
+                            + "needs it, adds an owner/repo@Workflow route to the config.",
+                        "With container.pools:, --pool NAME adds that pool's kinhin-container-NAME label; without "
+                            + "it the job lands in the pool its labels select.",
                     ],
                     docs: "docs/runtimes.md"),
             ],

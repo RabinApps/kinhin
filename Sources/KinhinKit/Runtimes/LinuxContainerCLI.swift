@@ -150,13 +150,18 @@ struct LinuxContainerCLI: Sendable {
     /// empty, with a warning, when the CLI can't list them.
     func localImageNames() async -> [String] {
         do {
-            let result = try await run([bin] + dialect.imageListArguments)
-            try require(result, "listing images")
-            return result.outputLines
+            return try await listImageNames()
         } catch {
             Log.warn(dialect.tag, "could not list images: \(error.localizedDescription)")
             return []
         }
+    }
+
+    /// The local image names; throws when the CLI cannot list them, so a caller can tell "none" from "unknown".
+    func listImageNames() async throws -> [String] {
+        let result = try await run([bin] + dialect.imageListArguments)
+        try require(result, "listing images")
+        return result.outputLines
     }
 
     /// Disk usage of local images in whole GB, from the CLI's own size

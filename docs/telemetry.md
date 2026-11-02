@@ -106,7 +106,7 @@ exists (`cicd.worker.*`, `cicd.pipeline.*`, `cicd.system.*`, `error.type`) and a
 | --- | --- | --- |
 | `cicd.worker.count` | gauge | `kinhin.pool`, `kinhin.image`, `kinhin.runner.labels` (sorted), `cicd.worker.state` (the lifecycle phase) |
 | `kinhin.queue.depth` | gauge | `kinhin.account` |
-| `kinhin.queue.pool.depth` | gauge | `kinhin.pool` |
+| `kinhin.queue.pool.depth` | gauge | `kinhin.pool`. With `container.pools:`, the Apple container depth is one series per pool (`kinhin.container.pool`) |
 | `kinhin.queue.age` | gauge | none. The oldest queued job; only while the forge reports when jobs were queued |
 | `kinhin.fleet.desired`, `.active`, `.paused`, `.running` | gauge | none |
 | `kinhin.pool.capacity` | gauge | `kinhin.pool` |
@@ -137,9 +137,14 @@ exists (`cicd.worker.*`, `cicd.pipeline.*`, `cicd.system.*`, `error.type`) and a
 | `kinhin.reconcile.last_success` | gauge | none (Unix time of the last completed pass; alert on `time()` minus it) |
 | `kinhin.reconcile.errors` | counter | none |
 | `kinhin.spawn.failures` | counter | `kinhin.pool` |
-| `kinhin.spawn.held` | gauge | `kinhin.pool`, `kinhin.spawn.hold_reason` (`backoff`, `disk_pressure`); absent when nothing is held |
+| `kinhin.spawn.held` | gauge | `kinhin.pool`, `kinhin.spawn.hold_reason` (`backoff`, `disk_pressure`, `image_missing`: a named container pool whose image is not built, with `kinhin.container.pool`); absent when nothing is held |
 | `kinhin.telemetry.export.failures` | counter | none |
 | `cicd.system.errors` | counter | `error.type`, `cicd.system.component` (`lifecycle`, `forge`) |
+
+**Named container pools.** With `container.pools:`, every series about an Apple container runner (workers, warm pool, jobs, run, queue-wait,
+provision and teardown durations, runner CPU and memory, and the `kinhin.job` span) also carries `kinhin.container.pool`, the pool the
+runner belongs to. A runner whose recorded pool is no longer configured counts as the default pool. Without `pools:`, and for every other
+runtime, the attribute is absent. Pool names come from the config, so it stays bounded.
 
 `error.type` is one of `clone_failed`, `boot_timeout`, `ssh_unreachable`, `registration_failed`, `runner_not_registered`, `instance_lost`,
 `forge_api`, `rate_limited`, `teardown_failed`, `unknown`. Never the error text.
