@@ -23,10 +23,15 @@ final class ContainerPoolsEngineTests: XCTestCase {
         configure(&config)
         // Both pools' images are built unless a test says otherwise (an unbuilt pool's runners never start).
         shell.setImages(images)
+        var dependencies = FleetEngine.Dependencies(
+            tokenLoader: { _, _ in "test-token" }, exitWatchInterval: .milliseconds(20))
+        // The linux pool runs Docker, so its runners start the Docker Hub cache: keep its data out of the real
+        // support directory.
+        dependencies.registryCacheDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("pools-registry-cache-\(UUID().uuidString)", isDirectory: true)
         return FleetEngine(
             config: config, github: github, tart: FakeTart(), store: store, ssh: FakeSSH(), host: testHost,
-            containerShell: shell,
-            dependencies: .init(tokenLoader: { _, _ in "test-token" }, exitWatchInterval: .milliseconds(20)))
+            containerShell: shell, dependencies: dependencies)
     }
 
     private func runArgv(_ shell: ContainerFakingShell) -> [String]? {
@@ -145,7 +150,10 @@ final class ContainerPoolsEngineTests: XCTestCase {
         try await engine.reconcileOnce()
         try await waitUntil(timeout: 10) { runArgv(shell) != nil }
 
-        let runs = shell.argvSnapshot().filter { $0.dropFirst().first == "run" }
+        // linux runs Docker, so its runner also starts the Docker Hub cache, which is not a runner.
+        let runs = shell.argvSnapshot().filter {
+            $0.dropFirst().first == "run" && !$0.contains(DockerRegistryCache.containerName)
+        }
         XCTAssertEqual(runs.count, 1, "linux's job starts; big's floor is left out")
         XCTAssertTrue(runs.first?.contains("kinhin-ci-linux") == true)
         let records = await engine.status().records

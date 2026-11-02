@@ -103,6 +103,19 @@ extension RunnerBootstrap {
             """
     }
 
+    /// Writes `json` to `/etc/docker/daemon.json` ahead of `linuxDockerDaemonScript`, so dockerd starts with it: the
+    /// image's own file with the Docker Hub cache's `registry-mirrors` merged in (`AppleContainerRuntime+DockerCache`).
+    /// A write that fails only warns: dockerd then starts with the image's file and pulls from Docker Hub. The quoted
+    /// heredoc keeps the JSON literal, and pretty-printed JSON never has a line equal to the delimiter.
+    static func linuxDockerDaemonConfigScript(json: String) -> String {
+        """
+        # Docker Hub cache (container.docker): dockerd pulls through kinhin's registry cache.
+        mkdir -p /etc/docker && cat > /etc/docker/daemon.json <<'KINHIN_DAEMON_JSON' || echo "kinhin: warning: could not write /etc/docker/daemon.json; dockerd pulls straight from Docker Hub" >&2
+        \(json)
+        KINHIN_DAEMON_JSON
+        """
+    }
+
     // MARK: - Installing Docker into a baked image
 
     /// Installs Docker into a Linux image for `container.docker` (baked during `kinhin image prepare --container`):

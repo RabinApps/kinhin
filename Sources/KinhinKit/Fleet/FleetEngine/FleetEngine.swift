@@ -205,9 +205,18 @@ public final class FleetEngine: Sendable {
         var runtimes: [RuntimeID: any Runtime] = [.tart: tartRuntime]
         var containerPoolRuntimes: [String: any Runtime] = [:]
         if let container = config.container {
-            runtimes[.appleContainer] = AppleContainerRuntime(shell: shell, pool: container.defaultPool)
+            // One Docker Hub cache for every pool that uses it (each pool's runtime ignores it otherwise).
+            let registryCache =
+                container.usesDockerCache
+                ? DockerRegistryCache(
+                    shell: shell,
+                    dataDirectory: dependencies.registryCacheDirectory ?? DockerRegistryCache.defaultDataDirectory)
+                : nil
+            runtimes[.appleContainer] = AppleContainerRuntime(
+                shell: shell, pool: container.defaultPool, registryCache: registryCache)
             for pool in container.pools {
-                containerPoolRuntimes[pool.name] = AppleContainerRuntime(shell: shell, pool: pool)
+                containerPoolRuntimes[pool.name] = AppleContainerRuntime(
+                    shell: shell, pool: pool, registryCache: registryCache)
             }
         }
         if let docker = config.docker {
@@ -309,6 +318,9 @@ extension FleetEngine {
         public var healingAdvisor: (any HealingAdvisor)?
         /// The telemetry handle; the no-op unless the host process started a `TelemetryService`.
         public var telemetry: Telemetry = .noop
+        /// Where the Docker Hub cache keeps its data; nil → `DockerRegistryCache.defaultDataDirectory` (tests point it
+        /// at a temporary directory).
+        var registryCacheDirectory: URL?
 
         public init(
             githubFactory: GitHubClientFactory? = nil,
