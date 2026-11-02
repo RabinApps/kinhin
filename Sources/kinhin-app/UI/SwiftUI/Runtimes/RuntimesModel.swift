@@ -172,13 +172,18 @@ final class RuntimesModel: ConfigFormModel {
         }
         refreshLabelFields()
         refreshBudgetPreviews(budget: currentRuntimeConfig?.budget ?? [:])
-        // The pool images are listed while the health pass runs: neither waits for the other's subprocess.
-        let poolImages = Task { await self.refreshContainerPoolImages() }
+        // The pool images are listed alongside the health pass and applied whenever the CLI answers, so a slow
+        // listing never holds back the health results or a coalesced reload. Each listing lists this reload's
+        // config; a newer reload's listing supersedes it.
+        containerPoolImageGeneration += 1
+        let generation = containerPoolImageGeneration
+        containerPoolImageListing = Task {
+            await self.refreshContainerPoolImages(container: parsed.container, generation: generation)
+        }
 
         // Health pass: probe each enabled pool's runtime concurrently.
         let withHealth = await RuntimesPaneViewModel.load(
             configYAML: yaml, host: host, reserve: parsed.reserve, loadHealth: true)
-        await poolImages.value
         guard withHealth != fast else { return }  // nothing changed; no flicker
         viewModel = withHealth
         refreshBudgetPreviews(budget: currentRuntimeConfig?.budget ?? [:])
@@ -313,6 +318,10 @@ final class RuntimesModel: ConfigFormModel {
     /// unbuilt). Keyed by image, so a pool added, renamed or pointed at another image since the listing shows no
     /// chip until the next one answers, instead of an earlier pool's answer.
     var builtContainerImages: [String: Bool]?
+    /// The image listing the last reload started (tests await it), and the number of the newest one: an answer from
+    /// an older listing is dropped, so it cannot overwrite a newer reload's.
+    @ObservationIgnored var containerPoolImageListing: Task<Void, Never>?
+    @ObservationIgnored var containerPoolImageGeneration = 0
     /// The local Apple container image names (tests inject a listing). Throws when the CLI cannot list them.
     @ObservationIgnored var listContainerImages: () async throws -> [String] = {
         try await AppleContainerRuntime().listedImageNames()
