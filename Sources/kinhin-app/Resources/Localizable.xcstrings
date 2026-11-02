@@ -44261,49 +44261,49 @@
         }
       }
     },
-    "Named pools replace the single container pool: the keys under container: become each pool's defaults, and a job no pool's labels claim goes to the pool with the fewest labels." : {
+    "Named pools replace the single container pool: the keys under container: become each pool's defaults, and a job no pool's labels claim goes to the pool with the fewest labels among those of the architecture it asks for (x64 or arm64)." : {
       "comment" : "Container pool sheet hint shown when adding the first pool; keep container: verbatim",
       "localizations" : {
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Los pools con nombre sustituyen al pool de contenedores único: las claves de container: pasan a ser los valores predeterminados de cada pool, y un trabajo que ninguna etiqueta de pool reclama va al pool con menos etiquetas."
+            "value" : "Los pools con nombre sustituyen al pool de contenedores único: las claves de container: pasan a ser los valores predeterminados de cada pool, y un trabajo que ninguna etiqueta de pool reclama va al pool con menos etiquetas entre los de la arquitectura que pide (x64 o arm64)."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "名前付きプールは単一のコンテナプールを置き換えます。container: のキーは各プールの既定値になり、どのプールのラベルにも当てはまらないジョブはラベルが最も少ないプールに送られます。"
+            "value" : "名前付きプールは単一のコンテナプールを置き換えます。container: のキーは各プールの既定値になり、どのプールのラベルにも当てはまらないジョブはジョブが求めるアーキテクチャ（x64 または arm64）のプールのうち、ラベルが最も少ないプールに送られます。"
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Benannte Pools ersetzen den einzelnen Container-Pool: Die Schlüssel unter container: werden zu den Standardwerten jedes Pools, und ein Job, den keine Pool-Labels beanspruchen, geht an den Pool mit den wenigsten Labels."
+            "value" : "Benannte Pools ersetzen den einzelnen Container-Pool: Die Schlüssel unter container: werden zu den Standardwerten jedes Pools, und ein Job, den keine Pool-Labels beanspruchen, geht an den Pool mit den wenigsten Labels unter denen der Architektur, die er verlangt (x64 oder arm64)."
           }
         },
         "he" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "מאגרים בעלי שם מחליפים את מאגר הקונטיינרים היחיד: המפתחות תחת container: הופכים לברירות המחדל של כל מאגר, ומשימה שאף תווית מאגר אינה תובעת עוברת למאגר עם הכי מעט תוויות."
+            "value" : "מאגרים בעלי שם מחליפים את מאגר הקונטיינרים היחיד: המפתחות תחת container: הופכים לברירות המחדל של כל מאגר, ומשימה שאף תווית מאגר אינה תובעת עוברת למאגר עם הכי מעט תוויות מבין המאגרים של הארכיטקטורה שהיא מבקשת (x64 או arm64)."
           }
         },
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "تحلّ المجمّعات المسمّاة محلّ مجمّع الحاويات الوحيد: تصبح المفاتيح تحت container: القيم الافتراضية لكل مجمّع، والمهمة التي لا تطالب بها وسوم أي مجمّع تذهب إلى المجمّع ذي أقل عدد من الوسوم."
+            "value" : "تحلّ المجمّعات المسمّاة محلّ مجمّع الحاويات الوحيد: تصبح المفاتيح تحت container: القيم الافتراضية لكل مجمّع، والمهمة التي لا تطالب بها وسوم أي مجمّع تذهب إلى المجمّع ذي أقل عدد من الوسوم بين مجمّعات المعمارية التي تطلبها (x64 أو arm64)."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "I pool con nome sostituiscono il pool di container unico: le chiavi sotto container: diventano i valori predefiniti di ogni pool, e un job che nessuna etichetta di pool reclama va al pool con meno etichette."
+            "value" : "I pool con nome sostituiscono il pool di container unico: le chiavi sotto container: diventano i valori predefiniti di ogni pool, e un job che nessuna etichetta di pool reclama va al pool con meno etichette tra quelli dell’architettura che richiede (x64 o arm64)."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Les pools nommés remplacent le pool de conteneurs unique : les clés sous container: deviennent les valeurs par défaut de chaque pool, et une tâche qu’aucun label de pool ne réclame va au pool qui a le moins de labels."
+            "value" : "Les pools nommés remplacent le pool de conteneurs unique : les clés sous container: deviennent les valeurs par défaut de chaque pool, et une tâche qu’aucun label de pool ne réclame va au pool qui a le moins de labels parmi ceux de l’architecture qu’elle demande (x64 ou arm64)."
           }
         }
       }

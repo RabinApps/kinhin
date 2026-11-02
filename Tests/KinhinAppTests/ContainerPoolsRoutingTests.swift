@@ -115,6 +115,16 @@ final class ContainerPoolsRoutingTests: XCTestCase {
         XCTAssertEqual(model.containerPoolRows.first { $0.id == "linux" }?.built, true)
     }
 
+    func testAnAmd64PoolCardShowsItsPlatform() {
+        var pool = KinhinConfig.ContainerConfig.Pool(name: "x64", image: "kinhin-ci-x64", labels: ["linux"])
+        XCTAssertFalse(
+            RuntimesModel.containerPoolRow(pool, built: true, isDefault: false).detail.contains("linux/"),
+            "arm64, the default, is not called out")
+        pool.platform = .amd64
+        XCTAssertTrue(
+            RuntimesModel.containerPoolRow(pool, built: true, isDefault: false).detail.contains("linux/amd64"))
+    }
+
     func testAFailedImageListingMarksNoPool() async throws {
         try write(Self.twoPools)
         let model = await loadedModel(images: nil)

@@ -11,8 +11,8 @@ extension RuntimesModel {
     /// One named pool's card: what the pool resolves to after the `container:` defaults are filled in.
     struct ContainerPoolRow: Identifiable, Equatable {
         let id: String
-        /// "labels: …" (the pool's own labels and its `kinhin-container-<name>` marker), then shape and floors,
-        /// then the image; one fact group per line.
+        /// "labels: …" (the pool's own labels and its `kinhin-container-<name>` marker), then shape, floors and a
+        /// non-native platform, then the image; one fact group per line.
         let detail: String
         /// Whether the pool's image is built; nil when the images could not be listed.
         let built: Bool?
@@ -59,6 +59,8 @@ extension RuntimesModel {
             pool.docker
                 ? String(localized: "Docker on", bundle: .l10n, comment: "Container pool card: docker: true")
                 : String(localized: "Docker off", bundle: .l10n, comment: "Container pool card: docker: false"))
+        // An amd64 pool says so (it runs under Rosetta); arm64, the native default, adds nothing.
+        if pool.platform != .arm64 { shape.append(pool.platform.rawValue) }
         if isDefault {
             shape.append(
                 String(
