@@ -57,7 +57,7 @@ extension DoctorReport {
     static func containerPoolLine(_ pool: ContainerPoolStatus, runtimeReady: Bool) -> String {
         var shape = "\(pool.cpus) CPU, \(pool.memoryGB) GB"
         if let max = pool.max { shape += ", max \(max)" }
-        if pool.docker { shape += ", docker" }
+        if pool.docker { shape += pool.dockerCache == false ? ", docker (no cache)" : ", docker" }
         if let platform = pool.platform, platform != LinuxPlatform.arm64.rawValue { shape += ", \(platform) (Rosetta)" }
         var line = "\(pool.name) (\(shape)): \(pool.image)"
         if runtimeReady {
@@ -71,6 +71,21 @@ extension DoctorReport {
                 + "lower its cpus/memory_gb or the reserve"
         }
         return line
+    }
+
+    /// The Docker Hub cache for the plain-text report: running and where, or that the first Docker runner starts it,
+    /// then how much it holds.
+    static func registryCacheLine(_ cache: RegistryCacheStatus) -> String {
+        var line =
+            cache.running
+            ? "running at \(cache.address ?? "an unknown address") ✓"
+            : "not running (the first Docker runner starts it)"
+        if let problem = cache.problem { line += " — \(problem)" }
+        let size = cache.dataBytes.map { bytes in
+            // Decimal units, like the rest of the report; `%` formats ignore the locale, so the text is stable.
+            bytes >= 1_000_000_000 ? String(format: "%.1f GB", Double(bytes) / 1e9) : "\(bytes / 1_000_000) MB"
+        }
+        return line + " · \(size ?? "nothing") cached in \(cache.dataDirectory)"
     }
 
     /// The report as aligned "label: value" lines (no trailing newline).
@@ -121,6 +136,7 @@ extension DoctorReport {
                         : "\(container.image) NOT LOCAL — prepare with: kinhin image prepare --container --target \(container.image)"
                 )
             }
+            if let cache = container.registryCache { row("cont cache", Self.registryCacheLine(cache)) }
         }
         if let docker {
             row("docker", docker.ok ? "ready ✓ (\(docker.platform))" : docker.fix ?? "✗")

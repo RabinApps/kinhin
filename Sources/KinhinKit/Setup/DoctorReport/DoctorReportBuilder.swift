@@ -37,6 +37,10 @@ public struct DoctorReportBuilder: Sendable {
     /// read `kinhin image list` makes. The prune suggestion needs them so an
     /// image a runner is on is never counted as wastable.
     let fleet: [VMRecord]?
+    /// The Docker Hub cache's state (fixture). nil reads it live, but only
+    /// when the container health is live too, so a test that injects the
+    /// health never asks the real `container` CLI.
+    let registryCache: DoctorReport.RegistryCacheStatus?
     /// The derived-image index; nil reads the live store. Records classify
     /// configured-derived tart images (never prunable) and mark stale index
     /// entries — again, the `image list` read.
@@ -72,7 +76,8 @@ public struct DoctorReportBuilder: Sendable {
             await TokenHealthCheck.account($0, token: $1)
         },
         fleet: [VMRecord]? = nil,
-        projectRecords: [ProjectImageRecord]? = nil
+        projectRecords: [ProjectImageRecord]? = nil,
+        registryCache: DoctorReport.RegistryCacheStatus? = nil
     ) {
         self.host = host
         self.clt = clt
@@ -94,6 +99,7 @@ public struct DoctorReportBuilder: Sendable {
         self.tokenCheck = tokenCheck
         self.fleet = fleet
         self.projectRecords = projectRecords
+        self.registryCache = registryCache
     }
 
     /// Memoizes a Keychain read so the checklist and the auth report share one
@@ -246,8 +252,14 @@ public struct DoctorReportBuilder: Sendable {
 
         let authReport = AuthStatusReporter.report(config: parsed, load: authLoad, loadAccount: sharedAccountLoad)
 
+        var resolvedRegistryCache = registryCache
+        if resolvedRegistryCache == nil, containerHealth == nil, parsed?.container?.usesDockerCache == true {
+            resolvedRegistryCache = await Self.registryCacheStatus(
+                runtimeReady: resolvedContainerHealth?.isReady == true)
+        }
         let containerSection = Self.containerSection(
-            config: parsed, health: resolvedContainerHealth, images: resolvedContainerImages, host: resolvedHost)
+            config: parsed, health: resolvedContainerHealth, images: resolvedContainerImages, host: resolvedHost,
+            registryCache: resolvedRegistryCache)
         let dockerSection = Self.dockerSection(
             config: parsed, health: resolvedDockerHealth, images: resolvedDockerImages,
             imageArchitecture: dockerArchitecture)
