@@ -245,14 +245,23 @@ final class ContainerPoolsRoutingTests: XCTestCase {
 
     // MARK: - Image listing
 
-    /// Holds an image listing until the test lets it answer.
+    /// Holds an image listing until the test lets it answer, and tells the test when a listing is waiting.
     private actor ListingGate {
         private var waiters: [CheckedContinuation<Void, Never>] = []
+        private var arrivalWaiters: [CheckedContinuation<Void, Never>] = []
         private var isOpen = false
 
         func wait() async {
             if isOpen { return }
+            arrivalWaiters.forEach { $0.resume() }
+            arrivalWaiters = []
             await withCheckedContinuation { waiters.append($0) }
+        }
+
+        /// Returns once a listing is held at the gate.
+        func waitForArrival() async {
+            if !waiters.isEmpty { return }
+            await withCheckedContinuation { arrivalWaiters.append($0) }
         }
 
         func open() {
@@ -295,6 +304,7 @@ final class ContainerPoolsRoutingTests: XCTestCase {
         }
         await model.reloadWithHealth()
         let first = model.containerPoolImageListing
+        await gate.waitForArrival()  // the first listing is the one held, whichever task the scheduler ran first
         await model.reloadWithHealth()
         await model.containerPoolImageListing?.value
         XCTAssertEqual(model.containerPoolRows.map(\.built), [true, true])

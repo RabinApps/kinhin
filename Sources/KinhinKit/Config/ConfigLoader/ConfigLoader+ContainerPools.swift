@@ -49,6 +49,8 @@ extension ConfigLoader {
         var labelSets: [LabelSet: String] = [:]
         var bakes: [String: (pool: String, base: String?, platform: LinuxPlatform)] = [:]
         for pool in pools {
+            // `runner` and `runner:latest` are one baked image, so they must agree on base and platform too.
+            let bakeKey = ImageInventory.ociRunnableReference(pool.image)
             let own = LabelSet(labels: Set((pool.labels ?? []).map { $0.lowercased() }), platform: pool.platform)
             if let other = labelSets[own] {
                 throw ConfigError.invalid(
@@ -56,18 +58,18 @@ extension ConfigLoader {
                         + "them apart (give each pool a label of its own)")
             }
             labelSets[own] = pool.name
-            if let other = bakes[pool.image], other.base != pool.baseImage {
+            if let other = bakes[bakeKey], other.base != pool.baseImage {
                 throw ConfigError.invalid(
                     "container.pools \(other.pool) and \(pool.name) both run image \(pool.image) but name different "
                         + "base_image values; one image is baked from one base")
             }
-            if let other = bakes[pool.image], other.platform != pool.platform {
+            if let other = bakes[bakeKey], other.platform != pool.platform {
                 throw ConfigError.invalid(
                     "container.pools \(other.pool) and \(pool.name) both run image \(pool.image) but for different "
                         + "platforms; one image is baked for one platform (give the \(pool.platform.rawValue) pool an "
                         + "image of its own)")
             }
-            bakes[pool.image] = (pool.name, pool.baseImage, pool.platform)
+            bakes[bakeKey] = (pool.name, pool.baseImage, pool.platform)
         }
         return pools
     }

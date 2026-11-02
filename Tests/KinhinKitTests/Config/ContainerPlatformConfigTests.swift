@@ -92,6 +92,17 @@ final class ContainerPlatformConfigTests: XCTestCase {
                 """
                 container:
                   pools:
+                    a: { image: i, labels: [linux] }
+                    b: { image: "i:latest", labels: [linux, big], platform: linux/amd64 }
+
+                """
+            ).contains("container.pools a and b both run image i:latest but for different platforms"),
+            "i and i:latest bake the same tag")
+        XCTAssertTrue(
+            invalidMessage(
+                """
+                container:
+                  pools:
                     a: { image: i, labels: [linux], platform: linux/amd64 }
                     b: { image: j, labels: [linux], platform: amd64 }
 

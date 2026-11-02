@@ -380,7 +380,7 @@ public struct ImageInventory: Sendable, Equatable, Codable {
     // MARK: - Container / Docker
 
     /// `wanted` are the configured images (every container pool's, or the Docker image): each is a base entry,
-    /// listed as missing when no local tag matches it.
+    /// listed as missing unless the tag a runner starts from is local (`ociUses`; another tag of it does not count).
     private static func ociSection(_ runtime: Runtime, _ images: RuntimeImages, wanted: [String]) -> Section {
         var entries: [Entry] = []
         let listed = Set(images.names.filter { !$0.isEmpty && !$0.contains("<none>") })
@@ -394,7 +394,7 @@ public struct ImageInventory: Sendable, Equatable, Codable {
                     usedBy: uses ? images.instances.sorted() : []))
         }
         for image in wanted
-        where images.unavailable == nil && !listed.contains(where: { ociMatches(name: $0, wanted: image) }) {
+        where images.unavailable == nil && !listed.contains(where: { ociUses(name: $0, wanted: image) }) {
             entries.append(Entry(name: image, runtime: runtime, role: .base, present: false))
         }
         return Section(
@@ -413,6 +413,12 @@ public struct ImageInventory: Sendable, Equatable, Codable {
     static func ociUses(name: String, wanted: String) -> Bool {
         if name == wanted { return true }
         return !ociHasTagOrDigest(wanted) && name == "\(wanted):latest"
+    }
+
+    /// The tag a runner started from `reference` runs: the reference itself, or `:latest` when it names neither a tag
+    /// nor a digest. `runner` and `runner:latest` are one image to `container run` and to a bake.
+    static func ociRunnableReference(_ reference: String) -> String {
+        ociHasTagOrDigest(reference) ? reference : "\(reference):latest"
     }
 
     /// Whether a reference names a tag or digest. A `:` before the last `/` is
