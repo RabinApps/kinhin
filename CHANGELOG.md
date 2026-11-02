@@ -40,6 +40,16 @@
   `docker: true`, an amd64 runner builds through a `docker-container` buildx builder (`BUILDX_BUILDER=kinhin` and a
   `kinhin` Docker context for its jobs), since dockerd's built-in builder cannot run a build step under Rosetta. See
   [docs/runtimes.md](docs/runtimes.md#x86-64-amd64-container-runners).
+- With `container.docker` on, Docker Hub pulls go through a pull-through cache kinhin runs: one Apple container,
+  `registry-cache-kinhin` (`registry:3`, 1 vCPU, 1 GB, data in `Application Support/Kinhin/registry-cache/`), started
+  by the first Docker runner and adopted or restarted after that. Each Docker runner's dockerd gets the cache's current
+  address merged into the image's `/etc/docker/daemon.json` as its registry mirror before it starts, so a job's
+  `services:` and Docker actions are pulled from Docker Hub once per Mac instead of once per job, under one anonymous
+  pull limit. If the cache cannot be started or reached, the runner registers anyway and pulls from Docker Hub. It is
+  on by default because jobs cannot write to it and layers are digest-checked; `docker: { cache: false }` (on
+  `container:` or a pool) turns it off. amd64 pools use it too. `kinhin doctor` shows whether it runs, its address and
+  size, and `kinhin image prune` keeps `registry:3` while a pool uses it. See
+  [docs/runtimes.md](docs/runtimes.md#docker-hub-cache).
 
 **Fixed**
 
