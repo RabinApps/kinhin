@@ -85,8 +85,10 @@ final class DockerRegistryCacheTests: XCTestCase {
     }
 
     func testTheDefaultDataDirectoryIsInTheSupportDirectory() {
+        // Paths, not URLs: a URL to a directory that exists on this Mac gains a trailing slash.
         XCTAssertEqual(
-            DockerRegistryCache.defaultDataDirectory, Paths.appSupport.appendingPathComponent("registry-cache"))
+            DockerRegistryCache.defaultDataDirectory.path,
+            Paths.appSupport.appendingPathComponent("registry-cache").path)
     }
 
     func testACacheSomeoneElseCreatedFirstIsAdopted() async throws {
