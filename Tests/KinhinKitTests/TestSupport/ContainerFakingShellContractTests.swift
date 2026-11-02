@@ -7,7 +7,9 @@ import XCTest
 /// the real `container` CLI — stdin scripts are delivered (the protocol
 /// default refuses them), the `container` verbs shape state exactly like the
 /// CLI (`list` prints one name per line, `run --name` creates, `delete`
-/// removes) so the real `LinuxContainerCLI` driver composes a full
+/// removes, `inspect` prints a running container's JSON or the CLI's
+/// not-found error, which the real `DockerRegistryCache` reads) so the real
+/// `LinuxContainerCLI` driver composes a full
 /// provision → exec → teardown cycle against it, and every argv is recorded
 /// for assertions. No container tooling is installed or launched.
 final class ContainerFakingShellContractTests: XCTestCase {
@@ -93,6 +95,43 @@ final class ContainerFakingShellContractTests: XCTestCase {
             let fallback = await runtime.localImageNames()
             XCTAssertEqual(fallback, [], "the non-throwing listing still reads a failure as none")
         }
+    }
+
+    func testInspectReadsLikeTheRealCLI() async throws {
+        let shell = ContainerFakingShell()
+        let missing = try await shell.run(
+            ["/usr/local/bin/container", "inspect", "registry-cache-kinhin"], cwd: nil, timeout: 5)
+        // What Apple container 1.6.1 prints for an unknown name (exit 1).
+        XCTAssertFalse(missing.succeeded)
+        XCTAssertEqual(missing.stderr, "Error: container not found: registry-cache-kinhin")
+
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("fake-inspect-\(UUID().uuidString)")
+        addTeardownBlock { try? FileManager.default.removeItem(at: dir) }
+        let cache = DockerRegistryCache(shell: shell, binPath: "/usr/local/bin/container", dataDirectory: dir)
+        let none = try await cache.inspect()
+        XCTAssertNil(none, "the real driver reads the fake's not-found as no container")
+
+        _ = try await shell.run(
+            ["/usr/local/bin/container", "run", "--detach", "--name", "kinhin-1", "image"], cwd: nil, timeout: 5)
+        _ = try await shell.run(
+            ["/usr/local/bin/container", "run", "--detach", "--name", "registry-cache-kinhin", "registry:3"],
+            cwd: nil, timeout: 5)
+        let inspected = try await cache.inspect()
+        XCTAssertEqual(
+            inspected, .init(state: "running", address: "192.168.64.3"),
+            "a created container runs with an address on the container network, numbered in creation order")
+    }
+
+    func testExecRelaysTheAnswerForAMatchingScript() async throws {
+        let shell = ContainerFakingShell()
+        shell.answerExec(containing: "cat /etc/docker/daemon.json", stdout: "{}")
+        let argv = ["/usr/local/bin/container", "exec", "-i", "kinhin-1", "/bin/bash", "-ls"]
+        let matching = try await shell.run(
+            argv, input: Data("cat /etc/docker/daemon.json".utf8), cwd: nil, timeout: 5)
+        XCTAssertEqual(matching.stdout, "{}", "the script's stdout comes back, as `container exec` relays it")
+        let other = try await shell.run(argv, input: Data("echo hi".utf8), cwd: nil, timeout: 5)
+        XCTAssertTrue(other.succeeded)
+        XCTAssertEqual(other.stdout, "", "other scripts print nothing")
     }
 
     // MARK: - Recording
