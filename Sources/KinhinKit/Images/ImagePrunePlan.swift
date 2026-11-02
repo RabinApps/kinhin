@@ -100,7 +100,9 @@ public struct ImagePrunePlan: Sendable, Equatable {
 
     /// Every name the config cares about: the configured images themselves
     /// (every container pool's included) plus every `base_image:` (top-level,
-    /// per-image, container and its pools, docker).
+    /// per-image, container and its pools, docker), and the Docker Hub
+    /// cache's `registry:3` while a container pool uses the cache (no runner
+    /// is on it, so nothing else would keep it).
     private static func protectedNames(_ config: KinhinConfig?) -> Set<String> {
         guard let config else { return [] }
         var names: Set<String> = [config.image]
@@ -111,6 +113,7 @@ public struct ImagePrunePlan: Sendable, Equatable {
             names.insert(container.image)
             names.formUnion(container.poolImages)
             names.formUnion(container.pools.compactMap(\.baseImage))
+            if container.usesDockerCache { names.insert(DockerRegistryCache.image) }
         }
         if let docker = config.docker {
             if let base = docker.baseImage { names.insert(base) }
