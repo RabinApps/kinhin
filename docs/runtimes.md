@@ -312,6 +312,14 @@ lands there and an `arm64` job never does. kinhin counts queued jobs that carry 
 Expect jobs to run slower than on arm64, and some software fails under Rosetta (JITs, certain Go/Java/.NET builds,
 AVX-512). Prefer arm64 unless a job needs x86_64.
 
+With `docker: true`, dockerd runs under Rosetta too, and its built-in builder cannot start a `RUN` step there
+(`rosetta error: failed to open elf at -exec-root=/var/run/docker`: the network setup hook re-runs dockerd through
+`/proc/<pid>/exe`, which is Rosetta). So once dockerd answers, kinhin creates a `docker-container` buildx builder named
+`kinhin` (`default-load=true`, so built images land in the local store as usual) and selects it for every job with
+`BUILDX_BUILDER=kinhin` in the runner's `.env` (and for login shells). `docker build` and `docker compose build` work
+unchanged; the first build on a runner also starts the builder's BuildKit container. A job that switches back to the
+`default` builder hits the error again. `docker run`, `docker pull` and port mappings are unaffected.
+
 #### Several container pools
 
 `pools:` under `container:` splits Apple container into named pools, each with its own image, shape, labels, floor,

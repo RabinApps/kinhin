@@ -36,7 +36,9 @@
   Rosetta: `kinhin image prepare --container` bakes the image as amd64 with the x64 runner agents, each runner starts
   with `container run --platform linux/amd64` and registers with `x64` in place of the fleet's `arm64`. A job that asks
   for `x64` goes to an amd64 pool (and to Apple container even when another runtime is the default), and GitHub
-  demand counts such jobs. `kinhin doctor` shows each pool's platform. arm64, the default, is unchanged (#75). See
+  demand counts such jobs. `kinhin doctor` shows each pool's platform. arm64, the default, is unchanged (#75). With
+  `docker: true`, an amd64 runner builds through a `docker-container` buildx builder (`BUILDX_BUILDER=kinhin` for its
+  jobs), since dockerd's built-in builder cannot run a build step under Rosetta. See
   [docs/runtimes.md](docs/runtimes.md#x86-64-amd64-container-runners).
 
 **Fixed**

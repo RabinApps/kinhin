@@ -48,6 +48,39 @@ extension RunnerBootstrap {
         """
     }
 
+    /// The buildx builder an amd64 runner's builds go through (`linuxDockerBuilderScript`).
+    static let rosettaBuilderName = "kinhin"
+
+    /// Points `docker build` on an amd64 runner (`container.platform: linux/amd64`) at a `docker-container` buildx
+    /// builder. dockerd runs under Rosetta there, and its built-in BuildKit cannot start a `RUN` step on the bridge
+    /// network: the libnetwork-setkey prestart hook re-executes `/proc/<dockerd>/exe`, which is Rosetta rather than
+    /// dockerd ("rosetta error: failed to open elf at -exec-root=/var/run/docker"). A BuildKit container is an
+    /// ordinary container, which starts fine. `default-load=true` loads each result into dockerd's image store, as
+    /// the built-in builder does. Runs after dockerd answers (creating the builder needs it); the BuildKit container
+    /// itself starts on the first build.
+    ///
+    /// `docker build` ignores `docker buildx use` and picks the builder from `BUILDX_BUILDER`, so the script sets
+    /// that for jobs: in every baked GitHub runner directory's `.env` (which `config.sh` keeps and the runner passes to
+    /// each job) and for login shells. A runner without buildx keeps the built-in builder, with a warning.
+    static func linuxDockerBuilderScript() -> String {
+        let name = rosettaBuilderName
+        return """
+            # Docker under Rosetta (container.platform: linux/amd64): builds go through a docker-container builder,
+            # since dockerd's built-in BuildKit cannot start RUN steps under Rosetta.
+            if docker buildx inspect \(name) >/dev/null 2>&1 \\
+              || docker buildx create --name \(name) --driver docker-container --driver-opt default-load=true >/dev/null; then
+              for runner_dir in /opt/actions-runner /opt/actions-runner-*; do
+                [ -d "$runner_dir" ] || continue
+                grep -qs '^BUILDX_BUILDER=' "$runner_dir/.env" || echo 'BUILDX_BUILDER=\(name)' >> "$runner_dir/.env"
+              done
+              echo 'export BUILDX_BUILDER=\(name)' > /etc/profile.d/kinhin-buildx.sh
+              echo "docker build uses the \(name) buildx builder"
+            else
+              echo "kinhin: warning: could not create the \(name) buildx builder; docker build fails under Rosetta" >&2
+            fi
+            """
+    }
+
     // MARK: - Installing Docker into a baked image
 
     /// Installs Docker into a Linux image for `container.docker` (baked during `kinhin image prepare --container`):

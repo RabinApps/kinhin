@@ -73,7 +73,8 @@ public struct AppleContainerRuntime: Runtime {
                 imageRemoveArguments: ["image", "delete"], runFlags: Self.platformRunFlags(platform),
                 shapeNote: platform == .arm64 ? nil : platform.rawValue),
             image: image, cpus: cpus, memoryBytes: memoryBytes,
-            poolRunFlags: Self.poolRunFlags(docker: docker, flags: flags), startsDocker: docker)
+            poolRunFlags: Self.poolRunFlags(docker: docker, flags: flags), startsDocker: docker,
+            buildsThroughBuildxBuilder: platform == .amd64)
     }
 
     /// The runtime for one Apple container pool: its image, shape, Docker, flags and platform.
