@@ -31,7 +31,8 @@ extension ConfigLoader {
             baseImage: containerBase,
             fleetLabels: container.fleetLabels,
             minIdle: container.minIdle ?? 0,
-            docker: container.docker ?? false,
+            docker: container.docker?.enabled ?? false,
+            dockerCache: container.docker?.cache ?? true,
             flags: flags,
             platform: platform
         )

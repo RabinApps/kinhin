@@ -16,6 +16,9 @@ extension GeneralConfigEditor.Snapshot {
         public var fleetLabels: Bool?
         public var minIdle: Int?
         public var docker: Bool?
+        /// false for `docker: { cache: false }`; nil otherwise (the cache's default, on). Written only with `docker`
+        /// true, so the app's pool sheet carries it like `fleetLabels`.
+        public var dockerCache: Bool?
         public var flags: [String]?
         public var max: Int?
         public var platform: String?
@@ -23,7 +26,7 @@ extension GeneralConfigEditor.Snapshot {
         public init(
             name: String, image: String? = nil, baseImage: String? = nil, cpus: Int? = nil, memoryGB: Int? = nil,
             labels: [String]? = nil, fleetLabels: Bool? = nil, minIdle: Int? = nil, docker: Bool? = nil,
-            flags: [String]? = nil, max: Int? = nil, platform: String? = nil
+            dockerCache: Bool? = nil, flags: [String]? = nil, max: Int? = nil, platform: String? = nil
         ) {
             self.name = name
             self.image = image
@@ -34,6 +37,7 @@ extension GeneralConfigEditor.Snapshot {
             self.fleetLabels = fleetLabels
             self.minIdle = minIdle
             self.docker = docker
+            self.dockerCache = dockerCache
             self.flags = flags
             self.max = max
             self.platform = platform
@@ -45,7 +49,9 @@ extension GeneralConfigEditor.Snapshot {
                 ContainerPool(
                     name: name, image: entry.image, baseImage: entry.baseImage, cpus: entry.cpus,
                     memoryGB: entry.memoryGB, labels: entry.labels, fleetLabels: entry.fleetLabels,
-                    minIdle: entry.minIdle, docker: entry.docker, flags: entry.flags, max: entry.max,
+                    minIdle: entry.minIdle, docker: entry.docker?.enabled,
+                    // `{ cache: true }` is the default spelled out: kept as nil, so a rewrite writes `docker: true`.
+                    dockerCache: entry.docker?.cache == false ? false : nil, flags: entry.flags, max: entry.max,
                     platform: entry.platform)
             }
         }
@@ -63,7 +69,10 @@ extension GeneralConfigEditor.Snapshot {
             if let labels { body.append("\(key)labels: \(list(labels))") }
             if let fleetLabels { body.append("\(key)fleet_labels: \(fleetLabels)") }
             if let minIdle { body.append("\(key)min_idle: \(minIdle)") }
-            if let docker { body.append("\(key)docker: \(docker)") }
+            if let docker {
+                let value = docker ? GeneralConfigEditor.dockerValue(cache: dockerCache ?? true) : "false"
+                body.append("\(key)docker: \(value)")
+            }
             if let flags { body.append("\(key)flags: \(list(flags))") }
             if let max { body.append("\(key)max: \(max)") }
             if let platform { body.append("\(key)platform: \(YAMLText.quoted(platform))") }

@@ -91,7 +91,8 @@ public struct PartialConfig: Decodable {
         var baseImage: String?
         var fleetLabels: Bool?
         var minIdle: Int?
-        var docker: Bool?
+        /// `true` / `false`, or `{ cache: false }` (see `PartialDockerSetting`).
+        var docker: PartialDockerSetting?
         var flags: [String]?
         /// `linux/arm64` (default) or `linux/amd64`, the architecture of the runner containers.
         var platform: String?
@@ -123,7 +124,7 @@ public struct PartialConfig: Decodable {
         var baseImage: String?
         var fleetLabels: Bool?
         var minIdle: Int?
-        var docker: Bool?
+        var docker: PartialDockerSetting?
         var flags: [String]?
         var max: Int?
         /// The pool's own `platform` (see `PartialContainer.platform`).

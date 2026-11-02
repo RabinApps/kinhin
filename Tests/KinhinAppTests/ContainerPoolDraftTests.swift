@@ -31,6 +31,20 @@ final class ContainerPoolDraftTests: XCTestCase {
         XCTAssertNil(draft.pool(keeping: nil).platform, "a new pool inherits the section's platform")
     }
 
+    func testEditingAPoolKeepsItsDockerCacheSettingWhileDockerStaysOn() {
+        var cacheOff = full
+        cacheOff.dockerCache = false
+        var draft = ContainerPoolDraft(pool: cacheOff)
+        draft.cpus = "6"
+        XCTAssertEqual(draft.pool(keeping: cacheOff).dockerCache, false, "the sheet does not show it, so it stays")
+        draft.docker = .off
+        XCTAssertNil(draft.pool(keeping: cacheOff).dockerCache, "no cache setting without Docker")
+        draft.docker = .inherit
+        XCTAssertNil(draft.pool(keeping: cacheOff).dockerCache, "an inherited docker: brings the section's cache")
+        draft.docker = .on
+        XCTAssertNil(draft.pool(keeping: nil).dockerCache, "a new pool gets the cache's default")
+    }
+
     func testBlankFieldsLeaveTheirKeysOut() {
         var draft = ContainerPoolDraft()
         draft.name = " small "

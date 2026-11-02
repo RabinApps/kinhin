@@ -20,7 +20,7 @@ extension KinhinConfig {
         public init(
             image: String, cpus: Int = defaultCPUs, memoryGB: Int = defaultMemoryGB, labels: [String]? = nil,
             baseImage: String? = nil, fleetLabels: Bool? = nil, minIdle: Int = 0, docker: Bool = false,
-            flags: [String] = [], platform: LinuxPlatform = .arm64, pools: [Pool] = []
+            dockerCache: Bool = true, flags: [String] = [], platform: LinuxPlatform = .arm64, pools: [Pool] = []
         ) {
             self.image = image
             self.cpus = cpus
@@ -30,6 +30,7 @@ extension KinhinConfig {
             self.fleetLabels = fleetLabels
             self.minIdle = minIdle
             self.docker = docker
+            self.dockerCache = dockerCache
             self.flags = flags
             self.platform = platform
             self.pools = pools
@@ -53,6 +54,10 @@ extension KinhinConfig {
         /// capability, and `dockerd` is started in it before the runner registers. The bake installs Docker when the
         /// base image lacks it.
         public var docker: Bool
+
+        /// Whether Docker runners pull through kinhin's Docker Hub cache (`DockerRegistryCache`): on unless the file says
+        /// `docker: { cache: false }`. Means nothing while `docker` is off; read `Pool.usesDockerCache`.
+        public var dockerCache: Bool
 
         /// Extra `container run` arguments (`container.flags`), passed as separate argv elements after kinhin's own
         /// flags. The loader rejects the flags kinhin sets itself (`ConfigLoader.validatedContainerRunFlags`).

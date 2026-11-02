@@ -7,7 +7,8 @@ import XCTest
 /// section (the Apple container toggle, its base image, its labels, the pools editor) are the ones at risk; the
 /// others are here so a future rewrite of theirs is caught too.
 final class ContainerPoolsEditorRoundTripTests: XCTestCase {
-    /// Every pool key, in both YAML styles, a pool that sets nothing, and a section without an image of its own.
+    /// Every pool key, in both YAML styles (`docker:` as a Bool and as its `{ cache: false }` mapping), a pool that sets
+    /// nothing, and a section without an image of its own.
     private static let yaml = """
         accounts:
           - name: github
@@ -31,6 +32,8 @@ final class ContainerPoolsEditorRoundTripTests: XCTestCase {
               memory_gb: 12
               flags: ["--shm-size", "2g"]
               max: 2
+              docker:
+                cache: false
             gpu:
               image: "kinhin-ci-gpu"
               base_image: "debian:12"
@@ -39,6 +42,7 @@ final class ContainerPoolsEditorRoundTripTests: XCTestCase {
               docker: false
               min_idle: 0
             plain: { image: kinhin-ci-linux, labels: [plain] }
+            nocache: { image: kinhin-ci-linux, labels: [nocache], docker: { cache: false } }
 
         """
 
@@ -55,7 +59,8 @@ final class ContainerPoolsEditorRoundTripTests: XCTestCase {
         try Self.yaml.write(to: url, atomically: true, encoding: .utf8)
         writtenPools = try XCTUnwrap(GeneralConfigEditor.snapshot(from: Self.yaml).container?.pools)
         effectivePools = try XCTUnwrap(ConfigLoader.parse(Self.yaml).container?.pools)
-        XCTAssertEqual(writtenPools.map(\.name), ["big", "gpu", "linux", "plain"])
+        XCTAssertEqual(writtenPools.map(\.name), ["big", "gpu", "linux", "nocache", "plain"])
+        XCTAssertEqual(writtenPools.filter { $0.dockerCache == false }.map(\.name), ["big", "nocache"])
     }
 
     /// The pools as written are unchanged, and, unless the edit changed a section default, so is what they resolve to.

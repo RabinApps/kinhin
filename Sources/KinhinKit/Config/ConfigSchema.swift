@@ -27,6 +27,9 @@ struct ConfigSchema {
         self.children = children
     }
 
+    /// `docker:` on `container:` and on each pool: a Bool has no keys to check, the mapping form takes `cache`.
+    private static let dockerSetting = Child.object(.init(PartialConfig.PartialDockerSetting.CodingKeys.self))
+
     /// The whole `config.yaml` document.
     static let root = ConfigSchema(
         PartialConfig.CodingKeys.self,
@@ -41,7 +44,11 @@ struct ConfigSchema {
             "container": .object(
                 .init(
                     PartialConfig.PartialContainer.CodingKeys.self,
-                    ["pools": .map(.init(PartialConfig.PartialContainerPool.CodingKeys.self))])),
+                    [
+                        "docker": dockerSetting,
+                        "pools": .map(
+                            .init(PartialConfig.PartialContainerPool.CodingKeys.self, ["docker": dockerSetting])),
+                    ])),
             "docker": .object(.init(PartialConfig.PartialDocker.CodingKeys.self)),
             "toolchain_cache": .object(.init(PartialConfig.PartialCachePolicy.CodingKeys.self)),
             "runtimes": .object(
