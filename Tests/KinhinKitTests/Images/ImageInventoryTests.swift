@@ -224,6 +224,22 @@ final class ImageInventoryTests: XCTestCase {
         XCTAssertFalse(ImageInventory.ociUses(name: "x:v1", wanted: "x"), "an old tag is not what is running")
     }
 
+    /// A registry port is not a tag: `localhost:5000/runner` starts `:latest`.
+    func testARegistryPortIsNotATag() {
+        XCTAssertTrue(ImageInventory.ociUses(name: "localhost:5000/runner:latest", wanted: "localhost:5000/runner"))
+        XCTAssertFalse(ImageInventory.ociUses(name: "localhost:5000/runner:v1", wanted: "localhost:5000/runner"))
+        XCTAssertTrue(ImageInventory.ociUses(name: "localhost:5000/runner:v1", wanted: "localhost:5000/runner:v1"))
+        XCTAssertFalse(
+            ImageInventory.ociUses(name: "localhost:5000/runner:v1:latest", wanted: "localhost:5000/runner:v1"))
+        XCTAssertFalse(ImageInventory.ociUses(name: "r@sha256:ab:latest", wanted: "r@sha256:ab"), "a digest is pinned")
+        XCTAssertEqual(
+            KinhinConfig.ContainerConfig(
+                image: "localhost:5000/runner",
+                pools: [.init(name: "linux", image: "localhost:5000/runner")]
+            ).poolsMissingImage(listed: ["localhost:5000/runner:latest"]), [],
+            "the pool is runnable, so the engine must not skip it as unprepared")
+    }
+
     // MARK: - Instances
 
     private struct ListFailed: LocalizedError {

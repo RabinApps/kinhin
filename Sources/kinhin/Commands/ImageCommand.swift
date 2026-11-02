@@ -22,10 +22,6 @@ enum ImageCommand {
         return [flag("--image", in: args)]
     }
 
-    /// `--source NAME` bakes from that VM (a local tart VM, such as the one `--linux` creates, or a registry
-    /// reference) and `--target NAME` writes the result there, for a tart bake. Both were accepted and silently
-    /// ignored, so the documented `image prepare --linux …` then `image prepare --source <vm>` flow baked from the
-    /// default macOS image instead (found by the e2e Tart lanes).
     /// The Apple container bakes one `image prepare --container` run makes. Bare: one image, `--target` (default
     /// `kinhin-ci-linux`) on the section's `base_image`. `--pool NAME`: that `container.pools:` entry's image on its
     /// base. `--all`: every pool's image, each once. `--container-image` overrides the base of each; `--target`
@@ -64,6 +60,10 @@ enum ImageCommand {
         return [bake(target)]
     }
 
+    /// `--source NAME` bakes from that VM (a local tart VM, such as the one `--linux` creates, or a registry
+    /// reference) and `--target NAME` writes the result there, for a tart bake. Both were accepted and silently
+    /// ignored, so the documented `image prepare --linux …` then `image prepare --source <vm>` flow baked from the
+    /// default macOS image instead (found by the e2e Tart lanes).
     static func applySourceAndTarget(_ args: [String], to options: inout ImagePreparer.Options) throws {
         if let source = flag("--source", in: args) {
             if let problem = TartBaseImage.problem(with: source) {

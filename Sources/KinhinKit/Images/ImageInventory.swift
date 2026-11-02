@@ -409,10 +409,19 @@ public struct ImageInventory: Sendable, Equatable, Codable {
     }
 
     /// The one tag runner containers actually start from: the name itself, or
-    /// `:latest` when the config carries no tag.
+    /// `:latest` when the config carries no tag or digest.
     static func ociUses(name: String, wanted: String) -> Bool {
         if name == wanted { return true }
-        return !wanted.contains(":") && name == "\(wanted):latest"
+        return !ociHasTagOrDigest(wanted) && name == "\(wanted):latest"
+    }
+
+    /// Whether a reference names a tag or digest. A `:` before the last `/` is
+    /// a registry port (`localhost:5000/runner` has no tag), so only the last
+    /// path component is looked at.
+    static func ociHasTagOrDigest(_ reference: String) -> Bool {
+        if reference.contains("@") { return true }
+        let lastComponent = reference.split(separator: "/").last ?? Substring(reference)
+        return lastComponent.contains(":")
     }
 
     /// base, named, derived, local — then alphabetical, so the listing (and

@@ -123,7 +123,9 @@ public struct BenchmarkEnvironment: Sendable {
     func image(for runtime: RuntimeID) -> String {
         switch runtime {
         case .tart: return config.image
-        case .appleContainer: return config.container?.image ?? Self.defaultLinuxImage
+        // The default pool's image, the one `makeRuntime` starts: with `pools:`, the section's `image` may be one no
+        // pool runs, and probing it would skip the benchmark for a missing image the fleet never uses.
+        case .appleContainer: return config.container?.defaultPool.image ?? Self.defaultLinuxImage
         case .docker: return config.docker?.image ?? Self.defaultLinuxImage
         case .host: return "host"
         }

@@ -86,4 +86,14 @@ final class ContainerPoolsReviewFixesTests: XCTestCase {
         XCTAssertEqual(runtime.cpus, 2, "the default pool's shape, not the section's default")
         XCTAssertTrue(runtime.docker)
     }
+
+    func testTheBenchmarkProbesTheDefaultPoolsImage() {
+        var cfg = makeTestConfig()
+        cfg.container = pooled()
+        cfg.container?.image = "kinhin-ci-unused"
+        let env = BenchmarkEnvironment(config: cfg, tart: FakeTart(), ssh: FakeSSH(), shell: FakeShell())
+        XCTAssertEqual(
+            env.image(for: .appleContainer), "kinhin-ci-linux",
+            "the image the runtime starts, not a section image no pool runs")
+    }
 }
