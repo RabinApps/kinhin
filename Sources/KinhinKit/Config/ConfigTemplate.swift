@@ -245,7 +245,7 @@ extension ConfigLoader {
         #   pools:                       # optional: several named pools; the keys above are their defaults
         #     linux: { labels: [linux], min_idle: 1 }
         #     big: { labels: [linux, big], cpus: 8, memory_gb: 16, max: 2 }   # runs-on: [..., linux, big]
-        #     linux-x64: { image: kinhin-ci-linux-x64, labels: [linux], platform: linux/amd64 }   # runs-on: [self-hosted, x64, linux]
+        #     linux-x64: { image: kinhin-ci-linux-x64, labels: [linux], platform: linux/amd64, min_idle: 0 }   # [self-hosted, x64, linux]
 
         # Optional: run Linux jobs in Docker containers inside your Docker
         # provider's shared Linux VM (Docker Desktop, OrbStack, or colima).

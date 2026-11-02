@@ -88,10 +88,14 @@ public struct BenchmarkEnvironment: Sendable {
             case .appleContainer:
                 // The default pool, as `FleetEngine` builds it: with `pools:`, the section's own keys are only the
                 // pools' defaults, so the benchmark times the shape the fleet actually starts.
+                // An explicit platform (a benchmark's own) wins over the pool's, as it does for Docker.
                 guard let container = config.container else {
-                    return AppleContainerRuntime(shell: shell, image: Self.defaultLinuxImage)
+                    return AppleContainerRuntime(
+                        shell: shell, image: Self.defaultLinuxImage, platform: platform ?? .arm64)
                 }
-                return AppleContainerRuntime(shell: shell, pool: container.defaultPool)
+                var pool = container.defaultPool
+                if let platform { pool.platform = platform }
+                return AppleContainerRuntime(shell: shell, pool: pool)
             case .docker:
                 return DockerRuntime(
                     shell: shell, image: config.docker?.image ?? Self.defaultLinuxImage,

@@ -126,6 +126,16 @@ final class ContainerPlatformRoutingTests: XCTestCase {
         XCTAssertEqual(AppleContainerRuntime.platformRunFlags(.amd64), ["--platform", "linux/amd64"])
     }
 
+    func testTheBenchmarkRunsTheDefaultPoolsPlatformUnlessToldOtherwise() throws {
+        var cfg = Self.config()
+        cfg.container?.pools = [.init(name: "x64", image: "kinhin-ci-linux-x64", platform: .amd64)]
+        let env = BenchmarkEnvironment(config: cfg, tart: FakeTart(), ssh: FakeSSH(), shell: FakeShell())
+        let pooled = try XCTUnwrap(env.makeRuntime(.appleContainer, nil) as? AppleContainerRuntime)
+        XCTAssertEqual(pooled.platform, .amd64, "the fleet runs it as amd64, so the benchmark must too")
+        let overridden = try XCTUnwrap(env.makeRuntime(.appleContainer, .arm64) as? AppleContainerRuntime)
+        XCTAssertEqual(overridden.platform, .arm64, "a benchmark's explicit platform wins, as for Docker")
+    }
+
     // MARK: - GitHub demand
 
     func testX64JobsCountAsDemandOnceAPoolServesThem() async throws {
