@@ -58,6 +58,7 @@ extension DoctorReport {
         var shape = "\(pool.cpus) CPU, \(pool.memoryGB) GB"
         if let max = pool.max { shape += ", max \(max)" }
         if pool.docker { shape += ", docker" }
+        if let platform = pool.platform, platform != LinuxPlatform.arm64.rawValue { shape += ", \(platform) (Rosetta)" }
         var line = "\(pool.name) (\(shape)): \(pool.image)"
         if runtimeReady {
             line +=

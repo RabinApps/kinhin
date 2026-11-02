@@ -39,6 +39,9 @@ struct LinuxContainerCLI: Sendable {
     var poolRunFlags: [String] = []
     /// Start `dockerd` inside the container before the runner registers (`container.docker`).
     var startsDocker = false
+    /// Route `docker build` through a buildx builder once dockerd answers: dockerd runs under Rosetta in an amd64
+    /// container, where its built-in BuildKit cannot run a build step (`RunnerBootstrap.linuxDockerBuilderScript`).
+    var buildsThroughBuildxBuilder = false
 
     var memoryLabel: String { "\(memoryBytes / 1_048_576)M" }
 
@@ -84,7 +87,8 @@ struct LinuxContainerCLI: Sendable {
             forge: forge, token: token, runnerTokens: runnerTokens, name: name, runnerCount: runnerCount,
             route: route, labels: labels)
         // Docker first: a runner must not take a job before its daemon answers.
-        let dockerPrefix = startsDocker ? RunnerBootstrap.linuxDockerDaemonScript() + "\n\n" : ""
+        let builder = buildsThroughBuildxBuilder ? RunnerBootstrap.linuxDockerBuilderScript() + "\n\n" : ""
+        let dockerPrefix = startsDocker ? RunnerBootstrap.linuxDockerDaemonScript() + "\n\n" + builder : ""
         return dockerPrefix + cachePrefix
             + (try forge.credentials.forge.descriptor.registrationScript(for: .linuxContainer, request))
     }

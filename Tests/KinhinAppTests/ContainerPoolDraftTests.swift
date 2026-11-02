@@ -22,6 +22,15 @@ final class ContainerPoolDraftTests: XCTestCase {
         XCTAssertEqual(draft.pool(keeping: full), full, "fleet_labels comes from the pool being edited")
     }
 
+    func testEditingAnAmd64PoolKeepsItsPlatform() {
+        var amd64 = full
+        amd64.platform = "linux/amd64"
+        var draft = ContainerPoolDraft(pool: amd64)
+        draft.cpus = "6"
+        XCTAssertEqual(draft.pool(keeping: amd64).platform, "linux/amd64", "the sheet does not show it, so it stays")
+        XCTAssertNil(draft.pool(keeping: nil).platform, "a new pool inherits the section's platform")
+    }
+
     func testBlankFieldsLeaveTheirKeysOut() {
         var draft = ContainerPoolDraft()
         draft.name = " small "

@@ -2,8 +2,9 @@ import Foundation
 
 /// The CPU architecture of Linux runner containers. kinhin only runs on
 /// Apple Silicon, so `arm64` is native. `amd64` is an explicit opt-in that
-/// runs under emulation provided by the Docker provider (Docker only; Apple
-/// `container` is arm64-only).
+/// runs under emulation: Rosetta for Linux on Apple `container`
+/// (`container.platform`), or whatever the Docker provider offers
+/// (`docker.platform`).
 public enum LinuxPlatform: String, Sendable, Equatable, CaseIterable {
     case arm64 = "linux/arm64"
     case amd64 = "linux/amd64"
@@ -42,6 +43,13 @@ public enum LinuxPlatform: String, Sendable, Equatable, CaseIterable {
         + "fails under emulation: JITs, certain Go/Java/.NET builds, and anything using unsupported CPU "
         + "instructions. Prefer linux/arm64 unless a job needs x86_64. Emulation is provided by your "
         + "Docker provider; kinhin does not configure it."
+
+    /// The Apple `container` counterpart of `emulationNotice`: amd64 containers run their x86_64 code under Rosetta for
+    /// Linux, which macOS provides to the container VMs.
+    public static let containerEmulationNotice =
+        "linux/amd64 runs under Rosetta for Linux on Apple Silicon: slower than arm64, and some software fails under "
+        + "it (JITs, certain Go/Java/.NET builds, and anything using CPU instructions Rosetta does not translate, such "
+        + "as AVX-512). Prefer linux/arm64 unless a job needs x86_64."
 
     /// Parses a config or flag value, accepting the bare architecture too.
     public init?(configValue: String) {

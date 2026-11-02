@@ -143,6 +143,14 @@ final class ContainerPoolsConfigEditorTests: XCTestCase {
         XCTAssertEqual(container.cpus, 2)
     }
 
+    func testRemovingTheLastAmd64PoolKeepsItsPlatformWithItsImage() throws {
+        let section = GeneralConfigEditor.Snapshot.Container(
+            image: "", cpus: 2, memoryGB: 4, pools: [.init(name: "x64", image: "x64-image", platform: "linux/amd64")])
+        let updated = try ContainerPoolsConfigEditor.removing("x64", from: section)
+        XCTAssertEqual(updated.image, "x64-image")
+        XCTAssertEqual(updated.platform, "linux/amd64", "an amd64 image must keep running as amd64")
+    }
+
     func testRemovingTheLastPoolKeepsTheSectionsOwnImage() throws {
         let section = GeneralConfigEditor.Snapshot.Container(
             image: "own", cpus: 2, memoryGB: 4, baseImage: "ubuntu:24.04",

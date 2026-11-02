@@ -30,6 +30,7 @@ public struct ContainerImagePreparer {
     /// Testable core with injected versions.
     public func prepare(_ options: Options, versions: RunnerVersionResolver.Versions) async throws -> String {
         let binary = Paths.findExecutable(named: "container") ?? "/usr/local/bin/container"
+        let platformFlags = AppleContainerRuntime.platformRunFlags(options.platform)
         let backend = LinuxImageBaker.Backend(
             logTag: "container-image",
             displayName: "container",
@@ -68,13 +69,15 @@ public struct ContainerImagePreparer {
                 }
                 try "FROM scratch\nADD rootfs.tar /\n".write(
                     to: workdir.appendingPathComponent("Dockerfile"), atomically: true, encoding: .utf8)
+                // A non-native image is tagged for its platform, so `container run --platform` finds it.
                 let build = try await shell.run(
-                    [binary, "build", "--tag", target, workdir.path], cwd: nil, timeout: 1800)
+                    [binary, "build", "--tag", target] + platformFlags + [workdir.path], cwd: nil, timeout: 1800)
                 guard build.succeeded else {
                     throw ImageError.containerProvisioningFailed(
                         "container build failed: \(build.failureExcerpt)")
                 }
-            }
+            },
+            emulationNotice: LinuxPlatform.containerEmulationNotice
         )
         return try await LinuxImageBaker(shell: shell, backend: backend).prepare(options, versions: versions)
     }

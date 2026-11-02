@@ -67,8 +67,9 @@ only honored on GitHub, Gitea/Forgejo and GitLab.
 | --- | --- |
 | `min_runners` / `max_runners` | 0 / 2. `min_runners` is fleet-wide, counts busy runners and fills `runtimes.default` |
 | `min_idle` | 0. Idle registered runners kept per pool or image: on `container:`, `docker:`, each `images:` entry; `image_min_idle` for `image:` |
-| `container.docker` / `container.flags` | false / []. Docker inside each Apple container runner (re-bake with `kinhin image prepare --container`); extra `container run` arguments, one list element each, never `--cpus`, `--memory`, `--name`, `--rm`, `--detach` or `--platform` |
-| `container.pools` | none. Named Linux pools (`NAME: {image, labels, cpus, memory_gb, min_idle, docker, flags, max}`; top-level `container:` keys are the defaults). A job goes to the pool whose labels it carries, `kinhin-container-NAME` targets one; pools share Apple container's CPU and RAM. Bake with `kinhin image prepare --container --pool NAME` or `--all` |
+| `container.docker` / `container.flags` | false / []. Docker inside each Apple container runner (re-bake with `kinhin image prepare --container`); extra `container run` arguments, one list element each, never `--cpus`/`-c`, `--memory`/`-m`, `--name`, `--rm`, `--detach`/`-d`, `--platform`, `--arch`/`-a`, `--os`, `--help`/`-h`, `--version` or a bare `--` |
+| `container.platform` | `linux/arm64`. `linux/amd64` runs x86_64 runners under Rosetta, registered with `x64` instead of `arm64`; also per pool. Re-bake with `kinhin image prepare --container` after changing it. With `docker: true`, builds go through the `kinhin` buildx builder (`BUILDX_BUILDER`), since dockerd's built-in builder fails under Rosetta |
+| `container.pools` | none. Named Linux pools (`NAME: {image, labels, cpus, memory_gb, min_idle, docker, flags, max, platform}`; top-level `container:` keys are the defaults). A job goes to the pool whose labels it carries, `kinhin-container-NAME` targets one; pools share Apple container's CPU and RAM. Bake with `kinhin image prepare --container --pool NAME` or `--all` |
 | `runners_per_vm` | 1 to 8. Packs several jobs into one VM. |
 | `poll_interval` | 20 seconds, minimum 5 |
 | `vm` | `cpu: 4`, `memory_gb: 8`, `ephemeral: true` |

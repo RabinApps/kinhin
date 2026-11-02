@@ -71,6 +71,7 @@ final class ContainerPoolsRoutingTests: XCTestCase {
         }
         model.presentNotice = { _, _ in }
         await model.reloadWithHealth()
+        await model.containerPoolImageListing?.value
         return model
     }
 
@@ -112,6 +113,16 @@ final class ContainerPoolsRoutingTests: XCTestCase {
         let big = try XCTUnwrap(model.containerPoolRows.first { $0.id == "big" })
         XCTAssertNil(big.built, "unknown until the next listing, not an earlier pool's answer")
         XCTAssertEqual(model.containerPoolRows.first { $0.id == "linux" }?.built, true)
+    }
+
+    func testAnAmd64PoolCardShowsItsPlatform() {
+        var pool = KinhinConfig.ContainerConfig.Pool(name: "x64", image: "kinhin-ci-x64", labels: ["linux"])
+        XCTAssertFalse(
+            RuntimesModel.containerPoolRow(pool, built: true, isDefault: false).detail.contains("linux/"),
+            "arm64, the default, is not called out")
+        pool.platform = .amd64
+        XCTAssertTrue(
+            RuntimesModel.containerPoolRow(pool, built: true, isDefault: false).detail.contains("linux/amd64"))
     }
 
     func testAFailedImageListingMarksNoPool() async throws {
@@ -230,5 +241,76 @@ final class ContainerPoolsRoutingTests: XCTestCase {
         removalAnswer = true
         model.removeContainerPool(name: "big")
         XCTAssertEqual(try ConfigLoader.parse(text()).container?.pools.map(\.name), ["linux"])
+    }
+
+    // MARK: - Image listing
+
+    /// Holds an image listing until the test lets it answer, and tells the test when a listing is waiting.
+    private actor ListingGate {
+        private var waiters: [CheckedContinuation<Void, Never>] = []
+        private var arrivalWaiters: [CheckedContinuation<Void, Never>] = []
+        private var isOpen = false
+
+        func wait() async {
+            if isOpen { return }
+            arrivalWaiters.forEach { $0.resume() }
+            arrivalWaiters = []
+            await withCheckedContinuation { waiters.append($0) }
+        }
+
+        /// Returns once a listing is held at the gate.
+        func waitForArrival() async {
+            if !waiters.isEmpty { return }
+            await withCheckedContinuation { arrivalWaiters.append($0) }
+        }
+
+        func open() {
+            isOpen = true
+            waiters.forEach { $0.resume() }
+            waiters = []
+        }
+    }
+
+    func testASlowImageListingDoesNotHoldBackTheHealthPass() async throws {
+        try write(Self.twoPools)
+        let gate = ListingGate()
+        let model = RuntimesModel()
+        model.configURL = configURL
+        model.listContainerImages = {
+            await gate.wait()
+            return ["kinhin-ci-linux:latest"]
+        }
+        await model.reloadWithHealth()
+        XCTAssertNotNil(model.viewModel, "the health pass finished while the listing still runs")
+        XCTAssertFalse(model.isProbingHealth, "a coalesced reload is free to run")
+        XCTAssertEqual(model.containerPoolRows.map(\.built), [nil, nil], "no answer yet")
+        await gate.open()
+        await model.containerPoolImageListing?.value
+        XCTAssertEqual(model.containerPoolRows.map(\.built), [false, true])
+    }
+
+    func testAnOlderListingThatAnswersLateDoesNotOverwriteANewerOne() async throws {
+        try write(Self.twoPools)
+        let gate = ListingGate()
+        let model = RuntimesModel()
+        model.configURL = configURL
+        model.listContainerImages = { [unowned self] in
+            listings += 1
+            if listings == 1 {
+                await gate.wait()
+                return []  // the first reload's listing: nothing built, answering last
+            }
+            return ["kinhin-ci-linux:latest", "kinhin-ci-big:latest"]
+        }
+        await model.reloadWithHealth()
+        let first = model.containerPoolImageListing
+        await gate.waitForArrival()  // the first listing is the one held, whichever task the scheduler ran first
+        await model.reloadWithHealth()
+        await model.containerPoolImageListing?.value
+        XCTAssertEqual(model.containerPoolRows.map(\.built), [true, true])
+        await gate.open()
+        await first?.value
+        XCTAssertEqual(listings, 2)
+        XCTAssertEqual(model.containerPoolRows.map(\.built), [true, true], "the older answer is dropped")
     }
 }

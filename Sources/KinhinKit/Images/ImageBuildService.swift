@@ -28,7 +28,8 @@ public enum ImageBuildService {
                     configured: target, localImages: await AppleContainerRuntime(shell: shell).localImageNames(),
                     fallback: LinuxBaseImage.resolve(configured: container.baseImage(forImage: target)))
                 let options = ContainerImagePreparer.Options(
-                    image: base, target: target, docker: container.bakesDocker(image: target))
+                    image: base, target: target, platform: container.platform(forImage: target),
+                    docker: container.bakesDocker(image: target))
                 try await ContainerImagePreparer(shell: shell).prepare(options)
             }
         case .docker:

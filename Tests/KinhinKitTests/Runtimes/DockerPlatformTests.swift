@@ -33,10 +33,24 @@ final class DockerPlatformTests: XCTestCase {
         }
     }
 
-    func testContainerPlatformIsRejected() {
-        XCTAssertThrowsError(try ConfigLoader.parse(base + "container:\n  image: ci\n  platform: linux/amd64\n")) {
-            XCTAssertTrue("\($0)".contains("arm64 only"), "\($0)")
-        }
+    func testContainerPlatformIsAccepted() throws {
+        // Apple container runs linux/amd64 under Rosetta since #75 step 3 (see ContainerPlatformConfigTests).
+        let cfg = try ConfigLoader.parse(base + "container:\n  image: ci\n  platform: linux/amd64\n")
+        XCTAssertEqual(cfg.container?.platform, .amd64)
+    }
+
+    func testEditingTheContainerSectionKeepsEveryPlatform() throws {
+        let yaml =
+            base
+            + "container:\n  platform: \"linux/amd64\"\n  pools:\n    x64: { image: ci-x64, labels: [linux] }\n"
+            + "    linux: { image: ci, labels: [linux], platform: linux/arm64 }\n"
+        let snapshot = try GeneralConfigEditor.snapshot(from: yaml)
+        var edited = try XCTUnwrap(snapshot.container)
+        edited.cpus = 6
+        let rewritten = try GeneralConfigEditor.replace(field: .container(edited), in: yaml)
+        let parsed = try ConfigLoader.parse(rewritten)
+        XCTAssertEqual(parsed.container?.platform, .amd64, rewritten)
+        XCTAssertEqual(parsed.container?.pools.map(\.platform), [.arm64, .amd64], rewritten)
     }
 
     func testEditingTheDockerSectionKeepsThePlatform() throws {

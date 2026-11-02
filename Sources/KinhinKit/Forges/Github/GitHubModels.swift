@@ -81,12 +81,18 @@ public struct RunningJob: Sendable, Equatable {
     public let repository: String?
     /// Identifiers and provider timestamps, when the forge supplies them.
     let correlation: JobCorrelation?
+    /// The job's `runs-on:` labels (empty when unknown).
+    let labels: [String]
 
-    public init(name: String, runnerName: String?, repository: String?, correlation: JobCorrelation? = nil) {
+    public init(
+        name: String, runnerName: String?, repository: String?, correlation: JobCorrelation? = nil,
+        labels: [String] = []
+    ) {
         self.name = name
         self.runnerName = runnerName
         self.repository = repository
         self.correlation = correlation
+        self.labels = labels
     }
 }
 

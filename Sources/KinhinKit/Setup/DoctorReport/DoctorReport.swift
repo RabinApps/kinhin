@@ -58,6 +58,8 @@ public struct DoctorReport: Codable, Equatable, Sendable {
         /// The budget the pools share, for the message when the pool does not fit.
         public let budgetCPU: Int
         public let budgetMemoryGB: Int
+        /// The pool's `platform` (`linux/arm64`, `linux/amd64`); nil in a report from before platforms.
+        public var platform: String? = nil
     }
 
     /// Docker runtime state — present only when config.yaml declares a

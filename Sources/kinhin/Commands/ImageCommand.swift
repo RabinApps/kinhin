@@ -22,22 +22,28 @@ enum ImageCommand {
         return [flag("--image", in: args)]
     }
 
-    /// `--source NAME` bakes from that VM (a local tart VM, such as the one `--linux` creates, or a registry
-    /// reference) and `--target NAME` writes the result there, for a tart bake. Both were accepted and silently
-    /// ignored, so the documented `image prepare --linux …` then `image prepare --source <vm>` flow baked from the
-    /// default macOS image instead (found by the e2e Tart lanes).
     /// The Apple container bakes one `image prepare --container` run makes. Bare: one image, `--target` (default
     /// `kinhin-ci-linux`) on the section's `base_image`. `--pool NAME`: that `container.pools:` entry's image on its
     /// base. `--all`: every pool's image, each once. `--container-image` overrides the base of each; `--target`
     /// renames the one image a bare or `--pool` bake writes, so `--all` refuses it. Docker is installed when a pool
-    /// that runs the image has `docker: true` (bare, without pools: the section's `docker`).
+    /// that runs the image has `docker: true` (bare, without pools: the section's `docker`). Each image is baked for
+    /// the platform of the pools that run it (bare: the section's); `--platform` overrides that for this run.
     static func containerBakes(args: [String], container: KinhinConfig.ContainerConfig?) throws -> [LinuxImageOptions] {
         let baseOverride = flag("--container-image", in: args)
+        var platformOverride: LinuxPlatform?
+        if let raw = flag("--platform", in: args) {
+            guard let parsed = LinuxPlatform(configValue: raw) else {
+                throw CLIError("--platform must be linux/arm64 or linux/amd64, got \"\(raw)\"", exit: .usage)
+            }
+            platformOverride = parsed
+        }
         func bake(_ image: String, target: String? = nil) -> LinuxImageOptions {
             LinuxImageOptions(
                 image: LinuxBaseImage.resolve(
                     configured: container?.baseImage(forImage: image), flagOverride: baseOverride),
-                target: target ?? image, docker: container?.bakesDocker(image: image) ?? false)
+                target: target ?? image,
+                platform: platformOverride ?? container?.platform(forImage: image) ?? .arm64,
+                docker: container?.bakesDocker(image: image) ?? false)
         }
         if args.contains("--all") {
             if hasFlag("--target", in: args) {
@@ -64,6 +70,10 @@ enum ImageCommand {
         return [bake(target)]
     }
 
+    /// `--source NAME` bakes from that VM (a local tart VM, such as the one `--linux` creates, or a registry
+    /// reference) and `--target NAME` writes the result there, for a tart bake. Both were accepted and silently
+    /// ignored, so the documented `image prepare --linux …` then `image prepare --source <vm>` flow baked from the
+    /// default macOS image instead (found by the e2e Tart lanes).
     static func applySourceAndTarget(_ args: [String], to options: inout ImagePreparer.Options) throws {
         if let source = flag("--source", in: args) {
             if let problem = TartBaseImage.problem(with: source) {
@@ -200,6 +210,7 @@ enum ImageCommand {
                 }
                 let bakes = try Self.containerBakes(args: args, container: cfg.container)
                 let preparer = ContainerImagePreparer(shell: shell)
+                if bakes.contains(where: { $0.platform.isEmulated }) { warn(LinuxPlatform.containerEmulationNotice) }
                 for options in bakes {
                     let baked = try await preparer.prepare(options)
                     print("container image ready: \(baked)")

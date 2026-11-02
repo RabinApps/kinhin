@@ -37,7 +37,8 @@ extension DoctorReportBuilder {
                     name: pool.name, image: pool.image, imageFound: !unbuiltNames.contains(pool.name),
                     cpus: pool.cpus, memoryGB: pool.memoryGB, max: pool.max, docker: pool.docker,
                     fits: budget.map { $0.count(cpu: pool.cpus, memoryGB: pool.memoryGB) > 0 } ?? true,
-                    budgetCPU: budget?.cpu ?? 0, budgetMemoryGB: budget?.memoryGB ?? 0)
+                    budgetCPU: budget?.cpu ?? 0, budgetMemoryGB: budget?.memoryGB ?? 0,
+                    platform: pool.platform.rawValue)
             }
             if let first = unbuilt.first { wanted = first.image }
             if verdict.ok, !imageFound {

@@ -88,10 +88,14 @@ public struct BenchmarkEnvironment: Sendable {
             case .appleContainer:
                 // The default pool, as `FleetEngine` builds it: with `pools:`, the section's own keys are only the
                 // pools' defaults, so the benchmark times the shape the fleet actually starts.
+                // An explicit platform (a benchmark's own) wins over the pool's, as it does for Docker.
                 guard let container = config.container else {
-                    return AppleContainerRuntime(shell: shell, image: Self.defaultLinuxImage)
+                    return AppleContainerRuntime(
+                        shell: shell, image: Self.defaultLinuxImage, platform: platform ?? .arm64)
                 }
-                return AppleContainerRuntime(shell: shell, pool: container.defaultPool)
+                var pool = container.defaultPool
+                if let platform { pool.platform = platform }
+                return AppleContainerRuntime(shell: shell, pool: pool)
             case .docker:
                 return DockerRuntime(
                     shell: shell, image: config.docker?.image ?? Self.defaultLinuxImage,
@@ -123,7 +127,9 @@ public struct BenchmarkEnvironment: Sendable {
     func image(for runtime: RuntimeID) -> String {
         switch runtime {
         case .tart: return config.image
-        case .appleContainer: return config.container?.image ?? Self.defaultLinuxImage
+        // The default pool's image, the one `makeRuntime` starts: with `pools:`, the section's `image` may be one no
+        // pool runs, and probing it would skip the benchmark for a missing image the fleet never uses.
+        case .appleContainer: return config.container?.defaultPool.image ?? Self.defaultLinuxImage
         case .docker: return config.docker?.image ?? Self.defaultLinuxImage
         case .host: return "host"
         }

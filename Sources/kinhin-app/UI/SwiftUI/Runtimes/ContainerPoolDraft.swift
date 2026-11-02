@@ -2,8 +2,8 @@ import Foundation
 import KinhinKit
 
 /// The container pool sheet's fields as typed, and the `container.pools:` entry they make. A blank field leaves its
-/// key out, so the pool inherits the `container:` section's value; keys the sheet does not show (`fleet_labels`)
-/// are carried over from the pool being edited.
+/// key out, so the pool inherits the `container:` section's value; keys the sheet does not show (`fleet_labels`,
+/// `platform`) are carried over from the pool being edited.
 struct ContainerPoolDraft: Equatable {
     typealias Pool = ContainerPoolsConfigEditor.Pool
 
@@ -94,7 +94,7 @@ struct ContainerPoolDraft: Equatable {
     // MARK: - The entry
 
     /// The entry to write (check `problem` first: a field that is not a number is left out). `original` is the pool
-    /// being edited, whose `fleet_labels` the sheet does not show and so keeps.
+    /// being edited, whose `fleet_labels` and `platform` the sheet does not show and so keeps.
     func pool(keeping original: Pool?) -> Pool {
         func text(_ value: String) -> String? {
             let trimmed = value.trimmingCharacters(in: .whitespaces)
@@ -115,6 +115,6 @@ struct ContainerPoolDraft: Equatable {
             name: name.trimmingCharacters(in: .whitespaces), image: text(image), baseImage: text(baseImage),
             cpus: number(cpus), memoryGB: number(memoryGB), labels: labelList.isEmpty ? nil : labelList,
             fleetLabels: original?.fleetLabels, minIdle: number(minIdle), docker: dockerValue,
-            flags: flagList.isEmpty ? nil : flagList, max: number(max))
+            flags: flagList.isEmpty ? nil : flagList, max: number(max), platform: original?.platform)
     }
 }

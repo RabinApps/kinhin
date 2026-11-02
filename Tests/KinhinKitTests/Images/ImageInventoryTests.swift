@@ -224,6 +224,37 @@ final class ImageInventoryTests: XCTestCase {
         XCTAssertFalse(ImageInventory.ociUses(name: "x:v1", wanted: "x"), "an old tag is not what is running")
     }
 
+    /// With named pools, another tag of a pool's image does not make it present: `container run runner` needs
+    /// `runner:latest`. (A section without pools keeps the looser rule: `ContainerPoolsDoctorTests`.)
+    func testAConfiguredImageIsPresentOnlyWithTheTagItsRunnersStart() {
+        var cfg = KinhinConfig.default
+        cfg.container = .init(
+            image: "runner",
+            pools: [.init(name: "a", image: "runner"), .init(name: "b", image: "runner:v1", labels: ["v1"])])
+        let onlyV1 = ImageInventory.section(.container, config: cfg, images: .init(names: ["runner:v1"]))
+        XCTAssertFalse(onlyV1.configuredImagesPresent)
+        XCTAssertEqual(onlyV1.entries.filter { !$0.present }.map(\.name), ["runner"])
+        let both = ImageInventory.section(
+            .container, config: cfg, images: .init(names: ["runner:v1", "runner:latest"]))
+        XCTAssertTrue(both.configuredImagesPresent)
+    }
+
+    /// A registry port is not a tag: `localhost:5000/runner` starts `:latest`.
+    func testARegistryPortIsNotATag() {
+        XCTAssertTrue(ImageInventory.ociUses(name: "localhost:5000/runner:latest", wanted: "localhost:5000/runner"))
+        XCTAssertFalse(ImageInventory.ociUses(name: "localhost:5000/runner:v1", wanted: "localhost:5000/runner"))
+        XCTAssertTrue(ImageInventory.ociUses(name: "localhost:5000/runner:v1", wanted: "localhost:5000/runner:v1"))
+        XCTAssertFalse(
+            ImageInventory.ociUses(name: "localhost:5000/runner:v1:latest", wanted: "localhost:5000/runner:v1"))
+        XCTAssertFalse(ImageInventory.ociUses(name: "r@sha256:ab:latest", wanted: "r@sha256:ab"), "a digest is pinned")
+        XCTAssertEqual(
+            KinhinConfig.ContainerConfig(
+                image: "localhost:5000/runner",
+                pools: [.init(name: "linux", image: "localhost:5000/runner")]
+            ).poolsMissingImage(listed: ["localhost:5000/runner:latest"]), [],
+            "the pool is runnable, so the engine must not skip it as unprepared")
+    }
+
     // MARK: - Instances
 
     private struct ListFailed: LocalizedError {

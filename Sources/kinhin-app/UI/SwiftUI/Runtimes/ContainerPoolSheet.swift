@@ -26,7 +26,7 @@ struct ContainerPoolSheet: View {
                 .font(.system(size: 13, weight: .semibold))
             if offer.isFirstPool {
                 HintText(
-                    "Named pools replace the single container pool: the keys under container: become each pool's defaults, and a job no pool's labels claim goes to the pool with the fewest labels."
+                    "Named pools replace the single container pool: the keys under container: become each pool's defaults, and a job no pool's labels claim goes to the pool with the fewest labels among those of the architecture it asks for (x64 or arm64)."
                 )
             }
 

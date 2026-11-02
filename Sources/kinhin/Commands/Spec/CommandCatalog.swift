@@ -265,7 +265,9 @@ enum CommandCatalog {
                         .bool("--container", "Build the Linux image for apple container"),
                         .value("--pool", "NAME", "With --container: build that container.pools: entry's image"),
                         .bool("--docker", "Build the Linux image for Docker"),
-                        .value("--platform", "P", "Docker platform, e.g. linux/amd64 (runs under emulation)"),
+                        .value(
+                            "--platform", "P",
+                            "Platform for --docker or --container, e.g. linux/amd64 (emulated; default: the config's)"),
                         .value("--container-image", "REF", "Base OCI image for --container"),
                         .value("--docker-image", "REF", "Base OCI image for --docker"),
                         .bool("--linux", "Create a Linux tart VM from scratch (needs --target)"),

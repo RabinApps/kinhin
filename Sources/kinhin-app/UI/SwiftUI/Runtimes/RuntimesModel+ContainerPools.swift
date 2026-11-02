@@ -11,8 +11,8 @@ extension RuntimesModel {
     /// One named pool's card: what the pool resolves to after the `container:` defaults are filled in.
     struct ContainerPoolRow: Identifiable, Equatable {
         let id: String
-        /// "labels: …" (the pool's own labels and its `kinhin-container-<name>` marker), then shape and floors,
-        /// then the image; one fact group per line.
+        /// "labels: …" (the pool's own labels and its `kinhin-container-<name>` marker), then shape, floors and a
+        /// non-native platform, then the image; one fact group per line.
         let detail: String
         /// Whether the pool's image is built; nil when the images could not be listed.
         let built: Bool?
@@ -59,6 +59,8 @@ extension RuntimesModel {
             pool.docker
                 ? String(localized: "Docker on", bundle: .l10n, comment: "Container pool card: docker: true")
                 : String(localized: "Docker off", bundle: .l10n, comment: "Container pool card: docker: false"))
+        // An amd64 pool says so (it runs under Rosetta); arm64, the native default, adds nothing.
+        if pool.platform != .arm64 { shape.append(pool.platform.rawValue) }
         if isDefault {
             shape.append(
                 String(
@@ -95,22 +97,23 @@ extension RuntimesModel {
         }
     }
 
-    /// Lists the local images once per reload, when there are named pools to mark. A failed listing marks nothing.
-    func refreshContainerPoolImages() async {
-        guard let container = parsedConfig?.container, !container.pools.isEmpty else {
-            builtContainerImages = nil
-            return
+    /// Lists the local images once per reload, when `container` (that reload's section) has named pools to mark. A
+    /// failed listing marks nothing. The answer is applied only while `generation` is still the newest listing.
+    func refreshContainerPoolImages(container: KinhinConfig.ContainerConfig?, generation: Int) async {
+        var built: [String: Bool]?
+        if let container, !container.pools.isEmpty {
+            do {
+                let listed = try await listContainerImages()
+                let missing = Set(container.poolsMissingImage(listed: listed).map(\.image))
+                built = Dictionary(
+                    container.pools.map { ($0.image, !missing.contains($0.image)) },
+                    uniquingKeysWith: { first, _ in first })
+            } catch {
+                Log.warn("runtimes-pane", "container image list failed: \(error.localizedDescription)")
+            }
         }
-        do {
-            let listed = try await listContainerImages()
-            let missing = Set(container.poolsMissingImage(listed: listed).map(\.image))
-            builtContainerImages = Dictionary(
-                container.pools.map { ($0.image, !missing.contains($0.image)) }, uniquingKeysWith: { first, _ in first }
-            )
-        } catch {
-            Log.warn("runtimes-pane", "container image list failed: \(error.localizedDescription)")
-            builtContainerImages = nil
-        }
+        guard generation == containerPoolImageGeneration else { return }  // a newer reload listed since
+        builtContainerImages = built
     }
 
     // MARK: - Sheet

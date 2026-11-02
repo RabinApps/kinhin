@@ -17,11 +17,7 @@ extension ConfigLoader {
         if let mem = container.memoryGB, mem < 2 {
             throw ConfigError.invalid("container.memory_gb must be >= 2")
         }
-        if container.platform != nil {
-            throw ConfigError.invalid(
-                "container.platform is not supported: Apple container runs linux/arm64 only "
-                    + "(docker.platform can select linux/amd64)")
-        }
+        let platform = try Self.parsedContainerPlatform(container.platform, key: "container.platform") ?? .arm64
         if let minIdle = container.minIdle, minIdle < 0 {
             throw ConfigError.invalid("container.min_idle must be >= 0")
         }
@@ -36,10 +32,20 @@ extension ConfigLoader {
             fleetLabels: container.fleetLabels,
             minIdle: container.minIdle ?? 0,
             docker: container.docker ?? false,
-            flags: flags
+            flags: flags,
+            platform: platform
         )
         guard container.pools != nil else { return section }
         return try parseContainerPools(container, section: section)
+    }
+
+    /// `raw` (the value at `key`) as a platform; nil when unset.
+    static func parsedContainerPlatform(_ raw: String?, key: String) throws -> LinuxPlatform? {
+        guard let raw else { return nil }
+        guard let parsed = LinuxPlatform(configValue: raw) else {
+            throw ConfigError.invalid("\(key) must be linux/arm64 or linux/amd64, got \"\(raw)\"")
+        }
+        return parsed
     }
 
     static func parseDocker(_ docker: PartialConfig.PartialDocker) throws -> KinhinConfig.DockerForgeConfig {

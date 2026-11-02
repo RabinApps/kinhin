@@ -241,9 +241,11 @@ extension ConfigLoader {
         #   min_idle: 1                  # idle registered runners kept for this pool
         #   docker: true                 # Docker inside each runner (dockerd starts before it registers)
         #   flags: ["--shm-size", "2g"]  # extra `container run` arguments, one list element each
+        #   platform: "linux/arm64"      # default; "linux/amd64" runs x86_64 under Rosetta (label x64, not arm64)
         #   pools:                       # optional: several named pools; the keys above are their defaults
         #     linux: { labels: [linux], min_idle: 1 }
         #     big: { labels: [linux, big], cpus: 8, memory_gb: 16, max: 2 }   # runs-on: [..., linux, big]
+        #     linux-x64: { image: kinhin-ci-linux-x64, labels: [linux], platform: linux/amd64, min_idle: 0 }   # [self-hosted, x64, linux]
 
         # Optional: run Linux jobs in Docker containers inside your Docker
         # provider's shared Linux VM (Docker Desktop, OrbStack, or colima).

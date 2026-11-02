@@ -322,7 +322,8 @@ public struct GitHubClient: GitHubServing {
                         RunningJob(
                             name: job.name, runnerName: job.runnerName,
                             repository: run.attributedRepository,
-                            correlation: job.correlation(repository: run.attributedRepository)
+                            correlation: job.correlation(repository: run.attributedRepository),
+                            labels: jobLabels.sorted()
                         ))
                 }
             }
