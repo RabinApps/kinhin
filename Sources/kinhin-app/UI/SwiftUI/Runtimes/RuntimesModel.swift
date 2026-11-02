@@ -172,11 +172,13 @@ final class RuntimesModel: ConfigFormModel {
         }
         refreshLabelFields()
         refreshBudgetPreviews(budget: currentRuntimeConfig?.budget ?? [:])
-        await refreshContainerPoolImages()
+        // The pool images are listed while the health pass runs: neither waits for the other's subprocess.
+        let poolImages = Task { await self.refreshContainerPoolImages() }
 
         // Health pass: probe each enabled pool's runtime concurrently.
         let withHealth = await RuntimesPaneViewModel.load(
             configYAML: yaml, host: host, reserve: parsed.reserve, loadHealth: true)
+        await poolImages.value
         guard withHealth != fast else { return }  // nothing changed; no flicker
         viewModel = withHealth
         refreshBudgetPreviews(budget: currentRuntimeConfig?.budget ?? [:])
@@ -306,9 +308,11 @@ final class RuntimesModel: ConfigFormModel {
 
     // MARK: - Container pools
 
-    /// The named container pools whose image is not built yet; nil until the images were listed, or when the
-    /// listing failed (the cards then say nothing rather than call every pool unbuilt).
-    var unbuiltContainerPools: Set<String>?
+    /// Whether each named container pool's image is built, by image name, as of the last listing; nil until the
+    /// images were listed, or when the listing failed (the cards then say nothing rather than call every pool
+    /// unbuilt). Keyed by image, so a pool added, renamed or pointed at another image since the listing shows no
+    /// chip until the next one answers, instead of an earlier pool's answer.
+    var builtContainerImages: [String: Bool]?
     /// The local Apple container image names (tests inject a listing). Throws when the CLI cannot list them.
     @ObservationIgnored var listContainerImages: () async throws -> [String] = {
         try await AppleContainerRuntime().listedImageNames()

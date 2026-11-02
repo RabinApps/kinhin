@@ -104,6 +104,16 @@ final class ContainerPoolsRoutingTests: XCTestCase {
         XCTAssertEqual(RuntimesModel.builtChip(linux.built)?.style, .ok)
     }
 
+    func testAPoolWhoseImageTheLastListingDidNotCheckShowsNoChip() async throws {
+        try write(Self.twoPools)
+        let model = await loadedModel()
+        // As if big was added, renamed or pointed at another image after the listing answered.
+        model.builtContainerImages?["kinhin-ci-big"] = nil
+        let big = try XCTUnwrap(model.containerPoolRows.first { $0.id == "big" })
+        XCTAssertNil(big.built, "unknown until the next listing, not an earlier pool's answer")
+        XCTAssertEqual(model.containerPoolRows.first { $0.id == "linux" }?.built, true)
+    }
+
     func testAFailedImageListingMarksNoPool() async throws {
         try write(Self.twoPools)
         let model = await loadedModel(images: nil)

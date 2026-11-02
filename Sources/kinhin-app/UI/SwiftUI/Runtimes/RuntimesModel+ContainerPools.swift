@@ -29,7 +29,7 @@ extension RuntimesModel {
         let defaultName = container.pools.isEmpty ? nil : container.defaultPool.name
         return container.pools.map { pool in
             Self.containerPoolRow(
-                pool, built: unbuiltContainerPools.map { !$0.contains(pool.name) }, isDefault: pool.name == defaultName)
+                pool, built: builtContainerImages?[pool.image], isDefault: pool.name == defaultName)
         }
     }
 
@@ -98,15 +98,18 @@ extension RuntimesModel {
     /// Lists the local images once per reload, when there are named pools to mark. A failed listing marks nothing.
     func refreshContainerPoolImages() async {
         guard let container = parsedConfig?.container, !container.pools.isEmpty else {
-            unbuiltContainerPools = nil
+            builtContainerImages = nil
             return
         }
         do {
             let listed = try await listContainerImages()
-            unbuiltContainerPools = Set(container.poolsMissingImage(listed: listed).map(\.name))
+            let missing = Set(container.poolsMissingImage(listed: listed).map(\.image))
+            builtContainerImages = Dictionary(
+                container.pools.map { ($0.image, !missing.contains($0.image)) }, uniquingKeysWith: { first, _ in first }
+            )
         } catch {
             Log.warn("runtimes-pane", "container image list failed: \(error.localizedDescription)")
-            unbuiltContainerPools = nil
+            builtContainerImages = nil
         }
     }
 
