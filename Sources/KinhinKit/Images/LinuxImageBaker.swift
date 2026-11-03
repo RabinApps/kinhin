@@ -51,8 +51,8 @@ extension LinuxImageOptions {
     }
 }
 
-/// The bake pipeline shared by `DockerImagePreparer` and
-/// `ContainerImagePreparer`: boot a scratch container from the base image
+/// The scratch-container bake behind `DockerImagePreparer`, and the install
+/// scripts `ContainerImagePreparer` reuses: boot a scratch container from the base image
 /// with the host toolchain cache bind-mounted, inject the token-gated runner
 /// agents, optionally bake managed toolchains, commit to the target tag, and
 /// remove the scratch container. Only the CLI verbs and the commit step differ
@@ -66,9 +66,6 @@ struct LinuxImageBaker: Sendable {
         let binary: String
         /// Verb that force-removes a container ("rm" for docker, "delete" for container).
         let removeVerb: String
-        /// Given stderr from a failed scratch start, fixes a known, recoverable
-        /// cause (returns true, and the start is retried once). nil = none.
-        var recoverStartFailure: (@Sendable (_ shell: ShellRunning, _ stderr: String) async -> Bool)? = nil
         /// Turns the scratch container into the tagged target image.
         let commit: (@Sendable (_ shell: ShellRunning, _ scratch: String, _ target: String) async throws -> Void)
         /// What a non-native bake warns about the emulation it runs under.
@@ -87,24 +84,7 @@ struct LinuxImageBaker: Sendable {
         // Token-gated provisioning: identical policy to the VM path.
         let selection = try AgentSelection(override: options.storedTokens)
 
-        var lines: [String] = []
-        // git and jq every CI job needs — `actions/checkout`, `git ls-files`,
-        // workflow scripts that pipe through jq — even though no agent
-        // download installs them. First, under its own `set -e`, so a failed
-        // apt breaks the bake instead of shipping an image without them.
-        lines.append(
-            "set -euo pipefail\n"
-                + RunnerBootstrap.linuxPrerequisitesScript(tools: RunnerBootstrap.ciPrerequisiteTools))
-        if options.docker {
-            lines.append("set -euo pipefail\n" + RunnerBootstrap.linuxDockerInstallScript())
-        }
-        lines += selection.installScripts(versions: versions, tag: tag) { agent in
-            agent.bake.container(versions, options.platform)
-        }
-        lines.append(
-            try RunnerBootstrap.toolchainHelperInstallScript(
-                platform: .linux, mountPath: ToolchainCacheMount.linuxGuestPath))
-        let script = lines.joined(separator: "\n\n")
+        let script = try Self.installScript(options, selection: selection, versions: versions, tag: tag)
         let bin = backend.binary
 
         // Cache upkeep: sweep stale entries before this bake writes through
@@ -138,10 +118,7 @@ struct LinuxImageBaker: Sendable {
             "--name", scratch, options.image,
             "/bin/sh", "-c", "while true; do sleep 3600; done",
         ]
-        var started = try await shell.run(startArgv)
-        if !started.succeeded, let recover = backend.recoverStartFailure, await recover(shell, started.stderr) {
-            started = try await shell.run(startArgv)
-        }
+        let started = try await shell.run(startArgv)
         // Fail here, with the CLI's own reason (missing image, registry
         // auth, ...), instead of polling exec for two minutes.
         guard started.succeeded else {
@@ -205,16 +182,47 @@ struct LinuxImageBaker: Sendable {
         return options.target
     }
 
-    private func bakeToolchains(_ toolchains: KinhinConfig.ToolchainsConfig, into scratch: String) async throws {
-        let tag = backend.logTag
+    /// The install script both backends run as root in the base image: CI
+    /// prerequisites, optionally Docker, one install per forge agent, and the
+    /// `kinhin-toolchain` helper.
+    static func installScript(
+        _ options: LinuxImageOptions, selection: AgentSelection, versions: RunnerVersionResolver.Versions, tag: String
+    ) throws -> String {
+        var lines: [String] = []
+        // git and jq every CI job needs — `actions/checkout`, `git ls-files`,
+        // workflow scripts that pipe through jq — even though no agent
+        // download installs them. First, under its own `set -e`, so a failed
+        // apt breaks the bake instead of shipping an image without them.
+        lines.append(
+            "set -euo pipefail\n"
+                + RunnerBootstrap.linuxPrerequisitesScript(tools: RunnerBootstrap.ciPrerequisiteTools))
+        if options.docker {
+            lines.append("set -euo pipefail\n" + RunnerBootstrap.linuxDockerInstallScript())
+        }
+        lines += selection.installScripts(versions: versions, tag: tag) { agent in
+            agent.bake.container(versions, options.platform)
+        }
+        lines.append(
+            try RunnerBootstrap.toolchainHelperInstallScript(
+                platform: .linux, mountPath: ToolchainCacheMount.linuxGuestPath))
+        return lines.joined(separator: "\n\n")
+    }
+
+    /// The managed-toolchains (`toolchains:` config) install script, logging what it will install.
+    static func managedToolchainsScript(_ toolchains: KinhinConfig.ToolchainsConfig, tag: String) -> String {
         let selection = ToolchainCatalog.selection(
             from: toolchains, platform: .linux, mountPath: ToolchainCacheMount.linuxGuestPath)
-        let managed = RunnerBootstrap.linuxManagedToolchainsInstallScript(
-            selection: selection, mountPath: ToolchainCacheMount.linuxGuestPath)
         Log.info(
             tag,
             "installing managed toolchains (\(selection.miseSpecs.count) mise spec(s), \(selection.aptPackages.count) apt package(s), \(selection.npmPackages.count) npm global(s); \(selection.skippedEntries.count) macOS-only entr(y/ies) skipped)"
         )
+        return RunnerBootstrap.linuxManagedToolchainsInstallScript(
+            selection: selection, mountPath: ToolchainCacheMount.linuxGuestPath)
+    }
+
+    private func bakeToolchains(_ toolchains: KinhinConfig.ToolchainsConfig, into scratch: String) async throws {
+        let tag = backend.logTag
+        let managed = Self.managedToolchainsScript(toolchains, tag: tag)
         let provisioned = try await shell.run([backend.binary, "exec", scratch, "/bin/bash", "-lc", managed])
         guard provisioned.succeeded else {
             throw ImageError.containerProvisioningFailed(

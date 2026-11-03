@@ -4,6 +4,15 @@
 
 <!-- changelog: entries for the next release go here -->
 
+**Changed**
+
+- `kinhin image prepare --container` bakes the runner agents, Docker and managed toolchains as layers on the base image
+  (a `container build` `FROM` the base) instead of exporting a scratch container's whole filesystem and rebuilding it
+  over `scratch`. Disk use now follows what kinhin adds, not the size of the base (a 31 GB base used to need about
+  250 GB free), and the image keeps the base's `ENV`, `WORKDIR` and other config. kinhin sets `USER root` and clears
+  `ENTRYPOINT` in the baked image. The bake no longer uses the host toolchain cache (#79). Run `container builder stop
+  && container builder delete` once to reclaim an old bake's builder cache.
+
 **Added**
 
 - `min_idle` keeps a number of registered, idle runners for each pool and each Tart image, so the forge's runner list

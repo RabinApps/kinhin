@@ -287,7 +287,7 @@ projects:
 ```
 
 The cache is mounted into that project's bakes and runners, in a subdirectory scoped to the project. It is off by
-default and always off for fork PRs and jobs of unknown origin (GitHub scale-set, Gitea and Forgejo jobs). On Linux container runtimes it is bind-mounted at `/var/kinhin-cache`.
+default and always off for fork PRs and jobs of unknown origin (GitHub scale-set, Gitea and Forgejo jobs). On Linux container runtimes it is bind-mounted at `/var/kinhin-cache` in runners. The Apple container bake is a `container build`, which cannot mount host folders, so it does not use the cache.
 
 > **Don't enable it for untrusted code.** The cache is writable and holds things later jobs _execute_ (Cargo's `bin/`,
 > Flutter SDKs, Playwright browsers, Gradle init scripts). A fork PR could plant a binary there that a later job runs,

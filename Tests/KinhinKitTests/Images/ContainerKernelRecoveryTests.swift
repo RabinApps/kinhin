@@ -10,7 +10,7 @@ final class ContainerKernelRecoveryTests: XCTestCase {
 
     func testInstallsTheRecommendedKernelAndRetriesOnce() async throws {
         let shell = FakeShell()
-        // 1st call: scratch start fails for want of a kernel; then the kernel
+        // 1st call: the build fails for want of a kernel; then the kernel
         // install and every later call succeed.
         shell.responses = [kernelError]
         let options = LinuxImageOptions(
@@ -22,10 +22,10 @@ final class ContainerKernelRecoveryTests: XCTestCase {
         XCTAssertTrue(
             calls.contains { $0.suffix(4) == ["system", "kernel", "set", "--recommended"] },
             "expected a kernel install, got \(calls)")
-        XCTAssertEqual(calls.filter { $0.contains("run") && $0.contains("--detach") }.count, 2, "start retried once")
+        XCTAssertEqual(calls.filter { $0.dropFirst().first == "build" }.count, 2, "build retried once")
     }
 
-    func testOtherStartFailuresAreNotRetried() async {
+    func testOtherBuildFailuresAreNotRetried() async {
         let shell = FakeShell()
         shell.responses = [ShellResult(exitCode: 1, stdout: "", stderr: "Error: 401 Unauthorized")]
         let options = LinuxImageOptions(

@@ -15,7 +15,7 @@ final class LinuxImageBakerTests: XCTestCase {
         shell.defaultResult = ShellResult(exitCode: 0, stdout: "", stderr: "")
         let started = Date()
         do {
-            _ = try await ContainerImagePreparer(shell: shell).prepare(
+            _ = try await DockerImagePreparer(shell: shell).prepare(
                 options(), versions: .init(github: "1", gitea: "1"))
             XCTFail("expected the bake to fail")
         } catch let error as ImageError {
@@ -47,13 +47,12 @@ final class LinuxImageBakerTests: XCTestCase {
         // CI jobs baked on this image (docs lint's `git ls-files`, checkout,
         // jq in workflow scripts) need git and jq; no agent download does, so
         // the common block must lead the composed script.
-        let shell = FakeShell()
+        let shell = BuildContextCapturingShell()
         let opts = LinuxImageOptions(
             image: "ubuntu:24.04", target: "out", storedTokens: [.github])
         _ = try await ContainerImagePreparer(shell: shell).prepare(opts, versions: .init(github: "1", gitea: "1"))
 
-        let install = try XCTUnwrap(shell.calls.first { $0.contains("-lc") }, "\(shell.calls)")
-        let script = try XCTUnwrap(install.last, "\(install)")
+        let script = try XCTUnwrap(shell.builds.first?.scripts["install.sh"])
         XCTAssertTrue(script.hasPrefix("set -euo pipefail"), "the common block runs with errexit")
         XCTAssertTrue(script.contains("command -v git"), "git must be checked for")
         XCTAssertTrue(script.contains("command -v jq"), "jq must be checked for")
@@ -68,11 +67,10 @@ final class LinuxImageBakerTests: XCTestCase {
     // MARK: - Docker (container.docker)
 
     private func bakeScript(docker: Bool) async throws -> String {
-        let shell = FakeShell()
+        let shell = BuildContextCapturingShell()
         let opts = LinuxImageOptions(image: "ubuntu:24.04", target: "out", storedTokens: [.github], docker: docker)
         _ = try await ContainerImagePreparer(shell: shell).prepare(opts, versions: .init(github: "1", gitea: "1"))
-        let install = try XCTUnwrap(shell.calls.first { $0.contains("-lc") }, "\(shell.calls)")
-        return try XCTUnwrap(install.last, "\(install)")
+        return try XCTUnwrap(shell.builds.first?.scripts["install.sh"])
     }
 
     func testBakeInstallsDockerOnlyWhenAsked() async throws {
