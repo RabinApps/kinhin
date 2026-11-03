@@ -39,7 +39,11 @@ Buildkite, Azure and Bitbucket forge lanes, multi-account fleets and the e2e run
 1. `NOTARY_KEYCHAIN_PROFILE=kinhin SPARKLE_ED_PRIVATE_KEY=… KINHIN_SPARKLE_PUBLIC_KEY=… SPARKLE_TOOLS=~/sparkle scripts/release.sh 0.0.1-beta-5`.
    `[ -s dist/appcast.xml ]` must hold.
 2. Publish with `gh release create` as in `docs/releasing.md` ("Local publish"), **five** files including `appcast.xml`.
-3. G6 on a clean Mac.
+3. G6 on a clean Mac. Note that `docs.yml` also runs on a successful `Release` run and copies the latest `appcast.xml` to
+   kinhin.dev, so the update feed can go live as soon as the release is published, before G6 finishes or after it fails.
+   Before step 2, add a required reviewer to the `github-pages` environment and approve the deploy only after G6 passes
+   (keep the `workflow_run` trigger; normal releases rely on it). If G6 fails, reject the deploy and mark the release
+   prerelease.
 4. Do not release the website until the tag is live: `website/versions.json` already lists `v0.0.1-beta-5` and the docs build snapshots it from the tag, so it fails before the tag exists. Once the tag and GitHub release are live, fast-forward `main` to `develop` and push (the site deploys from `main`, so the post goes live with it). Check `https://kinhin.dev/blog/beta-5`, the blog index, and that
    `https://kinhin.dev/appcast.xml` lists beta 5.
 5. Announce wherever beta 4 was announced.
