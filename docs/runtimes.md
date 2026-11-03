@@ -137,7 +137,7 @@ Cancelling is safe by construction:
   says so next to the busy line.
 
 What is kept, on purpose: the downloaded base image in tart's registry cache (the expensive part — the next bake starts
-from it), toolchain downloads written through the shared cache, and Docker's/container's own build cache (`container builder stop && container builder delete` empties the latter). `kinhin
+from it), toolchain downloads written through the shared cache, and Docker's/container's own build cache (`container builder stop && container builder delete` empties the latter, and so does `kinhin image prepare --container --clean-builder` after a successful bake; the cache can reach about 100 GB for a 31 GB base). `kinhin
 image prepare` also sweeps up `kinhin-prepare-tmp-*` VMs left by an earlier crashed bake before it starts, and
 `kinhin cleanup --vms` lists and removes them as "image-build scratch VMs".
 

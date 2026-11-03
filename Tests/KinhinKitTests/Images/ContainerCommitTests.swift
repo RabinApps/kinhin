@@ -132,4 +132,50 @@ final class ContainerCommitTests: XCTestCase {
         } catch {}
         XCTAssertTrue(shell.inner.calls.isEmpty)
     }
+
+    func testBaseImageThatCouldInjectDockerfileInstructionsIsRefused() async {
+        for base in ["ubuntu:24.04\nRUN touch /pwned", "ubuntu:24.04 AS x", "--platform=linux/amd64", ""] {
+            let shell = BuildContextCapturingShell()
+            do {
+                _ = try await ContainerImagePreparer(shell: shell).prepare(options(image: base), versions: versions)
+                XCTFail("expected \(base.debugDescription) to be refused")
+            } catch {
+                XCTAssertTrue(error.localizedDescription.contains("invalid base image"), error.localizedDescription)
+            }
+            XCTAssertTrue(shell.inner.calls.isEmpty, "no build for \(base.debugDescription)")
+        }
+    }
+
+    func testTargetThatReadsAsAnOptionIsRefused() async {
+        let shell = BuildContextCapturingShell()
+        var opts = options()
+        opts.target = "--no-cache"
+        do {
+            _ = try await ContainerImagePreparer(shell: shell).prepare(opts, versions: versions)
+            XCTFail("expected a failure")
+        } catch {
+            XCTAssertTrue(error.localizedDescription.contains("invalid target image"), error.localizedDescription)
+        }
+        XCTAssertTrue(shell.inner.calls.isEmpty)
+    }
+
+    func testDeleteBuilderStopsThenDeletes() async throws {
+        let shell = FakeShell()
+        try await AppleContainerRuntime.deleteBuilder(shell: shell, binary: "container")
+        XCTAssertEqual(shell.calls, [["container", "builder", "stop"], ["container", "builder", "delete"]])
+    }
+
+    func testDeleteBuilderToleratesAMissingBuilderButReportsOtherFailures() async throws {
+        let shell = FakeShell()
+        shell.defaultResult = ShellResult(exitCode: 1, stdout: "", stderr: "Error: builder not found")
+        try await AppleContainerRuntime.deleteBuilder(shell: shell, binary: "container")
+
+        shell.defaultResult = ShellResult(exitCode: 1, stdout: "", stderr: "Error: permission denied")
+        do {
+            try await AppleContainerRuntime.deleteBuilder(shell: shell, binary: "container")
+            XCTFail("expected a failure")
+        } catch {
+            XCTAssertTrue(error.localizedDescription.contains("permission denied"), error.localizedDescription)
+        }
+    }
 }

@@ -67,4 +67,13 @@ final class ImageCommandContainerPoolsTests: XCTestCase {
         XCTAssertThrowsError(
             try ImageCommand.containerBakes(args: ["--container", "--pool", "big"], container: section))
     }
+
+    func testAContainerImageOverrideThatIsNotAReferenceIsRefused() {
+        let section = KinhinConfig.ContainerConfig(image: "kinhin-ci-linux", baseImage: "ubuntu:24.04", docker: false)
+        for bad in ["ubuntu:24.04\nRUN x", "a b", "-x"] {
+            XCTAssertThrowsError(
+                try ImageCommand.containerBakes(args: ["--container", "--container-image", bad], container: section),
+                "\(bad.debugDescription)")
+        }
+    }
 }

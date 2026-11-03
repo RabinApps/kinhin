@@ -63,6 +63,13 @@ public struct ContainerImagePreparer {
     public func prepare(_ options: Options, versions: RunnerVersionResolver.Versions) async throws -> String {
         let tag = Self.logTag
         try Task.checkCancellation()
+        // The base goes into the Dockerfile's `FROM` line and the target into the `--tag` argv: a value with a
+        // newline would add Dockerfile instructions, and one starting with `-` would read as an option.
+        for (role, reference) in [("base image", options.image), ("target image", options.target)] {
+            if let problem = LinuxBaseImage.problem(with: reference) {
+                throw ImageError.containerProvisioningFailed("invalid \(role) '\(reference)': \(problem)")
+            }
+        }
         // Token-gated provisioning: identical policy to the VM path.
         let selection = try AgentSelection(override: options.storedTokens)
         let install = try LinuxImageBaker.installScript(options, selection: selection, versions: versions, tag: tag)

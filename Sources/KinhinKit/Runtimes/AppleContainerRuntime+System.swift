@@ -51,6 +51,20 @@ extension AppleContainerRuntime {
         }
     }
 
+    /// Stops and deletes the image builder, freeing its build cache (it can reach
+    /// 100 GB after baking a large base image). The next `container build`
+    /// starts a fresh builder. A builder that is not running, or does not
+    /// exist, is not an error.
+    public static func deleteBuilder(shell: ShellRunning = Shell(), binary: String = resolvedBinaryPath) async throws {
+        Log.info("container", "stopping and deleting the container builder")
+        _ = try await shell.run([binary, "builder", "stop"], cwd: nil, timeout: 120)
+        let result = try await shell.run([binary, "builder", "delete"], cwd: nil, timeout: 300)
+        guard result.succeeded || result.stderr.localizedCaseInsensitiveContains("not found") else {
+            let reason = String(result.stderr.split(whereSeparator: \.isNewline).last ?? "no error output")
+            throw ContainerManagerError.commandFailed(what: "deleting the container builder", stderr: reason)
+        }
+    }
+
     /// Installs the kernel only when none is present.
     public static func ensureKernel(shell: ShellRunning = Shell(), binary: String = resolvedBinaryPath) async throws {
         guard !hasInstalledKernel() else { return }
