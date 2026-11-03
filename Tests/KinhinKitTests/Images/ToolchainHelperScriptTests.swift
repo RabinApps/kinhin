@@ -151,12 +151,12 @@ final class ToolchainHelperScriptTests: XCTestCase {
     }
 
     func testContainerPrepareBakesTheHelperWithTheAgents() async throws {
-        let shell = FakeShell()
+        let shell = BuildContextCapturingShell()
         try await ContainerImagePreparer(shell: shell).prepare(
             .init(
                 image: "ubuntu:24.04", target: "kinhin-ci-linux", storedTokens: [.github]))
-        let agents = try XCTUnwrap(shell.calls.first { $0.contains("exec") && $0.contains("/bin/bash") })
-        XCTAssertTrue(agents.joined(separator: " ").contains("| tee \(RunnerBootstrap.toolchainHelperPath)"))
+        let install = try XCTUnwrap(shell.builds.first?.scripts["install.sh"])
+        XCTAssertTrue(install.contains("| tee \(RunnerBootstrap.toolchainHelperPath)"))
     }
 
     // MARK: - Harness

@@ -3,9 +3,9 @@ import Foundation
 /// Bakes the runner agents into a Linux OCI image for the Docker runtime
 /// (see `LinuxImageBaker` for the shared pipeline).
 ///
-/// Unlike the Apple-container preparer (which must `container build` because
-/// `container` has no commit), Docker's native `docker commit` keeps this a
-/// simple bake with no temp build context.
+/// Unlike the Apple-container preparer (which builds a Dockerfile `FROM` the
+/// base image), Docker's native `docker commit` keeps this a scratch-container
+/// bake with no temp build context.
 public struct DockerImagePreparer {
     public typealias Options = LinuxImageOptions
 

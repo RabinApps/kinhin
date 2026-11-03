@@ -37,6 +37,11 @@ enum ImageCommand {
             }
             platformOverride = parsed
         }
+        if let baseOverride,
+            let problem = LinuxBaseImage.problem(with: baseOverride.trimmingCharacters(in: .whitespaces))
+        {
+            throw CLIError("--container-image \"\(baseOverride)\" is not usable: \(problem)", exit: .usage)
+        }
         func bake(_ image: String, target: String? = nil) -> LinuxImageOptions {
             LinuxImageOptions(
                 image: LinuxBaseImage.resolve(
@@ -217,6 +222,21 @@ enum ImageCommand {
                 }
                 if bakes.count == 1, !hasFlag("--pool", in: args), let baked = bakes.first?.target {
                     print("set `container.image: \"\(baked)\"` in your config to use it")
+                }
+                if hasFlag("--clean-builder", in: args) {
+                    do {
+                        try await AppleContainerRuntime.deleteBuilder(shell: shell, binary: containerBin)
+                        print("container builder deleted; its build cache is freed")
+                    } catch is CancellationError {
+                        throw CancellationError()
+                    } catch {
+                        warn("the images are ready, but the builder was not deleted: \(error.localizedDescription)")
+                    }
+                } else {
+                    print(
+                        "the container builder keeps a build cache that can be large after a big base image; "
+                            + "`kinhin image prepare --container --clean-builder` (or `container builder stop && "
+                            + "container builder delete`) frees it")
                 }
             } catch {
                 fail(error)

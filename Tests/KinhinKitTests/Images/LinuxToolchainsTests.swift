@@ -271,55 +271,34 @@ final class LinuxToolchainsTests: XCTestCase {
         XCTAssertEqual(spec, "/Users/me/Library/cache:/var/kinhin-cache")
     }
 
-    func testContainerPrepareAlwaysBindMountsTheCache() async throws {
-        let shell = FakeShell()
-        let preparer = ContainerImagePreparer(shell: shell)
-        try await preparer.prepare(
-            .init(
-                image: "ubuntu:24.04", target: "kinhin-ci-linux", storedTokens: [.github]))
-        let runArgv = try XCTUnwrap(shell.calls.first { $0.contains("run") })
-        XCTAssertTrue(runArgv.contains("--volume"), "prepare bind-mounts the host cache unconditionally: \(runArgv)")
-        XCTAssertTrue(runArgv.contains(ToolchainCacheMount.volumeSpec(host: Paths.toolchainCache.path)))
+    func testContainerPrepareDoesNotMountTheHostCache() async throws {
+        // `container build` has no volume mounts, so the bake writes no host cache.
+        let shell = BuildContextCapturingShell()
+        try await ContainerImagePreparer(shell: shell).prepare(
+            .init(image: "ubuntu:24.04", target: "kinhin-ci-linux", storedTokens: [.github]))
+        XCTAssertFalse(shell.inner.calls.contains { $0.contains("--volume") }, "\(shell.inner.calls)")
     }
 
-    func testContainerPrepareBakesManagedToolchainsBeforeBuild() async throws {
-        let shell = FakeShell()
-        let preparer = ContainerImagePreparer(shell: shell)
-        try await preparer.prepare(
+    func testContainerPrepareBakesManagedToolchainsInTheBuild() async throws {
+        let shell = BuildContextCapturingShell()
+        try await ContainerImagePreparer(shell: shell).prepare(
             .init(
                 image: "ubuntu:24.04", target: "kinhin-ci-linux",
                 toolchains: KinhinConfig.ToolchainsConfig(specs: ["node@22"]),
                 storedTokens: [.github]
             ))
-        // Order: run → ready-probe exec → agent exec → managed exec → build.
-        let runIdx = try XCTUnwrap(shell.calls.firstIndex { $0.contains("run") })
-        let bashExecs = shell.calls.enumerated().filter { _, argv in
-            argv.contains("exec") && argv.contains("/bin/bash")
-        }
-        XCTAssertEqual(bashExecs.count, 2, "agent install + managed toolchains: \(shell.calls)")
-        let managedExec = shell.calls[bashExecs[1].offset].joined(separator: " ")
-        XCTAssertTrue(
-            managedExec.contains("mise use --global 'node@22'"), "second exec is the managed toolchain script")
-        let buildIdx = try XCTUnwrap(shell.calls.firstIndex { $0.contains("build") })
-        XCTAssertGreaterThan(buildIdx, bashExecs[1].offset, "managed toolchains bake before container build")
-        XCTAssertGreaterThan(bashExecs[0].offset, runIdx)
+        let build = try XCTUnwrap(shell.builds.first)
+        XCTAssertEqual(shell.builds.count, 1)
+        XCTAssertTrue(try XCTUnwrap(build.scripts["toolchains.sh"]).contains("mise use --global 'node@22'"))
+        XCTAssertTrue(build.dockerfile.contains("/kinhin-bake/toolchains.sh"), build.dockerfile)
     }
 
-    func testContainerPrepareManagedFailureAbortsBeforeBuild() async throws {
-        // Scripted per call: run ok, ready-probe ok, apt-get probe ok, agent
-        // exec ok, managed exec FAILS (probes after that never happen — the
-        // error throws).
-        let shell = FakeShell()
-        shell.responses = [
-            ShellResult(exitCode: 0, stdout: "", stderr: ""),
-            ShellResult(exitCode: 0, stdout: "", stderr: ""),
-            ShellResult(exitCode: 0, stdout: "", stderr: ""),
-            ShellResult(exitCode: 0, stdout: "", stderr: ""),
-            ShellResult(exitCode: 1, stdout: "", stderr: "boom"),
-        ]
-        let preparer = ContainerImagePreparer(shell: shell)
+    func testContainerPrepareManagedFailureAbortsTheBake() async throws {
+        let shell = BuildContextCapturingShell()
+        shell.inner.defaultResult = ShellResult(
+            exitCode: 1, stdout: "", stderr: "ERROR: \"/bin/bash -l /kinhin-bake/toolchains.sh\" failed: boom")
         do {
-            try await preparer.prepare(
+            try await ContainerImagePreparer(shell: shell).prepare(
                 .init(
                     image: "ubuntu:24.04", target: "kinhin-ci-linux",
                     toolchains: KinhinConfig.ToolchainsConfig(specs: ["node@22"]),
@@ -332,10 +311,6 @@ final class LinuxToolchainsTests: XCTestCase {
                 return XCTFail("expected managed-toolchain provisioningFailed, got \(error)")
             }
         }
-        let argvs = shell.calls
-        XCTAssertFalse(argvs.contains { $0.contains("build") }, "no image is built when a bake step fails")
-        XCTAssertTrue(
-            argvs.contains { $0.contains("delete") && $0.contains("--force") }, "the scratch container is cleaned up")
     }
 
     func testContainerRunnerMountsCacheOnlyWhenRouteSharesCache() async throws {

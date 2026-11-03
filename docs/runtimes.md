@@ -129,14 +129,15 @@ all have one). The command exits with code 130.
 
 Cancelling is safe by construction:
 
-- The bake works in a temporary scratch VM (or scratch container for the Linux runtimes) named
-  `kinhin-prepare-tmp-<timestamp>`. A cancelled bake stops it and deletes it, even when the cancel lands mid-download or
-  mid-install.
-- The previous image is only replaced in the final commit, which cancellation cannot interrupt. A cancelled bake always
-  leaves the image that was there before untouched — the app says so next to the busy line.
+- The Tart and Docker bakes work in a temporary scratch VM or container named `kinhin-prepare-tmp-<timestamp>`. A
+  cancelled bake stops it and deletes it, even when the cancel lands mid-download or mid-install. The Apple container
+  bake has none: it is one `container build`, and cancelling stops the build and deletes its temporary build folder.
+- The previous image is only replaced in the final commit (for Apple container, when the build succeeds), which
+  cancellation cannot interrupt. A cancelled bake always leaves the image that was there before untouched — the app
+  says so next to the busy line.
 
 What is kept, on purpose: the downloaded base image in tart's registry cache (the expensive part — the next bake starts
-from it), toolchain downloads written through the shared cache, and Docker's/container's own build cache. `kinhin
+from it), toolchain downloads written through the shared cache, and Docker's/container's own build cache (`container builder stop && container builder delete` empties the latter, and so does `kinhin image prepare --container --clean-builder` after a successful bake; the cache can reach about 100 GB for a 31 GB base). `kinhin
 image prepare` also sweeps up `kinhin-prepare-tmp-*` VMs left by an earlier crashed bake before it starts, and
 `kinhin cleanup --vms` lists and removes them as "image-build scratch VMs".
 
@@ -334,7 +335,7 @@ that is not a flag. Run `container run --help` for what the rest do.
 
 `platform: "linux/amd64"` under `container:` (or on one pool) runs x86_64 runner containers: kinhin starts them with
 `container run --platform linux/amd64`, and Apple container runs their code under Rosetta for Linux. `kinhin image
-prepare --container` bakes the image as amd64 (an amd64 scratch container from the base image, the x64 runner agents,
+prepare --container` bakes the image as amd64 (a build on the amd64 base image, the x64 runner agents,
 and the image tagged `linux/amd64`), so re-bake after changing `platform`, and give an amd64 pool an image of its own.
 `--platform linux/amd64` on `kinhin image prepare --container` bakes for amd64 without changing the config.
 If an amd64 container does not start on your Mac, install Rosetta with `softwareupdate --install-rosetta`.

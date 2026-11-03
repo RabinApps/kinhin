@@ -264,6 +264,8 @@ enum CommandCatalog {
                         .value("--ref", "REF", "Branch or tag whose .kinhin.yml --project reads"),
                         .bool("--container", "Build the Linux image for apple container"),
                         .value("--pool", "NAME", "With --container: build that container.pools: entry's image"),
+                        .bool(
+                            "--clean-builder", "With --container: delete the container builder (and its cache) after"),
                         .bool("--docker", "Build the Linux image for Docker"),
                         .value(
                             "--platform", "P",
