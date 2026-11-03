@@ -227,6 +227,8 @@ enum ImageCommand {
                     do {
                         try await AppleContainerRuntime.deleteBuilder(shell: shell, binary: containerBin)
                         print("container builder deleted; its build cache is freed")
+                    } catch is CancellationError {
+                        throw CancellationError()
                     } catch {
                         warn("the images are ready, but the builder was not deleted: \(error.localizedDescription)")
                     }
