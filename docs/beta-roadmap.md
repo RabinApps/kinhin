@@ -5,11 +5,11 @@ What is supported today, and the milestones between the current beta and the **v
 [← Back to README](../README.md) · [Forge support](forges.md#what-has-been-tested)
 
 <!-- docs-sync:begin release-line -->
-kinhin is in beta (`v0.0.1-beta-4`).
+kinhin is in beta (`v0.0.1-beta-5`).
 <!-- docs-sync:end release-line -->
 
 The beta supports **GitHub, Gitea, Forgejo and GitLab CE**; Buildkite, Azure Pipelines and Bitbucket Pipelines follow in
-later betas (planned for beta 5). Milestones are ordered by what has to be true, not by date.
+later betas (planned for beta 6). Milestones are ordered by what has to be true, not by date.
 
 ## Where we are
 
@@ -49,7 +49,7 @@ later betas (planned for beta 5). Milestones are ordered by what has to be true,
 - Ollama as a healing advisor, camera and karaoke captions for videos, and the app in seven more languages.
 - Azure Pipelines labeled experimental.
 
-### beta-4: telemetry, macOS 27 images and reliability (current)
+### beta-4: telemetry, macOS 27 images and reliability
 
 - Opt-in OpenTelemetry: metrics, traces and logs over OTLP, a Prometheus endpoint, `kinhin telemetry status` and a menu bar card.
 - The macOS 27 Golden Gate base images and digest-pinned base images.
@@ -57,9 +57,19 @@ later betas (planned for beta 5). Milestones are ordered by what has to be true,
   every running job shown on multi-runner VMs.
 - Linux runners (Apple container and Docker) no longer carry the `macos` label.
 
-The Buildkite, Azure Pipelines and Bitbucket Pipelines work promised for this beta did not make it and moves to beta 5.
+The Buildkite, Azure Pipelines and Bitbucket Pipelines work promised for this beta did not make it, or beta 5, and is now planned for beta 6.
 
-### beta-5: more forges
+### beta-5: Apple container pools, Docker and amd64 (current)
+
+- `container.pools:` splits Apple container into named pools with their own image, size, labels and idle floors, shown and edited in the app.
+- `container.docker: true` runs Docker inside container runners, with a Docker Hub pull-through cache kinhin runs for them.
+- `container.platform: linux/amd64` runs x86_64 Linux runners under Rosetta.
+- `min_idle` keeps idle registered runners per pool and per Tart image.
+- `kinhin image prepare --container` bakes as layers on the base image, so it needs far less disk.
+
+The Buildkite, Azure Pipelines and Bitbucket Pipelines work did not make this beta either and moves to beta 6.
+
+### beta-6: more forges
 
 - Buildkite, Azure Pipelines and Bitbucket Pipelines run against real accounts in the end-to-end suite, and become
   supported one by one as they pass.

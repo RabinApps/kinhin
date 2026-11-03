@@ -4,6 +4,8 @@
 
 <!-- changelog: entries for the next release go here -->
 
+## v0.0.1-beta-5
+
 **Changed**
 
 - `kinhin image prepare --container` bakes the runner agents, Docker and managed toolchains as layers on the base image
@@ -66,7 +68,6 @@
 
 - `docs/scaling.md` said `min_runners` applied per pool and kept idle registered runners. It is one count for the whole
   fleet, its extra instances run on `runtimes.default`, and busy runners count toward it; the page now says so.
-
 - Editing a named image in the menu bar app (labels, base image, warm pool, add or remove) cleared every image's
   `warm_pool`, and the app showed each image's warm pool as 0. Setting the Apple container or Docker base image, or
   the Docker platform, dropped that section's `fleet_labels:`. Both are kept now.
@@ -77,6 +78,15 @@
 - `fleet_labels: false` on `container:` or `docker:` was ignored by the running fleet and the Advanced → Routing tab:
   the pool's runners still registered with the fleet labels, although `kinhin workflow route` left them out. All three
   now build the routing table in one place.
+
+**Upgrading**
+
+- No breaking changes. Without `container.pools:`, `container.platform`, `container.docker` and `min_idle`, nothing changes.
+- The next `kinhin image prepare --container` bakes as layers on the base image: the baked image now keeps the base's
+  `ENV` and `WORKDIR`, runs as `USER root` and has no `ENTRYPOINT`. The builder keeps a build cache; run
+  `container builder stop && container builder delete` once to reclaim an old bake's cache, or pass `--clean-builder`.
+- With `container.docker: true`, Docker Hub pulls go through kinhin's local pull-through cache by default. Set
+  `docker: { cache: false }` on `container:` or a pool to turn it off.
 
 ## v0.0.1-beta-4
 
