@@ -193,6 +193,7 @@ final class DockerRegistryCacheTests: XCTestCase {
         let cache = cache(shell)
         let waiting = Task { try await cache.address(waitingAtMost: .seconds(30)) }
         try await Task.sleep(for: .milliseconds(50))
+        let cancelledAt = ContinuousClock.now
         waiting.cancel()
         do {
             _ = try await waiting.value
@@ -200,6 +201,8 @@ final class DockerRegistryCacheTests: XCTestCase {
         } catch {
             XCTAssertTrue(error is CancellationError, "\(error)")
         }
+        let waited = ContinuousClock.now - cancelledAt
+        XCTAssertLessThan(waited, .seconds(5), "the caller stops at the cancel, not at the 30 s deadline")
         await gate.open()
         let later = try await cache.address()
         XCTAssertEqual(later, "192.168.64.2", "the start went on for the next caller")
