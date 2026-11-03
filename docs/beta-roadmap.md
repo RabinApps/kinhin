@@ -19,7 +19,7 @@ later betas (planned for beta 6). Milestones are ordered by what has to be true,
 | Gitea, Forgejo, GitLab CE | Supported; live-tested on every runtime by the [end-to-end suite](e2e-testing.md) |
 | Runtimes: Tart macOS and Linux VMs, apple/container, Docker, host mode | Live-tested |
 | Buildkite, Azure Pipelines, Bitbucket Pipelines | Planned (implemented and unit-tested, not supported yet) |
-| ThreadSanitizer | Clean (`scripts/tsan.sh`) |
+| ThreadSanitizer | Clean on the beta 4 release; not yet re-run on beta 5 (`scripts/tsan.sh`) |
 | Long-running soak test | Not done |
 | In-app updater | Ships in beta-3; not yet exercised by a published release updating itself (needs the next release) |
 | Telemetry | Opt-in OpenTelemetry (off by default; exports only to a server you configure). See [Telemetry](telemetry.md) |

@@ -10,7 +10,7 @@ aside: false
 _Tuesday, November 3, 2026 · Alex Rabin_
 
 **kinhin** watches your CI queue and, for each queued job, starts a fresh VM or container on your Apple Silicon Mac,
-registers a one-job runner, lets it run, then deletes it. Nothing idles and nothing is left over. It is free, open source
+registers a one-job runner, lets it run, then deletes it. By default nothing idles and nothing is left over; the exceptions are runners you keep with `min_idle` and the Docker Hub cache described below. It is free, open source
 (Apache-2.0), and sends no telemetry unless you point it at your own OpenTelemetry server.
 
 Beta 5 is mostly about Linux runners on Apple container. You can now split them into named pools, run Docker inside them,
@@ -118,7 +118,7 @@ The release is published on [GitHub](https://github.com/RabinApps/kinhin/release
 curl -fsSL https://github.com/RabinApps/kinhin/releases/latest/download/install.sh | bash
 ```
 
-You need an Apple Silicon Mac on macOS 15 or newer with about 60 GB of free disk, and an access token for your forge. The
+You need an Apple Silicon Mac on macOS 15 or newer with about 60 GB of free disk (a baseline for running; `image prepare --container` on a large base image needs much more, and its builder cache can reach about 100 GB after a 31 GB base), and an access token for your forge. The
 [Quick start](/guide/quick-start) goes from install to a running fleet. Coming from beta 4, the app can update itself, or you
 can install over it when no jobs are running.
 
