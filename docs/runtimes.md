@@ -280,13 +280,46 @@ capability (`--cap-add ALL`), which dockerd needs for its iptables chains; befor
 `/proc/sys` read-write (Apple container mounts it read-only, and dockerd writes `net.ipv4.ip_forward`), starts
 `dockerd` in the background (log: `/var/log/dockerd.log` in the container) and waits up to 60 seconds for `docker info`
 to answer. A runner whose daemon does not start fails registration with the end of that log. Jobs run as root, so no
-`sudo` is needed. The daemon lives and dies with its runner container, so images and build cache are not shared
-between jobs.
+`sudo` is needed. The daemon lives and dies with its runner container, so build cache is not shared between jobs;
+images pulled from Docker Hub come through kinhin's [Docker Hub cache](#docker-hub-cache).
 
 The image needs Docker: with `docker: true`, `kinhin image prepare --container` (and **Prepare** in the app) installs
 `docker.io`, `iptables`, and `docker-buildx` and `docker-compose-v2` where the distribution has them, unless the base
 image already has `dockerd`. Re-bake after turning it on. Every capability makes the container's root much closer to
 root on its microVM; the microVM is still the isolation boundary, as without Docker.
+
+##### Docker Hub cache
+
+Every Docker runner starts with an empty Docker, so without help each job pulls its images (`services:` databases,
+Docker actions, test images) from Docker Hub again, and every runner on the Mac counts against one IP's anonymous pull
+limit. So with `docker: true`, kinhin runs a pull-through cache of Docker Hub and points each runner's dockerd at it:
+
+- **The cache** is one Apple container, `registry-cache-kinhin`, running Docker's `registry:3` in proxy mode (1 vCPU,
+  1 GB, entries kept 336 hours) with its data in `~/Library/Application Support/Kinhin/registry-cache/`. The first
+  Docker runner that needs it starts it; a running cache is adopted as it is and a stopped one (after a reboot) is
+  started again. It is not a runner: it takes no runner slot or capacity, recovery and the orphan sweep leave it
+  alone, and `kinhin image prune` keeps `registry:3` while a pool uses the cache. Stop it with `container stop
+  registry-cache-kinhin` and delete its data directory to empty it.
+- **Each runner**: Apple container gives the cache a new address on every start and containers have no DNS names,
+  so when a Docker runner registers, before dockerd starts, kinhin looks up the cache's current address, checks the
+  runner can reach it (waiting up to 20 seconds for a cache that is still starting), and merges `"registry-mirrors":
+  ["http://<address>:5000"]` into the image's `/etc/docker/daemon.json`. Every other setting in that file is kept;
+  a mirror the image already lists is replaced.
+- **If anything on that path fails** (the cache does not start, or takes more than 60 seconds to start because its
+  first start may pull `registry:3`; the runner cannot reach it), the runner logs why and registers anyway, pulling
+  straight from Docker Hub. A slow start goes on in the background for the next runners. An image whose daemon.json
+  is not valid JSON is left as it is: dockerd fails on that file with or without the cache, and the runner does not
+  register. The new daemon.json is written beside the old one and renamed over it, so a failed write leaves the image's
+  file as it was. dockerd also falls back to Docker Hub by itself whenever the mirror stops answering.
+
+It can be on by default, unlike the shared toolchain cache (`share_cache`), because jobs cannot write to it: a
+pull-through cache only stores what Docker Hub serves, and Docker checks every layer against the digest it asked for,
+so one job cannot plant an image for the next. Only Docker Hub images go through it; other registries (`ghcr.io`,
+`quay.io`, …) are pulled directly. amd64 pools use it too (the cache stores every architecture an image has).
+
+To keep Docker but skip the cache, give `docker:` a mapping: `docker: { cache: false }`, on `container:` or on one
+pool. A pool that leaves `docker:` out inherits the section's whole value, cache setting included. `kinhin doctor`
+shows whether the cache is running, its address and how much it holds.
 
 #### Extra `container run` flags
 

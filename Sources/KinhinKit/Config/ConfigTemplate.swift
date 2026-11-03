@@ -239,7 +239,8 @@ extension ConfigLoader {
         #   labels: [docker, small]      # extra pool labels (optional)
         #   fleet_labels: false          # replace-not-add: drop the fleet labels entirely
         #   min_idle: 1                  # idle registered runners kept for this pool
-        #   docker: true                 # Docker inside each runner (dockerd starts before it registers)
+        #   docker: true                 # Docker inside each runner (dockerd starts before it registers),
+        #                                # pulling through kinhin's Docker Hub cache; docker: { cache: false } skips it
         #   flags: ["--shm-size", "2g"]  # extra `container run` arguments, one list element each
         #   platform: "linux/arm64"      # default; "linux/amd64" runs x86_64 under Rosetta (label x64, not arm64)
         #   pools:                       # optional: several named pools; the keys above are their defaults

@@ -119,21 +119,29 @@ final class AppleContainerDockerFlagsTests: XCTestCase {
             image: "kinhin-ci-linux", cpus: 2, memoryGB: 4, docker: true, flags: ["--shm-size", "2g"])
         let github = FakeGitHub()
         github.queueDepth = 1
+        var dependencies = FleetEngine.Dependencies()
+        // Docker is on, so the runner starts the Docker Hub cache: keep its data out of the real support directory.
+        dependencies.registryCacheDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("docker-flags-registry-cache-\(UUID().uuidString)", isDirectory: true)
         let engine = FleetEngine(
             config: config, github: github, tart: FakeTart(), store: makeTestStore(), ssh: FakeSSH(), host: testHost,
-            containerShell: shell)
+            containerShell: shell, dependencies: dependencies)
 
         try await engine.reconcileOnce()
         try await waitUntil(timeout: 10) {
-            shell.argvSnapshot().contains { $0.contains("exec") && $0.contains("/bin/bash") }
+            shell.argvSnapshot().contains { $0.contains("exec") && $0.last?.contains("setsid nohup dockerd") == true }
         }
         let argvs = shell.argvSnapshot()
         let run = try XCTUnwrap(argvs.first { $0.dropFirst().first == "run" })
         let memory = try XCTUnwrap(run.firstIndex(of: "--memory"))
         XCTAssertEqual(
             Array(run[(memory + 2)...].prefix(5)), ["--cap-add", "ALL", "--shm-size", "2g", "--rm"], "\(run)")
-        let exec = try XCTUnwrap(argvs.first { $0.contains("exec") && $0.contains("<stdin>") })
-        XCTAssertTrue(exec.last?.contains("setsid nohup dockerd") == true, "registration starts dockerd")
+        // The first exec checks the Docker Hub cache (AppleContainerDockerCacheTests); the registration follows it.
+        let execs = argvs.filter { $0.contains("exec") && $0.contains("<stdin>") }
+        XCTAssertTrue(
+            execs.contains {
+                $0.last?.contains("./config.sh") == true && $0.last?.contains("setsid nohup dockerd") == true
+            }, "registration starts dockerd")
     }
 
     // MARK: - Helpers

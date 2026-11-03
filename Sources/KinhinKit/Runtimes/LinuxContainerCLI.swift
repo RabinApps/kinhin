@@ -74,10 +74,11 @@ struct LinuxContainerCLI: Sendable {
 
     // MARK: - Registration
 
-    /// The Linux bootstrap script for the forge, run inside the container.
+    /// The Linux bootstrap script for the forge, run inside the container. `dockerDaemonJSON`, when given, is written to
+    /// `/etc/docker/daemon.json` before dockerd starts (the Docker Hub cache's mirror, merged into the image's file).
     func registrationScript(
         forge: Forge, token: String, runnerTokens: [String: String], name: String,
-        runnerCount: Int, route: RepoRoute, labels: [String]?
+        runnerCount: Int, route: RepoRoute, labels: [String]?, dockerDaemonJSON: String? = nil
     ) throws -> String {
         // Linux platform: macOS-only entries (brew, fvm, CocoaPods) never appear.
         let selection = route.toolchains.map { ToolchainCatalog.selection(from: $0, platform: .linux) }
@@ -87,8 +88,10 @@ struct LinuxContainerCLI: Sendable {
             forge: forge, token: token, runnerTokens: runnerTokens, name: name, runnerCount: runnerCount,
             route: route, labels: labels)
         // Docker first: a runner must not take a job before its daemon answers.
+        let daemonConfig = dockerDaemonJSON.map { RunnerBootstrap.linuxDockerDaemonConfigScript(json: $0) + "\n\n" }
         let builder = buildsThroughBuildxBuilder ? RunnerBootstrap.linuxDockerBuilderScript() + "\n\n" : ""
-        let dockerPrefix = startsDocker ? RunnerBootstrap.linuxDockerDaemonScript() + "\n\n" + builder : ""
+        let dockerPrefix =
+            startsDocker ? (daemonConfig ?? "") + RunnerBootstrap.linuxDockerDaemonScript() + "\n\n" + builder : ""
         return dockerPrefix + cachePrefix
             + (try forge.credentials.forge.descriptor.registrationScript(for: .linuxContainer, request))
     }

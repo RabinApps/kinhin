@@ -19,6 +19,8 @@ extension KinhinConfig.ContainerConfig {
         public var fleetLabels: Bool?
         public var minIdle: Int
         public var docker: Bool
+        /// See `ContainerConfig.dockerCache`.
+        public var dockerCache: Bool
         public var flags: [String]
         /// At most this many of the pool's runners at once (`max:`); nil = only the shared budget and
         /// `max_runners` limit it. Only named pools have one.
@@ -30,7 +32,8 @@ extension KinhinConfig.ContainerConfig {
             name: String, image: String, baseImage: String? = nil, cpus: Int = KinhinConfig.ContainerConfig.defaultCPUs,
             memoryGB: Int = KinhinConfig.ContainerConfig.defaultMemoryGB, labels: [String]? = nil,
             fleetLabels: Bool? = nil, minIdle: Int = 0,
-            docker: Bool = false, flags: [String] = [], max: Int? = nil, platform: LinuxPlatform = .arm64
+            docker: Bool = false, dockerCache: Bool = true, flags: [String] = [], max: Int? = nil,
+            platform: LinuxPlatform = .arm64
         ) {
             self.name = name
             self.image = image
@@ -41,6 +44,7 @@ extension KinhinConfig.ContainerConfig {
             self.fleetLabels = fleetLabels
             self.minIdle = minIdle
             self.docker = docker
+            self.dockerCache = dockerCache
             self.flags = flags
             self.max = max
             self.platform = platform
@@ -51,8 +55,13 @@ extension KinhinConfig.ContainerConfig {
             self.init(
                 name: "", image: section.image, baseImage: section.baseImage, cpus: section.cpus,
                 memoryGB: section.memoryGB, labels: section.labels, fleetLabels: section.fleetLabels,
-                minIdle: section.minIdle, docker: section.docker, flags: section.flags, platform: section.platform)
+                minIdle: section.minIdle, docker: section.docker, dockerCache: section.dockerCache,
+                flags: section.flags,
+                platform: section.platform)
         }
+
+        /// Whether the pool's runners pull through the Docker Hub cache: Docker on, and the cache not turned off.
+        public var usesDockerCache: Bool { docker && dockerCache }
 
         /// Whether this is a `pools:` entry rather than the section itself.
         public var isNamed: Bool { !name.isEmpty }
@@ -74,6 +83,9 @@ extension KinhinConfig.ContainerConfig {
 
     /// Every pool the section runs: the named `pools:`, or the section itself as its one unnamed pool.
     public var effectivePools: [Pool] { pools.isEmpty ? [Pool(section: self)] : pools }
+
+    /// Whether any pool pulls through the Docker Hub cache, so kinhin runs it (and doctor and `image prune` know it).
+    public var usesDockerCache: Bool { effectivePools.contains(where: \.usesDockerCache) }
 
     /// The pool that serves container jobs no pool's labels claim, and the instances whose pool is unknown (adopted
     /// without a record, or from a pool since removed): the one with the fewest labels, then the first by name. With

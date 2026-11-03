@@ -25,6 +25,9 @@ public struct AppleContainerRuntime: Runtime {
     let flags: [String]
     /// The architecture each runner container runs (`container.platform`); amd64 runs under Rosetta for Linux.
     let platform: LinuxPlatform
+    /// The shared Docker Hub cache this pool's dockerd pulls through; nil = none (Docker off, `cache: false`, or a
+    /// runtime built outside the engine). See `AppleContainerRuntime+DockerCache`.
+    var registryCache: DockerRegistryCache?
     /// Binary-path override (tests); nil resolves from PATH/brew prefixes.
     let binPath: String?
     /// Existence probe for the binary (tests inject a constant; production
@@ -77,11 +80,13 @@ public struct AppleContainerRuntime: Runtime {
             buildsThroughBuildxBuilder: platform == .amd64)
     }
 
-    /// The runtime for one Apple container pool: its image, shape, Docker, flags and platform.
-    init(shell: ShellRunning, pool: KinhinConfig.ContainerConfig.Pool) {
+    /// The runtime for one Apple container pool: its image, shape, Docker, flags and platform, and the engine's shared
+    /// Docker Hub cache when the pool uses it.
+    init(shell: ShellRunning, pool: KinhinConfig.ContainerConfig.Pool, registryCache: DockerRegistryCache? = nil) {
         self.init(
             shell: shell, image: pool.image, cpus: pool.cpus, memoryGB: pool.memoryGB, docker: pool.docker,
             flags: pool.flags, platform: pool.platform)
+        self.registryCache = pool.usesDockerCache ? registryCache : nil
     }
 
     /// The `container run` flags that pick the architecture: none on native arm64 (the argv is exactly as before
@@ -124,13 +129,16 @@ public struct AppleContainerRuntime: Runtime {
 
     /// The bootstrap script (same forge scripts the Docker runtime uses —
     /// Linux agent paths), run inside the container via `container exec`.
+    /// `name` is the container's id; a pool that uses the Docker Hub cache
+    /// first points the container's dockerd at it (`dockerDaemonJSON`).
     public func registrationScript(
         forge: Forge, token: String, runnerTokens: [String: String], name: String,
         runnerCount: Int, route: RepoRoute, labels: [String]?
     ) async throws -> String {
-        try cli.registrationScript(
+        let daemonJSON = try await dockerDaemonJSON(for: name)
+        return try cli.registrationScript(
             forge: forge, token: token, runnerTokens: runnerTokens, name: name, runnerCount: runnerCount,
-            route: route, labels: labels)
+            route: route, labels: labels, dockerDaemonJSON: daemonJSON)
     }
 
     public func awaitReady(id: String, timeout: TimeInterval) async throws -> String? {

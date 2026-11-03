@@ -41,6 +41,31 @@ public struct DoctorReport: Codable, Equatable, Sendable {
         public let imageFound: Bool
         /// The named container pools (`container.pools:`); nil without them.
         public var pools: [ContainerPoolStatus]? = nil
+        /// kinhin's Docker Hub cache, when some pool uses it; nil otherwise (and in reports from before the cache).
+        public var registryCache: RegistryCacheStatus? = nil
+    }
+
+    /// kinhin's Docker Hub pull-through cache (`registry-cache-kinhin`). Not running is not a failure: the first
+    /// Docker runner starts it.
+    public struct RegistryCacheStatus: Codable, Equatable, Sendable {
+        /// Whether the cache container is running.
+        public let running: Bool
+        /// Where runners reach it (`ip:5000`) while it runs.
+        public let address: String?
+        /// Bytes its cached layers take on disk; nil when its data directory does not exist yet.
+        public let dataBytes: Int64?
+        /// The host directory that holds the cached layers.
+        public let dataDirectory: String
+        /// Why its state could not be read, when it could not.
+        public let problem: String?
+
+        public init(running: Bool, address: String?, dataBytes: Int64?, dataDirectory: String, problem: String?) {
+            self.running = running
+            self.address = address
+            self.dataBytes = dataBytes
+            self.dataDirectory = dataDirectory
+            self.problem = problem
+        }
     }
 
     /// One named container pool in the doctor's container section.
@@ -60,6 +85,8 @@ public struct DoctorReport: Codable, Equatable, Sendable {
         public let budgetMemoryGB: Int
         /// The pool's `platform` (`linux/arm64`, `linux/amd64`); nil in a report from before platforms.
         public var platform: String? = nil
+        /// Whether the pool's runners pull through the Docker Hub cache; nil in a report from before the cache.
+        public var dockerCache: Bool? = nil
     }
 
     /// Docker runtime state — present only when config.yaml declares a

@@ -61,6 +61,8 @@ enum ContainerManagerError: LocalizedError, Equatable {
     case toolMissing(ContainerTool)
     case invalidName(String)
     case commandFailed(what: String, stderr: String)
+    /// kinhin's Docker Hub cache (`DockerRegistryCache`) could not be started or read.
+    case registryCache(String)
 
     var errorDescription: String? {
         switch self {
@@ -72,6 +74,8 @@ enum ContainerManagerError: LocalizedError, Equatable {
         case .commandFailed(let what, let stderr):
             let detail = stderr.trimmingCharacters(in: .whitespacesAndNewlines)
             return detail.isEmpty ? "\(what) failed." : "\(what) failed: \(detail.prefix(400))"
+        case .registryCache(let why):
+            return "The Docker Hub cache \(DockerRegistryCache.containerName) is not usable: \(why)"
         }
     }
 }

@@ -9,9 +9,10 @@ extension DoctorReportBuilder {
     /// with the same image-matching rule the checklist row uses. With named
     /// pools, every pool's image must be local, and each pool is listed with
     /// its image and whether its shape fits the budget on `host`.
+    /// The Docker Hub cache row (`registryCache`) is attached only when some pool uses the cache.
     static func containerSection(
         config cfg: KinhinConfig?, health: RuntimeHealth?, images: ImageInventory.RuntimeImages?,
-        host: HostResources? = nil
+        host: HostResources? = nil, registryCache: DoctorReport.RegistryCacheStatus? = nil
     ) -> DoctorReport.ContainerSection? {
         guard let cfg, let container = cfg.container else { return nil }
         let verdict = RuntimeSectionVerdict.from(health: health ?? .broken("container health was not probed"))
@@ -38,7 +39,7 @@ extension DoctorReportBuilder {
                     cpus: pool.cpus, memoryGB: pool.memoryGB, max: pool.max, docker: pool.docker,
                     fits: budget.map { $0.count(cpu: pool.cpus, memoryGB: pool.memoryGB) > 0 } ?? true,
                     budgetCPU: budget?.cpu ?? 0, budgetMemoryGB: budget?.memoryGB ?? 0,
-                    platform: pool.platform.rawValue)
+                    platform: pool.platform.rawValue, dockerCache: pool.usesDockerCache)
             }
             if let first = unbuilt.first { wanted = first.image }
             if verdict.ok, !imageFound {
@@ -49,7 +50,8 @@ extension DoctorReportBuilder {
             }
         }
         return DoctorReport.ContainerSection(
-            state: verdict.state, ok: verdict.ok, fix: fix, image: wanted, imageFound: imageFound, pools: pools
+            state: verdict.state, ok: verdict.ok, fix: fix, image: wanted, imageFound: imageFound, pools: pools,
+            registryCache: container.usesDockerCache ? registryCache : nil
         )
     }
 
