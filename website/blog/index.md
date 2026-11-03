@@ -11,6 +11,9 @@ News and notes from kinhin, the mindful CI.
 
 ## Posts
 
+- **November 3, 2026: [Beta 5: Apple container pools, Docker inside containers, and x86_64 runners](/blog/beta-5)**
+  The fifth public beta. What is new in beta 5, what changes when you upgrade, what has been run, what has not, and where I need your help.
+
 - **October 30, 2026: [Beta 4: telemetry you opt into, macOS 27 images, and fixes from your installs](/blog/beta-4)**
   The fourth public beta. What is new in beta 4, what changes when you upgrade, what has been run, what has not, and where I need your help.
 - **October 24, 2026: [Beta 3: updates that install themselves, restarts that leave your jobs alone, and seven new languages](/blog/beta-3)**
