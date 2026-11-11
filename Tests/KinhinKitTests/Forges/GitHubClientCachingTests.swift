@@ -113,7 +113,8 @@ extension GitHubClientCachingTests {
         let second = try await client.queuedJobs(matching: ["kinhin"])
         XCTAssertEqual(first.map(\.jobID), [1])
         XCTAssertEqual(second.map(\.jobID), [1], "a 304 must read as the cached answer")
-        XCTAssertEqual(conditionalRequests.withLock { $0 }, 1)
+        // `queuedJobs` lists queued and in_progress runs; each URL revalidates once on the second poll.
+        XCTAssertEqual(conditionalRequests.withLock { $0 }, 2)
     }
 
     func testEveryResponseRecordsTheRateLimit() async throws {

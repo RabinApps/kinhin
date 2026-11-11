@@ -408,4 +408,109 @@ final class GitHubClientTests: XCTestCase {
         XCTAssertEqual(jobs.count, 1)
         XCTAssertEqual(jobs.first?.jobID, 1)
     }
+
+    /// GitHub marks a run `in_progress` once any job starts or is skipped; a
+    /// sibling still waiting for a runner stays `queued` and must count as demand.
+    func testQueuedJobsIncludesQueuedSiblingOfInProgressRun() async throws {
+        StubProtocol.handler = { request in
+            let path = request.url?.path ?? ""
+            if path == "/repos/acme/widgets/actions/runs" {
+                let status = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?
+                    .queryItems?.first { $0.name == "status" }?.value
+                let body =
+                    status == "in_progress"
+                    ? #"{"total_count":1,"workflow_runs":[{"id":201}]}"#
+                    : #"{"total_count":0,"workflow_runs":[]}"#
+                return (200, Data(body.utf8), [:])
+            }
+            if path == "/repos/acme/widgets/actions/runs/201/jobs" {
+                let body = """
+                    {"jobs":[
+                    {"id":1,"run_id":201,"name":"arm","status":"in_progress","labels":["kinhin"]},
+                    {"id":2,"run_id":201,"name":"x64","status":"queued","labels":["kinhin"]},
+                    {"id":3,"run_id":201,"name":"other","status":"queued","labels":["gpu"]}]}
+                    """
+                return (200, Data(body.utf8), [:])
+            }
+            return (404, Data(), [:])
+        }
+        defer { StubProtocol.handler = nil }
+        let jobs = try await makeClient().queuedJobs(matching: ["kinhin"])
+        XCTAssertEqual(jobs.map(\.jobID), [2], "only the queued, label-matching sibling is demand")
+    }
+
+    /// A backlog of unrelated queued runs must not crowd the in-progress run out of the per-poll cap.
+    func testQueuedJobsInspectsInProgressRunsDespiteALargeQueuedBacklog() async throws {
+        let backlog = (1...60).map { #"{"id":\#($0)}"# }.joined(separator: ",")
+        StubProtocol.handler = { request in
+            let path = request.url?.path ?? ""
+            if path == "/repos/acme/widgets/actions/runs" {
+                let status = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?
+                    .queryItems?.first { $0.name == "status" }?.value
+                let body =
+                    status == "in_progress"
+                    ? #"{"total_count":1,"workflow_runs":[{"id":999}]}"#
+                    : #"{"total_count":60,"workflow_runs":[\#(backlog)]}"#
+                return (200, Data(body.utf8), [:])
+            }
+            if path == "/repos/acme/widgets/actions/runs/999/jobs" {
+                let body = #"{"jobs":[{"id":77,"run_id":999,"name":"x64","status":"queued","labels":["kinhin"]}]}"#
+                return (200, Data(body.utf8), [:])
+            }
+            if path.hasSuffix("/jobs") {  // the backlog: queued, but for another fleet
+                let id = path.split(separator: "/").dropLast().last.map(String.init) ?? "0"
+                let body = #"{"jobs":[{"id":\#(id),"run_id":\#(id),"name":"o","status":"queued","labels":["gpu"]}]}"#
+                return (200, Data(body.utf8), [:])
+            }
+            return (404, Data(), [:])
+        }
+        defer { StubProtocol.handler = nil }
+        let jobs = try await makeClient().queuedJobs(matching: ["kinhin"])
+        XCTAssertEqual(jobs.map(\.jobID), [77])
+    }
+
+    func testQueuedJobsCountsARunListedInBothStatesOnce() async throws {
+        StubProtocol.handler = { request in
+            let path = request.url?.path ?? ""
+            if path == "/repos/acme/widgets/actions/runs" {
+                return (200, Data(#"{"total_count":1,"workflow_runs":[{"id":301}]}"#.utf8), [:])
+            }
+            if path == "/repos/acme/widgets/actions/runs/301/jobs" {
+                let body = #"{"jobs":[{"id":9,"run_id":301,"name":"b","status":"queued","labels":["kinhin"]}]}"#
+                return (200, Data(body.utf8), [:])
+            }
+            return (404, Data(), [:])
+        }
+        defer { StubProtocol.handler = nil }
+        let jobs = try await makeClient().queuedJobs(matching: ["kinhin"])
+        XCTAssertEqual(jobs.count, 1)
+    }
+
+    /// Cancel/skip must not touch an in_progress run: it would kill the running sibling jobs.
+    func testCancelAndSkipLeaveInProgressRunsAlone() async throws {
+        let posts = Locked(0)
+        StubProtocol.handler = { request in
+            if request.httpMethod == "POST" {
+                posts.withLock { $0 += 1 }
+                return (202, Data(), [:])
+            }
+            let status = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?
+                .queryItems?.first { $0.name == "status" }?.value
+            if request.url?.path == "/repos/acme/widgets/actions/runs" {
+                let body =
+                    status == "in_progress"
+                    ? #"{"total_count":1,"workflow_runs":[{"id":401}]}"#
+                    : #"{"total_count":0,"workflow_runs":[]}"#
+                return (200, Data(body.utf8), [:])
+            }
+            return (404, Data(), [:])
+        }
+        defer { StubProtocol.handler = nil }
+        let client = makeClient()
+        let cancelled = try await client.cancelWorkflowRun(ids: [401])
+        let skipped = try await client.skipWorkflowRun(ids: [401])
+        XCTAssertFalse(cancelled)
+        XCTAssertFalse(skipped)
+        XCTAssertEqual(posts.withLock { $0 }, 0)
+    }
 }

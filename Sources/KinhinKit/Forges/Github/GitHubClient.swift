@@ -270,11 +270,18 @@ public struct GitHubClient: GitHubServing {
     /// secondary rate limits punish bursts).
     var maxConcurrentReads: Int { 5 }
 
-    /// Fetch all queued workflow runs, then their jobs, filtering client-side
-    /// to jobs whose label set is a superset of the fleet's labels. The
-    /// per-run job reads run concurrently; the result keeps run order.
+    /// Fetch the queued and in-progress workflow runs, then their jobs,
+    /// filtering client-side to queued jobs whose label set is a superset of
+    /// the fleet's labels. GitHub marks a run `in_progress` as soon as any
+    /// job in it starts or is skipped, while sibling jobs still waiting for a
+    /// runner stay `queued`, so `status=queued` alone would miss them. The
+    /// per-run job reads run concurrently; the result keeps run order
+    /// (queued runs first), with each run read once.
     public func queuedJobs(matching labels: Set<String>) async throws -> [QueuedJob] {
-        let runs = try await runs(status: "queued")
+        async let queuedRuns = fetchRuns(status: "queued")
+        async let activeRuns = fetchRuns(status: "in_progress")
+        let (queued, active) = try await (queuedRuns, activeRuns)
+        let runs = Self.selectRuns(queued: queued, active: active, limit: maxRunsPerPoll)
         let perRun = try await boundedMap(runs, limit: maxConcurrentReads) { run in
             try await self.fetchJobs(runID: run.id, repository: run.scopedRepository)
         }
@@ -296,9 +303,23 @@ public struct GitHubClient: GitHubServing {
         return jobs
     }
 
+    /// Up to `limit` runs to inspect, each run once. Half the slots are
+    /// reserved for each status and either side may use the other's unused
+    /// slots, so a backlog of unrelated queued runs cannot starve the
+    /// in-progress runs (and their queued siblings), or the reverse.
+    static func selectRuns(queued: [RunRef], active: [RunRef], limit: Int) -> [RunRef] {
+        let queuedIDs = Set(queued.map(\.id))
+        let active = active.filter { !queuedIDs.contains($0.id) }
+        let queuedTake = min(queued.count, max(limit / 2, limit - active.count))
+        return Array(queued.prefix(queuedTake)) + Array(active.prefix(limit - queuedTake))
+    }
+
     /// The repository a queued run belongs to, or nil when the run can't be
     /// read. Org scope fans out per repository, so the scoped runs endpoint
-    /// answers instead of the job payload.
+    /// answers instead of the job payload. Only fully queued runs resolve:
+    /// cancelling or skipping an `in_progress` run (one with queued siblings
+    /// that `queuedJobs` still counts) would kill its running jobs, so those
+    /// are left alone.
     func runRepository(for id: Int) async throws -> String? {
         let runs = try await runs(status: "queued")
         guard let run = runs.first(where: { $0.id == id }) else { return nil }
