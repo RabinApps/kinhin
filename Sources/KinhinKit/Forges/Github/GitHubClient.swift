@@ -270,11 +270,19 @@ public struct GitHubClient: GitHubServing {
     /// secondary rate limits punish bursts).
     var maxConcurrentReads: Int { 5 }
 
-    /// Fetch all queued workflow runs, then their jobs, filtering client-side
-    /// to jobs whose label set is a superset of the fleet's labels. The
-    /// per-run job reads run concurrently; the result keeps run order.
+    /// Fetch the queued and in-progress workflow runs, then their jobs,
+    /// filtering client-side to queued jobs whose label set is a superset of
+    /// the fleet's labels. GitHub marks a run `in_progress` as soon as any
+    /// job in it starts or is skipped, while sibling jobs still waiting for a
+    /// runner stay `queued`, so `status=queued` alone would miss them. The
+    /// per-run job reads run concurrently; the result keeps run order
+    /// (queued runs first), with each run read once.
     public func queuedJobs(matching labels: Set<String>) async throws -> [QueuedJob] {
-        let runs = try await runs(status: "queued")
+        async let queuedRuns = fetchRuns(status: "queued")
+        async let activeRuns = fetchRuns(status: "in_progress")
+        var seen = Set<Int>()
+        let merged = try await (queuedRuns + activeRuns).filter { seen.insert($0.id).inserted }
+        let runs = Array(merged.prefix(maxRunsPerPoll))
         let perRun = try await boundedMap(runs, limit: maxConcurrentReads) { run in
             try await self.fetchJobs(runID: run.id, repository: run.scopedRepository)
         }
@@ -298,7 +306,10 @@ public struct GitHubClient: GitHubServing {
 
     /// The repository a queued run belongs to, or nil when the run can't be
     /// read. Org scope fans out per repository, so the scoped runs endpoint
-    /// answers instead of the job payload.
+    /// answers instead of the job payload. Only fully queued runs resolve:
+    /// cancelling or skipping an `in_progress` run (one with queued siblings
+    /// that `queuedJobs` still counts) would kill its running jobs, so those
+    /// are left alone.
     func runRepository(for id: Int) async throws -> String? {
         let runs = try await runs(status: "queued")
         guard let run = runs.first(where: { $0.id == id }) else { return nil }
