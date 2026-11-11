@@ -439,6 +439,36 @@ final class GitHubClientTests: XCTestCase {
         XCTAssertEqual(jobs.map(\.jobID), [2], "only the queued, label-matching sibling is demand")
     }
 
+    /// A backlog of unrelated queued runs must not crowd the in-progress run out of the per-poll cap.
+    func testQueuedJobsInspectsInProgressRunsDespiteALargeQueuedBacklog() async throws {
+        let backlog = (1...60).map { #"{"id":\#($0)}"# }.joined(separator: ",")
+        StubProtocol.handler = { request in
+            let path = request.url?.path ?? ""
+            if path == "/repos/acme/widgets/actions/runs" {
+                let status = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?
+                    .queryItems?.first { $0.name == "status" }?.value
+                let body =
+                    status == "in_progress"
+                    ? #"{"total_count":1,"workflow_runs":[{"id":999}]}"#
+                    : #"{"total_count":60,"workflow_runs":[\#(backlog)]}"#
+                return (200, Data(body.utf8), [:])
+            }
+            if path == "/repos/acme/widgets/actions/runs/999/jobs" {
+                let body = #"{"jobs":[{"id":77,"run_id":999,"name":"x64","status":"queued","labels":["kinhin"]}]}"#
+                return (200, Data(body.utf8), [:])
+            }
+            if path.hasSuffix("/jobs") {  // the backlog: queued, but for another fleet
+                let id = path.split(separator: "/").dropLast().last.map(String.init) ?? "0"
+                let body = #"{"jobs":[{"id":\#(id),"run_id":\#(id),"name":"o","status":"queued","labels":["gpu"]}]}"#
+                return (200, Data(body.utf8), [:])
+            }
+            return (404, Data(), [:])
+        }
+        defer { StubProtocol.handler = nil }
+        let jobs = try await makeClient().queuedJobs(matching: ["kinhin"])
+        XCTAssertEqual(jobs.map(\.jobID), [77])
+    }
+
     func testQueuedJobsCountsARunListedInBothStatesOnce() async throws {
         StubProtocol.handler = { request in
             let path = request.url?.path ?? ""

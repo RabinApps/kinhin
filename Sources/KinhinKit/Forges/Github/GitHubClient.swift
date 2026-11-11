@@ -280,9 +280,8 @@ public struct GitHubClient: GitHubServing {
     public func queuedJobs(matching labels: Set<String>) async throws -> [QueuedJob] {
         async let queuedRuns = fetchRuns(status: "queued")
         async let activeRuns = fetchRuns(status: "in_progress")
-        var seen = Set<Int>()
-        let merged = try await (queuedRuns + activeRuns).filter { seen.insert($0.id).inserted }
-        let runs = Array(merged.prefix(maxRunsPerPoll))
+        let (queued, active) = try await (queuedRuns, activeRuns)
+        let runs = Self.selectRuns(queued: queued, active: active, limit: maxRunsPerPoll)
         let perRun = try await boundedMap(runs, limit: maxConcurrentReads) { run in
             try await self.fetchJobs(runID: run.id, repository: run.scopedRepository)
         }
@@ -302,6 +301,17 @@ public struct GitHubClient: GitHubServing {
             }
         }
         return jobs
+    }
+
+    /// Up to `limit` runs to inspect, each run once. Half the slots are
+    /// reserved for each status and either side may use the other's unused
+    /// slots, so a backlog of unrelated queued runs cannot starve the
+    /// in-progress runs (and their queued siblings), or the reverse.
+    static func selectRuns(queued: [RunRef], active: [RunRef], limit: Int) -> [RunRef] {
+        let queuedIDs = Set(queued.map(\.id))
+        let active = active.filter { !queuedIDs.contains($0.id) }
+        let queuedTake = min(queued.count, max(limit / 2, limit - active.count))
+        return Array(queued.prefix(queuedTake)) + Array(active.prefix(limit - queuedTake))
     }
 
     /// The repository a queued run belongs to, or nil when the run can't be
