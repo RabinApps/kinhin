@@ -6,24 +6,30 @@
 # deprecated Package.swift platform) are not ours to fix and are ignored: only diagnostics located in
 # Sources/ or Tests/ count.
 #
-#   scripts/warnings-check.sh          clean build in .build/warnings, then scan
-#   scripts/warnings-check.sh --warm   keep the previous scratch build (fast, but only recompiled files re-report)
+#   scripts/warnings-check.sh                clean build in .build/warnings, then scan
+#   scripts/warnings-check.sh --warm         keep the previous scratch build (fast, but only recompiled files re-report)
+#   scripts/warnings-check.sh --scan <log>   only scan a build/test log you already have (CI: the `swift test` output,
+#                                            run after `swift package clean` so every file recompiles and reports)
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-scratch=".build/warnings"
-if [[ "${1:-}" != "--warm" ]]; then
-    rm -rf "$scratch"
-fi
+if [[ "${1:-}" == "--scan" ]]; then
+    log="${2:?usage: $0 --scan <log>}"
+else
+    scratch=".build/warnings"
+    if [[ "${1:-}" != "--warm" ]]; then
+        rm -rf "$scratch"
+    fi
 
-log="$(mktemp)"
-trap 'rm -f "$log"' EXIT
+    log="$(mktemp)"
+    trap 'rm -f "$log"' EXIT
 
-if ! swift build --build-system swiftbuild --build-tests --scratch-path "$scratch" >"$log" 2>&1; then
-    sed 's/\x1b\[[0-9;]*m//g' "$log" | tail -40
-    echo "warnings check: build failed" >&2
-    exit 1
+    if ! swift build --build-system swiftbuild --build-tests --scratch-path "$scratch" >"$log" 2>&1; then
+        sed 's/\x1b\[[0-9;]*m//g' "$log" | tail -40
+        echo "warnings check: build failed" >&2
+        exit 1
+    fi
 fi
 
 # The checkout path is stripped as a literal prefix (awk index/substr on an env var, so backslashes survive too), never interpolated into a regex, so a path

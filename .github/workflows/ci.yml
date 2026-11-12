@@ -42,14 +42,18 @@ jobs:
       - name: Lint (swift-format)
         run: swift format lint --strict -r Sources Tests
 
-      - name: Compiler warnings
-        run: bash scripts/warnings-check.sh
-
       - name: Run tests
         # A clean run takes about ten minutes; a hung test fails here instead
         # of holding the fleet's VM until GitHub's six-hour limit.
         timeout-minutes: 30
-        run: swift test --build-system swiftbuild --parallel
+        # `swift package clean` makes every file recompile so the log carries all of this repo's warnings (an
+        # incremental build only re-prints warnings for recompiled files); the scan then fails on any warning in
+        # Sources/ or Tests/. pipefail keeps a failing `swift test` failing through the tee.
+        run: |
+          set -o pipefail
+          swift package clean
+          swift test --build-system swiftbuild --parallel 2>&1 | tee "$RUNNER_TEMP/swift-test.log"
+          bash scripts/warnings-check.sh --scan "$RUNNER_TEMP/swift-test.log"
 
       - name: Build release products
         # Release-only code paths (KinhinTestSupport is testable-only) and the
@@ -107,12 +111,16 @@ jobs:
       - name: Lint (swift-format)
         run: swift format lint --strict -r Sources Tests
 
-      - name: Compiler warnings
-        run: bash scripts/warnings-check.sh
-
       - name: Run tests
         timeout-minutes: 30
-        run: swift test --build-system swiftbuild --parallel
+        # `swift package clean` makes every file recompile so the log carries all of this repo's warnings (an
+        # incremental build only re-prints warnings for recompiled files); the scan then fails on any warning in
+        # Sources/ or Tests/. pipefail keeps a failing `swift test` failing through the tee.
+        run: |
+          set -o pipefail
+          swift package clean
+          swift test --build-system swiftbuild --parallel 2>&1 | tee "$RUNNER_TEMP/swift-test.log"
+          bash scripts/warnings-check.sh --scan "$RUNNER_TEMP/swift-test.log"
 
       - name: Build release products
         run: swift build --build-system swiftbuild -c release --product kinhin-app --product kinhin
