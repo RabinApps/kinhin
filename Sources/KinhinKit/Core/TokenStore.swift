@@ -372,9 +372,10 @@ extension KeychainTokenStore {
         }
     }
 
-    /// Whether a token is stored under `name` (without exposing it).
-    public static func hasAlertsToken(account name: String) -> Bool {
-        ((try? loadAlertsToken(account: name)) ?? nil) != nil  // best-effort probe: unreadable counts as absent
+    /// Whether a token is stored under `name`, without exposing it. Throws when the Keychain refuses to answer, so
+    /// "not stored" and "could not be read" stay different problems.
+    public static func alertsTokenStored(account name: String) throws -> Bool {
+        try loadAlertsToken(account: name) != nil
     }
 }
 

@@ -85,6 +85,58 @@ final class AlertDispatcherTests: XCTestCase {
         XCTAssertEqual(sink.sent.count, 2)
     }
 
+    func testFiringThatFailedIsRetriedAfterTheRetryIntervalNotTheCooldown() async {
+        let sink = FakeAlertSink()
+        sink.failing = true
+        let dispatcher = make(sink, policy: .init(cooldown: 3_600, retryInterval: 60))
+        await dispatcher.observe([alert("disk")], now: t0)
+        await dispatcher.observe([alert("disk")], now: t0.addingTimeInterval(30))
+        XCTAssertEqual(sink.sent.count, 1, "too early to retry")
+        sink.failing = false
+        await dispatcher.observe([alert("disk")], now: t0.addingTimeInterval(61))
+        XCTAssertEqual(sink.sent.map(\.state), [.firing, .firing])
+        await dispatcher.observe([alert("disk")], now: t0.addingTimeInterval(120))
+        XCTAssertEqual(sink.sent.count, 2, "delivered, so the cooldown applies again")
+    }
+
+    func testResolutionThatFailedIsKeptUntilItIsDelivered() async {
+        let sink = FakeAlertSink()
+        let dispatcher = make(sink, policy: .init(cooldown: 3_600, retryInterval: 60))
+        await dispatcher.observe([alert("disk")], now: t0)
+        sink.failing = true
+        await dispatcher.observe([], now: t0.addingTimeInterval(20))
+        XCTAssertEqual(sink.sent.map(\.state), [.firing, .resolved])
+        await dispatcher.observe([], now: t0.addingTimeInterval(40))
+        XCTAssertEqual(sink.sent.count, 2, "too early to retry")
+        sink.failing = false
+        await dispatcher.observe([], now: t0.addingTimeInterval(81))
+        XCTAssertEqual(sink.sent.map(\.state), [.firing, .resolved, .resolved])
+        await dispatcher.observe([], now: t0.addingTimeInterval(200))
+        XCTAssertEqual(sink.sent.count, 3, "delivered once, not again")
+    }
+
+    func testNoResolutionForAFiringThatNeverArrived() async {
+        let sink = FakeAlertSink()
+        sink.failing = true
+        let dispatcher = make(sink)
+        await dispatcher.observe([alert("disk")], now: t0)
+        sink.failing = false
+        await dispatcher.observe([], now: t0.addingTimeInterval(20))
+        XCTAssertEqual(sink.sent.map(\.state), [.firing])
+    }
+
+    func testPendingResolutionIsDroppedWhenTheProblemReturns() async {
+        let sink = FakeAlertSink()
+        let dispatcher = make(sink, policy: .init(cooldown: 3_600, retryInterval: 60))
+        await dispatcher.observe([alert("disk")], now: t0)
+        sink.failing = true
+        await dispatcher.observe([], now: t0.addingTimeInterval(20))
+        sink.failing = false
+        await dispatcher.observe([alert("disk")], now: t0.addingTimeInterval(30))
+        await dispatcher.observe([alert("disk")], now: t0.addingTimeInterval(200))
+        XCTAssertEqual(sink.sent.map(\.state), [.firing, .resolved, .firing])
+    }
+
     func testMessageIsRedacted() {
         LogRedactor.registerSecret("s3cr3t-token-value")
         let event = AlertEvent(

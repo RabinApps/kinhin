@@ -15,7 +15,7 @@ extension ConfigLoader {
                     _ = try WebhookSink.validate(url)
                 } catch {
                     throw ConfigError.invalid(
-                        "alerts.webhook.url must be an https URL (http only for localhost, 127.0.0.1 or ::1), got '\(raw)'"
+                        "alerts.webhook.url must be an https URL (http only for localhost, 127.0.0.1 or ::1)"
                     )
                 }
                 alerts.webhookURL = url

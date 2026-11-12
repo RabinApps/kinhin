@@ -26,6 +26,8 @@ enum AlertsCommand {
         }
         do {
             print(try await send(config))
+        } catch is CancellationError {
+            throw CancellationError()  // the CLI's exit-130 handler reports it
         } catch {
             fail(error.localizedDescription, exit: .runtime)
         }

@@ -29,7 +29,9 @@ alerts:
 - `min_severity`: `critical` skips the engine's own retries (spawn backoff, orphan sweeps).
 
 The daemon reads the config when it starts or rebuilds. A bad webhook or a missing Keychain item is logged and leaves
-alerting off; it never stops the fleet.
+alerting off; it never stops the fleet. The daemon tries again every minute, so a token stored with `alerts set-token`
+takes effect without a restart. An alert that could not be delivered is sent again a minute later (a problem that
+cleared, too), and redirects from the endpoint count as failures.
 
 ## Store the token and test it
 

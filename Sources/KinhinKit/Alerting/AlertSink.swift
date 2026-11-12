@@ -6,15 +6,16 @@ protocol AlertSink: Sendable {
 }
 
 enum AlertError: LocalizedError, Equatable {
-    case notHTTPS(String)
+    case notHTTPS
     case badStatus(Int)
     case missingToken(String)
     case notConfigured
 
     var errorDescription: String? {
         switch self {
-        case .notHTTPS(let url):
-            return "alerts.webhook.url must use https unless it is this Mac (localhost, 127.0.0.1 or ::1), got '\(url)'"
+        // Never echo the URL: its path or query is often the webhook's secret.
+        case .notHTTPS:
+            return "alerts.webhook.url must be an https URL (http is allowed only for localhost, 127.0.0.1 or ::1)"
         case .badStatus(let code): return "the alert endpoint answered HTTP \(code)"
         case .missingToken(let name):
             return "no Keychain item holds the alert endpoint's token; store it with `kinhin alerts set-token \(name)`"
@@ -24,7 +25,7 @@ enum AlertError: LocalizedError, Equatable {
 
     /// Worth retrying: the endpoint or the network hiccuped, as opposed to rejecting the request.
     var isTransient: Bool {
-        if case .badStatus(let code) = self { return code == 429 || code >= 500 }
+        if case .badStatus(let code) = self { return code == 408 || code == 429 || code >= 500 }
         return false
     }
 }
@@ -42,7 +43,18 @@ struct URLSessionAlertHTTP: AlertHTTP {
         request.httpMethod = "POST"
         request.httpBody = body
         for (name, value) in headers { request.setValue(value, forHTTPHeaderField: name) }
-        let (_, response) = try await URLSession.shared.data(for: request)
+        let (_, response) = try await URLSession.shared.data(for: request, delegate: NoRedirects())
         return (response as? HTTPURLResponse)?.statusCode ?? 0
+    }
+}
+
+/// Refuses every redirect, so a 3xx reaches the caller as an error instead of a POST turned into a GET whose 2xx
+/// would read as a delivered alert.
+final class NoRedirects: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+    func urlSession(
+        _ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
+        newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void
+    ) {
+        completionHandler(nil)
     }
 }

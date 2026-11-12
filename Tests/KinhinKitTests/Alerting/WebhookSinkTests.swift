@@ -67,6 +67,30 @@ final class WebhookSinkTests: XCTestCase {
         XCTAssertEqual(http.calls.withLock { $0.count }, 2)
     }
 
+    func testRequestTimeoutIsRetried() async throws {
+        let http = FakeHTTP(statuses: [408, 200])
+        try await sink(http).send(event)
+        XCTAssertEqual(http.calls.withLock { $0.count }, 2)
+    }
+
+    func testRedirectsAreRefused() {
+        let delegate = NoRedirects()
+        let url = URL(string: "https://hooks.example.com/x")!
+        let response = HTTPURLResponse(url: url, statusCode: 302, httpVersion: nil, headerFields: nil)!
+        var followed: URLRequest?? = .some(URLRequest(url: url))
+        delegate.urlSession(
+            .shared, task: URLSession.shared.dataTask(with: url), willPerformHTTPRedirection: response,
+            newRequest: URLRequest(url: url)
+        ) { followed = .some($0) }
+        XCTAssertEqual(followed, .some(nil))
+    }
+
+    func testErrorsNeverEchoTheWebhookURL() {
+        XCTAssertThrowsError(try WebhookSink.validate("http://example.com/hooks/SECRET-PATH?token=SECRET")) {
+            XCTAssertFalse($0.localizedDescription.contains("SECRET"))
+        }
+    }
+
     func testClientErrorIsNotRetried() async {
         let http = FakeHTTP(statuses: [400])
         do {

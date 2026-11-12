@@ -15,10 +15,10 @@ struct WebhookSink: AlertSink {
     /// Rejects plain `http` unless the endpoint is this Mac.
     static func validate(_ raw: String) throws -> URL {
         guard let url = URL(string: raw), let scheme = url.scheme?.lowercased(), url.host != nil else {
-            throw AlertError.notHTTPS(raw)
+            throw AlertError.notHTTPS
         }
         let loopback = ["localhost", "127.0.0.1", "::1"].contains(url.host?.lowercased() ?? "")
-        guard scheme == "https" || (scheme == "http" && loopback) else { throw AlertError.notHTTPS(raw) }
+        guard scheme == "https" || (scheme == "http" && loopback) else { throw AlertError.notHTTPS }
         return url
     }
 

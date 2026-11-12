@@ -10,7 +10,7 @@ extension FleetEngine {
         _ alerts: KinhinConfig.AlertsConfig, http: any AlertHTTP = URLSessionAlertHTTP(),
         token: (String) throws -> String? = { try KeychainTokenStore.loadAlertsToken(account: $0) }
     ) throws -> WebhookSink {
-        guard let raw = alerts.webhookURL else { throw AlertError.notHTTPS("") }
+        guard let raw = alerts.webhookURL else { throw AlertError.notConfigured }
         var secret: String?
         if let name = alerts.headersKeychain {
             guard let found = try token(name) else { throw AlertError.missingToken(name) }
@@ -19,29 +19,46 @@ extension FleetEngine {
         return WebhookSink(url: try WebhookSink.validate(raw), format: alerts.format, token: secret, http: http)
     }
 
-    /// Starts the delivery loop (once) when `alerts.enabled`. A broken setup is logged and leaves alerting off:
-    /// it must never stop the fleet.
+    /// How long to wait before trying again to build the sink of an `alerts:` config that could not be built
+    /// (a token stored after the daemon started is then picked up without a restart).
+    static let alertSetupRetry: TimeInterval = 60
+
+    /// Starts the delivery loop (once) when `alerts.enabled`. A broken setup (a bad URL, a Keychain token not stored
+    /// yet) is logged and retried every `alertSetupRetry` seconds; it must never stop the fleet. Does nothing once the
+    /// engine has stopped, so a `stop()` racing `launch()` cannot leave a task behind.
     func startAlerting() {
         let alerts = config.alerts
         guard alerts.enabled else { return }
-        let sink: WebhookSink
-        do {
-            sink = try Self.makeAlertSink(alerts)
-        } catch {
-            Log.warn("alerts", "alerts are off: \(error.localizedDescription)")
-            return
-        }
-        let dispatcher = AlertDispatcher(
-            sinks: [sink],
-            policy: .init(
-                minSeverity: alerts.minSeverity, cooldown: TimeInterval(alerts.cooldownSeconds),
-                notifyOnResolve: alerts.notifyOnResolve))
+        let policy = AlertDispatcher.Policy(
+            minSeverity: alerts.minSeverity, cooldown: TimeInterval(alerts.cooldownSeconds),
+            notifyOnResolve: alerts.notifyOnResolve)
         alertTask.withLock { task in
-            guard task == nil else { return }
+            // `stop()` clears `running` before it takes this lock, so either the task installed here is cancelled
+            // by that `stopAlerting()`, or this check sees the engine stopped.
+            guard task == nil, running else { return }
             task = Task { [weak self] in
+                var dispatcher: AlertDispatcher?
+                var lastSetupAttempt: Date?
+                var lastSetupError: String?
                 while !Task.isCancelled {
                     guard let active = await self?.activeAlerts() else { return }
-                    await dispatcher.observe(active)
+                    if dispatcher == nil,
+                        Date().timeIntervalSince(lastSetupAttempt ?? .distantPast) >= Self.alertSetupRetry
+                    {
+                        lastSetupAttempt = Date()
+                        do {
+                            dispatcher = AlertDispatcher(sinks: [try Self.makeAlertSink(alerts)], policy: policy)
+                            lastSetupError = nil
+                            Log.info("alerts", "alerts are on")
+                        } catch {
+                            let reason = error.localizedDescription
+                            if reason != lastSetupError {
+                                Log.warn("alerts", "alerts are off until this is fixed: \(reason)")
+                                lastSetupError = reason
+                            }
+                        }
+                    }
+                    await dispatcher?.observe(active)
                     do {
                         try await Task.sleep(for: Self.alertInterval)
                     } catch {

@@ -52,7 +52,7 @@ public struct DoctorReportBuilder: Sendable {
     /// substitute a fixture.
     let tokenCheck: @Sendable (AccountConfig, String) async -> TokenHealthCheck.Report
     /// Whether the alert webhook's Keychain token is stored (`KeychainTokenStore` live); tests substitute a fixture.
-    let alertsTokenStored: @Sendable (String) -> Bool
+    let alertsTokenStored: @Sendable (String) throws -> Bool
 
     public init(
         host: HostResources? = nil,
@@ -80,7 +80,9 @@ public struct DoctorReportBuilder: Sendable {
         fleet: [VMRecord]? = nil,
         projectRecords: [ProjectImageRecord]? = nil,
         registryCache: DoctorReport.RegistryCacheStatus? = nil,
-        alertsTokenStored: @escaping @Sendable (String) -> Bool = { KeychainTokenStore.hasAlertsToken(account: $0) }
+        alertsTokenStored: @escaping @Sendable (String) throws -> Bool = {
+            try KeychainTokenStore.alertsTokenStored(account: $0)
+        }
     ) {
         self.alertsTokenStored = alertsTokenStored
         self.host = host

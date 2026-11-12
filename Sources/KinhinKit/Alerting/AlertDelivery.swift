@@ -19,10 +19,4 @@ public enum AlertDelivery {
     static func redactedEndpoint(_ url: URL) -> String {
         "\(url.scheme ?? "https")://\(url.host ?? "?")"
     }
-
-    /// Whether the Keychain holds the token `alerts.webhook.headers_keychain` names (true when none is needed).
-    public static func tokenAvailable(_ alerts: KinhinConfig.AlertsConfig) -> Bool {
-        guard let name = alerts.headersKeychain else { return true }
-        return KeychainTokenStore.hasAlertsToken(account: name)
-    }
 }

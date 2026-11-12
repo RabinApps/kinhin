@@ -15,6 +15,16 @@ final class AlertsCommandTests: XCTestCase {
         XCTAssertEqual(value?.1, "ops")
     }
 
+    func testTestRethrowsCancellationForTheCLIHandler() async {
+        let config = KinhinConfig.AlertsConfig(enabled: true, webhookURL: "https://hooks.example.com/x")
+        do {
+            try await AlertsCommand.test(config: config) { _ in throw CancellationError() }
+            XCTFail("expected CancellationError")
+        } catch {
+            XCTAssertTrue(error is CancellationError)
+        }
+    }
+
     func testTestPrintsTheSendersLine() async throws {
         let config = KinhinConfig.AlertsConfig(enabled: true, webhookURL: "https://hooks.example.com/x")
         let asked = Mutex(false)

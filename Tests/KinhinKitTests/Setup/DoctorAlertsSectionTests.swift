@@ -50,6 +50,18 @@ final class DoctorAlertsSectionTests: XCTestCase {
         XCTAssertFalse(doctor.ready)
     }
 
+    func testUnreadableTokenIsReportedAsAReadFailureNotAMissingItem() async throws {
+        struct Locked: Error, LocalizedError { var errorDescription: String? { "the Keychain is locked" } }
+        let alerts = KinhinConfig.AlertsConfig(
+            enabled: true, webhookURL: "https://hooks.example.com/x", headersKeychain: "ops")
+        let section = try XCTUnwrap(
+            DoctorReportBuilder.alertsSection(config: config(alerts), tokenStored: { _ in throw Locked() }))
+        XCTAssertFalse(section.ok)
+        XCTAssertNil(section.fix, "set-token would not help: the item may exist")
+        XCTAssertTrue(section.problem?.contains("could not be read") == true)
+        XCTAssertTrue(section.problem?.contains("the Keychain is locked") == true)
+    }
+
     func testNoTokenNeededWithoutAKeychainName() async throws {
         let alerts = KinhinConfig.AlertsConfig(enabled: true, webhookURL: "https://ntfy.sh/topic")
         let doctor = await report(alerts, tokenStored: false)
