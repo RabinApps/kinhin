@@ -1,8 +1,15 @@
 import Foundation
 
-/// `tart list` and the parsers for its two output formats.
+/// `tart list`: shared through `TartListCache`, plus the parsers for its two output formats.
 extension TartController {
     public func list() async throws -> [TartVM] {
+        guard let listCache else { return try await listUncached() }
+        return try await listCache.list { try await listUncached() }
+    }
+
+    /// Runs `tart list`. Every call probes each VM's disk image (see `TartListCache`), so go
+    /// through `list()`.
+    func listUncached() async throws -> [TartVM] {
         // Newer tart builds print only names for `--quiet`, so ask for JSON.
         let json = try await exec(["list", "--format", "json"])
         var jsonError: Error?
