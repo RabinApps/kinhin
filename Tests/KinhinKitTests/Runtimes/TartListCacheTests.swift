@@ -90,20 +90,28 @@ final class TartListCacheTests: XCTestCase {
         XCTAssertEqual(attempts.withLock { $0 }, 2)
     }
 
-    func testListingStartedBeforeAChangeIsNotStored() async throws {
+    func testListingStartedBeforeAChangeIsNotStoredOrReturned() async throws {
         let cache = TartListCache(maxAge: .seconds(60))
         let fetches = Mutex(0)
+        let (started, startedSignal) = AsyncStream<Void>.makeStream()
         let fetch: @Sendable () async throws -> [TartVM] = {
-            fetches.withLock { $0 += 1 }
+            let n = fetches.withLock { count -> Int in
+                count += 1
+                return count
+            }
+            startedSignal.yield()
             try await Task.sleep(for: .milliseconds(100))
-            return []
+            return [TartVM(name: "listing-\(n)", source: "local", status: "running")]
         }
         async let first = cache.list(fetch: fetch)
-        try await Task.sleep(for: .milliseconds(20))
+        var signals = started.makeAsyncIterator()
+        _ = await signals.next()  // the first listing is in flight
         cache.invalidate()
-        _ = try await first
-        _ = try await cache.list(fetch: fetch)
-        XCTAssertEqual(fetches.withLock { $0 }, 2, "a listing older than the change is not served")
+        let waited = try await first
+        XCTAssertEqual(waited.map(\.name), ["listing-2"], "a caller waiting across a change lists again")
+        let later = try await cache.list(fetch: fetch)
+        XCTAssertEqual(later.map(\.name), ["listing-2"], "the listing after the change is the one stored")
+        XCTAssertEqual(fetches.withLock { $0 }, 2)
     }
 
     func testInjectedShellsAreNotCachedByDefault() throws {

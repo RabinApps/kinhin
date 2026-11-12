@@ -31,6 +31,11 @@ public final class TartListCache: Sendable {
         var generation = 0
     }
 
+    private enum Pick {
+        case fresh([TartVM])
+        case wait(Task<[TartVM], Error>, Int)
+    }
+
     private let state = Mutex(State())
     let maxAge: Duration
 
@@ -50,39 +55,45 @@ public final class TartListCache: Sendable {
 
     private static let registry = Mutex<[String: TartListCache]>([:])
 
-    /// The cached listing when it is fresh, else the in-flight one, else a new `fetch`.
+    /// The cached listing when it is fresh, else the in-flight one, else a new `fetch`. A listing
+    /// that `invalidate()` overtook while this caller waited is never returned: the caller lists again.
     func list(fetch: @escaping @Sendable () async throws -> [TartVM]) async throws -> [TartVM] {
-        let now = ContinuousClock.now
-        let (cached, task, generation) = state.withLock { s -> ([TartVM]?, Task<[TartVM], Error>?, Int) in
-            if let vms = s.vms, let at = s.fetchedAt, now - at < maxAge { return (vms, nil, s.generation) }
-            if let running = s.inFlight { return (nil, running, s.generation) }
-            let started = Task { try await fetch() }
-            s.inFlight = started
-            return (nil, started, s.generation)
-        }
-        if let cached { return cached }
-        guard let task else { return try await fetch() }  // unreachable: one of the two is set
-        do {
-            let vms = try await task.value
-            state.withLock { s in
-                if s.inFlight == task { s.inFlight = nil }
-                if s.generation == generation {
-                    s.vms = vms
-                    s.fetchedAt = ContinuousClock.now
+        while true {
+            let now = ContinuousClock.now
+            let pick = state.withLock { s -> Pick in
+                if let vms = s.vms, let at = s.fetchedAt, now - at < maxAge { return .fresh(vms) }
+                if let running = s.inFlight { return .wait(running, s.generation) }
+                let started = Task { try await fetch() }
+                s.inFlight = started
+                return .wait(started, s.generation)
+            }
+            guard case .wait(let task, let generation) = pick else {
+                if case .fresh(let vms) = pick { return vms }
+                continue  // unreachable: a pick is fresh or a wait
+            }
+            let vms: [TartVM]
+            do {
+                vms = try await task.value
+            } catch {
+                state.withLock { s in
+                    if s.inFlight == task { s.inFlight = nil }
                 }
+                throw error
+            }
+            let current = state.withLock { s -> Bool in
+                if s.inFlight == task { s.inFlight = nil }
+                guard s.generation == generation else { return false }
+                s.vms = vms
+                s.fetchedAt = ContinuousClock.now
+                return true
             }
             try Task.checkCancellation()
-            return vms
-        } catch {
-            state.withLock { s in
-                if s.inFlight == task { s.inFlight = nil }
-            }
-            throw error
+            if current { return vms }
         }
     }
 
     /// Forget the listing: the next `list` runs `tart list` again. A listing in flight is not
-    /// awaited by later callers and its answer is not stored.
+    /// awaited by later callers, its answer is not stored, and callers already waiting on it list again.
     public func invalidate() {
         state.withLock { s in
             s.generation += 1
