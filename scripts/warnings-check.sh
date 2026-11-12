@@ -28,7 +28,7 @@ fi
 
 root="$PWD"
 found="$(sed 's/\x1b\[[0-9;]*m//g; s/\x1b\]8;;[^\x1b]*\x1b\\//g' "$log" |
-    grep -E "^${root}/(Sources|Tests)/[^ ]*: (warning|error):" | sed 's/ \[#.*//' | sort -u || true)"
+    grep -E "^${root}/(Sources|Tests)/.*:[0-9]+:[0-9]+: (warning|error):" | sed 's/ \[#.*//' | sort -u || true)"
 
 if [[ -n "$found" ]]; then
     echo "$found" | sed "s|^${root}/||"
