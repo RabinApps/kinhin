@@ -26,12 +26,15 @@ if ! swift build --build-system swiftbuild --build-tests --scratch-path "$scratc
     exit 1
 fi
 
+# The checkout path is stripped as a literal prefix (awk index/substr on an env var, so backslashes survive too), never interpolated into a regex, so a path
+# containing [ ] ( ) . + etc. cannot hide a diagnostic. The remaining repo-relative path may contain spaces.
 root="$PWD"
 found="$(sed 's/\x1b\[[0-9;]*m//g; s/\x1b\]8;;[^\x1b]*\x1b\\//g' "$log" |
-    grep -E "^${root}/(Sources|Tests)/.*:[0-9]+:[0-9]+: (warning|error):" | sed 's/ \[#.*//' | sort -u || true)"
+    ROOT="$root/" awk 'BEGIN { r = ENVIRON["ROOT"] } index($0, r) == 1 { print substr($0, length(r) + 1) }' |
+    grep -E "^(Sources|Tests)/.*:[0-9]+:[0-9]+: (warning|error):" | sed 's/ \[#.*//' | sort -u || true)"
 
 if [[ -n "$found" ]]; then
-    echo "$found" | sed "s|^${root}/||"
+    echo "$found"
     echo "warnings check: $(echo "$found" | wc -l | tr -d ' ') warning(s) in Sources/Tests; fix them" >&2
     exit 1
 fi
