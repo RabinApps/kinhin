@@ -196,7 +196,7 @@ final class FleetEdgeTests: XCTestCase {
         let vmID = await engine.status().records.first!.id
 
         // The VM went busy after the last attribution pass, then the fleet was paused.
-        await engine.updateRecord(vmID) { $0.phase = .busy }
+        engine.updateRecord(vmID) { $0.phase = .busy }
         github.running = [RunningJob(name: "build", runnerName: vmID, repository: "acme/api")]
         await engine.setPaused(true)
         try await engine.reconcileOnce()

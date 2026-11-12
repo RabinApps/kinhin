@@ -140,7 +140,7 @@ final class ProjectToolchainSourceTests: XCTestCase {
         let source = ProjectToolchainSource(now: { clock.now })
         let project = projectConfig()
         // First read: branch-only (no sha) → cached as non-permanent.
-        let r1 = try await source.resolve(
+        let r1 = await source.resolve(
             job: ForgeJob(
                 name: "j1", runnerName: nil, repository: "acme/api", ref: "main", sha: nil, isFork: false,
                 forkKnown: true),
@@ -149,7 +149,7 @@ final class ProjectToolchainSourceTests: XCTestCase {
         XCTAssertEqual(github.projectFileCalls, ["acme/api@main"])
 
         // Same branch re-read after TTL → re-fetched (non-permanent entry expired).
-        let r2 = try await source.resolve(
+        let r2 = await source.resolve(
             job: ForgeJob(
                 name: "j2", runnerName: nil, repository: "acme/api", ref: "main", sha: nil, isFork: false,
                 forkKnown: true),
@@ -158,7 +158,7 @@ final class ProjectToolchainSourceTests: XCTestCase {
         XCTAssertEqual(github.projectFileCalls, ["acme/api@main", "acme/api@main"], "after TTL: re-reads the branch")
 
         // A sha-scoped read is permanent and never expires.
-        let r3 = try await source.resolve(
+        let r3 = await source.resolve(
             job: ForgeJob(
                 name: "j3", runnerName: nil, repository: "acme/api", ref: "main", sha: "abc123", isFork: false,
                 forkKnown: true),
@@ -167,7 +167,7 @@ final class ProjectToolchainSourceTests: XCTestCase {
         XCTAssertEqual(github.projectFileCalls, ["acme/api@main", "acme/api@main", "acme/api@abc123"])
 
         // Re-read the same sha later: still cached (permanent entry never expires).
-        let r4 = try await source.resolve(
+        let r4 = await source.resolve(
             job: ForgeJob(
                 name: "j4", runnerName: nil, repository: "acme/api", ref: "main", sha: "abc123", isFork: false,
                 forkKnown: true),
@@ -182,6 +182,7 @@ final class ProjectToolchainSourceTests: XCTestCase {
 
     /// Resolves `job` and asserts the toolchain selection + source, then
     /// returns the resolution so callers can further assert warnings etc.
+    @discardableResult
     private func assertResolution<F: Forge>(
         source: ProjectToolchainSource, forge: F, project: KinhinConfig.ProjectConfig,
         job: ForgeJob,

@@ -83,7 +83,6 @@ final class AppResetTests: MainWindowTestCase {
         stubGates(scope: .config, planConfirmed: true, wordConfirmed: true)
         model.resetPlanner = { _ in plan }
         var ranPlans: [ResetPlan] = []
-        var stopped = false
         model.resetRunner = { ran in
             ranPlans.append(ran)
             return ResetReport(completed: ["removed config, logs and state"])

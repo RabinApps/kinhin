@@ -308,7 +308,7 @@ extension KeychainTokenStore {
 
         /// Clears every session token (reset's bulk wipe; environment mode only).
         static func forgetSessionTokens() {
-            _ = sessionTokens.withLock { $0.removeAll() }
+            sessionTokens.withLock { $0.removeAll() }
         }
 
         /// Clears per-process state (tests).

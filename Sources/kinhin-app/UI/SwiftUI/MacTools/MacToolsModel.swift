@@ -77,12 +77,12 @@ final class MacToolsModel: ConfigFormModel {
         localized: "Install…", bundle: .l10n, comment: "This Mac form: button that installs Apple container")
     /// Base image each runtime's image is baked on (nil = default); the
     /// tart value is what `image prepare` starts from.
-    internal(set) var tartBaseImage: String?
+    var tartBaseImage: String?
     /// The fleet's `labels:` as saved (what runners advertise to the forge).
-    internal(set) var fleetLabels: [String] = []
-    internal(set) var containerBaseImage: String?
-    internal(set) var dockerBaseImage: String?
-    internal(set) var dockerPlatform: LinuxPlatform = .arm64
+    var fleetLabels: [String] = []
+    var containerBaseImage: String?
+    var dockerBaseImage: String?
+    var dockerPlatform: LinuxPlatform = .arm64
 
     /// Installed but its background service isn't running: offer to start it
     /// (a fresh install leaves it stopped).

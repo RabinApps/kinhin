@@ -245,7 +245,7 @@ final class GitHubScaleSetClientTests: XCTestCase {
         let captured = Locked<[URLRequest]>([])
         StubProtocol.handler = { request in
             captured.withLock { $0.append(request) }
-            switch captured.withLock { $0.count } {
+            switch captured.withLock({ $0.count }) {
             case 1, 3:
                 return (200, Data(#"{"count":0,"value":[]}"#.utf8), [:])
             case 2:
@@ -282,7 +282,7 @@ final class GitHubScaleSetClientTests: XCTestCase {
         let actionsURL = URL(string: "https://actions.acme.ghe.com/a/_apis/runtime")!
         StubProtocol.handler = { request in
             captured.withLock { $0.append(request) }
-            switch captured.withLock { $0.count } {
+            switch captured.withLock({ $0.count }) {
             case 1, 3:
                 return (200, Data(#"{"count":0,"value":[]}"#.utf8), [:])
             case 2:

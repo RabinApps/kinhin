@@ -22,7 +22,7 @@ final class UntrustedJobTests: XCTestCase {
         github.projectFiles["acme/api@default"] = Data("toolchains:\n  specs: [go@1.22.5]\n".utf8)
         let job = ForgeJob(name: "j", runnerName: nil, repository: "acme/api", ref: "pr-branch", sha: "abc123")
 
-        let resolution = try await ProjectToolchainSource().resolve(job: job, forge: github, projects: [project])
+        let resolution = await ProjectToolchainSource().resolve(job: job, forge: github, projects: [project])
 
         XCTAssertFalse(resolution.shareCache, "share_cache: true is not honored for a job that may be a fork's")
         XCTAssertEqual(github.projectFileCalls, ["acme/api@default"])
@@ -36,7 +36,7 @@ final class UntrustedJobTests: XCTestCase {
             name: "j", runnerName: nil, repository: "acme/api", ref: "main", sha: "abc123", isFork: false,
             forkKnown: true)
 
-        let resolution = try await ProjectToolchainSource().resolve(job: job, forge: github, projects: [project])
+        let resolution = await ProjectToolchainSource().resolve(job: job, forge: github, projects: [project])
 
         XCTAssertTrue(resolution.shareCache)
         XCTAssertEqual(github.projectFileCalls, ["acme/api@abc123"])

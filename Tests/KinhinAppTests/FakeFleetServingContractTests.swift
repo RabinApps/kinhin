@@ -165,7 +165,7 @@ final class FakeFleetServingContractTests: XCTestCase {
             host: testHost
         )
         await strandedEngine.start()
-        let strandedStatus = try await strandedEngine.status()
+        let strandedStatus = await strandedEngine.status()
         XCTAssertFalse(
             strandedStatus.running,
             "an engine with no usable forge stays stopped after start()")

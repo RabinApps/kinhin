@@ -75,8 +75,8 @@ final class FakeGitLabContractTests: XCTestCase {
     // MARK: - Registration
 
     func testThereIsNoSharedRegistrationTokenOnEitherSide() async {
-        let realError = await firstError { try await makeReal().mintRegistrationToken() }
-        let fakeError = await firstError { try await FakeGitLab().mintRegistrationToken() }
+        let realError = await firstError { _ = try await makeReal().mintRegistrationToken() }
+        let fakeError = await firstError { _ = try await FakeGitLab().mintRegistrationToken() }
 
         guard let real = realError as? EngineError, case .registrationFailed(let realVM, _) = real else {
             return XCTFail("the real forge must refuse a shared token: \(String(describing: realError))")

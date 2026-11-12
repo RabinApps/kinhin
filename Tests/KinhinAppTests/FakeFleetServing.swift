@@ -146,12 +146,12 @@ final class FakeFleetServing: FleetServing {
 
     func requeueQueuedJobs(for forge: ForgeID) async throws {
         try record("requeueQueuedJobs(\(forge.rawValue))")
-        _ = try? await requeueResult
+        _ = requeueResult
     }
 
     func skipQueuedJobs(for forge: ForgeID) async throws {
         try record("skipQueuedJobs(\(forge.rawValue))")
-        _ = try? await skipResult
+        _ = skipResult
     }
 
     /// What `pipelineDetail` answers (nil: the VM runs no job).
