@@ -42,6 +42,9 @@ jobs:
       - name: Lint (swift-format)
         run: swift format lint --strict -r Sources Tests
 
+      - name: Compiler warnings
+        run: bash scripts/warnings-check.sh
+
       - name: Run tests
         # A clean run takes about ten minutes; a hung test fails here instead
         # of holding the fleet's VM until GitHub's six-hour limit.
@@ -103,6 +106,9 @@ jobs:
 
       - name: Lint (swift-format)
         run: swift format lint --strict -r Sources Tests
+
+      - name: Compiler warnings
+        run: bash scripts/warnings-check.sh
 
       - name: Run tests
         timeout-minutes: 30

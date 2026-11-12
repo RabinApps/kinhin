@@ -3,6 +3,7 @@
 #
 # Keep this step list in sync with .github/workflows/ci.yml:
 #   test job     : swift format lint --strict -r Sources Tests
+#                  scripts/warnings-check.sh
 #                  swift build -c release --product kinhin-app --product kinhin
 #                  swift test --build-system swiftbuild --parallel
 #   docs job     : bash scripts/changelog.sh check    (GitHub-hosted ubuntu runner)
@@ -62,6 +63,9 @@ if [[ $run_test -eq 1 ]]; then
 else
     stage "swift test (skipped: --fast)"
 fi
+
+stage "compiler warnings (clean build of Sources and Tests)"
+bash scripts/warnings-check.sh
 
 stage "swift format lint --strict"
 swift format lint --strict -r Sources Tests
