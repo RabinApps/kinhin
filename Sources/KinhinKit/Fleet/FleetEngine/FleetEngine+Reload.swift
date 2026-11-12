@@ -42,6 +42,7 @@ extension FleetEngine {
     public func detachKeepingInstances() async {
         runState.withLock { $0.running = false }
         healing.stopLoop()
+        stopAlerting()
         cachePruneTask?.cancel()
         cachePruneTask = nil
         // Wait out an in-flight reconcile pass first: one already in its

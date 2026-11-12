@@ -328,6 +328,57 @@ extension KeychainTokenStore {
     #endif
 }
 
+// MARK: - Alert endpoint token
+
+extension KeychainTokenStore {
+    /// The Keychain account of an alert endpoint token (`alerts.webhook.headers_keychain: NAME`).
+    public static func alertsAccount(_ name: String) -> String { "alerts:\(name)" }
+
+    /// The alert endpoint token under `name`, or nil when none is. In the debug environment mode
+    /// (`KINHIN_TOKEN_STORE=env`) it comes from `KINHIN_TOKEN_ALERTS_<NAME>`. The token is registered with the log redactor.
+    static func loadAlertsToken(account name: String) throws -> String? {
+        let token: String?
+        if mode == .environment {
+            token = environmentToken(name: "alerts-\(name)")
+        } else {
+            token = try load(from: service, account: alertsAccount(name))
+        }
+        if let token { LogRedactor.registerSecret(token) }
+        return token
+    }
+
+    /// Stores (or replaces) the alert endpoint token under `name`, like forge tokens: this-device-only.
+    public static func saveAlertsToken(_ token: String, account name: String) throws {
+        LogRedactor.registerSecret(token)
+        if mode == .environment {
+            saveForSession(token, name: "alerts-\(name)")
+            return
+        }
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: alertsAccount(name),
+        ]
+        let attributes: [String: Any] = [
+            kSecValueData as String: Data(token.utf8),
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
+        ]
+        let update = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+        if update == errSecItemNotFound {
+            let status = SecItemAdd(query.merging(attributes) { $1 } as CFDictionary, nil)
+            guard status == errSecSuccess else { throw TokenError.unhandled(status) }
+        } else if update != errSecSuccess {
+            throw TokenError.unhandled(update)
+        }
+    }
+
+    /// Whether a token is stored under `name`, without exposing it. Throws when the Keychain refuses to answer, so
+    /// "not stored" and "could not be read" stay different problems.
+    public static func alertsTokenStored(account name: String) throws -> Bool {
+        try loadAlertsToken(account: name) != nil
+    }
+}
+
 // MARK: - Telemetry collector token
 
 extension KeychainTokenStore {

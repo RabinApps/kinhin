@@ -41,6 +41,10 @@ struct ConfigSchema {
                     PartialConfig.PartialHealing.CodingKeys.self,
                     ["ollama": .object(.init(PartialConfig.PartialHealing.PartialOllama.CodingKeys.self))])),
             "telemetry": .object(.init(PartialConfig.PartialTelemetry.CodingKeys.self)),
+            "alerts": .object(
+                .init(
+                    PartialConfig.PartialAlerts.CodingKeys.self,
+                    ["webhook": .object(.init(PartialConfig.PartialAlerts.PartialWebhook.CodingKeys.self))])),
             "container": .object(
                 .init(
                     PartialConfig.PartialContainer.CodingKeys.self,
