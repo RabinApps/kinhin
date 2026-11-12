@@ -66,7 +66,7 @@ struct AzureDevOpsForge: Forge {
         // Advice only: a failed listing here is not worth failing start-up over.
         if let agents = try? await client.listAgentsWithCapabilities(pool: pool),
             let advice = emptyPoolAdvice(agents: agents, labels: labels, pool: pool.name),
-            firstWarning(for: "\(credentials.instance ?? "")|\(pool.id)|\(labels.sorted())")
+            firstWarning(for: "\(credentials.instance)|\(pool.id)|\(labels.sorted())")
         {
             Log.warn(account, advice)
         }

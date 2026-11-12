@@ -186,7 +186,6 @@ private extension LinuxRuntimeSetup {
         return String(localized: "Install & use it", bundle: .l10n, comment: "Button of the Linux runtime sheet")
     }
 
-    @discardableResult
     func startInstall(model: MacToolsModel) async {
         guard let tool else { return }
         await model.install(tool)

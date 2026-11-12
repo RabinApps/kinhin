@@ -265,7 +265,9 @@ final class RuntimesPaneTests: XCTestCase {
         let container = try XCTUnwrap(vm.pools.first { $0.runtime == .appleContainer })
         // A configured tart_path that does not resolve is a broken config,
         // named as such, not "install tart".
-        guard case .broken(let why) = tart.health else { return XCTFail("expected broken, got \(tart.health)") }
+        guard case .broken(let why) = tart.health else {
+            return XCTFail("expected broken, got \(String(describing: tart.health))")
+        }
         XCTAssertTrue(why.contains("/nonexistent/kinhin-test-tart"), why)
         XCTAssertEqual(container.health, .ready)
     }

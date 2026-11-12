@@ -208,7 +208,7 @@ final class ForgeTransportTests: XCTestCase {
     func testTransientStatusesExhaustIntoTheirLastError() async {
         let attempts = Locked<Int>(0)
         StubProtocol.handler = { _ in
-            _ = attempts.withLock { $0 += 1 }
+            attempts.withLock { $0 += 1 }
             return (500, Data("down".utf8), [:])
         }
         let transport = makeTransport(.gitea, .giteaToken("t"), retries: 1, baseDelay: 0.001)

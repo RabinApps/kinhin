@@ -9,8 +9,8 @@ import XCTest
 /// The "Make a Video…" sheet's model: choosing a repository, creating and building a video with live output, and adding music.
 @MainActor
 final class VideosModelTests: XCTestCase {
-    private var repo: URL!
-    private var cache: URL!
+    nonisolated(unsafe) private var repo: URL!
+    nonisolated(unsafe) private var cache: URL!
 
     override func setUpWithError() throws {
         let base = FileManager.default.temporaryDirectory.appendingPathComponent("kinhin-videos-\(UUID().uuidString)")

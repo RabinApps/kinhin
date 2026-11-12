@@ -85,7 +85,7 @@ final class ProjectImageEngineTests: XCTestCase {
 
         // Pass 2: the image exists, so the next VM is cloned from it.
         let derived = try XCTUnwrap(h.bakes.all.first)
-        try await h.engine.deleteVMRecord(id: h.engine.status().records[0].id, reason: "test")
+        await h.engine.deleteVMRecord(id: h.engine.status().records[0].id, reason: "test")
         try await h.engine.reconcileOnce()
         await waitForCondition { h.tart.cloneCalls.count >= 2 }
         let clones = h.tart.cloneCalls

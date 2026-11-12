@@ -106,7 +106,7 @@ final class TelemetryModel: ConfigFormModel {
         let url = configURL
         do {
             // Off the main actor: the editor reads, validates and writes the file.
-            try await Task.detached { try TelemetryConfigEditor.apply(field, to: url) }.value
+            _ = try await Task.detached { try TelemetryConfigEditor.apply(field, to: url) }.value
             loadConfig()
             onChanged?()
             return true

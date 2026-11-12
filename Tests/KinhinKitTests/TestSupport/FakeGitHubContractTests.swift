@@ -80,28 +80,28 @@ final class FakeGitHubContractTests: XCTestCase {
     func testTokenFailuresThrowTheSameGitHubErrorCasesAsTheRealClient() async {
         // 401 — the real client throws immediately, before any retry.
         StubProtocol.handler = { _ in (401, Data("bad credentials".utf8), [:]) }
-        let real401 = await firstError { try await makeReal().fetchRegistrationToken() }
+        let real401 = await firstError { _ = try await makeReal().fetchRegistrationToken() }
         let unauthorized = FakeGitHub()
         unauthorized.unauthorized = true
-        let fake401 = await firstError { try await unauthorized.fetchRegistrationToken() }
+        let fake401 = await firstError { _ = try await unauthorized.fetchRegistrationToken() }
         assertSameCase(real401, fake401, "401 must read as GitHubError.unauthorized on both sides")
 
         // 404 — also thrown immediately; the path differs per scope, but the
         // case is what callers branch on.
         StubProtocol.handler = { _ in (404, Data(#"{"message":"Not Found"}"#.utf8), [:]) }
-        let real404 = await firstError { try await makeReal().fetchRegistrationToken() }
+        let real404 = await firstError { _ = try await makeReal().fetchRegistrationToken() }
         let missing = FakeGitHub()
         missing.notFound = true
-        let fake404 = await firstError { try await missing.fetchRegistrationToken() }
+        let fake404 = await firstError { _ = try await missing.fetchRegistrationToken() }
         assertSameCase(real404, fake404, "404 must read as GitHubError.notFound on both sides")
 
         // 403 — a plain 403 is a permissions error and is not retried; that is
         // exactly what `permissionDenied` simulates for the engine tests.
         StubProtocol.handler = { _ in (403, Data("nope".utf8), [:]) }
-        let real403 = await firstError { try await makeReal().fetchRegistrationToken() }
+        let real403 = await firstError { _ = try await makeReal().fetchRegistrationToken() }
         let forbidden = FakeGitHub()
         forbidden.permissionDenied = true
-        let fake403 = await firstError { try await forbidden.fetchRegistrationToken() }
+        let fake403 = await firstError { _ = try await forbidden.fetchRegistrationToken() }
         assertSameCase(real403, fake403, "403 must read as GitHubError.forbidden on both sides")
     }
 

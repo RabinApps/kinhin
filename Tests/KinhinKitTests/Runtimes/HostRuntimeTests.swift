@@ -142,9 +142,9 @@ final class HostRuntimeTests: XCTestCase {
         let existing = try await runtime.existingInstanceIDs()
         XCTAssertTrue(existing.contains(id), "\(existing)")
         // Teardown scrubs (idempotent — a second call is a no-op).
-        try await runtime.teardown(id: id)
+        await runtime.teardown(id: id)
         XCTAssertFalse(FileManager.default.fileExists(atPath: workDir.path))
-        try await runtime.teardown(id: id)
+        await runtime.teardown(id: id)
     }
 
     func testAwaitReadyReturnsNilForLocalExec() async throws {
@@ -243,7 +243,7 @@ final class HostRuntimeTests: XCTestCase {
         try FileManager.default.createDirectory(at: instanceDir, withIntermediateDirectories: true)
         FileManager.default.createFile(
             atPath: instanceDir.appendingPathComponent("runner.pid").path, contents: Data("99999".utf8))
-        try await runtime.teardown(id: id)
+        await runtime.teardown(id: id)
         let stop = try XCTUnwrap(
             shell.calls.first { $0.last?.contains("run-single") == true },
             "a sweep for the GitLab agent ran: \(shell.calls)")
@@ -321,7 +321,7 @@ final class HostRuntimeTests: XCTestCase {
         try await runtime.provision(id: id, route: route)
         let instanceDir = runtime.workDirectory(for: id).appendingPathComponent("gitea-1", isDirectory: true)
         try FileManager.default.createDirectory(at: instanceDir, withIntermediateDirectories: true)
-        try await runtime.teardown(id: id)
+        await runtime.teardown(id: id)
         let stop = try XCTUnwrap(shell.calls.first { $0.last?.contains("daemon.pid") == true }, "\(shell.calls)")
         XCTAssertTrue(stop.last?.contains("gitea-runner.* daemon") ?? false, "only kills a pid that is still a daemon")
         XCTAssertFalse(FileManager.default.fileExists(atPath: runtime.workDirectory(for: id).path))
@@ -331,7 +331,7 @@ final class HostRuntimeTests: XCTestCase {
         let (runtime, shell, _) = makeRuntime()
         let id = "kinhin-ghd\(UUID().uuidString.prefix(6))"
         try await runtime.provision(id: id, route: route)
-        try await runtime.teardown(id: id)
+        await runtime.teardown(id: id)
         XCTAssertTrue(shell.calls.isEmpty)
     }
 
