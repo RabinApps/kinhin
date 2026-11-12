@@ -69,6 +69,32 @@ extension FleetEngine {
         }
     }
 
+    /// Tells the webhook that the fleet could not start (`prepareStart()` found no usable forge). The alert loop only
+    /// runs for a started fleet, so without this the problem a person most needs to hear about would stay silent.
+    /// Sent once, in the background: a slow endpoint must not delay the daemon's startup.
+    func alertStartupFailure() async {
+        let alerts = config.alerts
+        guard alerts.enabled else { return }
+        let message =
+            await statusBox.get().alerts?.first { $0.source == "startup" }?.message ?? "the fleet could not start"
+        Task.detached {
+            await bestEffortAsync("alerts", "delivering the startup alert") {
+                try await Self.sendStartupAlert(alerts, message: message)
+            }
+        }
+    }
+
+    static func sendStartupAlert(
+        _ alerts: KinhinConfig.AlertsConfig, message: String, http: any AlertHTTP = URLSessionAlertHTTP(),
+        token: (String) throws -> String? = { try KeychainTokenStore.loadAlertsToken(account: $0) }
+    ) async throws {
+        let sink = try makeAlertSink(alerts, http: http, token: token)
+        try await sink.send(
+            AlertEvent(
+                source: "startup", severity: .critical, state: .firing, message: message,
+                host: ProcessInfo.processInfo.hostName, timestamp: Date()))
+    }
+
     func stopAlerting() {
         let task = alertTask.withLock { task -> Task<Void, Never>? in
             defer { task = nil }

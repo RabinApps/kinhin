@@ -32,6 +32,8 @@ The daemon reads the config when it starts or rebuilds. A bad webhook or a missi
 alerting off; it never stops the fleet. The daemon tries again every minute, so a token stored with `alerts set-token`
 takes effect without a restart. An alert that could not be delivered is sent again a minute later (a problem that
 cleared, too), and redirects from the endpoint count as failures.
+When the fleet cannot start at all (no forge's token verifies), the daemon sends one `startup` alert, since the usual
+loop only runs for a started fleet.
 
 ## Store the token and test it
 

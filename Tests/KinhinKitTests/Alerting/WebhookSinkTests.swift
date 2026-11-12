@@ -102,6 +102,17 @@ final class WebhookSinkTests: XCTestCase {
         XCTAssertEqual(http.calls.withLock { $0.count }, 1)
     }
 
+    func testStartupFailureIsSentAsACriticalStartupAlert() async throws {
+        let http = FakeHTTP()
+        let config = KinhinConfig.AlertsConfig(enabled: true, webhookURL: "https://hooks.example.com/x")
+        try await FleetEngine.sendStartupAlert(config, message: "token rejected", http: http, token: { _ in nil })
+        let call = try XCTUnwrap(http.calls.withLock { $0.first })
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: call.body) as? [String: Any])
+        XCTAssertEqual(json["source"] as? String, "startup")
+        XCTAssertEqual(json["severity"] as? String, "critical")
+        XCTAssertEqual(json["message"] as? String, "token rejected")
+    }
+
     func testMakeSinkNeedsTheKeychainToken() throws {
         let config = KinhinConfig.AlertsConfig(
             enabled: true, webhookURL: "https://hooks.example.com/x", headersKeychain: "ops")
