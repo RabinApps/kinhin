@@ -46,6 +46,7 @@ public struct PartialConfig: Decodable {
     var accounts: [PartialAccount]?
     var healing: PartialHealing?
     var telemetry: PartialTelemetry?
+    var alerts: PartialAlerts?
 
     struct PartialAccount: Decodable {
         var name: String?
@@ -242,6 +243,32 @@ public struct PartialConfig: Decodable {
         }
     }
 
+    struct PartialAlerts: Decodable {
+        var enabled: Bool?
+        var webhook: PartialWebhook?
+        var minSeverity: String?
+        var cooldownSeconds: Int?
+        var notifyOnResolve: Bool?
+
+        struct PartialWebhook: Decodable {
+            var url: String?
+            var format: String?
+            var headersKeychain: String?
+
+            enum CodingKeys: String, CodingKey, CaseIterable {
+                case url, format
+                case headersKeychain = "headers_keychain"
+            }
+        }
+
+        enum CodingKeys: String, CodingKey, CaseIterable {
+            case enabled, webhook
+            case minSeverity = "min_severity"
+            case cooldownSeconds = "cooldown_seconds"
+            case notifyOnResolve = "notify_on_resolve"
+        }
+    }
+
     struct PartialTelemetry: Decodable {
         var enabled: Bool?
         var endpoint: String?
@@ -359,6 +386,7 @@ public struct PartialConfig: Decodable {
         case accounts
         case healing
         case telemetry
+        case alerts
     }
 
     /// forgejo is a stored property (decoded for the removed-key rejection);

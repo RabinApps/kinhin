@@ -10,7 +10,10 @@ extension FleetEngine {
             return was
         }
         guard !alreadyRunning else { return }
-        guard await prepareStart() else { return }
+        guard await prepareStart() else {
+            await alertStartupFailure()
+            return
+        }
         // A stop() that landed while the forges were being verified wins:
         // launching now would resurrect a fleet the caller just stopped.
         guard running else { return }
@@ -92,12 +95,14 @@ extension FleetEngine {
         }
         reconcileTask = task
         await startHealing()
+        startAlerting()
     }
 
     public func stop() async {
         runState.withLock { $0.running = false }
         Log.info("engine", "stopping fleet engine")
         healing.stopLoop()
+        stopAlerting()
         reconcileTask?.cancel()
         reconcileTask = nil
         cachePruneTask?.cancel()

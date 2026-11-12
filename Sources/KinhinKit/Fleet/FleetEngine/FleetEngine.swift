@@ -82,6 +82,8 @@ public final class FleetEngine: Sendable {
     let jobTraces = Mutex<[String: JobTrace]>([:])
     /// Healing events already counted in `kinhin.healing.actions`.
     let healingCounted = Mutex(HealingCounted())
+    /// The loop that forwards the fleet's problems to the alert webhook (`FleetEngine+Alerting.swift`).
+    let alertTask = Mutex<Task<Void, Never>?>(nil)
     /// The daemon process's own CPU and memory.
     let processUsage = ProcessUsage()
     /// When this engine was built, and when its last reconcile pass completed (for `kinhin.reconcile.last_success`).

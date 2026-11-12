@@ -10,6 +10,11 @@
   kinhin's own clone, start, stop and delete refresh it. Each `tart list` probes every VM's disk image, which on macOS
   27.2 leaks kernel APFS objects; with eight Tart VMs the daemon's constant listing exhausted the kernel zone map and
   panicked the Mac after about 41 hours.
+**Added**
+
+- Outbound alerts: with `alerts:` enabled, the daemon POSTs a webhook when a fleet problem is raised or clears, so a
+  closed menu bar app or a headless host still reaches you. Formats: generic JSON, Slack, Discord, ntfy. See
+  [Alerts](docs/alerts.md).
 
 ## v0.0.1-beta-5
 
