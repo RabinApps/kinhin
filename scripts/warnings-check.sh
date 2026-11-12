@@ -34,10 +34,16 @@ fi
 
 # The checkout path is stripped as a literal prefix (awk index/substr on an env var, so backslashes survive too), never interpolated into a regex, so a path
 # containing [ ] ( ) . + etc. cannot hide a diagnostic. The remaining repo-relative path may contain spaces.
+# grep exiting 1 means "no diagnostics"; any other failure (unreadable log, sed/awk error) aborts under set -e/pipefail
+# instead of reporting a clean scan.
+if [[ ! -r "$log" ]]; then
+    echo "warnings check: cannot read log: $log" >&2
+    exit 2
+fi
 root="$PWD"
 found="$(sed 's/\x1b\[[0-9;]*m//g; s/\x1b\]8;;[^\x1b]*\x1b\\//g' "$log" |
     ROOT="$root/" awk 'BEGIN { r = ENVIRON["ROOT"] } index($0, r) == 1 { print substr($0, length(r) + 1) }' |
-    grep -E "^(Sources|Tests)/.*:[0-9]+:[0-9]+: (warning|error):" | sed 's/ \[#.*//' | sort -u || true)"
+    { grep -E "^(Sources|Tests)/.*:[0-9]+:[0-9]+: (warning|error):" || [[ $? -eq 1 ]]; } | sed 's/ \[#.*//' | sort -u)"
 
 if [[ -n "$found" ]]; then
     echo "$found"
