@@ -514,6 +514,32 @@ enum CommandCatalog {
             ],
             docs: "docs/telemetry.md"),
         CommandSpec(
+            name: "alerts",
+            command: .alerts,
+            group: .running,
+            summary: "Outbound alerts: send a test, store the webhook token",
+            subcommands: [
+                CommandSpec(
+                    name: "test",
+                    command: .alerts,
+                    summary: "Send a test alert through the configured webhook"),
+                CommandSpec(
+                    name: "set-token",
+                    command: .alerts,
+                    summary: "Store the webhook's bearer token in the Keychain",
+                    positionals: "NAME",
+                    flags: [tokenStdinFlag],
+                    details: [
+                        "NAME is the alerts.webhook.headers_keychain value. Without --token-stdin the token is read "
+                            + "from a hidden prompt."
+                    ]),
+            ],
+            details: [
+                "The daemon sends alerts while alerts.enabled is true. test works before that, and exits 3 when "
+                    + "alerts.webhook.url is not set and 4 when the endpoint does not accept the message."
+            ],
+            docs: "docs/alerts.md"),
+        CommandSpec(
             name: "cleanup",
             command: .cleanup,
             group: .running,

@@ -199,6 +199,19 @@ extension ConfigLoader {
         #   ca_file: /etc/ssl/collector-ca.pem # PEM CA that signs the collector's https certificate
         #   persist: false                    # true = queue spans and logs on disk while the collector is down
 
+        # Optional: outbound alerts. The daemon POSTs a webhook when a problem is raised or clears, so you hear
+        # about it with the menu bar app closed. Off by default. The token never goes in this file: name a Keychain
+        # item (headers_keychain). See docs/alerts.md.
+        # alerts:
+        #   enabled: false
+        #   webhook:
+        #     url: https://ntfy.sh/my-kinhin-topic  # https only (http for localhost)
+        #     format: generic                       # generic|slack|discord|ntfy
+        #     headers_keychain: ops-alerts          # Keychain item holding a bearer token
+        #   min_severity: warning                   # warning|critical
+        #   cooldown_seconds: 3600                  # how long a still-raised problem stays quiet before re-sending
+        #   notify_on_resolve: true
+
         # Optional: serve more forges from the same fleet. Every accounts:
         # entry above is one forge; VMs are assigned to whichever forge has
         # the most pending work at spawn time. Manage accounts with

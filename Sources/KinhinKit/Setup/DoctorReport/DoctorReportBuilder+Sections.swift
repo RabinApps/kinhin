@@ -166,4 +166,19 @@ extension DoctorReportBuilder {
             )
         }
     }
+
+    /// The alerts section: nil unless `alerts.enabled`. It is not ok when the webhook's Keychain token is missing,
+    /// because the daemon would then leave alerting off.
+    static func alertsSection(
+        config: KinhinConfig?, tokenStored: (String) -> Bool
+    ) -> DoctorReport.AlertsSection? {
+        guard let alerts = config?.alerts, alerts.enabled else { return nil }
+        let endpoint = alerts.webhookURL.flatMap { URL(string: $0) }.map(AlertDelivery.redactedEndpoint)
+        let stored = alerts.headersKeychain.map(tokenStored)
+        let missing = stored == false
+        return DoctorReport.AlertsSection(
+            enabled: true, webhook: endpoint, format: alerts.format.rawValue, tokenStored: stored, ok: !missing,
+            problem: missing ? "no Keychain item '\(alerts.headersKeychain ?? "")' holds the webhook's token" : nil,
+            fix: missing ? "kinhin alerts set-token \(alerts.headersKeychain ?? "NAME")" : nil)
+    }
 }

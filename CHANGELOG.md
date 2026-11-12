@@ -4,6 +4,12 @@
 
 <!-- changelog: entries for the next release go here -->
 
+**Added**
+
+- Outbound alerts: with `alerts:` enabled, the daemon POSTs a webhook when a fleet problem is raised or clears, so a
+  closed menu bar app or a headless host still reaches you. Formats: generic JSON, Slack, Discord, ntfy. See
+  [Alerts](docs/alerts.md).
+
 ## v0.0.1-beta-5
 
 **Changed**

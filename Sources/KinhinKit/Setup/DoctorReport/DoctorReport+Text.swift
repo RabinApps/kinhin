@@ -230,6 +230,14 @@ extension DoctorReport {
                 }
             }
         }
+        if let alerts {
+            if alerts.ok {
+                row("alerts", "on ✓ → \(alerts.webhook ?? "?") (\(alerts.format))")
+            } else {
+                row("alerts", "ON but \(alerts.problem ?? "not working") ✗")
+                if let fix = alerts.fix { more(fix) }
+            }
+        }
         if let base = tartBaseImage {
             switch base.state {
             case "known": row("base image", "\(base.reference) ✓ (\(base.pinned ? "pinned" : "pre-configured"))")

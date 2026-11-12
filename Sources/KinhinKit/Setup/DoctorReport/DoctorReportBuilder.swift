@@ -51,6 +51,8 @@ public struct DoctorReportBuilder: Sendable {
     /// The per-account token probe (`TokenHealthCheck.account` live); tests
     /// substitute a fixture.
     let tokenCheck: @Sendable (AccountConfig, String) async -> TokenHealthCheck.Report
+    /// Whether the alert webhook's Keychain token is stored (`KeychainTokenStore` live); tests substitute a fixture.
+    let alertsTokenStored: @Sendable (String) -> Bool
 
     public init(
         host: HostResources? = nil,
@@ -77,8 +79,10 @@ public struct DoctorReportBuilder: Sendable {
         },
         fleet: [VMRecord]? = nil,
         projectRecords: [ProjectImageRecord]? = nil,
-        registryCache: DoctorReport.RegistryCacheStatus? = nil
+        registryCache: DoctorReport.RegistryCacheStatus? = nil,
+        alertsTokenStored: @escaping @Sendable (String) -> Bool = { KeychainTokenStore.hasAlertsToken(account: $0) }
     ) {
+        self.alertsTokenStored = alertsTokenStored
         self.host = host
         self.clt = clt
         self.tartHealth = tartHealth
@@ -289,6 +293,8 @@ public struct DoctorReportBuilder: Sendable {
         let tokenChecks: [DoctorReport.TokenCheck]? =
             checkTokens ? await tokenChecks(accounts: parsed?.accounts ?? [], load: sharedAccountLoad) : nil
 
+        let alertsSection = Self.alertsSection(config: parsed, tokenStored: alertsTokenStored)
+
         return DoctorReport(
             host: resolvedHost,
             clt: Self.cltSection(from: resolvedCLT),
@@ -300,7 +306,7 @@ public struct DoctorReportBuilder: Sendable {
             toolchainCache: cacheSection,
             auth: authReport,
             checks: status.checks,
-            ready: status.ready && authReport.allGood && (security?.ok ?? true)
+            ready: status.ready && authReport.allGood && (security?.ok ?? true) && (alertsSection?.ok ?? true)
                 && (tokenChecks?.allSatisfy(\.ok) ?? true),
             capacity: capacitySection,
             tartBaseImage: tartBaseImageSection,
@@ -308,7 +314,7 @@ public struct DoctorReportBuilder: Sendable {
             imageTotalGB: images.totalGB,
             imagePrune: images.prune,
             diskPressure: diskPressure,
-            tokenChecks: tokenChecks
+            tokenChecks: tokenChecks, alerts: alertsSection
         )
     }
 }
