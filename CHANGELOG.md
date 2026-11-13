@@ -4,6 +4,12 @@
 
 <!-- changelog: entries for the next release go here -->
 
+**Fixed**
+
+- Tart hosts no longer run `tart list` back to back: every caller in a process shares one listing for 10 seconds, and
+  kinhin's own clone, start, stop and delete refresh it. Each `tart list` probes every VM's disk image, which on macOS
+  27.2 leaks kernel APFS objects; with eight Tart VMs the daemon's constant listing exhausted the kernel zone map and
+  panicked the Mac after about 41 hours.
 **Added**
 
 - Outbound alerts: with `alerts:` enabled, the daemon POSTs a webhook when a fleet problem is raised or clears, so a

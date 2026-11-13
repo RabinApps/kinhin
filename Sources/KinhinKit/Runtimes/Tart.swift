@@ -112,6 +112,9 @@ public struct TartController: TartControlling {
     let softnet: Bool
     /// Where the guest SSH key lives; overridden by tests.
     var guestKeyDirectory = GuestSSHKey.defaultDirectory
+    /// Shares `tart list` answers between callers (see `TartListCache`): one per tart binary for the
+    /// real shell, none for injected shells, so tests see every call unless they set one.
+    var listCache: TartListCache?
 
     /// - Parameters:
     ///   - configuredPath: The tart binary to run — almost always the
@@ -128,6 +131,7 @@ public struct TartController: TartControlling {
         self.binary = found
         self.shell = shell
         self.softnet = softnet
+        self.listCache = shell is Shell ? TartListCache.shared(forBinary: found) : nil
     }
 
     /// A bare controller cannot be constructed — see the designated init.
@@ -181,67 +185,14 @@ public struct TartController: TartControlling {
         try await shell.run([binary] + args, cwd: nil, timeout: timeout)
     }
 
-    public func list() async throws -> [TartVM] {
-        // Newer tart builds print only names for `--quiet`, so ask for JSON.
-        let json = try await exec(["list", "--format", "json"])
-        var jsonError: Error?
-        if json.succeeded {
-            do { return try Self.parseListJSON(json.stdout) } catch { jsonError = error }
-        }
-        let res = try await exec(["list", "--quiet"])
-        guard res.succeeded else { throw TartError.commandFailed(what: "list", stderr: res.stderr) }
-        let vms = Self.parseList(res.stdout)
-        // Newer tart prints bare names for `--quiet`, which parse to nothing:
-        // an empty result from non-empty output is unreadable, not "no VMs".
-        if vms.isEmpty, !res.stdout.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            let why = jsonError.map { ": \($0.localizedDescription)" } ?? ""
-            throw TartError.commandFailed(what: "list", stderr: "could not read the output\(why)")
-        }
-        return vms
-    }
-
-    /// Parse `tart list --format json`; throws when the output isn't that JSON.
-    static func parseListJSON(_ text: String) throws -> [TartVM] {
-        struct Entry: Decodable {
-            let Name: String
-            let Source: String
-            let State: String
-            let Disk: Int?
-            let Size: Int?
-            let SizeOnDisk: Int?  // newer tart: the allocated size; older tart reports it as `Size`
-        }
-        let entries = try JSONDecoder().decode([Entry].self, from: Data(text.utf8))
-        return entries.map {
-            TartVM(
-                name: $0.Name, source: $0.Source, status: $0.State, diskGB: $0.Disk, sizeGB: $0.SizeOnDisk ?? $0.Size)
-        }
-    }
-
-    /// Parse `tart list --quiet` output: lines of "name \t source \t status".
-    static func parseList(_ text: String) -> [TartVM] {
-        text.split(separator: "\n").compactMap { line in
-            let cols = line.split(separator: "\t", omittingEmptySubsequences: false)
-            guard cols.count >= 3 else { return nil }
-            let mem =
-                cols.count > 4
-                ? Int(cols[4].trimmingCharacters(in: .whitespaces).replacingOccurrences(of: "GB", with: "")) : nil
-            let cpu = cols.count > 3 ? Int(cols[3].trimmingCharacters(in: .whitespaces)) : nil
-            return TartVM(
-                name: String(cols[0]).trimmingCharacters(in: .whitespaces),
-                source: String(cols[1]).trimmingCharacters(in: .whitespaces),
-                status: String(cols[2]).trimmingCharacters(in: .whitespaces),
-                cpu: cpu,
-                memoryMB: mem.map { $0 * 1024 }
-            )
-        }
-    }
-
     public func clone(source: String, to name: String) async throws {
+        defer { listCache?.invalidate() }
         let res = try await exec(["clone", source, name], timeout: 300)
         guard res.succeeded else { throw TartError.commandFailed(what: "clone \(source) \(name)", stderr: res.stderr) }
     }
 
     public func set(name: String, cpu: Int, memoryMB: Int) async throws {
+        defer { listCache?.invalidate() }
         let res = try await exec(["set", name, "--cpu", "\(cpu)", "--memory", "\(memoryMB)"])
         guard res.succeeded else {
             throw TartError.commandFailed(what: "set \(name)", stderr: res.stderr)
@@ -249,6 +200,7 @@ public struct TartController: TartControlling {
     }
 
     public func run(name: String, mounts: [String]) async throws {
+        defer { listCache?.invalidate() }
         // `tart run` blocks while the VM runs; launch it detached and return.
         let process = Process()
         process.executableURL = URL(fileURLWithPath: binary)
@@ -335,6 +287,7 @@ public struct TartController: TartControlling {
     }
 
     public func stop(name: String) async throws {
+        defer { listCache?.invalidate() }
         let res = try await exec(["stop", name], timeout: 120)
         // Already-stopped VMs are fine.
         guard res.succeeded || res.stderr.contains("not running") else {
@@ -343,6 +296,7 @@ public struct TartController: TartControlling {
     }
 
     public func delete(name: String) async throws {
+        defer { listCache?.invalidate() }
         let res = try await exec(["delete", name], timeout: 120)
         guard res.succeeded || Self.vmIsGone(stderr: res.stderr) else {
             throw TartError.commandFailed(what: "delete \(name)", stderr: res.stderr)
@@ -350,6 +304,7 @@ public struct TartController: TartControlling {
     }
 
     public func pull(image: String) async throws {
+        defer { listCache?.invalidate() }
         let res = try await exec(["pull", image], timeout: 3600)
         guard res.succeeded else { throw TartError.commandFailed(what: "pull \(image)", stderr: res.stderr) }
     }
@@ -379,6 +334,7 @@ public struct TartController: TartControlling {
     }
 
     public func createLinux(name: String) async throws {
+        defer { listCache?.invalidate() }
         let res = try await exec(["create", "--linux", name])
         guard res.succeeded else {
             throw TartError.commandFailed(what: "create --linux \(name)", stderr: res.stderr)
@@ -386,6 +342,7 @@ public struct TartController: TartControlling {
     }
 
     public func runWithDisk(name: String, isoPath: String) async throws {
+        defer { listCache?.invalidate() }
         // `tart run` blocks while the VM runs; launch it detached like `run`.
         let process = Process()
         process.executableURL = URL(fileURLWithPath: binary)
