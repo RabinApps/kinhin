@@ -1,4 +1,3 @@
-import Synchronization
 import XCTest
 
 @testable import KinhinKit
@@ -43,7 +42,7 @@ final class TartListCacheTests: XCTestCase {
 
     func testConcurrentCallersShareOneListing() async throws {
         let cache = TartListCache(maxAge: .seconds(60))
-        let fetches = Mutex(0)
+        let fetches = Locked(0)
         try await withThrowingTaskGroup(of: [TartVM].self) { group in
             for _ in 0..<8 {
                 group.addTask {
@@ -73,7 +72,7 @@ final class TartListCacheTests: XCTestCase {
 
     func testFailedListingIsNotCached() async throws {
         let cache = TartListCache(maxAge: .seconds(60))
-        let attempts = Mutex(0)
+        let attempts = Locked(0)
         let fetch: @Sendable () async throws -> [TartVM] = {
             let n = attempts.withLock { count -> Int in
                 count += 1
@@ -92,7 +91,7 @@ final class TartListCacheTests: XCTestCase {
 
     func testListingStartedBeforeAChangeIsNotStoredOrReturned() async throws {
         let cache = TartListCache(maxAge: .seconds(60))
-        let fetches = Mutex(0)
+        let fetches = Locked(0)
         let (started, startedSignal) = AsyncStream<Void>.makeStream()
         let fetch: @Sendable () async throws -> [TartVM] = {
             let n = fetches.withLock { count -> Int in

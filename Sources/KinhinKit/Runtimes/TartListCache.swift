@@ -80,11 +80,15 @@ public final class TartListCache: Sendable {
                 }
                 throw error
             }
+            // Only the first waiter to resume, while the task still owns `inFlight`, publishes it: a
+            // waiter resuming later must not overwrite a newer listing stored since.
             let current = state.withLock { s -> Bool in
-                if s.inFlight == task { s.inFlight = nil }
                 guard s.generation == generation else { return false }
-                s.vms = vms
-                s.fetchedAt = ContinuousClock.now
+                if s.inFlight == task {
+                    s.inFlight = nil
+                    s.vms = vms
+                    s.fetchedAt = ContinuousClock.now
+                }
                 return true
             }
             try Task.checkCancellation()
