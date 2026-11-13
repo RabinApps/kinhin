@@ -70,6 +70,9 @@ extension FleetEngine {
         retry?.cancel()
         await drain([retry].compactMap { $0 }, timeout: lifecycleDrainTimeout)
         await settleDeletes(timeout: lifecycleDrainTimeout)
+        // The listeners' poll tasks retain themselves, so a detached engine that left them running would leave
+        // orphans retrying against a freed engine forever ("the engine was replaced"), still holding sessions.
+        await stopAttachedListeners()
         invalidateRegistrationTokens()
     }
 

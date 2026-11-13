@@ -32,6 +32,21 @@ extension FleetEngine {
     /// config rebuild can run it while the previous engine still owns the
     /// fleet. Callers must have set `running = true` first.
     func prepareStart() async -> Bool {
+        // One engine per host: a second would run its own store and tear this one's instances down as orphans.
+        do {
+            try claimHost?()
+            hostClaimRefused.withLock { $0 = false }
+        } catch {
+            hostClaimRefused.withLock { $0 = true }
+            let message =
+                (error as? Daemon.DaemonError) == .alreadyRunning
+                ? "another kinhin engine (daemon or app) already owns this host's fleet; not starting a second"
+                : "could not claim the host's engine lock: \(error.localizedDescription)"
+            Log.error("engine", "startup blocked: \(message)")
+            await statusBox.modify { $0.setAlert("startup", message) }
+            runState.withLock { $0.running = false }
+            return false
+        }
         if let platform = config.docker?.platform, platform.isEmulated {
             Log.warn("engine", LinuxPlatform.emulationNotice)
         }
@@ -111,6 +126,8 @@ extension FleetEngine {
         // via the cache (minted under the old PAT's authority).
         invalidateRegistrationTokens()
         await stopAttachedListeners()
+        // An engine the host lock refused never owned the fleet: the store's instances are the owner's.
+        guard !hostClaimRefused.withLock({ $0 }) else { return }
         await deleteAllActiveVMs()
     }
 
