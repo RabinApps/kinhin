@@ -55,6 +55,7 @@ public final class FleetEngine: Sendable {
     let githubFactory: GitHubClientFactory
     /// Resolves an account's token (forge, account name).
     let tokenLoader: @Sendable (ForgeID, String) throws -> String?
+    let claimHost: (@Sendable () throws -> Void)?
     /// Host snapshot for the pre-spawn disk guard.
     let hostProbe: @Sendable () -> HostResources
     /// How long `detachKeepingInstances()` waits for cancelled lifecycle
@@ -180,6 +181,7 @@ public final class FleetEngine: Sendable {
     ) {
         self.githubFactory = dependencies.githubFactory ?? GitHubClientFactory { _ in github }
         self.tokenLoader = dependencies.tokenLoader
+        self.claimHost = dependencies.claimHost
         self.hostProbe = dependencies.hostProbe ?? { [host] in host }
         self.lifecycleDrainTimeout = dependencies.lifecycleDrainTimeout
         self.spawnPacer = SpawnPacer(interval: dependencies.spawnStagger)
@@ -323,6 +325,9 @@ extension FleetEngine {
         /// Where the Docker Hub cache keeps its data; nil → `DockerRegistryCache.defaultDataDirectory` (tests point it
         /// at a temporary directory).
         var registryCacheDirectory: URL?
+        /// Claims the host's single-engine lock before the engine starts; throws when another process owns the
+        /// fleet. nil → no claim (tests, which build many engines).
+        public var claimHost: (@Sendable () throws -> Void)?
 
         public init(
             githubFactory: GitHubClientFactory? = nil,
@@ -352,6 +357,7 @@ extension FleetEngine {
         public static func live(healing: KinhinConfig.HealingConfig = .default) -> Dependencies {
             var live = Dependencies(hostProbe: { ResourceProbe().snapshot() })
             live.healingHost = .live
+            live.claimHost = { try DaemonLock.holdForProcess() }
             live.telemetry = TelemetryService.shared.telemetry
             live.healingAdvisor = HealingAdvisors.production(config: healing)
             live.healingTimings = HealingAdvisors.productionTimings()

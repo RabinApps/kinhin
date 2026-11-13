@@ -52,14 +52,12 @@ public enum Daemon {
 
         // One daemon per host: two would both scale the fleet, and the second
         // RPC bind would silently steal the first one's socket.
-        let instanceLock: DaemonLock
         do {
-            instanceLock = try DaemonLock.acquire()
+            try DaemonLock.holdForProcess()
         } catch {
             Log.error("daemon", "not starting: \(error.localizedDescription)")
             throw error
         }
-        defer { withExtendedLifetime(instanceLock) {} }
         // A daemon from before the lock existed still answers on the socket.
         if RPCClient.isDaemonAlive() {
             Log.error("daemon", "not starting: another daemon is already serving \(RPCPaths.socket.path)")

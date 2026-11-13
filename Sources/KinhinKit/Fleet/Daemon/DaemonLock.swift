@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 
 /// Exclusive advisory lock that guarantees one daemon per support directory.
 ///
@@ -43,5 +44,18 @@ final class DaemonLock {
             _ = pid.withUnsafeBytes { pwrite(fd, $0.baseAddress, pid.count, 0) }
         }
         return DaemonLock(fd: fd)
+    }
+
+    private static let processHeld = Mutex<DaemonLock?>(nil)
+
+    /// Takes the host's engine lock for the rest of this process, once. A second call in the same process
+    /// succeeds without locking again (a config rebuild builds a replacement engine in the process that already
+    /// owns the fleet); another process holding it throws `DaemonError.alreadyRunning`. Every host that runs an
+    /// engine (daemon, app, `kinhin start`) goes through this, so two engines never scale one fleet: each keeps its
+    /// own store and would tear down the other's instances as orphans.
+    static func holdForProcess(at url: URL = defaultURL) throws {
+        try processHeld.withLock { held in
+            if held == nil { held = try acquire(at: url) }
+        }
     }
 }
