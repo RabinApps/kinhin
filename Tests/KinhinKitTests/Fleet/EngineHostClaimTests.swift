@@ -8,7 +8,9 @@ import XCTest
 final class EngineHostClaimTests: XCTestCase {
     let host = HostResources(logicalCores: 12, memoryGB: 32, freeDiskGB: 200, arm64: true)
 
-    private func makeEngine(claimHost: (@Sendable () throws -> Void)?) throws -> FleetEngine {
+    private func makeEngine(
+        claimHost: (@Sendable () throws -> Void)?, tart: FakeTart = FakeTart(), store: FleetStore? = nil
+    ) throws -> FleetEngine {
         let config = try ConfigLoader.parse(
             """
             accounts:
@@ -21,7 +23,8 @@ final class EngineHostClaimTests: XCTestCase {
         var deps = FleetEngine.Dependencies(tokenLoader: { _, _ in "test-token" })
         deps.claimHost = claimHost
         return FleetEngine(
-            config: config, github: FakeGitHub(), tart: FakeTart(), store: makeTestStore(), ssh: FakeSSH(), host: host,
+            config: config, github: FakeGitHub(), tart: tart, store: store ?? makeTestStore(), ssh: FakeSSH(),
+            host: host,
             dependencies: deps)
     }
 
@@ -33,6 +36,18 @@ final class EngineHostClaimTests: XCTestCase {
         let status = await engine.status()
         XCTAssertFalse(status.running)
         XCTAssertTrue(status.lastError?.contains("already owns") == true, status.lastError ?? "nil")
+    }
+
+    func testStopOnARefusedEngineLeavesTheOwnersInstancesAlone() async throws {
+        let tart = FakeTart()
+        tart.vms["kinhin-live"] = TartVM(name: "kinhin-live", source: "tahoe-base", status: "running")
+        let store = makeTestStore()
+        store.upsert(VMRecord(id: "kinhin-live", phase: .ready))
+        let engine = try makeEngine(claimHost: { throw Daemon.DaemonError.alreadyRunning }, tart: tart, store: store)
+        await engine.start()
+        await engine.stop()
+        XCTAssertEqual(store.all.map(\.id), ["kinhin-live"], "the owner's record must survive")
+        XCTAssertNotNil(tart.vms["kinhin-live"], "the owner's VM must survive")
     }
 
     func testEngineStartsWhenTheHostClaimSucceeds() async throws {

@@ -35,7 +35,9 @@ extension FleetEngine {
         // One engine per host: a second would run its own store and tear this one's instances down as orphans.
         do {
             try claimHost?()
+            hostClaimRefused.withLock { $0 = false }
         } catch {
+            hostClaimRefused.withLock { $0 = true }
             let message =
                 (error as? Daemon.DaemonError) == .alreadyRunning
                 ? "another kinhin engine (daemon or app) already owns this host's fleet; not starting a second"
@@ -124,6 +126,8 @@ extension FleetEngine {
         // via the cache (minted under the old PAT's authority).
         invalidateRegistrationTokens()
         await stopAttachedListeners()
+        // An engine the host lock refused never owned the fleet: the store's instances are the owner's.
+        guard !hostClaimRefused.withLock({ $0 }) else { return }
         await deleteAllActiveVMs()
     }
 

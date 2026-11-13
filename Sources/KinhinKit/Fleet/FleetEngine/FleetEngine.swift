@@ -56,6 +56,9 @@ public final class FleetEngine: Sendable {
     /// Resolves an account's token (forge, account name).
     let tokenLoader: @Sendable (ForgeID, String) throws -> String?
     let claimHost: (@Sendable () throws -> Void)?
+    /// True while the last start was refused by the host lock: this engine owns nothing, so `stop()` must not
+    /// delete the instances in the shared store (they belong to the engine that holds the lock).
+    let hostClaimRefused = Locked(false)
     /// Host snapshot for the pre-spawn disk guard.
     let hostProbe: @Sendable () -> HostResources
     /// How long `detachKeepingInstances()` waits for cancelled lifecycle
