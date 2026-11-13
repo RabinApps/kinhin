@@ -105,7 +105,7 @@ There is no breaking change, and no config change is needed.
 - **Not yet:** ThreadSanitizer on the release commit.
 - **Not yet:** an upgrade from beta 4 with real state, or the in-app update from beta 4.
 - **Not yet:** the end-to-end suite on this release. It runs only in CI, and its dedicated Mac is not registered yet.
-- **Not yet:** the Buildkite, Azure Pipelines and Bitbucket Pipelines lanes. They did not make beta 5 and move to beta 6.
+- **Not yet:** the Buildkite, Azure Pipelines and Bitbucket Pipelines lanes. They did not make beta 5 and move to beta 7.
   Azure stays experimental, Buildkite and Bitbucket stay planned, and GitHub, Gitea, Forgejo and GitLab CE remain the
   supported forges.
 - **Not yet:** a long-running soak test.

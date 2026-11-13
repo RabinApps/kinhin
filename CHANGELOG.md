@@ -4,17 +4,32 @@
 
 <!-- changelog: entries for the next release go here -->
 
-**Fixed**
+## v0.0.1-beta-6
 
-- Tart hosts no longer run `tart list` back to back: every caller in a process shares one listing for 10 seconds, and
-  kinhin's own clone, start, stop and delete refresh it. Each `tart list` probes every VM's disk image, which on macOS
-  27.2 leaks kernel APFS objects; with eight Tart VMs the daemon's constant listing exhausted the kernel zone map and
-  panicked the Mac after about 41 hours.
 **Added**
 
 - Outbound alerts: with `alerts:` enabled, the daemon POSTs a webhook when a fleet problem is raised or clears, so a
   closed menu bar app or a headless host still reaches you. Formats: generic JSON, Slack, Discord, ntfy. See
   [Alerts](docs/alerts.md).
+
+**Fixed**
+
+- Tart hosts no longer run `tart list` back to back: every caller in a process shares one listing for 10 seconds, and
+  kinhin's own clone, start, stop and delete refresh it. Each `tart list` probes every VM's disk image, which on macOS
+  27.2 leaks kernel APFS objects; with eight Tart VMs the daemon's constant listing exhausted the kernel zone map and
+  panicked the Mac after about 41 hours (#94, #95).
+- Only one fleet engine runs per host. The daemon, the menu bar app and `kinhin start` now all take the host's engine
+  lock, so two engines never scale one fleet and tear down each other's instances as orphans. An engine the lock
+  refuses reports a `startup` alert and leaves the other's instances alone. A config rebuild or an engine hand-over also
+  stops the old engine's listeners, which used to keep retrying against a freed engine and holding sessions (#101).
+- GitHub jobs that are still queued inside an `in_progress` run now count as demand. A run goes `in_progress` as soon as
+  one of its jobs starts, so queued sibling jobs were never seen and no runner started for them. The run-inspection cap
+  is split between queued and in-progress runs, so a backlog of unrelated queued runs cannot hide the in-progress ones.
+  Cancel and skip still act only on fully queued runs (#86, #90).
+
+**Upgrading**
+
+- There is no breaking change, and no config change is needed. Alerts are off until you add `alerts:` to the config.
 
 ## v0.0.1-beta-5
 
