@@ -11,6 +11,9 @@ News and notes from kinhin, the mindful CI.
 
 ## Posts
 
+- **November 13, 2026: [Beta 6: alerts that reach you, a Tart panic fix, and one engine per Mac](/blog/beta-6)**
+  The sixth public beta. What is new in beta 6, what changes when you upgrade, what has been run, what has not, and where I need your help.
+
 - **November 3, 2026: [Beta 5: Apple container pools, Docker inside containers, and x86_64 runners](/blog/beta-5)**
   The fifth public beta. What is new in beta 5, what changes when you upgrade, what has been run, what has not, and where I need your help.
 

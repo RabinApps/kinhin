@@ -5,11 +5,11 @@ What is supported today, and the milestones between the current beta and the **v
 [← Back to README](../README.md) · [Forge support](forges.md#what-has-been-tested)
 
 <!-- docs-sync:begin release-line -->
-kinhin is in beta (`v0.0.1-beta-5`).
+kinhin is in beta (`v0.0.1-beta-6`).
 <!-- docs-sync:end release-line -->
 
 The beta supports **GitHub, Gitea, Forgejo and GitLab CE**; Buildkite, Azure Pipelines and Bitbucket Pipelines follow in
-later betas (planned for beta 6). Milestones are ordered by what has to be true, not by date.
+later betas (planned for beta 7). Milestones are ordered by what has to be true, not by date.
 
 ## Where we are
 
@@ -19,9 +19,10 @@ later betas (planned for beta 6). Milestones are ordered by what has to be true,
 | Gitea, Forgejo, GitLab CE | Supported; live-tested on every runtime by the [end-to-end suite](e2e-testing.md) |
 | Runtimes: Tart macOS and Linux VMs, apple/container, Docker, host mode | Live-tested |
 | Buildkite, Azure Pipelines, Bitbucket Pipelines | Planned (implemented and unit-tested, not supported yet) |
-| ThreadSanitizer | Clean on the beta 4 release; not yet re-run on beta 5 (`scripts/tsan.sh`) |
+| ThreadSanitizer | Clean on the beta 4 release; not yet re-run on beta 5 or 6 (`scripts/tsan.sh`) |
 | Long-running soak test | Not done |
 | In-app updater | Ships in beta-3; not yet exercised by a published release updating itself (needs the next release) |
+| Outbound alerts | Opt-in webhook for fleet problems; unit-tested, not yet run against a real Slack, Discord or ntfy endpoint. See [Alerts](alerts.md) |
 | Telemetry | Opt-in OpenTelemetry (off by default; exports only to a server you configure). See [Telemetry](telemetry.md) |
 
 ## Milestones
@@ -57,9 +58,9 @@ later betas (planned for beta 6). Milestones are ordered by what has to be true,
   every running job shown on multi-runner VMs.
 - Linux runners (Apple container and Docker) no longer carry the `macos` label.
 
-The Buildkite, Azure Pipelines and Bitbucket Pipelines work promised for this beta did not make it, or beta 5, and is now planned for beta 6.
+The Buildkite, Azure Pipelines and Bitbucket Pipelines work promised for this beta did not make it, or beta 5, and is now planned for beta 7.
 
-### beta-5: Apple container pools, Docker and amd64 (current)
+### beta-5: Apple container pools, Docker and amd64
 
 - `container.pools:` splits Apple container into named pools with their own image, size, labels and idle floors, shown and edited in the app.
 - `container.docker: true` runs Docker inside container runners, with a Docker Hub pull-through cache kinhin runs for them.
@@ -67,9 +68,18 @@ The Buildkite, Azure Pipelines and Bitbucket Pipelines work promised for this be
 - `min_idle` keeps idle registered runners per pool and per Tart image.
 - `kinhin image prepare --container` bakes as layers on the base image, so it needs far less disk.
 
-The Buildkite, Azure Pipelines and Bitbucket Pipelines work did not make this beta either and moves to beta 6.
+The Buildkite, Azure Pipelines and Bitbucket Pipelines work did not make this beta either and moves to beta 7.
 
-### beta-6: more forges
+### beta-6: alerts and reliability (current)
+
+- Opt-in outbound alerts: a webhook (generic JSON, Slack, Discord or ntfy) when a fleet problem is raised or clears.
+- Tart hosts share one `tart list` for 10 seconds, which fixes a kernel panic on a Mac with eight VMs on macOS 27.2.
+- One fleet engine per host, and a replaced engine stops its old listeners.
+- GitHub jobs queued inside an in-progress run count as demand.
+
+The Buildkite, Azure Pipelines and Bitbucket Pipelines work did not make this beta either and moves to beta 7.
+
+### beta-7: more forges
 
 - Buildkite, Azure Pipelines and Bitbucket Pipelines run against real accounts in the end-to-end suite, and become
   supported one by one as they pass.
