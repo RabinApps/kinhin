@@ -166,6 +166,14 @@ It checks, against the daemon as a black box:
 - *Logs and validation:* `log_format: json` writes one JSON object per line (even with telemetry off) and the default stays plain
   text; thirteen bad `telemetry:` values are each exit 3 and name their key, and a config using every key validates.
 
+**`AlertsTests`** (quick tier, no Docker; a real `kinhin daemon` with an unreachable forge, alerts to a local stand-in webhook,
+`WebhookStub`, a small Python server that records each POST's path, headers and body). It checks: a fleet that cannot start sends
+one `startup` alert in each of the generic, Slack, Discord and ntfy shapes (and never the forge token); with no `alerts:` section
+or `enabled: false` nothing is sent; a webhook answering 500 is tried and the daemon keeps answering `status`; `kinhin alerts test`
+posts once, exits 4 on a refusing endpoint and 3 with no URL; a plain-http, non-loopback URL is refused (exit 3). A problem that
+is raised and then clears needs a fleet that starts, so that pair is covered by the unit suite; a real Slack, Discord or ntfy
+endpoint is a manual check.
+
 **`TelemetryLifecycleTests`** (local tier: a real forge and runtime, per forge × runtime cell, the daemon exporting to the stub and
 to `/metrics`): after a real job, `kinhin_jobs_picked_up` and `kinhin_jobs_completed` count it, each of clone, boot, register and
 teardown was timed, `cicd_pipeline_run_duration` is a histogram and `cicd_pipeline_result` is the forge's verdict (`success` on every forge but Bitbucket, which cannot say and reads `unknown`), and one job trace reaches the collector with the
@@ -254,6 +262,7 @@ What has actually been run, so the table does not claim more than it checked (20
 | Azure DevOps                                              | Fixture written, **not run**: needs a throwaway project, a pool and a PAT. The forge stays planned until it passes |
 | Telemetry (quick tier: `TelemetryTests`)                  | Written, **not run** in CI yet (#64)                                       |
 | Telemetry with a job (`TelemetryLifecycleTests`)          | Written, **not run** in CI yet (#64)                                       |
+| Alerts (quick tier: `AlertsTests`)                        | Written, compiles, **not run** (no `kinhin-e2e` runner yet)                |
 | Healing (quick tier: `HealingCLITests`)                   | Run, passing (2026-10-14)                                                  |
 | Healing on Gitea × Docker (`HealingTests`, 6 scenarios)   | Run, passing (2026-10-14)                                                  |
 | Healing, live on-device advisor (`KINHIN_E2E_AI=1`)       | Run, passing on macOS 27 with Apple Intelligence (2026-10-14)              |

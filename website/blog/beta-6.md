@@ -86,11 +86,14 @@ There is no breaking change, and no config change is needed. Alerts stay off unt
 **Run** means it was executed for this release. **Not yet** means it has not been, and I am not claiming it.
 
 - **Run:** the unit suite (no VMs or network) and the repository's release checks, on the release preparation commit.
+- **Run:** alerts against a local `127.0.0.1` listener with a real debug-build daemon: `kinhin alerts test` delivered one message
+  (exit 4 when the endpoint refused it), a fleet that could not start sent one `startup` alert, and a dead endpoint left the
+  daemon running. The Slack format was the one sent. A raised-then-cleared problem was not run live.
 - **Not yet:** alerts delivered to a real Slack, Discord or ntfy endpoint.
 - **Not yet:** the Tart listing fix on a Mac with eight VMs over many hours.
 - **Not yet:** two engines racing on a live host, including a config reload under load.
 - **Not yet:** a queued sibling job inside an in-progress run on a live GitHub repository.
-- **Not yet:** ThreadSanitizer on the release commit.
+- **Run:** ThreadSanitizer (`scripts/tsan.sh`) on `develop` after the release preparation commit: no reports.
 - **Not yet:** an upgrade from beta 5 with real state, or the in-app update from beta 5.
 - **Not yet:** the end-to-end suite on this release. It runs only in CI, and its dedicated Mac is not registered yet.
 - **Not yet:** the Buildkite, Azure Pipelines and Bitbucket Pipelines lanes. They did not make beta 6 and move to beta 7.
