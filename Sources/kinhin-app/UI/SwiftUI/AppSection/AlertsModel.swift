@@ -202,7 +202,15 @@ final class AlertsModel: ConfigFormModel {
     /// Writes one field; false (with the reason shown) when the editor refused it and nothing was written.
     private func save(_ field: AlertsConfigEditor.Field, toSheet: Bool = false) async -> Bool {
         // One edit at a time: two overlapping read-validate-write cycles on the file could restore what the first removed.
-        guard !isSaving else { return false }
+        guard !isSaving else {
+            // A second edit that gets here before the controls disable is refused out loud, not dropped.
+            result = StatusLine(
+                text: String(
+                    localized: "Another change is still being saved — try again in a moment.", bundle: .l10n,
+                    comment: "Settings → App → Alerts status when an edit is refused because one is being written"),
+                style: .warn)
+            return false
+        }
         isSaving = true
         defer { isSaving = false }
         let url = configURL

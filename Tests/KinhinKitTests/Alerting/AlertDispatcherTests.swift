@@ -49,6 +49,22 @@ final class AlertDispatcherTests: XCTestCase {
         XCTAssertEqual(new.sent.map(\.state), [.resolved])
     }
 
+    func testReplacingTheSinkDeliversAResolutionThatFailedBeforeTheRotation() async {
+        let old = FakeAlertSink()
+        let new = FakeAlertSink()
+        let dispatcher = make(old)
+        await dispatcher.observe([alert("disk")], now: t0)
+        XCTAssertEqual(old.sent.count, 1)
+        // The resolution fails on the old sink and stays owed.
+        old.failing = true
+        await dispatcher.observe([], now: t0.addingTimeInterval(30))
+        XCTAssertEqual(old.sent.map(\.state), [.firing, .resolved])
+        await dispatcher.replaceSinks([new])
+        // After the retry interval the owed resolution goes to the new sink.
+        await dispatcher.observe([], now: t0.addingTimeInterval(120))
+        XCTAssertEqual(new.sent.map(\.state), [.resolved])
+    }
+
     func testKindFilterDeliversOnlyTheSelectedKinds() async {
         let sink = FakeAlertSink()
         let dispatcher = make(sink, policy: .init(kinds: [.disk, .queue], cooldown: 600))

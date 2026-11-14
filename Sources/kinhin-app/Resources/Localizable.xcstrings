@@ -1,6 +1,9 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Another change is still being saved — try again in a moment." : {
+      "comment" : "Settings → App → Alerts status when an edit is refused because one is being written"
+    },
     "Test alert sent to %@." : {
       "comment" : "Settings → App → Alerts status after a test succeeds; %@ is the webhook's name"
     },
