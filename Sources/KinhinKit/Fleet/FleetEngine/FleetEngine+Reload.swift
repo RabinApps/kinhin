@@ -13,6 +13,8 @@ extension FleetEngine {
     /// engine was built with, so a change there silently does nothing until
     /// the engine is rebuilt.
     public static func restartRequired(from old: KinhinConfig, to new: KinhinConfig) -> Bool {
+        // The Tart switch lives in `runtimes:` but feeds the frozen config's warm and `min_idle` floors.
+        if old.tartEnabled != new.tartEnabled { return true }
         var a = old
         var b = new
         a.runtimes = nil

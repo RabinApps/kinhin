@@ -86,8 +86,8 @@ extension ConfigLoader {
         if let raws = partial.events {
             var kinds: Set<AlertEventKind> = []
             for raw in raws {
-                guard let kind = AlertEventKind(rawValue: raw) else {
-                    let known = AlertEventKind.allCases.map(\.rawValue).joined(separator: ", ")
+                guard let kind = AlertEventKind(rawValue: raw), AlertEventKind.selectable.contains(kind) else {
+                    let known = AlertEventKind.selectable.map(\.rawValue).joined(separator: ", ")
                     throw ConfigError.invalid("\(key).events has unknown event type '\(raw)'; use \(known)")
                 }
                 kinds.insert(kind)

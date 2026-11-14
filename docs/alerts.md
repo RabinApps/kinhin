@@ -95,7 +95,7 @@ are not kept); alert delivery restarts with the new list.
 ## Store the token and test it
 
 ```bash
-printf %s "$TOKEN" | kinhin alerts set-token ops-alerts --token-stdin
+printf %s "$TOKEN" | kinhin alerts set-token ops-slack --token-stdin
 kinhin alerts test
 kinhin alerts test --webhook ops-slack
 ```

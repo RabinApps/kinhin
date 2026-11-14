@@ -148,6 +148,14 @@ extension RuntimesModel {
                 guard var snapshot = try ConfigStore.snapshot(at: configURL) else { return }
                 if runtime == .appleContainer {
                     snapshot.container?.enabled = on
+                    // Turning the section on must leave something running: when every named pool was switched off
+                    // individually, switch them back on too (the section switch alone would change nothing).
+                    if on, var pools = snapshot.container?.pools, !pools.isEmpty,
+                        pools.allSatisfy({ $0.enabled == false })
+                    {
+                        for index in pools.indices { pools[index].enabled = nil }
+                        snapshot.container?.pools = pools
+                    }
                 } else {
                     snapshot.docker?.enabled = on
                 }

@@ -1,6 +1,9 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Test alert sent to %@." : {
+      "comment" : "Settings → App → Alerts status after a test succeeds; %@ is the webhook's name"
+    },
     "disabled" : {
       "comment" : "Routing tab pool title suffix for a switched-off pool"
     },

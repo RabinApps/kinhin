@@ -88,6 +88,12 @@ extension KinhinConfig.ContainerConfig {
     /// Every pool the section runs: the named `pools:`, or the section itself as its one unnamed pool.
     public var effectivePools: [Pool] { pools.isEmpty ? [Pool(section: self)] : pools }
 
+    /// The images the enabled pools run, each once: what readiness checks and `image list` expect to be present.
+    public var enabledPoolImages: [String] {
+        var seen = Set<String>()
+        return enabledPools.map(\.image).filter { seen.insert($0).inserted }
+    }
+
     /// The pools that take jobs: `effectivePools` without the disabled ones. Routing, scheduling, scale sets and
     /// the Fleet page read this; image prepare/prune keep reading `effectivePools`, so a disabled pool's image stays.
     public var enabledPools: [Pool] { effectivePools.filter(\.enabled) }

@@ -64,7 +64,7 @@ extension SetupStatusComputer {
         }
 
         // Every pool's image, with `container.pools:` (one image without them).
-        let wanted = cfg.container?.poolImages.joined(separator: "', '") ?? "kinhin-ci-linux"
+        let wanted = cfg.container?.enabledPoolImages.joined(separator: "', '") ?? "kinhin-ci-linux"
         // The listing and the presence rule come from the shared image
         // inventory — one implementation for the checklist, the doctor and
         // `kinhin image list`. Health decides whether we may ask at all.

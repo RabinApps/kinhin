@@ -25,6 +25,8 @@ final class AlertsModel: ConfigFormModel {
 
     /// The sheet's fields for adding or editing a webhook.
     struct Draft: Equatable {
+        /// Identifies this sheet, so a save that finishes after Cancel and a new sheet clears only its own.
+        let id = UUID()
         /// The webhook being edited; nil when adding.
         var original: String?
         var name = ""
@@ -114,8 +116,12 @@ final class AlertsModel: ConfigFormModel {
         testing = name
         defer { testing = nil }
         do {
-            let lines = try await sendTest(webhook)
-            result = StatusLine(text: lines.joined(separator: "\n"), style: .ok)
+            _ = try await sendTest(webhook)
+            result = StatusLine(
+                text: String(
+                    localized: "Test alert sent to \(name).", bundle: .l10n,
+                    comment: "Settings → App → Alerts status after a test succeeds; %@ is the webhook's name"),
+                style: .ok)
         } catch {
             result = StatusLine(
                 text: String(
@@ -179,11 +185,11 @@ final class AlertsModel: ConfigFormModel {
                         localized: "Webhook saved, but the token could not be stored — \(error.localizedDescription)",
                         bundle: .l10n, comment: "Settings → App → Alerts status; %@ is the Keychain error"),
                     style: .warn)
-                self.draft = nil
+                if self.draft?.id == draft.id { self.draft = nil }
                 return
             }
         }
-        self.draft = nil
+        if self.draft?.id == draft.id { self.draft = nil }
         result = StatusLine(
             text: String(
                 localized: "Webhook \(name) saved.", bundle: .l10n,

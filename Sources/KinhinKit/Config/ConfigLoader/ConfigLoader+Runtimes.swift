@@ -59,7 +59,7 @@ extension ConfigLoader {
                 "runtimes routes reference 'docker' but no docker: section is configured (it needs an image)")
         }
         let tartEnabled = runtimes.tart?.enabled ?? true
-        let containerEnabled = container?.enabled ?? false
+        let containerEnabled = !(container?.enabledPools.isEmpty ?? true)
         let dockerEnabled = docker?.enabled ?? false
         guard tartEnabled || containerEnabled || dockerEnabled else {
             throw ConfigError.invalid(
@@ -76,8 +76,11 @@ extension ConfigLoader {
         let routed = Set([defaultRuntime] + routes.map(\.runtime))
         if let name = routed.sorted(by: { $0.rawValue < $1.rawValue }).first(where: disabled.contains) {
             let key = name == .tart ? "runtimes.tart" : (name == .docker ? "docker" : "container")
+            let what =
+                name == .appleContainer
+                ? "container.enabled is false or every container pool is disabled" : "\(key).enabled is false"
             throw ConfigError.invalid(
-                "runtimes routes or default reference '\(name.rawValue)' but \(key).enabled is false — "
+                "runtimes routes or default reference '\(name.rawValue)' but \(what) — "
                     + "enable it or point the route/default at an enabled pool")
         }
         let totalWeight = budget.values.reduce(0, +)

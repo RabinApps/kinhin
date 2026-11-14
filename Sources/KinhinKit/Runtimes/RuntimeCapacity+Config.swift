@@ -42,7 +42,8 @@ extension RuntimeCapacity {
             memoryGB: max(0, host.memoryGB - config.reserve.memoryGB))
         guard isPartitioned(config), let routing = config.runtimes else { return usable }
         return shares(
-            hostUsableCPU: usable.cpu, hostUsableMemoryGB: usable.memoryGB, weights: routing.budget,
+            hostUsableCPU: usable.cpu, hostUsableMemoryGB: usable.memoryGB,
+            weights: enabledWeights(routing.budget, in: config),
             defaultRuntime: routing.defaultRuntime)[.appleContainer] ?? Budget(cpu: 0, memoryGB: 0)
     }
 
@@ -55,17 +56,23 @@ extension RuntimeCapacity {
             defaultRuntime: routing.defaultRuntime)
     }
 
+    /// `weights` without the disabled pools: a disabled pool's share falls to the default runtime like any unclaimed
+    /// remainder. Every budget calculation (the caps and the Apple container pools' shared budget) goes through here.
+    static func enabledWeights(_ weights: [String: Double], in config: KinhinConfig) -> [String: Double] {
+        var weights = weights
+        if !config.tartEnabled { weights[RuntimeID.tart.rawValue] = nil }
+        if config.activeContainer == nil { weights[RuntimeID.appleContainer.rawValue] = nil }
+        if config.activeDocker == nil { weights[RuntimeID.docker.rawValue] = nil }
+        return weights
+    }
+
     /// Caps at an explicit split (the sliders' candidate budget), always
     /// partitioned: deterministic, no overcommit, and Docker's hard slot
     /// cap applied on top of its share.
     static func partitionedCaps(
         for config: KinhinConfig, host: HostResources, weights: [String: Double], defaultRuntime: RuntimeID
     ) -> [RuntimeID: Int] {
-        // A disabled pool's weight is dropped, so its share falls to the default runtime like any unclaimed remainder.
-        var weights = weights
-        if !config.tartEnabled { weights[RuntimeID.tart.rawValue] = nil }
-        if config.activeContainer == nil { weights[RuntimeID.appleContainer.rawValue] = nil }
-        if config.activeDocker == nil { weights[RuntimeID.docker.rawValue] = nil }
+        let weights = enabledWeights(weights, in: config)
         var caps = partition(
             hostUsableCPU: max(0, host.logicalCores - config.reserve.cpu),
             hostUsableMemoryGB: max(0, host.memoryGB - config.reserve.memoryGB),

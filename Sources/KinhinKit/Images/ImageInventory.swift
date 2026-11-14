@@ -190,7 +190,7 @@ public struct ImageInventory: Sendable, Equatable, Codable {
             // With named pools, an image counts only with the tag its runners start, as the engine decides which pools
             // can run (`poolsMissingImage`); a single-image section keeps the looser rule it always had.
             let pooled = !(config.container?.pools.isEmpty ?? true)
-            return ociSection(.container, images, wanted: config.container?.poolImages ?? [], exactTag: pooled)
+            return ociSection(.container, images, wanted: config.container?.enabledPoolImages ?? [], exactTag: pooled)
         case .docker:
             return ociSection(.docker, images, wanted: config.docker.map { [$0.image] } ?? [])
         }

@@ -43,39 +43,70 @@ extension FleetEngine {
             // `stop()` clears `running` before it takes this lock, so either the task installed here is cancelled
             // by that `stopAlerting()`, or this check sees the engine stopped.
             guard task == nil, running else { return }
+            // One worker per webhook: a slow or timing-out endpoint delays only its own deliveries, never the
+            // sampling or delivery of the others.
             task = Task { [weak self] in
-                var dispatchers: [String: AlertDispatcher] = [:]
-                var lastSetupAttempt: [String: Date] = [:]
-                var lastSetupError: [String: String] = [:]
-                while !Task.isCancelled {
-                    guard let active = await self?.activeAlerts() else { return }
-                    for webhook in alerts.webhooks where dispatchers[webhook.name] == nil {
-                        guard
-                            Date().timeIntervalSince(lastSetupAttempt[webhook.name] ?? .distantPast)
-                                >= Self.alertSetupRetry
-                        else { continue }
-                        lastSetupAttempt[webhook.name] = Date()
-                        do {
-                            dispatchers[webhook.name] = AlertDispatcher(
-                                sinks: [try Self.makeAlertSink(webhook)], policy: Self.alertPolicy(webhook, in: alerts))
-                            lastSetupError[webhook.name] = nil
-                            Log.info("alerts", "alert webhook '\(webhook.name)' is on")
-                        } catch {
-                            let reason = error.localizedDescription
-                            if reason != lastSetupError[webhook.name] {
-                                Log.warn(
-                                    "alerts", "alert webhook '\(webhook.name)' is off until this is fixed: \(reason)")
-                                lastSetupError[webhook.name] = reason
-                            }
+                await withTaskGroup(of: Void.self) { group in
+                    for webhook in alerts.webhooks {
+                        group.addTask { [weak self] in await Self.runAlertWorker(webhook, alerts: alerts, engine: self)
                         }
                     }
-                    for dispatcher in dispatchers.values { await dispatcher.observe(active) }
-                    do {
-                        try await Task.sleep(for: Self.alertInterval)
-                    } catch {
-                        return  // cancelled: the engine stopped
+                }
+            }
+        }
+    }
+
+    /// One webhook's loop: set its sink up (retrying every `alertSetupRetry`, logging each distinct reason once),
+    /// then feed the fleet's active problems to its dispatcher until the engine stops.
+    private static func runAlertWorker(
+        _ webhook: KinhinConfig.AlertsConfig.Webhook, alerts: KinhinConfig.AlertsConfig, engine: FleetEngine?
+    ) async {
+        var dispatcher: AlertDispatcher?
+        var lastSetupAttempt = Date.distantPast
+        var lastSetupError: String?
+        var usedToken: String?
+        func readToken() throws -> String? {
+            try webhook.headersKeychain.flatMap { try KeychainTokenStore.loadAlertsToken(account: $0) }
+        }
+        while !Task.isCancelled {
+            guard let active = await engine?.activeAlerts() else { return }
+            // A token rotated in the Keychain (the app's Alerts card, `kinhin alerts set-token`) is picked up within
+            // `alertSetupRetry` seconds: the sink is rebuilt with the new one. A rotation is the only thing that
+            // changes a webhook without a config edit, so the engine's reload never sees it.
+            if dispatcher != nil, webhook.headersKeychain != nil,
+                Date().timeIntervalSince(lastSetupAttempt) >= alertSetupRetry
+            {
+                lastSetupAttempt = Date()
+                // A Keychain read that fails here keeps the sink it has: the next check tries again.
+                if let latest = try? readToken(), latest != usedToken {
+                    dispatcher = nil
+                    lastSetupAttempt = .distantPast
+                    Log.info("alerts", "alert webhook '\(webhook.name)' has a new token; rebuilding its sink")
+                }
+            }
+            if dispatcher == nil, Date().timeIntervalSince(lastSetupAttempt) >= alertSetupRetry {
+                lastSetupAttempt = Date()
+                do {
+                    let secret = try readToken()
+                    usedToken = secret
+                    dispatcher = AlertDispatcher(
+                        sinks: [try makeAlertSink(webhook, token: { _ in secret })],
+                        policy: alertPolicy(webhook, in: alerts))
+                    lastSetupError = nil
+                    Log.info("alerts", "alert webhook '\(webhook.name)' is on")
+                } catch {
+                    let reason = error.localizedDescription
+                    if reason != lastSetupError {
+                        Log.warn("alerts", "alert webhook '\(webhook.name)' is off until this is fixed: \(reason)")
+                        lastSetupError = reason
                     }
                 }
+            }
+            if let dispatcher { await dispatcher.observe(active) }
+            do {
+                try await Task.sleep(for: alertInterval)
+            } catch {
+                return  // cancelled: the engine stopped
             }
         }
     }

@@ -160,7 +160,56 @@ final class PoolEnabledConfigTests: XCTestCase {
         let caps = RuntimeCapacity.caps(for: cfg, host: host)
         XCTAssertNil(caps[.docker], "a disabled pool has no cap of its own")
         XCTAssertNotNil(caps[.appleContainer])
-        XCTAssertNotNil(caps[.tart])
+        // The same config without the Docker entry: Tart gets exactly the share Docker's weight would have taken.
+        let without = try parse(
+            """
+            container: { image: kinhin-ci-linux }
+            docker: { image: kinhin-ci-linux, enabled: false }
+            runtimes:
+              default: tart
+              budget: { appleContainer: 0.25 }
+            """)
+        XCTAssertEqual(caps[.tart], RuntimeCapacity.caps(for: without, host: host)[.tart])
+        XCTAssertEqual(
+            RuntimeCapacity.enabledWeights(["docker": 0.5, "appleContainer": 0.25], in: cfg), ["appleContainer": 0.25])
+    }
+
+    func testReviewFollowUps() throws {
+        // `test` is not an event type a webhook can select.
+        XCTAssertTrue(
+            message("alerts: { enabled: true, webhooks: [{ name: a, url: 'https://x.example/h', events: [test] }] }\n")
+                .contains("unknown event type"))
+        // A container whose every named pool is off cannot be the default.
+        let allOff = message(
+            """
+            container:
+              image: kinhin-ci-linux
+              pools:
+                a: { labels: [a], enabled: false }
+            runtimes: { default: appleContainer, tart: { enabled: true } }
+            """)
+        XCTAssertTrue(allOff.contains("every container pool is disabled"), allOff)
+        // Retained Tart floors do not count while Tart is off.
+        XCTAssertNoThrow(
+            try ConfigLoader.parse(
+                """
+                accounts:
+                  - name: github
+                    forge: github
+                    scope: "acme"
+                labels: [self-hosted, arm64]
+                max_runners: 2
+                image_min_idle: 1
+                container: { image: kinhin-ci-linux, min_idle: 2 }
+                runtimes: { default: appleContainer, tart: { enabled: false } }
+                """))
+        // Switching Tart needs an engine rebuild: its floors live in the frozen config.
+        var on = try parse("container: { image: kinhin-ci-linux }\nruntimes: { default: appleContainer }\n")
+        var off = on
+        off.runtimes?.tartEnabled = false
+        XCTAssertTrue(FleetEngine.restartRequired(from: on, to: off))
+        on.runtimes?.tartEnabled = false
+        XCTAssertFalse(FleetEngine.restartRequired(from: on, to: off))
     }
 
     func testPrimaryRuntimeSkipsADisabledContainer() throws {
