@@ -154,6 +154,36 @@ final class RuntimesTabTests: XCTestCase {
         XCTAssertEqual(model.fleetLabelsText, "self-hosted")
     }
 
+    func testPoolSwitchWritesEnabledKeepsSettingsAndRestoresThem() async throws {
+        let model = await loadedModel(
+            """
+            accounts:
+              - name: github
+                forge: github
+                scope: "acme/widgets"
+            labels: ["self-hosted"]
+            docker:
+              image: kinhin-ci-linux
+              max_slots: 3
+            runtimes:
+              default: tart
+            """)
+        defer { try? FileManager.default.removeItem(at: model.configURL) }
+        XCTAssertTrue(model.canDisablePool(.docker))
+        XCTAssertFalse(model.canDisablePool(.tart), "the default pool cannot be switched off")
+
+        model.setPoolEnabled(.docker, false)
+        var text = try String(contentsOf: model.configURL, encoding: .utf8)
+        XCTAssertTrue(text.contains("enabled: false"), text)
+        XCTAssertTrue(text.contains("max_slots: 3"), "switching off keeps the section's settings")
+        XCTAssertEqual(try ConfigLoader.parse(text).docker?.enabled, false)
+
+        model.setPoolEnabled(.docker, true)
+        text = try String(contentsOf: model.configURL, encoding: .utf8)
+        XCTAssertFalse(text.contains("enabled: false"), text)
+        XCTAssertTrue(text.contains("max_slots: 3"))
+    }
+
     func testModelReportsABrokenConfigInsteadOfRenderingNothing() async {
         let model = await loadedModel("accounts: [unclosed\n")
         defer { try? FileManager.default.removeItem(at: model.configURL) }

@@ -4,6 +4,18 @@
 
 <!-- changelog: entries for the next release go here -->
 
+**Added**
+
+- Pools have an on/off switch. `enabled: false` on `container:`, a `container.pools` entry or `docker:`, and
+  `runtimes.tart.enabled: false`, keep a pool's settings but take it out of routing, scheduling and the Fleet page;
+  running instances drain. In Advanced → Routing each pool card has the switch. See
+  [Runtimes](docs/runtimes.md#turning-a-pool-off).
+- Alerts can go to several webhooks, each with its own event types. `alerts.webhooks:` is a list of named webhooks with
+  `events` (disk, credentials, queue, spawn-backoff, orphans, startup), `min_severity` and `notify_on_resolve`; the old
+  single `webhook:` still works and is read as one webhook named `default`. `kinhin alerts test --webhook NAME` tests one,
+  `kinhin doctor` reports each webhook's token, and **Advanced → App → Alerts** in the app adds, edits, tests and removes
+  them. See [Alerts](docs/alerts.md).
+
 ## v0.0.1-beta-6
 
 **Added**

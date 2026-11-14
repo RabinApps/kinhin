@@ -62,8 +62,8 @@ RUNNING:
     heal approve ID                         Carry out a fix that waits for approval
     heal dismiss ID                         Close a pending or surfaced entry
     telemetry                               OpenTelemetry export: what runs and what fails
-    alerts                                  Outbound alerts: send a test, store the webhook token
-    alerts test                             Send a test alert through the configured webhook
+    alerts                                  Outbound alerts: send a test, store a webhook token
+    alerts test                             Send a test alert through the configured webhooks
     alerts set-token NAME                   Store the webhook's bearer token in the Keychain
     cleanup                                 Reclaim disk: leftover VMs, the base image, the cache
     bench [SUITE]…                          Benchmark runtimes, workloads and toolchains here

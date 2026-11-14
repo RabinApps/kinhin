@@ -162,11 +162,11 @@ public struct SetupStatusComputer: Sendable {
             return await TartHealthProbe(configuredPath: tartPath).check()
         }()
         async let containerProbe: [SetupCheckResult] = {
-            guard case .parsed(let cfg) = evaluation, cfg.container != nil else { return [] }
+            guard case .parsed(let cfg) = evaluation, cfg.activeContainer != nil else { return [] }
             return await containerChecks(cfg, facts: facts)
         }()
         async let dockerProbe: [SetupCheckResult] = {
-            guard case .parsed(let cfg) = evaluation, cfg.docker != nil else { return [] }
+            guard case .parsed(let cfg) = evaluation, cfg.activeDocker != nil else { return [] }
             return await dockerChecks(cfg, facts: facts)
         }()
         async let hostProbe: [SetupCheckResult] = {
@@ -338,7 +338,12 @@ public struct SetupStatusComputer: Sendable {
         // gate readiness — they only matter for macOS jobs.
         let linuxOnly = health == .missing && (parsed?.hasLinuxRuntime ?? false)
         let macOnlyIDs: Set<String> = ["clt", "tart", "image", "base-image"]
-        let gating = checks.filter { !(linuxOnly && macOnlyIDs.contains($0.id)) }
+        // A switched-off Tart pool needs no Tart install or image (the Command Line Tools row still gates).
+        let tartOffIDs: Set<String> = ["tart", "tart-rollback", "image", "base-image"]
+        let tartOff = !(parsed?.tartEnabled ?? true)
+        let gating = checks.filter {
+            !(linuxOnly && macOnlyIDs.contains($0.id)) && !(tartOff && tartOffIDs.contains($0.id))
+        }
         return Detailed(
             status: SetupStatus(ready: gating.allSatisfy(\.ok), checks: checks), tartImages: localTartImages)
     }

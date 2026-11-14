@@ -330,34 +330,6 @@ public struct DoctorReport: Codable, Equatable, Sendable {
         }
     }
 
-    /// The outbound-alerts state (`alerts:`).
-    public struct AlertsSection: Codable, Equatable, Sendable {
-        public let enabled: Bool
-        /// `scheme://host` of the webhook: its path is often the secret, so it is never shown.
-        public let webhook: String?
-        public let format: String
-        /// Whether the Keychain token `headers_keychain` names is stored; nil when no token is needed.
-        public let tokenStored: Bool?
-        public let ok: Bool
-        /// What is wrong, null when ok.
-        public let problem: String?
-        /// The command that fixes it, null when ok.
-        public let fix: String?
-
-        public init(
-            enabled: Bool, webhook: String?, format: String, tokenStored: Bool?, ok: Bool, problem: String?,
-            fix: String?
-        ) {
-            self.enabled = enabled
-            self.webhook = webhook
-            self.format = format
-            self.tokenStored = tokenStored
-            self.ok = ok
-            self.problem = problem
-            self.fix = fix
-        }
-    }
-
     /// Host snapshot (cores, memory, free disk, arm64).
     public let host: HostResources
     /// Command Line Tools state + repair command.

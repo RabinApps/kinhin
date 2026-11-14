@@ -6,10 +6,13 @@ import Foundation
 /// clears and a firing was sent, a `resolved` follows (if `notifyOnResolve`). A delivery that fails is kept and
 /// tried again after `retryInterval` (a firing that never arrived is not held back by the cooldown, and a
 /// resolution is not forgotten). A failing sink is logged and never reported back as a fleet problem, so a dead
-/// endpoint cannot raise the alert that it then fails to send.
+/// endpoint cannot raise the alert that it then fails to send. One dispatcher serves one webhook (each has its own
+/// policy and its own record of what it sent), so a slow or dead endpoint never holds back another.
 actor AlertDispatcher {
     struct Policy: Sendable, Equatable {
         var minSeverity: AlertSeverity = .warning
+        /// The kinds delivered; nil = every source, including ones outside the catalog.
+        var kinds: Set<AlertEventKind>?
         var cooldown: TimeInterval = 3_600
         var notifyOnResolve = true
         /// How long to wait before sending an alert again after a failed delivery.
@@ -27,7 +30,7 @@ actor AlertDispatcher {
         var attemptedAt: Date?
     }
 
-    private let sinks: [any AlertSink]
+    private var sinks: [any AlertSink]
     private let policy: Policy
     private let host: String
     private var active: [String: Sent] = [:]
@@ -39,12 +42,21 @@ actor AlertDispatcher {
         self.host = host
     }
 
+    /// Swaps the sinks (a webhook whose token was rotated) and keeps everything the dispatcher knows: what it sent,
+    /// the cooldowns and the resolutions still owed, so a rotation neither re-sends an alert nor forgets a resolve.
+    func replaceSinks(_ new: [any AlertSink]) {
+        sinks = new
+    }
+
     /// Compares `alerts` (every problem active now) with what was last sent, and delivers the difference.
     func observe(_ alerts: [FleetStatusAlert], now: Date = Date()) async {
         var current: Set<String> = []
         for alert in alerts {
             let severity = AlertSeverity.of(source: alert.source)
             guard severity >= policy.minSeverity else { continue }
+            if let kinds = policy.kinds {
+                guard let kind = AlertEventKind.of(source: alert.source), kinds.contains(kind) else { continue }
+            }
             current.insert(alert.source)
             // Raised again before its resolution got through: the resolution no longer applies.
             pendingResolves[alert.source] = nil

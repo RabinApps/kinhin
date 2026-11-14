@@ -70,6 +70,7 @@ only honored on GitHub, Gitea/Forgejo and GitLab.
 | `container.docker` / `container.flags` | false / []. Docker inside each Apple container runner (re-bake with `kinhin image prepare --container`), pulling Docker Hub images through kinhin's cache container `registry-cache-kinhin`; `docker: { cache: false }` keeps Docker without the cache (on `container:` or a pool); extra `container run` arguments, one list element each, never `--cpus`/`-c`, `--memory`/`-m`, `--name`, `--rm`, `--detach`/`-d`, `--platform`, `--arch`/`-a`, `--os`, `--help`/`-h`, `--version` or a bare `--` |
 | `container.platform` | `linux/arm64`. `linux/amd64` runs x86_64 runners under Rosetta, registered with `x64` instead of `arm64`; also per pool. Re-bake with `kinhin image prepare --container` after changing it. With `docker: true`, builds go through the `kinhin` buildx builder (`BUILDX_BUILDER`), since dockerd's built-in builder fails under Rosetta |
 | `container.pools` | none. Named Linux pools (`NAME: {image, labels, cpus, memory_gb, min_idle, docker, flags, max, platform}`; top-level `container:` keys are the defaults). A job goes to the pool whose labels it carries, `kinhin-container-NAME` targets one; pools share Apple container's CPU and RAM. Bake with `kinhin image prepare --container --pool NAME` or `--all` |
+| `enabled` | true. On `container:`, a `container.pools` entry, `docker:` and `runtimes.tart.enabled`: false keeps the pool's settings but takes it out of routing and scheduling (running instances drain). The default pool and pools a route names cannot be disabled |
 | `runners_per_vm` | 1 to 8. Packs several jobs into one VM. |
 | `poll_interval` | 20 seconds, minimum 5 |
 | `vm` | `cpu: 4`, `memory_gb: 8`, `ephemeral: true` |
@@ -103,6 +104,15 @@ To move **one workflow** to a runtime (editing its `runs-on:` and reconciling th
 Host mode runs jobs unisolated on the Mac. It needs `consent: true`, `default: host` is rejected, every account must be
 scoped to one `owner/name`, it works for GitHub, Gitea and Forgejo only, and workflows opt in with
 `runs-on: [kinhin-host]` after `kinhin setup repair host-agent`. Warn the user before suggesting it for untrusted code.
+
+## Alerts
+
+`alerts:` pushes a message to webhooks when a fleet problem is raised or clears. Off by default. `alerts.webhooks` is a
+list of `{name, url, format, headers_keychain, min_severity, events, notify_on_resolve}`; `format` is `generic`, `slack`,
+`discord` or `ntfy`, `url` is https (http only for localhost) and `events` picks from `disk`, `credentials`, `queue`,
+`spawn-backoff`, `orphans`, `startup` (omit for all). `alerts.enabled: true` needs at least one webhook; the old single
+`webhook:` still works as a webhook named `default`. Store a token with `kinhin alerts set-token NAME`, check it with
+`kinhin alerts test [--webhook NAME]`. Details: [Alerts](https://github.com/RabinApps/kinhin/blob/main/docs/alerts.md).
 
 ## Common validation failures
 

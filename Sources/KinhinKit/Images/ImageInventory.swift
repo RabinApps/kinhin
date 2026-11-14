@@ -190,7 +190,9 @@ public struct ImageInventory: Sendable, Equatable, Codable {
             // With named pools, an image counts only with the tag its runners start, as the engine decides which pools
             // can run (`poolsMissingImage`); a single-image section keeps the looser rule it always had.
             let pooled = !(config.container?.pools.isEmpty ?? true)
-            return ociSection(.container, images, wanted: config.container?.poolImages ?? [], exactTag: pooled)
+            return ociSection(
+                .container, images, wanted: config.container?.enabledPoolImages ?? [],
+                configured: config.container?.poolImages ?? [], exactTag: pooled)
         case .docker:
             return ociSection(.docker, images, wanted: config.docker.map { [$0.image] } ?? [])
         }
@@ -386,13 +388,17 @@ public struct ImageInventory: Sendable, Equatable, Codable {
     /// listed as missing when no local tag matches it, or with `exactTag` unless the tag a runner starts from is local
     /// (`ociUses`; another tag of it does not count).
     private static func ociSection(
-        _ runtime: Runtime, _ images: RuntimeImages, wanted: [String], exactTag: Bool = false
+        _ runtime: Runtime, _ images: RuntimeImages, wanted: [String], configured: [String] = [],
+        exactTag: Bool = false
     ) -> Section {
+        // `wanted` is what must be present (the enabled pools' images); `configured` adds the images of switched-off
+        // pools, which are still the config's own: they keep their role and the in-use refusal, and are never reported missing.
+        let known = wanted + configured
         var entries: [Entry] = []
         let listed = Set(images.names.filter { !$0.isEmpty && !$0.contains("<none>") })
         for name in listed.sorted() {
-            let matches = wanted.contains { ociMatches(name: name, wanted: $0) }
-            let uses = wanted.contains { ociMatches(name: name, wanted: $0) && ociUses(name: name, wanted: $0) }
+            let matches = known.contains { ociMatches(name: name, wanted: $0) }
+            let uses = known.contains { ociMatches(name: name, wanted: $0) && ociUses(name: name, wanted: $0) }
             entries.append(
                 Entry(
                     name: name, runtime: runtime, role: matches ? .base : .local, present: true,

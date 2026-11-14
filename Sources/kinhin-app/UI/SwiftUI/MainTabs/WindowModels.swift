@@ -68,6 +68,14 @@ final class WindowModels {
         return model
     }()
 
+    /// The Alerts card under Advanced → App: edits `alerts:` in the config and pushes the edit like the other forms.
+    lazy var alertsModel: AlertsModel = {
+        let model = AlertsModel()
+        model.configURL = fleet.environment.configURL
+        model.onChanged = { [weak self] in self?.runtimesEdited?() }
+        return model
+    }()
+
     /// Applies the Settings toggle. On failure the toggle (and the stored preference) go back to what the
     /// system really has, and the reason is shown; "needs approval" keeps it on, since the item is registered.
     private func launchAtLoginToggled(_ enabled: Bool) {
@@ -187,6 +195,7 @@ final class WindowModels {
         case .app:
             _ = appModel
             _ = telemetryModel
+            _ = alertsModel
         }
     }
 
@@ -214,7 +223,9 @@ final class WindowModels {
             runtimesModel?.reload()
         case .toolchains: toolchainsModel?.reload()
         case .benchmarks: benchmarksModel?.reload()
-        case .app: telemetryModel.reload()
+        case .app:
+            telemetryModel.reload()
+            alertsModel.reload()
         }
     }
 

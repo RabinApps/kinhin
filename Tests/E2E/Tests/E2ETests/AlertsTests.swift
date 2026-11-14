@@ -20,7 +20,8 @@ struct AlertsTests {
         """
 
     private static func alerts(_ url: String, format: String) -> String {
-        account + "alerts:\n  enabled: true\n  webhook:\n    url: \(url)\n    format: \(format)\n"
+        account
+            + "alerts:\n  enabled: true\n  webhooks:\n    - name: hook\n      url: \(url)\n      format: \(format)\n"
     }
 
     private func withSandbox<T>(_ body: (Sandbox) async throws -> T) async throws -> T {
@@ -89,7 +90,7 @@ struct AlertsTests {
         }
         try await withSandbox { sandbox in
             try sandbox.writeConfig(
-                Self.account + "alerts:\n  enabled: false\n  webhook:\n    url: \(hook.url)\n")
+                Self.account + "alerts:\n  enabled: false\n  webhooks:\n    - name: hook\n      url: \(hook.url)\n")
             let daemon = try await sandbox.startDaemon()
             try await Task.sleep(for: .seconds(8))
             await daemon.stop()
@@ -134,7 +135,90 @@ struct AlertsTests {
 
             try sandbox.writeConfig(Self.account)
             let unset = try await sandbox.kinhin(["alerts", "test"])
-            #expect(unset.status == 3, "no webhook.url exits 3: \(unset.output)")
+            #expect(unset.status == 3, "no webhook exits 3: \(unset.output)")
+        }
+    }
+
+    @Test("two webhooks with different events each receive only their own event types")
+    func perWebhookEvents() async throws {
+        let wanted = try await WebhookStub()
+        let unwanted = try await WebhookStub()
+        let everything = try await WebhookStub()
+        defer {
+            wanted.stop()
+            unwanted.stop()
+            everything.stop()
+        }
+        try await withSandbox { sandbox in
+            try sandbox.writeConfig(
+                Self.account
+                    + """
+                    alerts:
+                      enabled: true
+                      webhooks:
+                        - name: startup-only
+                          url: \(wanted.url)
+                          events: [startup]
+                        - name: disk-only
+                          url: \(unwanted.url)
+                          events: [disk]
+                        - name: everything
+                          url: \(everything.url)
+                          format: slack
+
+                    """)
+            let validated = try await sandbox.kinhin(["config", "validate"])
+            #expect(validated.ok, "\(validated.output)")
+            let daemon = try await sandbox.startDaemon()
+            defer { Task { await daemon.stop() } }
+            let first = try await eventually("the startup alerts", timeout: 45, interval: 1) {
+                let count = await wanted.requests().count + (await everything.requests().count)
+                return count >= 2 ? true : nil
+            }
+            #expect(first)
+            try await Task.sleep(for: .seconds(5))
+            #expect(await wanted.requests().count == 1, "startup-only gets the startup alert")
+            #expect(await everything.requests().count == 1, "no events: filter gets it too")
+            #expect(await unwanted.requests().isEmpty, "disk-only never sees a startup alert")
+        }
+    }
+
+    @Test("alerts test --webhook reaches only that webhook; an unknown name exits 3")
+    func alertsTestOneWebhook() async throws {
+        let first = try await WebhookStub()
+        let second = try await WebhookStub()
+        defer {
+            first.stop()
+            second.stop()
+        }
+        try await withSandbox { sandbox in
+            try sandbox.writeConfig(
+                Self.account
+                    + "alerts:\n  webhooks:\n    - name: one\n      url: \(first.url)\n      events: [disk]\n"
+                    + "    - name: two\n      url: \(second.url)\n")
+            let sent = try await sandbox.kinhin(["alerts", "test", "--webhook", "two"])
+            #expect(sent.ok, "\(sent.output)")
+            #expect(await first.requests().isEmpty)
+            #expect(await second.requests().count == 1)
+            let both = try await sandbox.kinhin(["alerts", "test"])
+            #expect(both.ok, "a test ignores the events filter: \(both.output)")
+            #expect(await first.requests().count == 1)
+            let unknown = try await sandbox.kinhin(["alerts", "test", "--webhook", "nope"])
+            #expect(unknown.status == 3, "\(unknown.output)")
+        }
+    }
+
+    @Test("the old single webhook: form still validates and tests as one webhook named default")
+    func legacyWebhook() async throws {
+        let hook = try await WebhookStub()
+        defer { hook.stop() }
+        try await withSandbox { sandbox in
+            try sandbox.writeConfig(Self.account + "alerts:\n  enabled: true\n  webhook:\n    url: \(hook.url)\n")
+            let validated = try await sandbox.kinhin(["config", "validate"])
+            #expect(validated.ok, "\(validated.output)")
+            let sent = try await sandbox.kinhin(["alerts", "test", "--webhook", "default"])
+            #expect(sent.ok, "\(sent.output)")
+            #expect(await hook.requests().count == 1)
         }
     }
 

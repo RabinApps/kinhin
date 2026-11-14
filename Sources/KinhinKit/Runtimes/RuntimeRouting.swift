@@ -232,7 +232,7 @@ public struct RuntimeConfigModel: Sendable {
         containerConfigured: Bool = false, dockerConfigured: Bool = false, dockerPlatform: LinuxPlatform = .arm64,
         containerPlatform: LinuxPlatform = .arm64, containerInheritsFleetLabels: Bool? = nil,
         dockerInheritsFleetLabels: Bool? = nil, hostConfigured: Bool = false,
-        containerPools: [KinhinConfig.ContainerConfig.Pool] = []
+        containerPools: [KinhinConfig.ContainerConfig.Pool] = [], tartEnabled: Bool = true
     ) {
         if let config {
             // Explicit routing: tart is always available (macOS workloads),
@@ -241,7 +241,11 @@ public struct RuntimeConfigModel: Sendable {
             self.routes = config.routes
             self.defaultRuntime = config.defaultRuntime
             var pools: [RuntimeID: RuntimePool] = [:]
-            pools[.tart] = RuntimePool(runtime: .tart, labels: RuntimePool.labelsFor(.tart, fleetLabels: fleetLabels))
+            // A disabled pool is simply absent: every router step already skips a runtime with no pool.
+            if tartEnabled {
+                pools[.tart] = RuntimePool(
+                    runtime: .tart, labels: RuntimePool.labelsFor(.tart, fleetLabels: fleetLabels))
+            }
             if containerConfigured {
                 pools[.appleContainer] = RuntimePool(
                     runtime: .appleContainer,
@@ -362,14 +366,16 @@ extension RuntimeConfigModel {
             config: routing,
             fleetLabels: config.labels,
             containerLabels: config.container?.labels,
-            containerConfigured: config.container != nil,
-            dockerConfigured: config.docker != nil,
+            // Every named pool off counts as no Apple container pool (an empty `pools` would mean the section itself).
+            containerConfigured: !(config.container?.enabledPools.isEmpty ?? true),
+            dockerConfigured: config.docker?.enabled ?? false,
             dockerPlatform: config.docker?.platform ?? .arm64,
             containerPlatform: config.container?.platform ?? .arm64,
             containerInheritsFleetLabels: config.container?.fleetLabels,
             dockerInheritsFleetLabels: config.docker?.fleetLabels,
             hostConfigured: routing?.routes.contains { $0.runtime == .host } ?? false,
-            containerPools: config.container?.pools ?? []
+            containerPools: config.container?.pools.filter(\.enabled) ?? [],
+            tartEnabled: routing?.tartEnabled ?? true
         )
     }
 }

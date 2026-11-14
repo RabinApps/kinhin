@@ -234,7 +234,9 @@ extension FleetEngine {
     /// now, from the latest reloaded caps.
     func scaleSetJobCapacity(for runtime: RuntimeID, containerPool: String? = nil) -> Int {
         let snapshot = router.snapshot
-        if let name = containerPool, let pool = config.container?.pools.first(where: { $0.name == name }) {
+        if let name = containerPool {
+            // A disabled or removed pool offers no job slots.
+            guard let pool = config.container?.enabledPools.first(where: { $0.name == name }) else { return 0 }
             return snapshot.jobCapacity(
                 forContainerPool: pool, maxRunners: config.maxRunners, capacityCap: capacity.maxConcurrent,
                 runnersPerVM: config.runnersPerVM)

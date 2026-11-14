@@ -120,7 +120,28 @@ struct RuntimesView: View {
 
     private func poolCard(_ pool: RuntimesModel.PoolDisplay) -> some View {
         let chip = RuntimesModel.healthChip(pool.health, probing: false)
-        return card(title: pool.title, detail: pool.detail, chip: chip)
+        return HStack(alignment: .center, spacing: 8) {
+            card(title: pool.title, detail: pool.detail, chip: chip)
+                .opacity(pool.enabled ? 1 : 0.55)
+            if pool.runtime != .host {
+                Toggle(
+                    "",
+                    isOn: Binding(
+                        get: { pool.enabled },
+                        set: { model.setPoolEnabled(pool.runtime, $0) })
+                )
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.small)
+                .disabled(pool.enabled && !model.canDisablePool(pool.runtime))
+                .help(
+                    pool.enabled && !model.canDisablePool(pool.runtime)
+                        ? "The default pool, or a pool a route uses, stays on." : ""
+                )
+                .accessibilityLabel("Enable \(pool.runtime.rawValue) pool")
+                .accessibilityIdentifier("pool-enabled-\(pool.runtime.rawValue)")
+            }
+        }
     }
 
     private func routeCard(_ route: (pattern: String, title: String)) -> some View {

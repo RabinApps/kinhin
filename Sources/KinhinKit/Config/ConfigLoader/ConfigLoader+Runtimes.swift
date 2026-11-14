@@ -58,6 +58,31 @@ extension ConfigLoader {
             throw ConfigError.invalid(
                 "runtimes routes reference 'docker' but no docker: section is configured (it needs an image)")
         }
+        let tartEnabled = runtimes.tart?.enabled ?? true
+        let containerEnabled = !(container?.enabledPools.isEmpty ?? true)
+        let dockerEnabled = docker?.enabled ?? false
+        guard tartEnabled || containerEnabled || dockerEnabled else {
+            throw ConfigError.invalid(
+                "every pool is disabled — keep at least one of runtimes.tart, container or docker enabled")
+        }
+        // A route or default naming a disabled pool would strand its jobs: say which pool and how to fix it.
+        let disabled = Set<RuntimeID>(
+            [
+                (RuntimeID.tart, tartEnabled), (.appleContainer, container.map { _ in containerEnabled } ?? true),
+                (.docker, docker.map { _ in dockerEnabled } ?? true),
+            ].filter { !$0.1 }.map(\.0))
+        // A budget share on a disabled pool is not an error: it is ignored (the share falls to the default pool), so
+        // switching a pool off never needs the Capacity split edited first.
+        let routed = Set([defaultRuntime] + routes.map(\.runtime))
+        if let name = routed.sorted(by: { $0.rawValue < $1.rawValue }).first(where: disabled.contains) {
+            let key = name == .tart ? "runtimes.tart" : (name == .docker ? "docker" : "container")
+            let what =
+                name == .appleContainer
+                ? "container.enabled is false or every container pool is disabled" : "\(key).enabled is false"
+            throw ConfigError.invalid(
+                "runtimes routes or default reference '\(name.rawValue)' but \(what) — "
+                    + "enable it or point the route/default at an enabled pool")
+        }
         let totalWeight = budget.values.reduce(0, +)
         guard totalWeight <= 1.0001 else {
             throw ConfigError.invalid(
@@ -66,7 +91,8 @@ extension ConfigLoader {
         return KinhinConfig.RuntimeConfig(
             defaultRuntime: defaultRuntime,
             budget: budget,
-            routes: routes
+            routes: routes,
+            tartEnabled: tartEnabled
         )
     }
 

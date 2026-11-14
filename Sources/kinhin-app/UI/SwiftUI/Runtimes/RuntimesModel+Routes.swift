@@ -69,12 +69,13 @@ extension RuntimesModel {
         return nil
     }
 
-    /// Runtimes a route can target: tart always, plus whichever Linux runtimes
-    /// the config has enabled (a route to an unconfigured runtime is rejected).
+    /// Runtimes a route can target: the pools that are switched on (a route to a disabled or
+    /// unconfigured runtime is rejected) (a route to an unconfigured runtime is rejected).
     static func routableRuntimes(in config: KinhinConfig?) -> [RuntimeID] {
-        var ids: [RuntimeID] = [.tart]
-        if config?.container != nil { ids.append(.appleContainer) }
-        if config?.docker != nil { ids.append(.docker) }
+        var ids: [RuntimeID] = []
+        if config?.tartEnabled ?? true { ids.append(.tart) }
+        if config?.activeContainer != nil { ids.append(.appleContainer) }
+        if config?.activeDocker != nil { ids.append(.docker) }
         // Host needs no config section (only the runner agent, which the
         // setup checklist installs); the route itself carries the consent.
         ids.append(.host)
@@ -114,7 +115,7 @@ extension RuntimesModel {
             sheetProblem = problem
             return
         }
-        var rc = currentRuntimeConfig ?? KinhinConfig.RuntimeConfig()
+        var rc = freshRuntimeConfig() ?? KinhinConfig.RuntimeConfig()
         rc.routes.append(
             KinhinConfig.RuntimeConfig.Route(
                 pattern: pattern, runtime: runtime, consent: runtime == .host && consent ? true : nil))
@@ -137,8 +138,67 @@ extension RuntimesModel {
         sheetProblem = ""
     }
 
+    /// The routing section as it is on disk now, and the cache brought up to date with it. A routing write builds on
+    /// this, not on the cache: a write that has not been through the reload yet (or a health pass still holding an
+    /// older read) would otherwise be written back over.
+    func freshRuntimeConfig() -> KinhinConfig.RuntimeConfig? {
+        do {
+            let rc = try RuntimesConfigEditor.parsed(from: try ConfigStore.text(at: configURL))
+            currentRuntimeConfig = rc
+            return rc
+        } catch {
+            Log.warn("runtimes", "routing section could not be re-read before a write: \(error.localizedDescription)")
+            return currentRuntimeConfig
+        }
+    }
+
+    /// Switches a pool on or off: `enabled:` on the `container:`/`docker:` section, `runtimes.tart.enabled` for Tart.
+    /// The section's other settings stay, so turning a pool back on restores it as it was. The default pool and a
+    /// pool a route names cannot be turned off here (the config would not load): the card's switch is disabled and
+    /// this says why if it is asked anyway.
+    func setPoolEnabled(_ runtime: RuntimeID, _ on: Bool) {
+        do {
+            switch runtime {
+            case .appleContainer, .docker:
+                guard var snapshot = try ConfigStore.snapshot(at: configURL) else { return }
+                if runtime == .appleContainer {
+                    snapshot.container?.enabled = on
+                    // Turning the section on must leave something running: when every named pool was switched off
+                    // individually, switch them back on too (the section switch alone would change nothing).
+                    if on, var pools = snapshot.container?.pools, !pools.isEmpty,
+                        pools.allSatisfy({ $0.enabled == false })
+                    {
+                        for index in pools.indices { pools[index].enabled = nil }
+                        snapshot.container?.pools = pools
+                    }
+                } else {
+                    snapshot.docker?.enabled = on
+                }
+                try GeneralConfigEditor.apply(
+                    runtime == .appleContainer ? .container(snapshot.container) : .docker(snapshot.docker),
+                    to: configURL)
+            case .tart:
+                var rc = freshRuntimeConfig() ?? KinhinConfig.RuntimeConfig()
+                rc.tartEnabled = on
+                try RuntimesConfigEditor.apply(rc, to: configURL)
+            case .host: return
+            }
+            reload()
+            onChanged?()
+        } catch {
+            presentError(error)
+            reload()
+        }
+    }
+
+    /// Whether the card's switch can turn `runtime` off: not the default pool, not one a route names.
+    func canDisablePool(_ runtime: RuntimeID) -> Bool {
+        guard let vm = viewModel else { return false }
+        return runtime != vm.defaultRuntime && !vm.routes.contains { $0.runtime == runtime } && vm.pools.count > 1
+    }
+
     func removeRoute(pattern: String) {
-        guard let rc = currentRuntimeConfig else { return }
+        guard let rc = freshRuntimeConfig() else { return }
         var updated = rc
         updated.routes.removeAll { $0.pattern == pattern }
         do {

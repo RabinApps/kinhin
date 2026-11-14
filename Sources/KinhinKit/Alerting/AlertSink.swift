@@ -10,16 +10,18 @@ enum AlertError: LocalizedError, Equatable {
     case badStatus(Int)
     case missingToken(String)
     case notConfigured
+    case unknownWebhook(String)
 
     var errorDescription: String? {
         switch self {
         // Never echo the URL: its path or query is often the webhook's secret.
         case .notHTTPS:
-            return "alerts.webhook.url must be an https URL (http is allowed only for localhost, 127.0.0.1 or ::1)"
+            return "the alert webhook url must be an https URL (http is allowed only for localhost, 127.0.0.1 or ::1)"
         case .badStatus(let code): return "the alert endpoint answered HTTP \(code)"
         case .missingToken(let name):
             return "no Keychain item holds the alert endpoint's token; store it with `kinhin alerts set-token \(name)`"
-        case .notConfigured: return "alerts.webhook.url is not set in the config"
+        case .notConfigured: return "no alert webhook is configured (alerts.webhooks in the config)"
+        case .unknownWebhook(let name): return "no alert webhook named '\(name)' (alerts.webhooks in the config)"
         }
     }
 

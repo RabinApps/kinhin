@@ -22,12 +22,16 @@ extension GeneralConfigEditor.Snapshot {
         public var flags: [String]?
         public var max: Int?
         public var platform: String?
+        /// `enabled:` as written (nil = not set, so on); only `false` is ever written back.
+        public var enabled: Bool?
 
         public init(
             name: String, image: String? = nil, baseImage: String? = nil, cpus: Int? = nil, memoryGB: Int? = nil,
             labels: [String]? = nil, fleetLabels: Bool? = nil, minIdle: Int? = nil, docker: Bool? = nil,
-            dockerCache: Bool? = nil, flags: [String]? = nil, max: Int? = nil, platform: String? = nil
+            dockerCache: Bool? = nil, flags: [String]? = nil, max: Int? = nil, platform: String? = nil,
+            enabled: Bool? = nil
         ) {
+            self.enabled = enabled
             self.name = name
             self.image = image
             self.baseImage = baseImage
@@ -52,7 +56,7 @@ extension GeneralConfigEditor.Snapshot {
                     minIdle: entry.minIdle, docker: entry.docker?.enabled,
                     // `{ cache: true }` is the default spelled out: kept as nil, so a rewrite writes `docker: true`.
                     dockerCache: entry.docker?.cache == false ? false : nil, flags: entry.flags, max: entry.max,
-                    platform: entry.platform)
+                    platform: entry.platform, enabled: entry.enabled)
             }
         }
 
@@ -62,6 +66,7 @@ extension GeneralConfigEditor.Snapshot {
             let key = indent + "  "
             func list(_ values: [String]) -> String { "[\(values.map(YAMLText.quoted).joined(separator: ", "))]" }
             var body: [String] = []
+            if enabled == false { body.append("\(key)enabled: false") }
             if let image { body.append("\(key)image: \(YAMLText.quoted(image))") }
             if let baseImage { body.append("\(key)base_image: \(YAMLText.quoted(baseImage))") }
             if let cpus { body.append("\(key)cpus: \(cpus)") }

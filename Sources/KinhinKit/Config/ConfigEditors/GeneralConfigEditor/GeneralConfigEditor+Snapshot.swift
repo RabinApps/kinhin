@@ -65,11 +65,14 @@ extension GeneralConfigEditor {
             public var platform: String?
             /// `container.pools:` as written (see `ContainerPool`), carried so a section rewrite keeps every pool.
             public var pools: [ContainerPool]
+            /// `container.enabled`, carried so a rewrite keeps a switched-off pool off (written only when false).
+            public var enabled: Bool
             public init(
                 image: String, cpus: Int, memoryGB: Int, baseImage: String? = nil, labels: [String]? = nil,
                 fleetLabels: Bool? = nil, minIdle: Int = 0, docker: Bool = false, dockerCache: Bool = true,
-                flags: [String] = [], platform: String? = nil, pools: [ContainerPool] = []
+                flags: [String] = [], platform: String? = nil, pools: [ContainerPool] = [], enabled: Bool = true
             ) {
+                self.enabled = enabled
                 self.image = image
                 self.cpus = cpus
                 self.memoryGB = memoryGB
@@ -97,10 +100,13 @@ extension GeneralConfigEditor {
             /// doesn't drop them.
             public var fleetLabels: Bool?
             public var minIdle: Int
+            /// `docker.enabled`, carried so a rewrite keeps a switched-off pool off (written only when false).
+            public var enabled: Bool
             public init(
                 image: String, cpus: Int, memoryGB: Int, maxSlots: Int, baseImage: String? = nil,
-                platform: String? = nil, fleetLabels: Bool? = nil, minIdle: Int = 0
+                platform: String? = nil, fleetLabels: Bool? = nil, minIdle: Int = 0, enabled: Bool = true
             ) {
+                self.enabled = enabled
                 self.image = image
                 self.cpus = cpus
                 self.memoryGB = memoryGB
@@ -158,13 +164,14 @@ extension GeneralConfigEditor {
                     image: $0.image ?? (pools.isEmpty ? "kinhin-ci-linux" : ""), cpus: $0.cpus ?? 4,
                     memoryGB: $0.memoryGB ?? 8, baseImage: $0.baseImage, labels: $0.labels,
                     fleetLabels: $0.fleetLabels, minIdle: $0.minIdle ?? 0, docker: $0.docker?.enabled ?? false,
-                    dockerCache: $0.docker?.cache ?? true, flags: $0.flags ?? [], platform: $0.platform, pools: pools)
+                    dockerCache: $0.docker?.cache ?? true, flags: $0.flags ?? [], platform: $0.platform, pools: pools,
+                    enabled: $0.enabled ?? true)
             },
             docker: partial.docker.map {
                 .init(
                     image: $0.image ?? "kinhin-ci-linux", cpus: $0.cpus ?? 2, memoryGB: $0.memoryGB ?? 4,
                     maxSlots: $0.maxSlots ?? 8, baseImage: $0.baseImage, platform: $0.platform,
-                    fleetLabels: $0.fleetLabels, minIdle: $0.minIdle ?? 0)
+                    fleetLabels: $0.fleetLabels, minIdle: $0.minIdle ?? 0, enabled: $0.enabled ?? true)
             },
             // Every per-image key is carried: the app rewrites the whole `images:` section from this list.
             images: (partial.images ?? []).compactMap { entry in

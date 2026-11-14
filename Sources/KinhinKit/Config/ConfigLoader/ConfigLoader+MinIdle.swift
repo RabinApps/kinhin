@@ -12,26 +12,29 @@ extension ConfigLoader {
     /// floors on macOS Tart images together must fit Apple's two-VM limit, or the fleet could never hold them.
     static func validateMinIdle(_ cfg: KinhinConfig) throws {
         let cap = cfg.maxRunners
-        if exceeds([cfg.imageMinIdle, cfg.warmPool], cap) {
+        // A switched-off pool keeps its settings without holding them to the limits: its floors are never kept.
+        if cfg.tartEnabled, exceeds([cfg.imageMinIdle, cfg.warmPool], cap) {
             throw ConfigError.invalid(
                 "image_min_idle (\(cfg.imageMinIdle)) plus warm_pool (\(cfg.warmPool)) must be <= max_runners (\(cap))")
         }
-        for image in cfg.images where exceeds([image.minIdle, image.warmPool], cap) {
+        for image in cfg.images where cfg.tartEnabled && exceeds([image.minIdle, image.warmPool], cap) {
             throw ConfigError.invalid(
                 "images: \(image.name) min_idle (\(image.minIdle)) plus its warm_pool (\(image.warmPool)) "
                     + "must be <= max_runners (\(cap))")
         }
-        for pool in cfg.container?.effectivePools ?? [] where pool.minIdle > cap {
+        for pool in cfg.container?.enabledPools ?? [] where pool.minIdle > cap {
             let key = pool.isNamed ? "container.pools.\(pool.name).min_idle" : "container.min_idle"
             throw ConfigError.invalid("\(key) (\(pool.minIdle)) must be <= max_runners (\(cap))")
         }
-        if let docker = cfg.docker, docker.minIdle > cap {
+        if let docker = cfg.activeDocker, docker.minIdle > cap {
             throw ConfigError.invalid("docker.min_idle (\(docker.minIdle)) must be <= max_runners (\(cap))")
         }
         // With `container.pools:`, the section's own min_idle is only the pools' default: each pool's floor counts.
+        // A disabled pool holds no idle runners, so its floor does not count.
         let floors =
-            [cfg.imageMinIdle] + cfg.images.map(\.minIdle) + (cfg.container?.effectivePools.map(\.minIdle) ?? [])
-            + [cfg.docker?.minIdle ?? 0]
+            (cfg.tartEnabled ? [cfg.imageMinIdle] + cfg.images.map(\.minIdle) : [])
+            + (cfg.container?.enabledPools.map(\.minIdle) ?? [])
+            + [cfg.docker.flatMap { $0.enabled ? $0.minIdle : nil } ?? 0]
         if exceeds(floors, cap) {
             throw ConfigError.invalid(
                 "min_idle across image_min_idle, images:, container: (every pool) and docker: (\(total(floors))) must "
@@ -41,8 +44,8 @@ extension ConfigLoader {
         // default macOS base.
         let defaultIsMacOS = !TartBaseImage.isLinux(cfg.baseImage)
         let macOS =
-            [defaultIsMacOS ? cfg.imageMinIdle : 0]
-            + cfg.images.filter { !TartBaseImage.isLinux($0.baseImage) }.map(\.minIdle)
+            [defaultIsMacOS && cfg.tartEnabled ? cfg.imageMinIdle : 0]
+            + cfg.images.filter { cfg.tartEnabled && !TartBaseImage.isLinux($0.baseImage) }.map(\.minIdle)
         if exceeds(macOS, macOSVMsPerMac) {
             throw ConfigError.invalid(
                 "min_idle on macOS Tart images (image_min_idle and images:) adds up to \(total(macOS)), but a Mac runs at "

@@ -30,43 +30,62 @@ final class DoctorAlertsSectionTests: XCTestCase {
 
     func testEnabledWithTokenIsOkAndHidesThePath() async throws {
         let alerts = KinhinConfig.AlertsConfig(
-            enabled: true, webhookURL: "https://hooks.example.com/secret/path", headersKeychain: "ops")
+            enabled: true,
+            webhooks: [.init(name: "ops", url: "https://hooks.example.com/secret/path", headersKeychain: "ops")])
         let doctor = await report(alerts)
         let section = try XCTUnwrap(doctor.alerts)
         XCTAssertTrue(section.ok)
-        XCTAssertEqual(section.webhook, "https://hooks.example.com")
-        XCTAssertEqual(section.tokenStored, true)
+        XCTAssertEqual(section.webhooks.first?.endpoint, "https://hooks.example.com")
+        XCTAssertEqual(section.webhooks.first?.tokenStored, true)
         XCTAssertFalse(doctor.plainText.contains("secret/path"))
         XCTAssertTrue(doctor.plainText.contains("alerts"))
     }
 
     func testMissingTokenFailsTheReportWithTheFix() async throws {
         let alerts = KinhinConfig.AlertsConfig(
-            enabled: true, webhookURL: "https://hooks.example.com/x", headersKeychain: "ops")
+            enabled: true, webhooks: [.init(name: "ops", url: "https://hooks.example.com/x", headersKeychain: "ops")])
         let doctor = await report(alerts, tokenStored: false)
         let section = try XCTUnwrap(doctor.alerts)
         XCTAssertFalse(section.ok)
-        XCTAssertEqual(section.fix, "kinhin alerts set-token ops")
+        XCTAssertEqual(section.webhooks.first?.fix, "kinhin alerts set-token ops")
         XCTAssertFalse(doctor.ready)
     }
 
     func testUnreadableTokenIsReportedAsAReadFailureNotAMissingItem() async throws {
         struct Locked: Error, LocalizedError { var errorDescription: String? { "the Keychain is locked" } }
         let alerts = KinhinConfig.AlertsConfig(
-            enabled: true, webhookURL: "https://hooks.example.com/x", headersKeychain: "ops")
+            enabled: true, webhooks: [.init(name: "ops", url: "https://hooks.example.com/x", headersKeychain: "ops")])
         let section = try XCTUnwrap(
             DoctorReportBuilder.alertsSection(config: config(alerts), tokenStored: { _ in throw Locked() }))
+        let webhook = try XCTUnwrap(section.webhooks.first)
         XCTAssertFalse(section.ok)
-        XCTAssertNil(section.fix, "set-token would not help: the item may exist")
-        XCTAssertTrue(section.problem?.contains("could not be read") == true)
-        XCTAssertTrue(section.problem?.contains("the Keychain is locked") == true)
+        XCTAssertNil(webhook.fix, "set-token would not help: the item may exist")
+        XCTAssertTrue(webhook.problem?.contains("could not be read") == true)
+        XCTAssertTrue(webhook.problem?.contains("the Keychain is locked") == true)
     }
 
     func testNoTokenNeededWithoutAKeychainName() async throws {
-        let alerts = KinhinConfig.AlertsConfig(enabled: true, webhookURL: "https://ntfy.sh/topic")
+        let alerts = KinhinConfig.AlertsConfig(
+            enabled: true, webhooks: [.init(name: "ntfy", url: "https://ntfy.sh/topic")])
         let doctor = await report(alerts, tokenStored: false)
         let section = try XCTUnwrap(doctor.alerts)
         XCTAssertTrue(section.ok)
-        XCTAssertNil(section.tokenStored)
+        XCTAssertNil(section.webhooks.first?.tokenStored)
+    }
+
+    func testEachWebhookIsReportedAndOneMissingTokenFailsTheSection() async throws {
+        let alerts = KinhinConfig.AlertsConfig(
+            enabled: true,
+            webhooks: [
+                .init(name: "a", url: "https://a.example.com/x", events: [.queue, .disk]),
+                .init(name: "b", url: "https://b.example.com/x", headersKeychain: "b-token"),
+            ])
+        let section = try XCTUnwrap(
+            DoctorReportBuilder.alertsSection(config: config(alerts), tokenStored: { _ in false }))
+        XCTAssertEqual(section.webhooks.map(\.name), ["a", "b"])
+        XCTAssertEqual(section.webhooks[0].events, ["disk", "queue"])
+        XCTAssertTrue(section.webhooks[0].ok)
+        XCTAssertFalse(section.webhooks[1].ok)
+        XCTAssertFalse(section.ok)
     }
 }

@@ -167,31 +167,35 @@ extension DoctorReportBuilder {
         }
     }
 
-    /// The alerts section: nil unless `alerts.enabled`. It is not ok when the webhook's Keychain token is missing or
-    /// cannot be read: the daemon would then keep alerting off. A read failure is reported as that, not as a missing
-    /// item, so the fix it names is the right one.
+    /// The alerts section: nil unless `alerts.enabled`. A webhook is not ok when its Keychain token is missing or
+    /// cannot be read: the daemon would then keep that webhook off. A read failure is reported as that, not as a
+    /// missing item, so the fix it names is the right one.
     static func alertsSection(
         config: KinhinConfig?, tokenStored: (String) throws -> Bool
     ) -> DoctorReport.AlertsSection? {
         guard let alerts = config?.alerts, alerts.enabled else { return nil }
-        let endpoint = alerts.webhookURL.flatMap { URL(string: $0) }.map(AlertDelivery.redactedEndpoint)
-        func section(stored: Bool?, problem: String?, fix: String?) -> DoctorReport.AlertsSection {
-            DoctorReport.AlertsSection(
-                enabled: true, webhook: endpoint, format: alerts.format.rawValue, tokenStored: stored,
-                ok: problem == nil, problem: problem, fix: fix)
+        let webhooks = alerts.webhooks.map { webhook -> DoctorReport.AlertsSection.Webhook in
+            let endpoint = URL(string: webhook.url).map(AlertDelivery.redactedEndpoint)
+            func status(stored: Bool?, problem: String?, fix: String?) -> DoctorReport.AlertsSection.Webhook {
+                .init(
+                    name: webhook.name, endpoint: endpoint, format: webhook.format.rawValue,
+                    events: webhook.events.map { $0.sorted().map(\.rawValue) }, tokenStored: stored,
+                    ok: problem == nil, problem: problem, fix: fix)
+            }
+            guard let name = webhook.headersKeychain else { return status(stored: nil, problem: nil, fix: nil) }
+            do {
+                if try tokenStored(name) { return status(stored: true, problem: nil, fix: nil) }
+                return status(
+                    stored: false, problem: "no Keychain item '\(name)' holds the webhook's token",
+                    fix: "kinhin alerts set-token \(name)")
+            } catch {
+                return status(
+                    stored: nil,
+                    problem:
+                        "the Keychain item '\(name)' could not be read: \(LogRedactor.redact(error.localizedDescription))",
+                    fix: nil)
+            }
         }
-        guard let name = alerts.headersKeychain else { return section(stored: nil, problem: nil, fix: nil) }
-        do {
-            if try tokenStored(name) { return section(stored: true, problem: nil, fix: nil) }
-            return section(
-                stored: false, problem: "no Keychain item '\(name)' holds the webhook's token",
-                fix: "kinhin alerts set-token \(name)")
-        } catch {
-            return section(
-                stored: nil,
-                problem:
-                    "the Keychain item '\(name)' could not be read: \(LogRedactor.redact(error.localizedDescription))",
-                fix: nil)
-        }
+        return DoctorReport.AlertsSection(enabled: true, webhooks: webhooks)
     }
 }

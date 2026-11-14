@@ -517,12 +517,13 @@ enum CommandCatalog {
             name: "alerts",
             command: .alerts,
             group: .running,
-            summary: "Outbound alerts: send a test, store the webhook token",
+            summary: "Outbound alerts: send a test, store a webhook token",
             subcommands: [
                 CommandSpec(
                     name: "test",
                     command: .alerts,
-                    summary: "Send a test alert through the configured webhook"),
+                    summary: "Send a test alert through the configured webhooks",
+                    flags: [.value("--webhook", "NAME", "Only this webhook (default: every one)")]),
                 CommandSpec(
                     name: "set-token",
                     command: .alerts,
@@ -530,13 +531,14 @@ enum CommandCatalog {
                     positionals: "NAME",
                     flags: [tokenStdinFlag],
                     details: [
-                        "NAME is the alerts.webhook.headers_keychain value. Without --token-stdin the token is read "
+                        "NAME is a webhook's headers_keychain value. Without --token-stdin the token is read "
                             + "from a hidden prompt."
                     ]),
             ],
             details: [
-                "The daemon sends alerts while alerts.enabled is true. test works before that, and exits 3 when "
-                    + "alerts.webhook.url is not set and 4 when the endpoint does not accept the message."
+                "The daemon sends alerts while alerts.enabled is true. test works before that, ignores a webhook's "
+                    + "events filter, and exits 3 when no webhook is configured (or --webhook names none) and 4 when "
+                    + "an endpoint does not accept the message."
             ],
             docs: "docs/alerts.md"),
         CommandSpec(

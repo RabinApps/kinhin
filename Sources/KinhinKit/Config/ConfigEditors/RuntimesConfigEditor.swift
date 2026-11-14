@@ -39,7 +39,8 @@ public enum RuntimesConfigEditor {
                 guard let pattern = route.pattern, let name = route.runtime else { return nil }
                 return KinhinConfig.RuntimeConfig.Route(
                     pattern: pattern, runtime: try resolve(name), consent: route.consent)
-            }
+            },
+            tartEnabled: rt.tart?.enabled ?? true
         )
     }
 
@@ -49,6 +50,10 @@ public enum RuntimesConfigEditor {
     static func sectionText(_ rc: KinhinConfig.RuntimeConfig) -> String {
         var lines: [String] = ["runtimes:"]
         lines.append("  default: \(rc.defaultRuntime.rawValue)")
+        if !rc.tartEnabled {
+            lines.append("  tart:")
+            lines.append("    enabled: false")
+        }
         if !rc.budget.isEmpty {
             lines.append("  budget:")
             for (name, weight) in rc.budget.sorted(by: { $0.key < $1.key }) {

@@ -9,14 +9,15 @@ extension FleetEngine {
     /// `unprepared` keep no floor this pass (see `unpreparedIdleImages`).
     func minIdleTargets(images: [KinhinConfig.ImageConfig], unprepared: Set<String> = []) -> [ScalePlan.IdleKey: Int] {
         var targets: [ScalePlan.IdleKey: Int] = [:]
-        if config.imageMinIdle > 0 { targets[.init(runtime: .tart)] = config.imageMinIdle }
-        for image in images where image.minIdle > 0 && !unprepared.contains(image.name) {
+        // A disabled pool keeps no floor: it spawns nothing new while its running instances drain.
+        if config.tartEnabled, config.imageMinIdle > 0 { targets[.init(runtime: .tart)] = config.imageMinIdle }
+        for image in images where config.tartEnabled && image.minIdle > 0 && !unprepared.contains(image.name) {
             targets[.init(runtime: .tart, image: image.name)] = image.minIdle
         }
-        for pool in config.container?.effectivePools ?? [] where pool.minIdle > 0 {
+        for pool in config.container?.enabledPools ?? [] where pool.minIdle > 0 {
             targets[.init(runtime: .appleContainer, pool: pool.name)] = pool.minIdle
         }
-        if let docker = config.docker, docker.minIdle > 0 { targets[.init(runtime: .docker)] = docker.minIdle }
+        if let docker = config.activeDocker, docker.minIdle > 0 { targets[.init(runtime: .docker)] = docker.minIdle }
         return targets
     }
 

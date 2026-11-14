@@ -239,6 +239,25 @@ final class ImageInventoryTests: XCTestCase {
         XCTAssertTrue(both.configuredImagesPresent)
     }
 
+    /// A switched-off pool's image is not required (never reported missing) but is still the config's own: a running
+    /// instance keeps it in use, so `image delete` still refuses it.
+    func testADisabledPoolsImageIsNotRequiredButStaysInUse() {
+        var cfg = KinhinConfig.default
+        cfg.container = .init(
+            image: "on",
+            pools: [
+                .init(name: "a", image: "on:latest"),
+                .init(name: "b", image: "off:latest", labels: ["b"], enabled: false),
+            ])
+        let section = ImageInventory.section(
+            .container, config: cfg, images: .init(names: ["on:latest", "off:latest"], instances: ["runner-1"]))
+        XCTAssertTrue(section.configuredImagesPresent)
+        XCTAssertEqual(section.entries.first { $0.name == "off:latest" }?.usedBy, ["runner-1"])
+        let missing = ImageInventory.section(.container, config: cfg, images: .init(names: ["on:latest"]))
+        XCTAssertTrue(missing.configuredImagesPresent, "the disabled pool's missing image is not reported")
+        XCTAssertFalse(missing.entries.contains { !$0.present })
+    }
+
     /// A registry port is not a tag: `localhost:5000/runner` starts `:latest`.
     func testARegistryPortIsNotATag() {
         XCTAssertTrue(ImageInventory.ociUses(name: "localhost:5000/runner:latest", wanted: "localhost:5000/runner"))
