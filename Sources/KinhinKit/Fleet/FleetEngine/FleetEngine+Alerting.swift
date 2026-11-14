@@ -79,6 +79,7 @@ extension FleetEngine {
                 lastSetupAttempt = Date()
                 // A Keychain read that fails here keeps the sink it has: the next check tries again.
                 if let latest = try? readToken(), latest != usedToken,
+                    // A sink that cannot be built (a bad URL) keeps the one in use; the next check tries again.
                     let sink = try? makeAlertSink(webhook, token: { _ in latest })
                 {
                     // Only the sink changes: the dispatcher keeps its record of what was sent and what is owed.
