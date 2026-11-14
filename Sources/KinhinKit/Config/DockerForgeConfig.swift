@@ -29,8 +29,9 @@ extension KinhinConfig {
         public init(
             image: String, cpus: Int = defaultCPUs, memoryGB: Int = defaultMemoryGB, maxSlots: Int = defaultMaxSlots,
             baseImage: String? = nil,
-            platform: LinuxPlatform = .arm64, fleetLabels: Bool? = nil, minIdle: Int = 0
+            platform: LinuxPlatform = .arm64, fleetLabels: Bool? = nil, minIdle: Int = 0, enabled: Bool = true
         ) {
+            self.enabled = enabled
             self.image = image
             self.cpus = cpus
             self.memoryGB = memoryGB
@@ -50,8 +51,12 @@ extension KinhinConfig {
         /// count. 0 = off.
         public var minIdle: Int
 
+        /// `docker.enabled` (default true). false keeps the settings but takes the Docker pool out of routing,
+        /// scheduling and the Fleet page; running instances drain.
+        public var enabled: Bool
+
         enum CodingKeys: String, CodingKey {
-            case image, cpus, platform
+            case enabled, image, cpus, platform
             case memoryGB = "memory_gb"
             case maxSlots = "max_slots"
             case baseImage = "base_image"

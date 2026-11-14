@@ -199,7 +199,8 @@ private struct AdvancedView: View {
         case .benchmarks:
             if let benchmarks = models.benchmarksModel { BenchmarksView(model: benchmarks) }
         case .app:
-            AppSectionView(model: models.appModel, telemetry: models.telemetryModel)
+            AppSectionView(
+                model: models.appModel, telemetry: models.telemetryModel, alerts: models.alertsModel)
         }
     }
 }

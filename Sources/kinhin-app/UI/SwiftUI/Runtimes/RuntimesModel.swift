@@ -47,6 +47,10 @@ final class RuntimesModel: ConfigFormModel {
         let detail: String
         let health: RuntimeHealth?
         let isDefault: Bool
+        /// The runtime the card's switch turns on or off.
+        var runtime: RuntimeID = .tart
+        /// False for a pool that is configured but switched off: shown dimmed, out of routing and the Fleet page.
+        var enabled: Bool = true
     }
 
     // MARK: - Editing state
@@ -191,7 +195,32 @@ final class RuntimesModel: ConfigFormModel {
 
     // MARK: - Pool display
 
+    /// The pools' cards: the enabled pools, then the configured-but-disabled ones (dimmed, with their switch).
     var poolRows: [PoolDisplay] {
+        guard let vm = viewModel else { return [] }
+        return enabledPoolRows
+            + vm.disabledPools.map { runtime in
+                PoolDisplay(
+                    id: runtime.rawValue,
+                    title: Self.poolName(runtime) + " — "
+                        + String(
+                            localized: "disabled", bundle: .l10n,
+                            comment: "Routing tab pool title suffix for a switched-off pool"),
+                    detail: "", health: nil, isDefault: false, runtime: runtime, enabled: false)
+            }
+    }
+
+    static func poolName(_ runtime: RuntimeID) -> String {
+        switch runtime {
+        case .tart: return String(localized: "🍎 Tart VMs (macOS)", bundle: .l10n, comment: "Routing tab pool name")
+        case .appleContainer:
+            return String(localized: "🐧 Apple containers (Linux)", bundle: .l10n, comment: "Routing tab pool name")
+        case .docker: return String(localized: "🐳 Docker (Linux)", bundle: .l10n, comment: "Routing tab pool name")
+        case .host: return String(localized: "Host (this Mac)", bundle: .l10n, comment: "Routing tab pool name")
+        }
+    }
+
+    private var enabledPoolRows: [PoolDisplay] {
         guard let vm = viewModel else { return [] }
         return vm.pools.map { pool in
             let name: String
@@ -231,7 +260,7 @@ final class RuntimesModel: ConfigFormModel {
             }
             return PoolDisplay(
                 id: pool.runtime.rawValue, title: title, detail: details.joined(separator: "\n"),
-                health: pool.health, isDefault: pool.runtime == vm.defaultRuntime)
+                health: pool.health, isDefault: pool.runtime == vm.defaultRuntime, runtime: pool.runtime)
         }
     }
 

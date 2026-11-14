@@ -170,7 +170,9 @@ It checks, against the daemon as a black box:
 `WebhookStub`, a small Python server that records each POST's path, headers and body). It checks: a fleet that cannot start sends
 one `startup` alert in each of the generic, Slack, Discord and ntfy shapes (and never the forge token); with no `alerts:` section
 or `enabled: false` nothing is sent; a webhook answering 500 is tried and the daemon keeps answering `status`; `kinhin alerts test`
-posts once, exits 4 on a refusing endpoint and 3 with no URL; a plain-http, non-loopback URL is refused (exit 3). A problem that
+posts once, exits 4 on a refusing endpoint and 3 with no webhook; two `webhooks:` with different `events:` each receive
+only their own event types (the `startup` alert reaches the one that selected it) and `alerts test --webhook NAME` reaches
+only that one, and the legacy single `webhook:` still works; a plain-http, non-loopback URL is refused (exit 3). A problem that
 is raised and then clears needs a fleet that starts, so that pair is covered by the unit suite; a real Slack, Discord or ntfy
 endpoint is a manual check.
 

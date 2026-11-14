@@ -137,6 +137,43 @@ extension RuntimesModel {
         sheetProblem = ""
     }
 
+    /// Switches a pool on or off: `enabled:` on the `container:`/`docker:` section, `runtimes.tart.enabled` for Tart.
+    /// The section's other settings stay, so turning a pool back on restores it as it was. The default pool and a
+    /// pool a route names cannot be turned off here (the config would not load): the card's switch is disabled and
+    /// this says why if it is asked anyway.
+    func setPoolEnabled(_ runtime: RuntimeID, _ on: Bool) {
+        do {
+            switch runtime {
+            case .appleContainer, .docker:
+                guard var snapshot = try ConfigStore.snapshot(at: configURL) else { return }
+                if runtime == .appleContainer {
+                    snapshot.container?.enabled = on
+                } else {
+                    snapshot.docker?.enabled = on
+                }
+                try GeneralConfigEditor.apply(
+                    runtime == .appleContainer ? .container(snapshot.container) : .docker(snapshot.docker),
+                    to: configURL)
+            case .tart:
+                var rc = currentRuntimeConfig ?? KinhinConfig.RuntimeConfig()
+                rc.tartEnabled = on
+                try RuntimesConfigEditor.apply(rc, to: configURL)
+            case .host: return
+            }
+            reload()
+            onChanged?()
+        } catch {
+            presentError(error)
+            reload()
+        }
+    }
+
+    /// Whether the card's switch can turn `runtime` off: not the default pool, not one a route names.
+    func canDisablePool(_ runtime: RuntimeID) -> Bool {
+        guard let vm = viewModel else { return false }
+        return runtime != vm.defaultRuntime && !vm.routes.contains { $0.runtime == runtime } && vm.pools.count > 1
+    }
+
     func removeRoute(pattern: String) {
         guard let rc = currentRuntimeConfig else { return }
         var updated = rc

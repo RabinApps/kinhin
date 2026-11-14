@@ -27,14 +27,18 @@ extension KinhinConfig.ContainerConfig {
         public var max: Int?
         /// See `ContainerConfig.platform`.
         public var platform: LinuxPlatform
+        /// Whether the pool takes jobs (`enabled:`, and the section's own `enabled:` for every pool). A disabled pool
+        /// keeps its settings but is out of routing, scheduling and the Fleet page; its running instances drain.
+        public var enabled: Bool
 
         public init(
             name: String, image: String, baseImage: String? = nil, cpus: Int = KinhinConfig.ContainerConfig.defaultCPUs,
             memoryGB: Int = KinhinConfig.ContainerConfig.defaultMemoryGB, labels: [String]? = nil,
             fleetLabels: Bool? = nil, minIdle: Int = 0,
             docker: Bool = false, dockerCache: Bool = true, flags: [String] = [], max: Int? = nil,
-            platform: LinuxPlatform = .arm64
+            platform: LinuxPlatform = .arm64, enabled: Bool = true
         ) {
+            self.enabled = enabled
             self.name = name
             self.image = image
             self.baseImage = baseImage
@@ -57,7 +61,7 @@ extension KinhinConfig.ContainerConfig {
                 memoryGB: section.memoryGB, labels: section.labels, fleetLabels: section.fleetLabels,
                 minIdle: section.minIdle, docker: section.docker, dockerCache: section.dockerCache,
                 flags: section.flags,
-                platform: section.platform)
+                platform: section.platform, enabled: section.enabled)
         }
 
         /// Whether the pool's runners pull through the Docker Hub cache: Docker on, and the cache not turned off.
@@ -83,6 +87,10 @@ extension KinhinConfig.ContainerConfig {
 
     /// Every pool the section runs: the named `pools:`, or the section itself as its one unnamed pool.
     public var effectivePools: [Pool] { pools.isEmpty ? [Pool(section: self)] : pools }
+
+    /// The pools that take jobs: `effectivePools` without the disabled ones. Routing, scheduling, scale sets and
+    /// the Fleet page read this; image prepare/prune keep reading `effectivePools`, so a disabled pool's image stays.
+    public var enabledPools: [Pool] { effectivePools.filter(\.enabled) }
 
     /// Whether any pool pulls through the Docker Hub cache, so kinhin runs it (and doctor and `image prune` know it).
     public var usesDockerCache: Bool { effectivePools.contains(where: \.usesDockerCache) }

@@ -142,8 +142,8 @@ public struct DoctorReportBuilder: Sendable {
         let injectedCLT = clt
         let injectedTart = tartHealth
         let tartPath = parsed?.tartPath
-        let wantsContainer = parsed?.container != nil
-        let wantsDocker = parsed?.docker != nil
+        let wantsContainer = parsed?.activeContainer != nil
+        let wantsDocker = parsed?.activeDocker != nil
         let wantsHost = parsed?.hostRoutesConfigured ?? false
         let injectedContainer = containerHealth
         let injectedDocker = dockerHealth

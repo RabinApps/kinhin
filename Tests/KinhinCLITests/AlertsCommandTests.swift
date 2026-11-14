@@ -16,9 +16,9 @@ final class AlertsCommandTests: XCTestCase {
     }
 
     func testTestRethrowsCancellationForTheCLIHandler() async {
-        let config = KinhinConfig.AlertsConfig(enabled: true, webhookURL: "https://hooks.example.com/x")
+        let config = Self.config
         do {
-            try await AlertsCommand.test(config: config) { _ in throw CancellationError() }
+            try await AlertsCommand.test(config: config) { _, _ in throw CancellationError() }
             XCTFail("expected CancellationError")
         } catch {
             XCTAssertTrue(error is CancellationError)
@@ -26,12 +26,23 @@ final class AlertsCommandTests: XCTestCase {
     }
 
     func testTestPrintsTheSendersLine() async throws {
-        let config = KinhinConfig.AlertsConfig(enabled: true, webhookURL: "https://hooks.example.com/x")
-        let asked = Mutex(false)
-        try await AlertsCommand.test(config: config) { _ in
-            asked.withLock { $0 = true }
-            return "test alert sent to https://hooks.example.com"
+        let asked = Mutex<String??>(nil)
+        try await AlertsCommand.test(config: Self.config) { _, name in
+            asked.withLock { $0 = .some(name) }
+            return ["test alert sent to ops (https://hooks.example.com)"]
         }
-        XCTAssertTrue(asked.withLock { $0 })
+        XCTAssertEqual(asked.withLock { $0 }, .some(nil))
     }
+
+    func testTestPassesTheWebhookNameThrough() async throws {
+        let asked = Mutex<String?>(nil)
+        try await AlertsCommand.test(config: Self.config, webhook: "ops") { _, name in
+            asked.withLock { $0 = name }
+            return []
+        }
+        XCTAssertEqual(asked.withLock { $0 }, "ops")
+    }
+
+    private static let config = KinhinConfig.AlertsConfig(
+        enabled: true, webhooks: [.init(name: "ops", url: "https://hooks.example.com/x")])
 }

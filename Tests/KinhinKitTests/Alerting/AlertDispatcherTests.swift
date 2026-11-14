@@ -34,6 +34,34 @@ final class AlertDispatcherTests: XCTestCase {
         FleetStatusAlert(source: source, message: message)
     }
 
+    func testKindFilterDeliversOnlyTheSelectedKinds() async {
+        let sink = FakeAlertSink()
+        let dispatcher = make(sink, policy: .init(kinds: [.disk, .queue], cooldown: 600))
+        await dispatcher.observe(
+            [alert("disk"), alert("queue:github"), alert("credentials"), alert("orphans"), alert("healing")], now: t0)
+        XCTAssertEqual(sink.sent.map(\.source).sorted(), ["disk", "queue:github"])
+    }
+
+    func testEachWebhookKeepsItsOwnCooldownAndResolveRecord() async {
+        let loud = FakeAlertSink()
+        let quiet = FakeAlertSink()
+        let a = make(loud, policy: .init(cooldown: 600))
+        let b = make(quiet, policy: .init(kinds: [.credentials], cooldown: 600, notifyOnResolve: false))
+        for dispatcher in [a, b] { await dispatcher.observe([alert("disk"), alert("credentials")], now: t0) }
+        for dispatcher in [a, b] { await dispatcher.observe([], now: t0.addingTimeInterval(30)) }
+        XCTAssertEqual(loud.sent.map(\.state), [.firing, .firing, .resolved, .resolved])
+        XCTAssertEqual(quiet.sent.map(\.state), [.firing], "filtered and no resolve")
+    }
+
+    func testAFailingWebhookDoesNotHoldBackAnother() async {
+        let down = FakeAlertSink()
+        down.failing = true
+        let up = FakeAlertSink()
+        await make(down).observe([alert("disk")], now: t0)
+        await make(up).observe([alert("disk")], now: t0)
+        XCTAssertEqual(up.sent.count, 1)
+    }
+
     func testNewAlertFiresOnce() async {
         let sink = FakeAlertSink()
         let dispatcher = make(sink)

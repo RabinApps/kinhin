@@ -34,7 +34,8 @@ extension ConfigLoader {
             docker: container.docker?.enabled ?? false,
             dockerCache: container.docker?.cache ?? true,
             flags: flags,
-            platform: platform
+            platform: platform,
+            enabled: container.enabled ?? true
         )
         guard container.pools != nil else { return section }
         return try parseContainerPools(container, section: section)
@@ -86,7 +87,8 @@ extension ConfigLoader {
             baseImage: dockerBase,
             platform: dockerPlatform,
             fleetLabels: docker.fleetLabels,
-            minIdle: docker.minIdle ?? 0
+            minIdle: docker.minIdle ?? 0,
+            enabled: docker.enabled ?? true
         )
     }
 

@@ -168,7 +168,8 @@ extension FleetEngine {
     /// never starts one, so its jobs would wait without a word otherwise. `kinhin doctor` reports the same.
     func warnAboutUnfittableContainerPools(_ snapshot: Router.Snapshot) {
         guard let budget = snapshot.containerBudget else { return }
-        for pool in config.container?.pools ?? [] where budget.count(cpu: pool.cpus, memoryGB: pool.memoryGB) == 0 {
+        for pool in config.activeContainer?.enabledPools ?? []
+        where budget.count(cpu: pool.cpus, memoryGB: pool.memoryGB) == 0 {
             Log.warn(
                 "engine",
                 "container pool \(pool.name) (\(pool.cpus) CPU, \(pool.memoryGB) GB) can never start: the Apple "

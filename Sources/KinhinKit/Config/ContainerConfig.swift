@@ -20,8 +20,10 @@ extension KinhinConfig {
         public init(
             image: String, cpus: Int = defaultCPUs, memoryGB: Int = defaultMemoryGB, labels: [String]? = nil,
             baseImage: String? = nil, fleetLabels: Bool? = nil, minIdle: Int = 0, docker: Bool = false,
-            dockerCache: Bool = true, flags: [String] = [], platform: LinuxPlatform = .arm64, pools: [Pool] = []
+            dockerCache: Bool = true, flags: [String] = [], platform: LinuxPlatform = .arm64, pools: [Pool] = [],
+            enabled: Bool = true
         ) {
+            self.enabled = enabled
             self.image = image
             self.cpus = cpus
             self.memoryGB = memoryGB
@@ -73,8 +75,12 @@ extension KinhinConfig {
         /// through `effectivePools`, which covers both shapes.
         public var pools: [Pool]
 
+        /// `container.enabled` (default true). false keeps the section's settings but takes the Apple-container
+        /// pool out of routing, scheduling and the Fleet page; running instances drain.
+        public var enabled: Bool
+
         enum CodingKeys: String, CodingKey {
-            case image, cpus, labels
+            case enabled, image, cpus, labels
             case memoryGB = "memory_gb"
             case baseImage = "base_image"
             case fleetLabels = "fleet_labels"

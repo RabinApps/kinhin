@@ -112,6 +112,7 @@ extension ConfigLoader {
             name: name, image: image, baseImage: base, cpus: entry.cpus ?? defaults.cpus,
             memoryGB: entry.memoryGB ?? defaults.memoryGB, labels: entry.labels ?? defaults.labels,
             fleetLabels: entry.fleetLabels ?? defaults.fleetLabels, minIdle: minIdle,
-            docker: docker.0, dockerCache: docker.1, flags: flags, max: entry.max, platform: platform)
+            docker: docker.0, dockerCache: docker.1, flags: flags, max: entry.max, platform: platform,
+            enabled: (entry.enabled ?? true) && defaults.enabled)
     }
 }

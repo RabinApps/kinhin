@@ -14,7 +14,7 @@ extension RuntimeCapacity {
     static func shape(of runtime: RuntimeID, in config: KinhinConfig) -> (cpu: Int, memoryGB: Int) {
         switch runtime {
         case .appleContainer:
-            if let pools = config.container?.pools, !pools.isEmpty {
+            if let pools = config.container?.pools.filter(\.enabled), !pools.isEmpty {
                 return (pools.map(\.cpus).min() ?? 4, pools.map(\.memoryGB).min() ?? 8)
             }
             return (config.container?.cpus ?? 4, config.container?.memoryGB ?? 8)
@@ -28,7 +28,7 @@ extension RuntimeCapacity {
     /// section plus a Linux runtime to split with. Single-pool fleets keep
     /// the fleet cap (and the legacy status shape: no per-runtime caps).
     static func isPartitioned(_ config: KinhinConfig) -> Bool {
-        config.runtimes != nil && (config.container != nil || config.docker != nil)
+        config.runtimes != nil && (config.activeContainer != nil || config.activeDocker != nil)
     }
 
     /// The CPU and memory the Apple container runtime may use in all, which
@@ -36,7 +36,7 @@ extension RuntimeCapacity {
     /// host minus the reserve. Nil without named pools, whose one shape the
     /// count caps already size exactly.
     static func containerBudget(for config: KinhinConfig, host: HostResources) -> Budget? {
-        guard let pools = config.container?.pools, !pools.isEmpty else { return nil }
+        guard let pools = config.activeContainer?.pools, !pools.isEmpty else { return nil }
         let usable = Budget(
             cpu: max(0, host.logicalCores - config.reserve.cpu),
             memoryGB: max(0, host.memoryGB - config.reserve.memoryGB))
@@ -61,6 +61,11 @@ extension RuntimeCapacity {
     static func partitionedCaps(
         for config: KinhinConfig, host: HostResources, weights: [String: Double], defaultRuntime: RuntimeID
     ) -> [RuntimeID: Int] {
+        // A disabled pool's weight is dropped, so its share falls to the default runtime like any unclaimed remainder.
+        var weights = weights
+        if !config.tartEnabled { weights[RuntimeID.tart.rawValue] = nil }
+        if config.activeContainer == nil { weights[RuntimeID.appleContainer.rawValue] = nil }
+        if config.activeDocker == nil { weights[RuntimeID.docker.rawValue] = nil }
         var caps = partition(
             hostUsableCPU: max(0, host.logicalCores - config.reserve.cpu),
             hostUsableMemoryGB: max(0, host.memoryGB - config.reserve.memoryGB),
@@ -68,7 +73,7 @@ extension RuntimeCapacity {
             defaultRuntime: defaultRuntime,
             shape: { shape(of: $0, in: config) }
         ).caps
-        if let docker = config.docker, let share = caps[.docker] {
+        if let docker = config.activeDocker, let share = caps[.docker] {
             caps[.docker] = min(share, docker.maxSlots)
         }
         return caps

@@ -7,6 +7,7 @@ import SwiftUI
 struct AppSectionView: View {
     let model: AppSectionModel
     let telemetry: TelemetryModel
+    let alerts: AlertsModel
 
     var body: some View {
         ScrollView {
@@ -54,6 +55,7 @@ struct AppSectionView: View {
                     }
                 }
                 TelemetryCard(model: telemetry)
+                AlertsCard(model: alerts)
                 if let notice = model.daemonNotice {
                     FormCard(title: "Daemon") {
                         Text(notice)

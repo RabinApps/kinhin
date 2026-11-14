@@ -404,6 +404,7 @@ extension FleetEngine {
     /// Warm instances to keep per Tart image: the base `warm_pool` ("") and each `images:` entry's own.
     func warmTargets(images: [KinhinConfig.ImageConfig]) -> [String: Int] {
         var targets: [String: Int] = [:]
+        guard config.tartEnabled else { return targets }  // a disabled Tart pool keeps no warm VMs
         if config.warmPool > 0 { targets[""] = config.warmPool }
         for image in images where image.warmPool > 0 { targets[image.name] = image.warmPool }
         return targets

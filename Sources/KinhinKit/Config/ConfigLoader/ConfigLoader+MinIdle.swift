@@ -29,9 +29,10 @@ extension ConfigLoader {
             throw ConfigError.invalid("docker.min_idle (\(docker.minIdle)) must be <= max_runners (\(cap))")
         }
         // With `container.pools:`, the section's own min_idle is only the pools' default: each pool's floor counts.
+        // A disabled pool holds no idle runners, so its floor does not count.
         let floors =
-            [cfg.imageMinIdle] + cfg.images.map(\.minIdle) + (cfg.container?.effectivePools.map(\.minIdle) ?? [])
-            + [cfg.docker?.minIdle ?? 0]
+            [cfg.imageMinIdle] + cfg.images.map(\.minIdle) + (cfg.container?.enabledPools.map(\.minIdle) ?? [])
+            + [cfg.docker.flatMap { $0.enabled ? $0.minIdle : nil } ?? 0]
         if exceeds(floors, cap) {
             throw ConfigError.invalid(
                 "min_idle across image_min_idle, images:, container: (every pool) and docker: (\(total(floors))) must "

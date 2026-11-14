@@ -14,7 +14,7 @@ extension DoctorReportBuilder {
         config cfg: KinhinConfig?, health: RuntimeHealth?, images: ImageInventory.RuntimeImages?,
         host: HostResources? = nil, registryCache: DoctorReport.RegistryCacheStatus? = nil
     ) -> DoctorReport.ContainerSection? {
-        guard let cfg, let container = cfg.container else { return nil }
+        guard let cfg, let container = cfg.activeContainer else { return nil }
         let verdict = RuntimeSectionVerdict.from(health: health ?? .broken("container health was not probed"))
         let section = images.map { ImageInventory.section(.container, config: cfg, images: $0) }
         var imageFound = section?.configuredImagesPresent ?? false
@@ -61,7 +61,7 @@ extension DoctorReportBuilder {
         config cfg: KinhinConfig?, health: RuntimeHealth?, images: ImageInventory.RuntimeImages?,
         imageArchitecture imageArch: String?
     ) -> DoctorReport.DockerSection? {
-        guard let cfg, let docker = cfg.docker else { return nil }
+        guard let cfg, let docker = cfg.activeDocker else { return nil }
         let verdict = RuntimeSectionVerdict.from(health: health ?? .broken("docker health was not probed"))
         let wanted = docker.image
         let imageFound =

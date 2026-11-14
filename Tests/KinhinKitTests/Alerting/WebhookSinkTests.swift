@@ -104,7 +104,8 @@ final class WebhookSinkTests: XCTestCase {
 
     func testStartupFailureIsSentAsACriticalStartupAlert() async throws {
         let http = FakeHTTP()
-        let config = KinhinConfig.AlertsConfig(enabled: true, webhookURL: "https://hooks.example.com/x")
+        let config = KinhinConfig.AlertsConfig(
+            enabled: true, webhooks: [.init(name: "ops", url: "https://hooks.example.com/x")])
         try await FleetEngine.sendStartupAlert(config, message: "token rejected", http: http, token: { _ in nil })
         let call = try XCTUnwrap(http.calls.withLock { $0.first })
         let json = try XCTUnwrap(JSONSerialization.jsonObject(with: call.body) as? [String: Any])
@@ -114,12 +115,83 @@ final class WebhookSinkTests: XCTestCase {
     }
 
     func testMakeSinkNeedsTheKeychainToken() throws {
-        let config = KinhinConfig.AlertsConfig(
-            enabled: true, webhookURL: "https://hooks.example.com/x", headersKeychain: "ops")
-        XCTAssertThrowsError(try FleetEngine.makeAlertSink(config, token: { _ in nil })) {
+        let webhook = KinhinConfig.AlertsConfig.Webhook(
+            name: "ops", url: "https://hooks.example.com/x", headersKeychain: "ops")
+        XCTAssertThrowsError(try FleetEngine.makeAlertSink(webhook, token: { _ in nil })) {
             XCTAssertEqual($0 as? AlertError, .missingToken("ops"))
         }
-        let made = try FleetEngine.makeAlertSink(config, token: { _ in "abc" })
+        let made = try FleetEngine.makeAlertSink(webhook, token: { _ in "abc" })
         XCTAssertEqual(made.token, "abc")
+    }
+
+    func testStartupAlertReachesOnlyWebhooksThatWantIt() async throws {
+        let http = FakeHTTP()
+        let config = KinhinConfig.AlertsConfig(
+            enabled: true,
+            webhooks: [
+                .init(name: "all", url: "https://a.example.com/x"),
+                .init(name: "disk-only", url: "https://b.example.com/x", events: [.disk]),
+                .init(name: "startup", url: "https://c.example.com/x", events: [.startup]),
+            ])
+        try await FleetEngine.sendStartupAlert(config, message: "no forge", http: http, token: { _ in nil })
+        let hosts = http.calls.withLock { $0.compactMap(\.url.host) }.sorted()
+        XCTAssertEqual(hosts, ["a.example.com", "c.example.com"])
+    }
+
+    func testStartupAlertSkipsABrokenWebhookButStillReachesTheOthers() async throws {
+        let http = FakeHTTP()
+        let config = KinhinConfig.AlertsConfig(
+            enabled: true,
+            webhooks: [
+                .init(name: "broken", url: "https://a.example.com/x", headersKeychain: "missing"),
+                .init(name: "fine", url: "https://b.example.com/x"),
+            ])
+        try await FleetEngine.sendStartupAlert(config, message: "no forge", http: http, token: { _ in nil })
+        XCTAssertEqual(http.calls.withLock { $0.compactMap(\.url.host) }, ["b.example.com"])
+    }
+
+    func testSendTestTargetsOneWebhookAndBypassesTheEventFilter() async throws {
+        let http = FakeHTTP()
+        let config = KinhinConfig.AlertsConfig(
+            webhooks: [
+                .init(name: "a", url: "https://a.example.com/x", events: [.disk]),
+                .init(name: "b", url: "https://b.example.com/x"),
+            ])
+        let lines = try await AlertDelivery.sendTest(
+            config, webhook: "a", now: Date(), http: http, token: { _ in nil })
+        XCTAssertEqual(lines, ["test alert sent to a (https://a.example.com)"])
+        XCTAssertEqual(http.calls.withLock { $0.count }, 1)
+        let all = try await AlertDelivery.sendTest(config, webhook: nil, now: Date(), http: http, token: { _ in nil })
+        XCTAssertEqual(all.count, 2)
+    }
+
+    func testSendTestRejectsAnUnknownNameAndAnEmptyConfig() async {
+        let config = KinhinConfig.AlertsConfig(webhooks: [.init(name: "a", url: "https://a.example.com/x")])
+        do {
+            _ = try await AlertDelivery.sendTest(
+                config, webhook: "nope", now: Date(), http: FakeHTTP(), token: { _ in nil })
+            XCTFail("expected a throw")
+        } catch { XCTAssertEqual(error as? AlertError, .unknownWebhook("nope")) }
+        do {
+            _ = try await AlertDelivery.sendTest(
+                .default, webhook: nil, now: Date(), http: FakeHTTP(), token: { _ in nil })
+            XCTFail("expected a throw")
+        } catch { XCTAssertEqual(error as? AlertError, .notConfigured) }
+    }
+
+    func testSendTestTriesEveryWebhookAndReportsTheFailure() async {
+        let http = FakeHTTP(statuses: [400, 200])
+        let config = KinhinConfig.AlertsConfig(
+            webhooks: [
+                .init(name: "a", url: "https://a.example.com/x"), .init(name: "b", url: "https://b.example.com/x"),
+            ])
+        do {
+            _ = try await AlertDelivery.sendTest(config, webhook: nil, now: Date(), http: http, token: { _ in nil })
+            XCTFail("expected a throw")
+        } catch let failure as AlertDeliveryFailure {
+            XCTAssertEqual(failure.lines.count, 2)
+            XCTAssertTrue(failure.lines[0].hasPrefix("a: "))
+            XCTAssertTrue(failure.lines[1].hasPrefix("test alert sent to b"))
+        } catch { XCTFail("\(error)") }
     }
 }

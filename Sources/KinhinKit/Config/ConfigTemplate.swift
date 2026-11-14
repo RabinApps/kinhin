@@ -199,18 +199,22 @@ extension ConfigLoader {
         #   ca_file: /etc/ssl/collector-ca.pem # PEM CA that signs the collector's https certificate
         #   persist: false                    # true = queue spans and logs on disk while the collector is down
 
-        # Optional: outbound alerts. The daemon POSTs a webhook when a problem is raised or clears, so you hear
+        # Optional: outbound alerts. The daemon POSTs each webhook when a problem is raised or clears, so you hear
         # about it with the menu bar app closed. Off by default. The token never goes in this file: name a Keychain
-        # item (headers_keychain). See docs/alerts.md.
+        # item (headers_keychain). Each webhook can pick the event types it wants. See docs/alerts.md.
         # alerts:
         #   enabled: false
-        #   webhook:
-        #     url: https://ntfy.sh/my-kinhin-topic  # https only (http for localhost)
-        #     format: generic                       # generic|slack|discord|ntfy
-        #     headers_keychain: ops-alerts          # Keychain item holding a bearer token
-        #   min_severity: warning                   # warning|critical
-        #   cooldown_seconds: 3600                  # how long a still-raised problem stays quiet before re-sending
-        #   notify_on_resolve: true
+        #   webhooks:
+        #     - name: ops-slack                       # unique; used by `kinhin alerts test --webhook`
+        #       url: https://hooks.slack.com/services/XXX  # https only (http for localhost)
+        #       format: slack                         # generic|slack|discord|ntfy
+        #       headers_keychain: ops-slack           # Keychain item holding a bearer token
+        #       min_severity: warning                 # warning|critical (default: the alerts-level value)
+        #       events: [disk, credentials, queue, spawn-backoff, orphans, startup]  # omitted = all
+        #       notify_on_resolve: true               # default: the alerts-level value
+        #   min_severity: warning                     # default for every webhook
+        #   cooldown_seconds: 3600                    # how long a still-raised problem stays quiet before re-sending
+        #   notify_on_resolve: true                   # default for every webhook
 
         # Optional: serve more forges from the same fleet. Every accounts:
         # entry above is one forge; VMs are assigned to whichever forge has
@@ -230,6 +234,7 @@ extension ConfigLoader {
         # runtimes:
         #   default: tart                # runtime for repos with no route
         #   budget: {tart: 0.6, appleContainer: 0.4}   # host-budget split
+        #   tart: { enabled: false }     # switch the Tart pool off (default on); container: and docker: take enabled: false too
         #   routes:
         #     - pattern: "acme/ios-app"
         #       runtime: tart

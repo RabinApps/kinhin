@@ -44,7 +44,10 @@ struct ConfigSchema {
             "alerts": .object(
                 .init(
                     PartialConfig.PartialAlerts.CodingKeys.self,
-                    ["webhook": .object(.init(PartialConfig.PartialAlerts.PartialWebhook.CodingKeys.self))])),
+                    [
+                        "webhook": .object(.init(PartialConfig.PartialAlerts.PartialWebhook.CodingKeys.self)),
+                        "webhooks": .list(.init(PartialConfig.PartialAlerts.PartialWebhook.CodingKeys.self)),
+                    ])),
             "container": .object(
                 .init(
                     PartialConfig.PartialContainer.CodingKeys.self,
@@ -59,7 +62,10 @@ struct ConfigSchema {
                 .init(
                     PartialConfig.PartialRuntimes.CodingKeys.self,
                     // `budget:` maps runtime names to weights; those names are validated by the loader.
-                    ["routes": .list(.init(PartialConfig.PartialRoute.CodingKeys.self))])),
+                    [
+                        "routes": .list(.init(PartialConfig.PartialRoute.CodingKeys.self)),
+                        "tart": .object(.init(PartialConfig.PartialRuntimeTart.CodingKeys.self)),
+                    ])),
             "images": .list(.init(PartialConfig.PartialImage.CodingKeys.self)),
             "accounts": .list(
                 .init(

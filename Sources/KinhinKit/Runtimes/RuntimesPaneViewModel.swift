@@ -40,6 +40,9 @@ public struct RuntimesPaneViewModel: Sendable, Equatable {
     /// so the pane can say "installed" / "not installed" even for runtimes
     /// the config doesn't use. Empty until a health pass fills it.
     public var availability: [RuntimeID: RuntimeHealth] = [:]
+    /// Pools that are configured but switched off (`enabled: false`): out of `pools`, kept here so the Routing tab can
+    /// show them dimmed with a switch to turn them back on.
+    public var disabledPools: [RuntimeID] = []
 
     public init(
         pools: [PoolRow] = [], routes: [RouteRow] = [], defaultRuntime: RuntimeID = .tart,
@@ -78,8 +81,8 @@ public struct RuntimesPaneViewModel: Sendable, Equatable {
             return vm
         }
 
-        vm.containerConfigured = parsed.container != nil
-        vm.dockerConfigured = parsed.docker != nil
+        vm.containerConfigured = parsed.activeContainer != nil
+        vm.dockerConfigured = parsed.activeDocker != nil
         let routing: KinhinConfig.RuntimeConfig?
         do {
             routing = try RuntimesConfigEditor.parsed(from: configYAML)
@@ -131,6 +134,9 @@ public struct RuntimesPaneViewModel: Sendable, Equatable {
             )
         }
         vm.defaultRuntime = model.defaultRuntime
+        if !(rc?.tartEnabled ?? true) { vm.disabledPools.append(.tart) }
+        if parsed.container != nil, parsed.activeContainer == nil { vm.disabledPools.append(.appleContainer) }
+        if parsed.docker != nil, parsed.activeDocker == nil { vm.disabledPools.append(.docker) }
         vm.routes = (rc?.routes ?? []).map { route in
             RouteRow(
                 pattern: route.pattern,

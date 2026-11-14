@@ -6,7 +6,7 @@ extension Capacity {
     /// The runtime a single-pool fleet runs on: Apple containers, else
     /// Docker slots, else Tart VMs.
     static func primaryRuntime(of config: KinhinConfig) -> RuntimeID {
-        config.container != nil ? .appleContainer : config.docker != nil ? .docker : .tart
+        config.activeContainer != nil ? .appleContainer : config.activeDocker != nil ? .docker : .tart
     }
 
     /// The fleet cap for `config` on `host`: the primary runtime's instance

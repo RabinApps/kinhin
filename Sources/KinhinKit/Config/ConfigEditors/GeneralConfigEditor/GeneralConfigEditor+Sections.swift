@@ -45,6 +45,7 @@ extension GeneralConfigEditor {
 
     static func sectionText(_ c: Snapshot.Container) -> String {
         var lines = ["container:"]
+        if !c.enabled { lines.append("  enabled: false") }
         if !c.image.isEmpty || c.pools.isEmpty { lines.append("  image: \(YAMLText.quoted(c.image))") }
         if let base = c.baseImage, !base.isEmpty { lines.append("  base_image: \(YAMLText.quoted(base))") }
         lines += ["  cpus: \(c.cpus)", "  memory_gb: \(c.memoryGB)"]
@@ -67,7 +68,9 @@ extension GeneralConfigEditor {
     }
 
     static func sectionText(_ d: Snapshot.Docker) -> String {
-        var lines = ["docker:", "  image: \(YAMLText.quoted(d.image))"]
+        var lines = ["docker:"]
+        if !d.enabled { lines.append("  enabled: false") }
+        lines.append("  image: \(YAMLText.quoted(d.image))")
         if let base = d.baseImage, !base.isEmpty { lines.append("  base_image: \(YAMLText.quoted(base))") }
         lines += ["  cpus: \(d.cpus)", "  memory_gb: \(d.memoryGB)", "  max_slots: \(d.maxSlots)"]
         if let platform = d.platform, !platform.isEmpty { lines.append("  platform: \(YAMLText.quoted(platform))") }

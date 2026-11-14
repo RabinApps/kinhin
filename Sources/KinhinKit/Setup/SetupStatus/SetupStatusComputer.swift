@@ -162,11 +162,11 @@ public struct SetupStatusComputer: Sendable {
             return await TartHealthProbe(configuredPath: tartPath).check()
         }()
         async let containerProbe: [SetupCheckResult] = {
-            guard case .parsed(let cfg) = evaluation, cfg.container != nil else { return [] }
+            guard case .parsed(let cfg) = evaluation, cfg.activeContainer != nil else { return [] }
             return await containerChecks(cfg, facts: facts)
         }()
         async let dockerProbe: [SetupCheckResult] = {
-            guard case .parsed(let cfg) = evaluation, cfg.docker != nil else { return [] }
+            guard case .parsed(let cfg) = evaluation, cfg.activeDocker != nil else { return [] }
             return await dockerChecks(cfg, facts: facts)
         }()
         async let hostProbe: [SetupCheckResult] = {
