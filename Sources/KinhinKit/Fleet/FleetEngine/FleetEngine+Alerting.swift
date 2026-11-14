@@ -73,15 +73,18 @@ extension FleetEngine {
             // A token rotated in the Keychain (the app's Alerts card, `kinhin alerts set-token`) is picked up within
             // `alertSetupRetry` seconds: the sink is rebuilt with the new one. A rotation is the only thing that
             // changes a webhook without a config edit, so the engine's reload never sees it.
-            if dispatcher != nil, webhook.headersKeychain != nil,
+            if let existing = dispatcher, webhook.headersKeychain != nil,
                 Date().timeIntervalSince(lastSetupAttempt) >= alertSetupRetry
             {
                 lastSetupAttempt = Date()
                 // A Keychain read that fails here keeps the sink it has: the next check tries again.
-                if let latest = try? readToken(), latest != usedToken {
-                    dispatcher = nil
-                    lastSetupAttempt = .distantPast
-                    Log.info("alerts", "alert webhook '\(webhook.name)' has a new token; rebuilding its sink")
+                if let latest = try? readToken(), latest != usedToken,
+                    let sink = try? makeAlertSink(webhook, token: { _ in latest })
+                {
+                    // Only the sink changes: the dispatcher keeps its record of what was sent and what is owed.
+                    await existing.replaceSinks([sink])
+                    usedToken = latest
+                    Log.info("alerts", "alert webhook '\(webhook.name)' has a new token; its sink was rebuilt")
                 }
             }
             if dispatcher == nil, Date().timeIntervalSince(lastSetupAttempt) >= alertSetupRetry {

@@ -30,7 +30,7 @@ actor AlertDispatcher {
         var attemptedAt: Date?
     }
 
-    private let sinks: [any AlertSink]
+    private var sinks: [any AlertSink]
     private let policy: Policy
     private let host: String
     private var active: [String: Sent] = [:]
@@ -40,6 +40,12 @@ actor AlertDispatcher {
         self.sinks = sinks
         self.policy = policy
         self.host = host
+    }
+
+    /// Swaps the sinks (a webhook whose token was rotated) and keeps everything the dispatcher knows: what it sent,
+    /// the cooldowns and the resolutions still owed, so a rotation neither re-sends an alert nor forgets a resolve.
+    func replaceSinks(_ new: [any AlertSink]) {
+        sinks = new
     }
 
     /// Compares `alerts` (every problem active now) with what was last sent, and delivers the difference.

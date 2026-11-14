@@ -18,7 +18,7 @@ struct AlertsCard: View {
                     get: { model.configEnabled ?? false },
                     set: { on in Task { await model.setEnabled(on) } })
             )
-            .disabled(model.configEnabled == nil)
+            .disabled(model.configEnabled == nil || model.isSaving)
             .accessibilityIdentifier("alerts-toggle")
 
             if model.rows.isEmpty {
@@ -33,8 +33,10 @@ struct AlertsCard: View {
                             .disabled(model.testing != nil)
                             .accessibilityIdentifier("alerts-test-\(row.name)")
                         Button("Edit") { model.beginEdit(row.name) }
+                            .disabled(model.isSaving)
                             .accessibilityIdentifier("alerts-edit-\(row.name)")
                         Button("Remove") { Task { await model.remove(row.name) } }
+                            .disabled(model.isSaving)
                             .accessibilityIdentifier("alerts-remove-\(row.name)")
                     }
                     HintText(verbatim: model.summary(of: row)).textSelection(.enabled)
@@ -44,7 +46,7 @@ struct AlertsCard: View {
             }
             HStack {
                 Button("Add webhook") { model.beginAdd() }
-                    .disabled(model.configEnabled == nil)
+                    .disabled(model.configEnabled == nil || model.isSaving)
                     .accessibilityIdentifier("alerts-add")
                 Button("Refresh") { model.reload() }
             }
@@ -116,6 +118,7 @@ struct AlertWebhookSheet: View {
                 Spacer()
                 Button("Cancel") { model.cancelDraft() }.keyboardShortcut(.cancelAction)
                 Button("Save") { Task { await model.saveDraft() } }
+                    .disabled(model.isSaving)
                     .keyboardShortcut(.defaultAction)
                     .accessibilityIdentifier("alerts-sheet-save")
             }

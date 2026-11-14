@@ -34,6 +34,21 @@ final class AlertDispatcherTests: XCTestCase {
         FleetStatusAlert(source: source, message: message)
     }
 
+    func testReplacingTheSinkKeepsTheDeliveryRecord() async {
+        let old = FakeAlertSink()
+        let new = FakeAlertSink()
+        let dispatcher = make(old)
+        await dispatcher.observe([alert("disk")], now: t0)
+        XCTAssertEqual(old.sent.count, 1)
+        await dispatcher.replaceSinks([new])
+        // Still inside the cooldown: the rotation must not re-send the active alert.
+        await dispatcher.observe([alert("disk")], now: t0.addingTimeInterval(60))
+        XCTAssertTrue(new.sent.isEmpty)
+        // The resolution owed for the firing that was delivered goes to the new sink.
+        await dispatcher.observe([], now: t0.addingTimeInterval(120))
+        XCTAssertEqual(new.sent.map(\.state), [.resolved])
+    }
+
     func testKindFilterDeliversOnlyTheSelectedKinds() async {
         let sink = FakeAlertSink()
         let dispatcher = make(sink, policy: .init(kinds: [.disk, .queue], cooldown: 600))
