@@ -115,7 +115,7 @@ extension RuntimesModel {
             sheetProblem = problem
             return
         }
-        var rc = currentRuntimeConfig ?? KinhinConfig.RuntimeConfig()
+        var rc = freshRuntimeConfig() ?? KinhinConfig.RuntimeConfig()
         rc.routes.append(
             KinhinConfig.RuntimeConfig.Route(
                 pattern: pattern, runtime: runtime, consent: runtime == .host && consent ? true : nil))
@@ -136,6 +136,20 @@ extension RuntimesModel {
     func cancelAddRoute() {
         routeOffer = nil
         sheetProblem = ""
+    }
+
+    /// The routing section as it is on disk now, and the cache brought up to date with it. A routing write builds on
+    /// this, not on the cache: a write that has not been through the reload yet (or a health pass still holding an
+    /// older read) would otherwise be written back over.
+    func freshRuntimeConfig() -> KinhinConfig.RuntimeConfig? {
+        do {
+            let rc = try RuntimesConfigEditor.parsed(from: try ConfigStore.text(at: configURL))
+            currentRuntimeConfig = rc
+            return rc
+        } catch {
+            Log.warn("runtimes", "routing section could not be re-read before a write: \(error.localizedDescription)")
+            return currentRuntimeConfig
+        }
     }
 
     /// Switches a pool on or off: `enabled:` on the `container:`/`docker:` section, `runtimes.tart.enabled` for Tart.
@@ -164,7 +178,7 @@ extension RuntimesModel {
                     runtime == .appleContainer ? .container(snapshot.container) : .docker(snapshot.docker),
                     to: configURL)
             case .tart:
-                var rc = currentRuntimeConfig ?? KinhinConfig.RuntimeConfig()
+                var rc = freshRuntimeConfig() ?? KinhinConfig.RuntimeConfig()
                 rc.tartEnabled = on
                 try RuntimesConfigEditor.apply(rc, to: configURL)
             case .host: return
@@ -184,7 +198,7 @@ extension RuntimesModel {
     }
 
     func removeRoute(pattern: String) {
-        guard let rc = currentRuntimeConfig else { return }
+        guard let rc = freshRuntimeConfig() else { return }
         var updated = rc
         updated.routes.removeAll { $0.pattern == pattern }
         do {

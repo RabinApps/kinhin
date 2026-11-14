@@ -396,7 +396,11 @@ extension FleetEngine {
                 })
             input.defaultContainerPool = container.defaultPool.name
             input.containerBudget = routerState.containerBudget
-            input.exclude(containerPools: unpreparedContainerPools, demandByAccount: demand.byForgeContainerPool)
+            // A switched-off pool is left out like an unbuilt one: it admits no new instance (its running ones drain).
+            let switchedOff = Set(container.pools.filter { !$0.enabled }.map(\.name))
+            input.exclude(
+                containerPools: unpreparedContainerPools.union(switchedOff),
+                demandByAccount: demand.byForgeContainerPool)
         }
         return ScalePlan.make(input)
     }

@@ -86,6 +86,19 @@ final class AlertsModelTests: XCTestCase {
         XCTAssertTrue(onDisk.contains("headers_keychain: \"ops\""))
     }
 
+    func testANewWebhookNeverTakesAnotherWebhooksKeychainAccount() async throws {
+        await add("ops", token: "one")
+        // Rename it: the rename keeps `ops` as its Keychain account.
+        model.beginEdit("ops")
+        model.draft?.name = "backup"
+        await model.saveDraft()
+        XCTAssertTrue(onDisk.contains("headers_keychain: \"ops\""))
+        // A new webhook called `ops` must not overwrite that account.
+        await add("ops", token: "two")
+        XCTAssertEqual(stored.map(\.account), ["ops", "ops-2"])
+        XCTAssertEqual(stored.last?.token, "two")
+    }
+
     func testBadInputStaysInTheSheetWithEntriesIntact() async {
         await add("ops", url: "http://example.com/x")
         XCTAssertNotNil(model.draft)

@@ -52,7 +52,7 @@ extension FleetEngine {
         guard let pools = config.container?.pools, !pools.isEmpty, let listed = await listedContainerImages() else {
             return []
         }
-        let missing = Set(config.container?.poolsMissingImage(listed: listed).map(\.name) ?? [])
+        let missing = Set(config.container?.poolsMissingImage(listed: listed).filter(\.enabled).map(\.name) ?? [])
         let newlySkipped = containerImageListing.withLock { state -> [String] in
             state.skipped.formIntersection(missing)
             let fresh = missing.subtracting(state.skipped)

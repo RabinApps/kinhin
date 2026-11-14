@@ -171,7 +171,20 @@ final class AlertsModel: ConfigFormModel {
             name: name, url: url, format: draft.format, headersKeychain: existing?.headersKeychain,
             minSeverity: draft.minSeverity, events: draft.allEvents ? nil : draft.events,
             notifyOnResolve: draft.notifyOnResolve)
-        if !token.isEmpty { webhook.headersKeychain = webhook.headersKeychain ?? name }
+        if !token.isEmpty {
+            // A new webhook never takes an account another webhook already reads its token from (a renamed webhook
+            // keeps its old account, and a later webhook of the old name would otherwise overwrite that token).
+            let taken = Set(webhooks.filter { $0.name != draft.original }.compactMap(\.headersKeychain))
+            var account = webhook.headersKeychain ?? name
+            if webhook.headersKeychain == nil {
+                var suffix = 2
+                while taken.contains(account) {
+                    account = "\(name)-\(suffix)"
+                    suffix += 1
+                }
+            }
+            webhook.headersKeychain = account
+        }
         if !draft.allEvents && draft.events.isEmpty {
             draftProblem = String(
                 localized: "Pick at least one event type, or choose all of them.", bundle: .l10n,
@@ -204,11 +217,15 @@ final class AlertsModel: ConfigFormModel {
         // One edit at a time: two overlapping read-validate-write cycles on the file could restore what the first removed.
         guard !isSaving else {
             // A second edit that gets here before the controls disable is refused out loud, not dropped.
-            result = StatusLine(
-                text: String(
-                    localized: "Another change is still being saved — try again in a moment.", bundle: .l10n,
-                    comment: "Settings → App → Alerts status when an edit is refused because one is being written"),
-                style: .warn)
+            let busy = String(
+                localized: "Another change is still being saved — try again in a moment.", bundle: .l10n,
+                comment: "Settings → App → Alerts status when an edit is refused because one is being written")
+            // The sheet shows `draftProblem`, the card shows `result`: say it where the user is looking.
+            if toSheet {
+                draftProblem = busy
+            } else {
+                result = StatusLine(text: busy, style: .warn)
+            }
             return false
         }
         isSaving = true
