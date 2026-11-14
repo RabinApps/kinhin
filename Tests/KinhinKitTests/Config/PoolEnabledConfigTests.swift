@@ -174,6 +174,21 @@ final class PoolEnabledConfigTests: XCTestCase {
             RuntimeCapacity.enabledWeights(["docker": 0.5, "appleContainer": 0.25], in: cfg), ["appleContainer": 0.25])
     }
 
+    func testDisabledPoolsKeepFloorsAboveTheCap() throws {
+        XCTAssertNoThrow(
+            try ConfigLoader.parse(
+                """
+                accounts:
+                  - name: github
+                    forge: github
+                    scope: "acme"
+                labels: [self-hosted, arm64]
+                max_runners: 2
+                container: { image: kinhin-ci-linux, min_idle: 3, enabled: false }
+                docker: { image: kinhin-ci-linux, min_idle: 3, enabled: false }
+                """))
+    }
+
     func testReviewFollowUps() throws {
         // `test` is not an event type a webhook can select.
         XCTAssertTrue(
@@ -243,7 +258,12 @@ final class PoolEnabledConfigTests: XCTestCase {
         let container = try XCTUnwrap(snapshot.container)
         let rewritten = GeneralConfigEditor.sectionText(container)
         XCTAssertTrue(rewritten.contains("enabled: false"), rewritten)
-        XCTAssertTrue(GeneralConfigEditor.sectionText(try XCTUnwrap(snapshot.docker)).contains("enabled: false"))
+        // Parse what was written: the section switches and the named pool's switch all survive.
+        let reparsed = try parse(rewritten + "\n" + GeneralConfigEditor.sectionText(try XCTUnwrap(snapshot.docker)))
+        XCTAssertEqual(reparsed.container?.enabled, false)
+        XCTAssertEqual(reparsed.docker?.enabled, false)
+        XCTAssertEqual(reparsed.container?.pools.first?.name, "big")
+        XCTAssertEqual(reparsed.container?.pools.first?.enabled, false)
     }
 
     func testRuntimesEditorRoundTripsTartSwitch() throws {

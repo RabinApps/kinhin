@@ -24,6 +24,9 @@ final class AlertsModel: ConfigFormModel {
     }
 
     /// The sheet's fields for adding or editing a webhook.
+    /// True while a config edit is being written; further edits are ignored until it finishes.
+    private(set) var isSaving = false
+
     struct Draft: Equatable {
         /// Identifies this sheet, so a save that finishes after Cancel and a new sheet clears only its own.
         let id = UUID()
@@ -198,6 +201,10 @@ final class AlertsModel: ConfigFormModel {
 
     /// Writes one field; false (with the reason shown) when the editor refused it and nothing was written.
     private func save(_ field: AlertsConfigEditor.Field, toSheet: Bool = false) async -> Bool {
+        // One edit at a time: two overlapping read-validate-write cycles on the file could restore what the first removed.
+        guard !isSaving else { return false }
+        isSaving = true
+        defer { isSaving = false }
         let url = configURL
         do {
             _ = try await Task.detached { try AlertsConfigEditor.apply(field, to: url) }.value

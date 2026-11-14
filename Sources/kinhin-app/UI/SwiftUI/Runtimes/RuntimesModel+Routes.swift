@@ -69,12 +69,13 @@ extension RuntimesModel {
         return nil
     }
 
-    /// Runtimes a route can target: tart always, plus whichever Linux runtimes
-    /// the config has enabled (a route to an unconfigured runtime is rejected).
+    /// Runtimes a route can target: the pools that are switched on (a route to a disabled or
+    /// unconfigured runtime is rejected) (a route to an unconfigured runtime is rejected).
     static func routableRuntimes(in config: KinhinConfig?) -> [RuntimeID] {
-        var ids: [RuntimeID] = [.tart]
-        if config?.container != nil { ids.append(.appleContainer) }
-        if config?.docker != nil { ids.append(.docker) }
+        var ids: [RuntimeID] = []
+        if config?.tartEnabled ?? true { ids.append(.tart) }
+        if config?.activeContainer != nil { ids.append(.appleContainer) }
+        if config?.activeDocker != nil { ids.append(.docker) }
         // Host needs no config section (only the runner agent, which the
         // setup checklist installs); the route itself carries the consent.
         ids.append(.host)

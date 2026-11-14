@@ -234,7 +234,7 @@ extension ConfigLoader {
         # runtimes:
         #   default: tart                # runtime for repos with no route
         #   budget: {tart: 0.6, appleContainer: 0.4}   # host-budget split
-        #   tart: { enabled: false }     # switch the Tart pool off (default on); container: and docker: take enabled: false too
+        #   tart: { enabled: true }      # false switches the Tart pool off (first move `default:` and any routes off tart); container: and docker: take enabled: false too
         #   routes:
         #     - pattern: "acme/ios-app"
         #       runtime: tart
