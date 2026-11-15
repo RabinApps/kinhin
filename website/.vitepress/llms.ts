@@ -50,21 +50,34 @@ function parseFrontmatter(raw: string): { data: Frontmatter; content: string } {
   return { data, content: raw.slice(match[0].length) }
 }
 
-/** Applies `fn` to the lines outside fenced code blocks. */
-function outsideFences(text: string, fn: (line: string) => string): string {
-  let fence: string | undefined
-  return text
-    .split('\n')
-    .map((line) => {
-      const m = /^\s*(`{3,}|~{3,})/.exec(line)
-      if (m) {
-        if (!fence) fence = m[1][0]
-        else if (m[1][0] === fence) fence = undefined
-        return line
-      }
-      return fence ? line : fn(line)
-    })
-    .join('\n')
+/**
+ * Applies `fn` to each run of lines outside fenced code blocks, leaving the fences untouched.
+ * A fence closes on the same character with at least the opening length and nothing after it
+ * (CommonMark), so a four-backtick block can hold a three-backtick example.
+ */
+function outsideFences(text: string, fn: (chunk: string) => string): string {
+  const out: string[] = []
+  let chunk: string[] = []
+  let open: { char: string; len: number } | undefined
+  const flush = (): void => {
+    if (chunk.length) out.push(fn(chunk.join('\n')))
+    chunk = []
+  }
+  for (const line of text.split('\n')) {
+    const m = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line)
+    if (open) {
+      out.push(line)
+      if (m && m[1][0] === open.char && m[1].length >= open.len && m[2].trim() === '') open = undefined
+    } else if (m) {
+      flush()
+      out.push(line)
+      open = { char: m[1][0], len: m[1].length }
+    } else {
+      chunk.push(line)
+    }
+  }
+  flush()
+  return out.join('\n')
 }
 
 function firstParagraph(content: string): string {
@@ -92,10 +105,12 @@ function firstParagraph(content: string): string {
 }
 
 function stripVue(content: string): string {
-  return content
+  return outsideFences(content, (chunk) =>
+    chunk
     .replace(/<script\b[\s\S]*?<\/script>\s*/g, '')
     .replace(/<style\b[\s\S]*?<\/style>\s*/g, '')
-    .replace(/<!--\s*docs-sync:[^>]*-->\n?/g, '')
+    .replace(/<!--\s*docs-sync:[^>]*-->\n?/g, ''),
+  )
 }
 
 export function generateLlms(siteConfig: SiteConfig, siteURL: string, base: string): void {
@@ -132,12 +147,16 @@ export function generateLlms(siteConfig: SiteConfig, siteURL: string, base: stri
     if (!fs.existsSync(file)) continue
     const { data, content } = parseFrontmatter(fs.readFileSync(file, 'utf8'))
     let body = stripVue(content).trim()
-    body = outsideFences(body, (line) =>
-      line.replace(/(\]\()([^)\s]+)(\))/g, (_, a: string, href: string, c: string) => a + toMdUrl(href, src) + c),
+    // Images are matched first and left alone: only page links are rewritten.
+    body = outsideFences(body, (chunk) =>
+      chunk.replace(
+        /(!\[[^\]]*\]\([^)\s]*\))|(\]\()([^)\s]+)(\))/g,
+        (_, img: string | undefined, a: string, href: string, c: string) => (img ? img : a + toMdUrl(href, src) + c),
+      ),
     )
     const h1 = /^#\s+(.+)$/m.exec(body)
     const title = data.title ?? (h1 ? h1[1].trim() : dest.replace(/\.md$/, ''))
-    if (!h1) body = `# ${title}\n\n${body}`
+    if (!h1) body = `# ${dest === 'index.md' ? 'kinhin' : title}\n\n${dest === 'index.md' ? `> ${siteConfig.site.description}\n\n` : ''}${body}`
     pages.set(dest, {
       dest,
       src,
@@ -166,7 +185,9 @@ export function generateLlms(siteConfig: SiteConfig, siteURL: string, base: stri
     if (route.endsWith('/')) return route + 'index.md'
     return route + '.md'
   }
-  const ordered: Page[] = []
+  // The home page is left out of the short index but opens the full text.
+  const home = pages.get('index.md')
+  const ordered: Page[] = home ? [home] : []
   const lines: string[] = ['# kinhin', '', `> ${siteConfig.site.description}`, '']
   const walk = (items: SidebarItem[], out: string[]): void => {
     for (const item of items) {
