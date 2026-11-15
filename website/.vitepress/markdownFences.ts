@@ -3,8 +3,9 @@
 /**
  * Applies `fn` to each run of lines outside fenced code blocks, leaving the fences untouched.
  * A fence closes on the same character with at least the opening length and nothing after it
- * (CommonMark), so a four-backtick block can hold a three-backtick example. Blockquote and list
- * indentation before a fence are ignored, so fences inside `>` quotes and list items count too.
+ * (CommonMark), so a four-backtick block can hold a three-backtick example. Blockquote markers, list
+ * markers and indentation before a fence are ignored, so fences inside `>` quotes and list items
+ * (including one opened on the item's own line) count too.
  */
 export function outsideFences(text: string, fn: (chunk: string) => string): string {
   const out: string[] = []
@@ -15,7 +16,7 @@ export function outsideFences(text: string, fn: (chunk: string) => string): stri
     chunk = []
   }
   for (const line of text.split('\n')) {
-    const m = /^[ \t>]*(`{3,}|~{3,})(.*)$/.exec(line)
+    const m = /^[ \t>]*(?:(?:[-*+]|\d+[.)])[ \t]+)*(`{3,}|~{3,})(.*)$/.exec(line)
     if (open) {
       out.push(line)
       if (m && m[1][0] === open.char && m[1].length >= open.len && m[2].trim() === '') open = undefined

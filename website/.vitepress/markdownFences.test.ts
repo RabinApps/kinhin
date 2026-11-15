@@ -21,6 +21,13 @@ test('fences inside blockquotes and lists are respected', () => {
   assert.equal(stripVue(listed), listed)
 })
 
+test('a fence opened on the list-item line is respected', () => {
+  const bullet = ['- ```html', '  <script>alert(1)</script>', '  ```', 'after'].join('\n')
+  assert.equal(stripVue(bullet), bullet)
+  const numbered = ['1. ```html', '   <style>a{}</style>', '   ```'].join('\n')
+  assert.equal(stripVue(numbered), numbered)
+})
+
 test('stripVue removes script/style blocks outside fences only', () => {
   const md = ['<script setup>\nconst a = 1\n</script>', '', '# T', '', '```html', '<script>x</script>', '```', '<style>a{}</style>', 'end'].join('\n')
   const out = stripVue(md)
