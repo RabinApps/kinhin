@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { docsLinks } from "./docsLinks";
+import { generateLlms } from "./llms";
 import versions from "../versions.json";
 
 // https://vitepress.dev/reference/site-config
@@ -82,6 +83,16 @@ export default defineConfig({
   // website/public instead: Vite serves it in dev, and buildEnd copies it into the output.
   buildEnd: async (siteConfig) => {
     fs.cpSync(path.join(siteRoot, "public"), siteConfig.outDir, { recursive: true });
+    // Markdown copies of every page plus llms.txt / llms-full.txt. Snapshot builds come from old tags
+    // that predate this, so only the latest docs publish them.
+    if (!docsVersion) generateLlms(siteConfig, siteURL, base);
+  },
+  // Point agents at the markdown copy of each page.
+  transformHead: ({ pageData }) => {
+    if (docsVersion || pageData.isNotFound || !pageData.relativePath.endsWith(".md")) return;
+    return [
+      ["link", { rel: "alternate", type: "text/markdown", href: `${base}${pageData.relativePath}` }],
+    ];
   },
   vite: {
     publicDir: path.join(siteRoot, "public"),
