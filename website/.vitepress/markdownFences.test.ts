@@ -28,6 +28,14 @@ test('a fence opened on the list-item line is respected', () => {
   assert.equal(stripVue(numbered), numbered)
 })
 
+test('fences nested in any mix of quotes and list items are respected', () => {
+  for (const prefix of ['- > ', '> - ', '> > ', '1. - ', '> 1. > ']) {
+    const pad = ' '.repeat(prefix.length)
+    const md = [`${prefix}\`\`\`html`, `${pad}<script>alert(1)</script>`, `${pad}\`\`\``].join('\n')
+    assert.equal(stripVue(md), md, prefix)
+  }
+})
+
 test('stripVue removes script/style blocks outside fences only', () => {
   const md = ['<script setup>\nconst a = 1\n</script>', '', '# T', '', '```html', '<script>x</script>', '```', '<style>a{}</style>', 'end'].join('\n')
   const out = stripVue(md)
