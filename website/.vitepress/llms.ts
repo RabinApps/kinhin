@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import type { SiteConfig } from 'vitepress'
 import { rewriteHref } from './docsLinks'
+import { outsideFences, stripVue } from './markdownFences.ts'
 
 /**
  * Build-time generator for the machine-readable copies of the site: a `<page>.md` next to every
@@ -50,36 +51,6 @@ function parseFrontmatter(raw: string): { data: Frontmatter; content: string } {
   return { data, content: raw.slice(match[0].length) }
 }
 
-/**
- * Applies `fn` to each run of lines outside fenced code blocks, leaving the fences untouched.
- * A fence closes on the same character with at least the opening length and nothing after it
- * (CommonMark), so a four-backtick block can hold a three-backtick example.
- */
-function outsideFences(text: string, fn: (chunk: string) => string): string {
-  const out: string[] = []
-  let chunk: string[] = []
-  let open: { char: string; len: number } | undefined
-  const flush = (): void => {
-    if (chunk.length) out.push(fn(chunk.join('\n')))
-    chunk = []
-  }
-  for (const line of text.split('\n')) {
-    const m = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line)
-    if (open) {
-      out.push(line)
-      if (m && m[1][0] === open.char && m[1].length >= open.len && m[2].trim() === '') open = undefined
-    } else if (m) {
-      flush()
-      out.push(line)
-      open = { char: m[1][0], len: m[1].length }
-    } else {
-      chunk.push(line)
-    }
-  }
-  flush()
-  return out.join('\n')
-}
-
 function firstParagraph(content: string): string {
   const lines: string[] = []
   let seenH1 = false
@@ -104,14 +75,7 @@ function firstParagraph(content: string): string {
   return lines.join(' ').replace(/\[([^\]]+)\]\([^)]*\)/g, '$1').replace(/[`*_]/g, '')
 }
 
-function stripVue(content: string): string {
-  return outsideFences(content, (chunk) =>
-    chunk
-    .replace(/<script\b[\s\S]*?<\/script>\s*/g, '')
-    .replace(/<style\b[\s\S]*?<\/style>\s*/g, '')
-    .replace(/<!--\s*docs-sync:[^>]*-->\n?/g, ''),
-  )
-}
+const rawGithub = 'https://raw.githubusercontent.com/RabinApps/kinhin/main'
 
 export function generateLlms(siteConfig: SiteConfig, siteURL: string, base: string): void {
   const origin = `${siteURL}${base}`.replace(/\/$/, '')
@@ -141,6 +105,15 @@ export function generateLlms(siteConfig: SiteConfig, siteURL: string, base: stri
     return hit ? `${origin}/${hit}${hash}` : `${origin}${pathname}${hash}`
   }
 
+  // The HTML pages get hashed Vite assets, so a relative image path means nothing next to the .md copy:
+  // point repo images at GitHub's raw files and public-folder images at the site.
+  const toImageUrl = (href: string, srcPath: string): string => {
+    if (/^([a-z]+:|#)/i.test(href)) return href
+    if (href.startsWith('/')) return `${origin}${href}`
+    const target = path.posix.normalize(path.posix.join(path.posix.dirname(srcPath), href))
+    return fs.existsSync(path.join(repoRoot, target)) ? `${rawGithub}/${target}` : href
+  }
+
   for (const dest of destSet) {
     const src = destToSrc.get(dest)!
     const file = path.join(repoRoot, src)
@@ -151,7 +124,8 @@ export function generateLlms(siteConfig: SiteConfig, siteURL: string, base: stri
     body = outsideFences(body, (chunk) =>
       chunk.replace(
         /(!\[[^\]]*\]\([^)\s]*\))|(\]\()([^)\s]+)(\))/g,
-        (_, img: string | undefined, a: string, href: string, c: string) => (img ? img : a + toMdUrl(href, src) + c),
+        (_, img: string | undefined, a: string, href: string, c: string) =>
+          img ? img.replace(/\(([^)\s]*)\)$/, (_m, h: string) => `(${toImageUrl(h, src)})`) : a + toMdUrl(href, src) + c,
       ),
     )
     const h1 = /^#\s+(.+)$/m.exec(body)
