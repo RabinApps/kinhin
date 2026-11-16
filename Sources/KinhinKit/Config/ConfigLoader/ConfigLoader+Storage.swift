@@ -78,8 +78,9 @@ extension ConfigLoader {
             throw ConfigError.invalid("\(key) must not be the root directory /")
         }
         if components.count == 2, components[0] == "Volumes" {
+            let suggestion = "/Volumes/\(components[1])/<folder>"
             throw ConfigError.invalid(
-                "\(key) must be a directory on the volume, not the volume itself; use /Volumes/\(components[1])/<folder>")
+                "\(key) must be a directory on the volume, not the volume itself; use \(suggestion)")
         }
         return "/" + components.joined(separator: "/")
     }

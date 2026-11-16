@@ -374,7 +374,8 @@ enum RunCommands {
             let config = try ConfigLoader.load()
             environment = Daemon.agentEnvironment(for: config.storage)
         } catch {
-            warn("config not read for the LaunchAgent environment (\(error.localizedDescription)); keeping its variables")
+            let why = error.localizedDescription
+            warn("config not read for the LaunchAgent environment (\(why)); keeping its variables")
         }
         try Daemon.installAgent(binaryPath: binary, environment: environment)
         let res = try await Daemon.loadAgent()

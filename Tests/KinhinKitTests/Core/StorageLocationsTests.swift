@@ -38,13 +38,14 @@ final class StorageLocationsTests: XCTestCase {
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: dir) }
         let file = dir.appendingPathComponent("config.yaml")
-        try """
-            accounts:
-              - name: github
-                forge: github
-                scope: "acme/widgets"
-            toolchain_cache_path: /Volumes/S/toolchains
-            """.write(to: file, atomically: true, encoding: .utf8)
+        let yaml = [
+            "accounts:",
+            "  - name: github",
+            "    forge: github",
+            "    scope: \"acme/widgets\"",
+            "toolchain_cache_path: /Volumes/S/toolchains",
+        ].joined(separator: "\n")
+        try yaml.write(to: file, atomically: true, encoding: .utf8)
         let cfg = try ConfigLoader.load(from: file)
         XCTAssertEqual(cfg.storage.toolchainCachePath, "/Volumes/S/toolchains")
         XCTAssertNil(StorageLocations.current.toolchainCachePath, "an imported or validated file changes nothing")
