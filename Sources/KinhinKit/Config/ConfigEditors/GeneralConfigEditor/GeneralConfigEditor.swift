@@ -40,6 +40,18 @@ public enum GeneralConfigEditor {
         case baseImage(String?)
         case reserveCPU(Int)
         case reserveMemoryGB(Int)
+        /// `reserve.disk_gb`: free disk kept back for the host.
+        case reserveDiskGB(Int)
+        /// `warm_max_age_minutes`: how long a warm VM may sit unused before it is replaced.
+        case warmMaxAgeMinutes(Int)
+        /// Top-level `image_min_idle`: idle runners kept on the default Tart image.
+        case imageMinIdle(Int)
+        /// `container.min_idle`, edited in place so the section's comments survive. Needs a `container:` section.
+        case containerMinIdle(Int)
+        /// `docker.min_idle`, edited in place. Needs a `docker:` section.
+        case dockerMinIdle(Int)
+        /// `docker.max_slots`, edited in place. Needs a `docker:` section.
+        case dockerMaxSlots(Int)
         case container(Snapshot.Container?)
         case docker(Snapshot.Docker?)
     }
@@ -71,6 +83,12 @@ public enum GeneralConfigEditor {
         case .baseImage: return .top("base_image")
         case .reserveCPU: return .under("reserve", "cpu")
         case .reserveMemoryGB: return .under("reserve", "memory_gb")
+        case .reserveDiskGB: return .under("reserve", "disk_gb")
+        case .warmMaxAgeMinutes: return .top("warm_max_age_minutes")
+        case .imageMinIdle: return .top("image_min_idle")
+        case .containerMinIdle: return .under("container", "min_idle")
+        case .dockerMinIdle: return .under("docker", "min_idle")
+        case .dockerMaxSlots: return .under("docker", "max_slots")
         case .container, .docker: return .top("unused")  // handled separately
         }
     }
@@ -82,19 +100,11 @@ public enum GeneralConfigEditor {
         switch field {
         case .labels(let list):
             return "[" + list.map { quoted($0.trimmingCharacters(in: .whitespaces)) }.joined(separator: ", ") + "]"
-        case .minRunners, .warmPool, .maxRunners, .runnersPerVM,
-            .pollInterval, .vmCPU, .vmMemoryGB,
-            .reserveCPU, .reserveMemoryGB:
-            if case .minRunners(let n) = field { return intText(n) }
-            if case .warmPool(let n) = field { return intText(n) }
-            if case .maxRunners(let n) = field { return intText(n) }
-            if case .runnersPerVM(let n) = field { return intText(n) }
-            if case .pollInterval(let n) = field { return intText(n) }
-            if case .vmCPU(let n) = field { return intText(n) }
-            if case .vmMemoryGB(let n) = field { return intText(n) }
-            if case .reserveCPU(let n) = field { return intText(n) }
-            if case .reserveMemoryGB(let n) = field { return intText(n) }
-            return "0"
+        case .minRunners(let n), .warmPool(let n), .maxRunners(let n), .runnersPerVM(let n), .pollInterval(let n),
+            .vmCPU(let n), .vmMemoryGB(let n), .reserveCPU(let n), .reserveMemoryGB(let n), .reserveDiskGB(let n),
+            .warmMaxAgeMinutes(let n), .imageMinIdle(let n), .containerMinIdle(let n), .dockerMinIdle(let n),
+            .dockerMaxSlots(let n):
+            return intText(n)
         case .vmEphemeral(let b): return boolText(b)
         case .autoResume(let b): return boolText(b)
         case .image(let s): return quoted(s)
@@ -135,6 +145,14 @@ public enum GeneralConfigEditor {
             throw ConfigEditError.yamlParse("top level must be a mapping")
         }
         let path = keyPath(for: field)
+        // A key edited inside `container:` / `docker:` never creates the section: a bare one would not be valid.
+        if let section = path.section, ["container", "docker"].contains(section),
+            !yaml.components(separatedBy: "\n").contains(where: {
+                YAMLText.isTopLevelKey($0) && $0.hasPrefix("\(section):")
+            })
+        {
+            throw ConfigEditError.unsupported("\(section) isn't enabled in config.yaml")
+        }
         let value = valueText(for: field)
         var lines = yaml.components(separatedBy: "\n")
 
