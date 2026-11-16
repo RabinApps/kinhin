@@ -146,4 +146,20 @@ final class MinIdleEngineTests: XCTestCase {
             await engine.status().records.filter { $0.image == nil && $0.phase == .ready }.count == 2
         }
     }
+
+    func testDisabledPoolsKeepNoFloorEvenAfterAReload() throws {
+        var config = makeTestConfig()
+        config.container = .init(image: "linux", cpus: 2, memoryGB: 4)
+        config.container?.pools = [
+            .init(name: "on", image: "linux", minIdle: 1),
+            .init(name: "off", image: "linux", minIdle: 1, enabled: false),
+        ]
+        config.docker = .init(image: "docker-base", minIdle: 1, enabled: false)
+        let engine = FleetEngine(
+            config: config, github: FakeGitHub(), tart: FakeTart(), store: makeTestStore(), ssh: FakeSSH(),
+            host: testHost, dependencies: .init(tokenLoader: { _, _ in "t" }, exitWatchInterval: .milliseconds(20)))
+        engine.applyReloaded(config: config, host: testHost)
+        XCTAssertEqual(
+            engine.minIdleTargets(snapshot: engine.router.snapshot), [.init(runtime: .appleContainer, pool: "on"): 1])
+    }
 }

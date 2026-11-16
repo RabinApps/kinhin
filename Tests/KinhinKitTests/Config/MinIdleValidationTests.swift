@@ -178,6 +178,47 @@ final class MinIdleValidationTests: XCTestCase {
         XCTAssertTrue(found.contains(.imageMinIdle) && found.contains(.dockerMinIdle) && found.contains(.total))
     }
 
+    // MARK: - Switched-off pools
+
+    func testADisabledPoolIsExemptFromTheFloorLimits() {
+        let cfg = config {
+            $0.maxRunners = 2
+            $0.container = .init(image: "c", cpus: 2, memoryGB: 4)
+            $0.container?.pools = [.init(name: "big", image: "c", minIdle: 5, enabled: false)]
+            $0.docker = .init(image: "d", maxSlots: 8, minIdle: 5, enabled: false)
+        }
+        XCTAssertEqual(MinIdleValidation.issues(for: cfg), [], "disabled pools keep settings without limits")
+    }
+
+    func testADisabledPoolsFloorDoesNotCountTowardTheTotal() {
+        let cfg = config {
+            $0.maxRunners = 3
+            $0.container = .init(image: "c", cpus: 2, memoryGB: 4)
+            $0.container?.pools = [
+                .init(name: "a", image: "c", minIdle: 2), .init(name: "b", image: "c", minIdle: 2, enabled: false),
+            ]
+        }
+        XCTAssertEqual(MinIdleValidation.issues(for: cfg), [])
+    }
+
+    func testASwitchedOffTartIsExemptFromTheTartFloors() {
+        let cfg = config {
+            $0.maxRunners = 2
+            $0.imageMinIdle = 5
+            $0.images = [.init(name: "a", minIdle: 5)]
+            $0.runtimes = .init(defaultRuntime: .appleContainer, tartEnabled: false)
+        }
+        XCTAssertEqual(MinIdleValidation.issues(for: cfg), [])
+    }
+
+    func testAPoolsFloorAboveItsMaxIsStillReportedWhenDisabled() {
+        let cfg = config {
+            $0.container = .init(image: "c", cpus: 2, memoryGB: 4)
+            $0.container?.pools = [.init(name: "big", image: "c", minIdle: 3, max: 2, enabled: false)]
+        }
+        XCTAssertEqual(fields(cfg), [.pool("big")], "the loader checks max against min_idle for every pool")
+    }
+
     // MARK: - The loader reports the same thing
 
     func testTheLoaderFailsWithTheFirstIssuesMessage() throws {
