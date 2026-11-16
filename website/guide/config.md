@@ -21,6 +21,7 @@
 | `provision_script`                         | Host script baked into the image by `image prepare` (your toolchains; see [Toolchains](/guide/toolchains))                                                                                                                                                                                                                                                   |
 | `projects`                                 | Per-repo rules (`pattern`, `repo_file`, `toolchains`, `share_cache`): `repo_file: true` lets a repo's `.kinhin/config.yml` (or older `.kinhin.yml`) choose its toolchains; `toolchains` declares them here instead. There is no global `toolchains:` (see [Per-project toolchains](/guide/toolchains#per-project-toolchains))                                                                |
 | `toolchain_cache`                          | Host download-cache expiry: `auto_prune`, `max_age_days` (30), `max_gb` (50). `max_project_images` (8) caps derived images                                                                                                                                                                                                                                   |
+| `tart_home` / `container_app_root` / `registry_cache_path` / `toolchain_cache_path` | Where the large trees live: Tart's home (`TART_HOME`, default `~/.tart`), Apple container's app root (`container system start --app-root`), the Docker Hub cache and the toolchain cache. Absolute paths, all optional; a missing key keeps the default. kinhin checks the volume before it starts anything there. See [Storage on another volume](#storage-on-another-volume) |
 | `reserve.cpu` / `reserve.memory_gb`        | Host headroom kept free                                                                                                                                                                                                                                                                                                                                      |
 | `reserve.disk_gb`                          | Host disk (GB) kept free (default 10)                                                                                                                                                                                                                                                                                                                        |
 | `healing`                                  | The healing agent: `enabled` (true), `auto` (`safe`, or `none` to approve every fix), `ai` (`auto` or `off`), `max_attempts` (3, 1–10). See [The healing agent](/guide/healing)                                                                                                                                                                              |
@@ -40,6 +41,42 @@ The effective concurrency cap is
 Linux container slots). The scaler re-checks free disk before every spawn and holds new VMs when
 the disk would dip below `reserve.disk_gb` plus one instance's footprint.
 `kinhin doctor` prints the result and the binding constraint.
+
+## Storage on another volume
+
+Tart VMs, Apple container's images and kernels, the Docker Hub cache and the toolchain cache are large. On a Mac whose
+internal disk is tight, move them to an external volume with four optional keys:
+
+```yaml
+tart_home: /Volumes/Storage/tart                          # TART_HOME (default ~/.tart)
+container_app_root: /Volumes/Storage/container            # container system start --app-root
+registry_cache_path: /Volumes/Storage/kinhin/registry-cache
+toolchain_cache_path: /Volumes/Storage/kinhin/toolchain-cache
+```
+
+- **Every start path uses them.** kinhin exports `TART_HOME` for every `tart` it runs and writes it into the daemon's
+  LaunchAgent (`kinhin daemon install`), and a reinstall keeps the variables the LaunchAgent already had. Every
+  `container system start` (setup, healing, image builds) passes `--app-root`, and kinhin looks for the container
+  kernel under that root. No symlinks or hand-edited LaunchAgents are needed.
+- **The volume is checked first.** Before the daemon starts, and before Tart, the container system or either cache
+  starts, kinhin checks that each configured path's volume is mounted (a path under `/Volumes/<name>` needs that
+  volume) and that the volume has ownership enabled. If not, it starts nothing and says which volume and what to do.
+  It never falls back to the internal default path. Under launchd the daemon retries, so it starts once the volume is
+  mounted.
+- **Ownership must be on.** External APFS volumes often ship with ownership ignored, and launchd then rejects the
+  container service files under the app root (`bad ownership/permissions`). Run
+  `sudo diskutil enableOwnership /Volumes/Storage`. Files copied there *before* you enabled ownership can still be
+  rejected even with the right owner and mode; copy them again afterwards. See
+  [Troubleshooting](/guide/troubleshooting).
+- **Moving existing data.** Stop the fleet (`kinhin stop`, or quit the app), stop the container system
+  (`container system stop`), enable ownership on the volume, then copy each tree to its new path (for example
+  `ditto ~/.tart /Volumes/Storage/tart`). Set the keys, then start again. Remove a leftover symlink or a hand-added
+  `TART_HOME` first, so only the config decides.
+- `kinhin config validate` rejects an empty, relative (`~/…` included), or nested path, and a path that names a file.
+  `kinhin doctor` lists each configured path, its volume and the preflight result; a path that fails makes the report
+  not ready.
+- Removing `tart_home:` later does not remove a `TART_HOME` the LaunchAgent already carries; edit
+  `~/Library/LaunchAgents/com.kinhin.daemon.plist` or reinstall after deleting it.
 
 ## Validation and defaults
 
