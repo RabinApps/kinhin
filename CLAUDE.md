@@ -21,6 +21,8 @@ exactly; do not duplicate its rules here.
 - Adding a forge: follow [docs/adding-a-forge.md](docs/adding-a-forge.md) step by step.
 - `skills/` is shipped product surface (agent skills for *using* kinhin), not contributor docs — see "Skills" in
   CONTRIBUTING.md before editing it; `scripts/skills-lint.sh` gates it.
+- Desktop app UI changes (`Sources/kinhin-app`) start in the design: update `design/kinhin-app.fig` first, then implement
+  from it and compare against it — see "Design first" in CONTRIBUTING.md.
 - Don't commit or push unless asked.
 - Never burn captions into kinhin's own videos (launch, examples, any `kinhin` adapter build): leave `captions.burn` false and
   don't pass `--captions on|all`; the `.srt` is still written. See docs/making-a-video.md.
