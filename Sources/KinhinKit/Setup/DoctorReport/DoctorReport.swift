@@ -60,14 +60,33 @@ public struct DoctorReport: Codable, Equatable, Sendable {
         public let dataDirectory: String
         /// Why its state could not be read, when it could not.
         public let problem: String?
+        /// The proxy TTL the cache container runs with (`REGISTRY_PROXY_TTL`, `0h` = never expires); nil when unknown.
+        public var ttl: String? = nil
+        /// The TTL the config asks for (`container.registry_cache_ttl_hours`); applied at the cache's next start.
+        public var wantedTTL: String? = nil
+        /// Broken entries in its data directory (links to blobs the TTL expired, empty blobs), which make pulls fail
+        /// with `unexpected EOF`; nil when the directory was not checked. The next Docker runner deletes them.
+        public var brokenEntries: Int? = nil
+        /// Up to three of them, as paths under the registry's storage root.
+        public var brokenExamples: [String]? = nil
 
-        public init(running: Bool, address: String?, dataBytes: Int64?, dataDirectory: String, problem: String?) {
+        public init(
+            running: Bool, address: String?, dataBytes: Int64?, dataDirectory: String, problem: String?,
+            ttl: String? = nil, wantedTTL: String? = nil, brokenEntries: Int? = nil, brokenExamples: [String]? = nil
+        ) {
             self.running = running
             self.address = address
             self.dataBytes = dataBytes
             self.dataDirectory = dataDirectory
             self.problem = problem
+            self.ttl = ttl
+            self.wantedTTL = wantedTTL
+            self.brokenEntries = brokenEntries
+            self.brokenExamples = brokenExamples
         }
+
+        /// No broken entries were found (or none could be looked for).
+        public var isHealthy: Bool { (brokenEntries ?? 0) == 0 }
     }
 
     /// One named container pool in the doctor's container section.

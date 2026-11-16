@@ -270,7 +270,9 @@ public struct DoctorReportBuilder: Sendable {
         var resolvedRegistryCache = registryCache
         if resolvedRegistryCache == nil, containerHealth == nil, parsed?.container?.usesDockerCache == true {
             resolvedRegistryCache = await Self.registryCacheStatus(
-                runtimeReady: resolvedContainerHealth?.isReady == true)
+                runtimeReady: resolvedContainerHealth?.isReady == true,
+                cache: DockerRegistryCache(ttlHours: parsed?.container?.effectiveRegistryCacheTTLHours
+                    ?? DockerRegistryCache.defaultTTLHours))
         }
         var resolvedInstall = containerInstall
         if resolvedInstall == nil, containerHealth == nil, wantsContainer {

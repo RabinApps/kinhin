@@ -85,7 +85,21 @@ extension DoctorReport {
             // Decimal units, like the rest of the report; `%` formats ignore the locale, so the text is stable.
             bytes >= 1_000_000_000 ? String(format: "%.1f GB", Double(bytes) / 1e9) : "\(bytes / 1_000_000) MB"
         }
-        return line + " · \(size ?? "nothing") cached in \(cache.dataDirectory)"
+        line += " · \(size ?? "nothing") cached in \(cache.dataDirectory)"
+        if let ttl = cache.ttl ?? cache.wantedTTL {
+            line += " · TTL \(ttl == "0h" ? "off (nothing expires)" : ttl)"
+            if let wanted = cache.wantedTTL, let running = cache.ttl, wanted != running {
+                line += " (config: \(wanted), applied at the cache's next start)"
+            }
+        }
+        if let broken = cache.brokenEntries, broken > 0 {
+            let examples = (cache.brokenExamples ?? []).joined(separator: ", ")
+            line += " · UNHEALTHY: \(broken) broken entr\(broken == 1 ? "y" : "ies") (pulls of them fail with "
+                + "unexpected EOF; the next Docker runner deletes them so they are fetched again): \(examples) ✗"
+        } else if cache.brokenEntries != nil {
+            line += " · entries intact ✓"
+        }
+        return line
     }
 
     /// The report as aligned "label: value" lines (no trailing newline).
