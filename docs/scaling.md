@@ -111,7 +111,10 @@ docker:                  # the Docker pool
   min_idle: 1
 ```
 
-Each key defaults to `0` (off). How the floor is kept:
+Each key defaults to `0` (off). Every one of them applies on a config reload without restarting the engine: edit a
+floor in the app or in `config.yaml`, reload, and the next scaling pass tops up (or stops topping up) to the new value,
+keeping every running instance. (Adding or removing a pool or runtime, or changing a pool's `max:`, still rebuilds the
+engine.) How the floor is kept:
 
 - **What counts.** An instance of that pool or image that is starting (clone, boot, registration) or registered and
   waiting for a job. A **busy runner does not count**: when an idle runner picks up a job, a replacement starts on the
