@@ -96,7 +96,8 @@ final class DockerRegistryCacheTTLTests: XCTestCase {
     func testAStoppedCacheWithTheSameTTLIsOnlyStarted() async throws {
         let shell = FakeShell()
         shell.responses = [
-            Self.inspected("stopped", ttl: "336h"), Self.ok, Self.inspected("running", ttl: "336h", address: "10.0.0.2"),
+            Self.inspected("stopped", ttl: "336h"), Self.ok,
+            Self.inspected("running", ttl: "336h", address: "10.0.0.2"),
         ]
         _ = try await cache(shell, ttlHours: 336).address()
         XCTAssertEqual(verbs(shell), ["inspect", "start", "inspect"])

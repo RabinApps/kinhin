@@ -83,7 +83,8 @@ actor DockerBuildCacheVolumes {
     func heldVolumes() async throws -> Set<String> {
         let result = try await shell.run([bin, "list", "--all", "--format", "json"], cwd: nil, timeout: 30)
         guard result.succeeded else {
-            throw ContainerManagerError.commandFailed(what: "container: listing containers", stderr: result.failureExcerpt)
+            throw ContainerManagerError.commandFailed(
+                what: "container: listing containers", stderr: result.failureExcerpt)
         }
         return Self.parseHeldVolumes(result.stdout)
     }
@@ -108,8 +109,10 @@ actor DockerBuildCacheVolumes {
         if try await shell.run([bin, "volume", "inspect", volume], cwd: nil, timeout: 30).succeeded { return }
         Log.info("container", "creating the Docker build cache volume \(volume) (\(Self.size), sparse)")
         let result = try await shell.run(
-            [bin, "volume", "create", "-s", Self.size, "--label", "\(Self.label)=\(pool.isEmpty ? "default" : pool)",
-             volume],
+            [
+                bin, "volume", "create", "-s", Self.size, "--label", "\(Self.label)=\(pool.isEmpty ? "default" : pool)",
+                volume,
+            ],
             cwd: nil, timeout: 120)
         guard result.succeeded || result.stderr.localizedCaseInsensitiveContains("exist") else {
             throw ContainerManagerError.commandFailed(

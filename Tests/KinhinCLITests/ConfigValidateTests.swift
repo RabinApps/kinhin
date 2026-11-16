@@ -85,7 +85,8 @@ final class ConfigValidateTests: XCTestCase {
         XCTAssertTrue(notes[0].contains("'tahoe-base'"), notes[0])
 
         try (accounts + "image: tahoe-base\n").write(to: configURL, atomically: true, encoding: .utf8)
-        XCTAssertNil(ConfigCommands.validationDocument(configURL: configURL).notes, "no key when there is nothing to say")
+        XCTAssertNil(
+            ConfigCommands.validationDocument(configURL: configURL).notes, "no key when there is nothing to say")
     }
 
     func testValidationDocumentReportsFailuresInsteadOfThrowing() throws {

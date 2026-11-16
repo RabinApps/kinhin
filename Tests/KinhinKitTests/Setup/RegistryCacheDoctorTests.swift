@@ -155,7 +155,8 @@ final class RegistryCacheDoctorTests: XCTestCase {
         var cache = running
         cache.ttl = "336h"
         cache.wantedTTL = "336h"
-        XCTAssertTrue(DoctorReport.registryCacheLine(cache).contains(" · TTL 336h"), DoctorReport.registryCacheLine(cache))
+        XCTAssertTrue(
+            DoctorReport.registryCacheLine(cache).contains(" · TTL 336h"), DoctorReport.registryCacheLine(cache))
         XCTAssertFalse(DoctorReport.registryCacheLine(cache).contains("next start"))
         cache.wantedTTL = "0h"
         let pending = DoctorReport.registryCacheLine(cache)

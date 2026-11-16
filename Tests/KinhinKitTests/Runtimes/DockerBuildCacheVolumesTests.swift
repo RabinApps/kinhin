@@ -116,10 +116,12 @@ final class DockerBuildCacheVolumesTests: XCTestCase {
             shell: shell, pool: pool(buildCache: true), buildCacheVolumes: DockerBuildCacheVolumes(shell: shell))
         try await runtime.provision(id: "kinhin-abc", route: makeRoute())
         let run = try XCTUnwrap(shell.calls.last)
-        XCTAssertEqual(Array(run.suffix(tail.count + 4).prefix(4)), [
-            "--volume", "docker-cache-kinhin-arm64-0:/var/lib/docker",
-            "--label", "kinhin.docker-build-cache=docker-cache-kinhin-arm64-0",
-        ])
+        XCTAssertEqual(
+            Array(run.suffix(tail.count + 4).prefix(4)),
+            [
+                "--volume", "docker-cache-kinhin-arm64-0:/var/lib/docker",
+                "--label", "kinhin.docker-build-cache=docker-cache-kinhin-arm64-0",
+            ])
         XCTAssertEqual(Array(run.suffix(tail.count)), tail)
     }
 

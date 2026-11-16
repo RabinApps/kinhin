@@ -104,8 +104,9 @@ enum DockerRegistryCacheStorage {
     /// proxy then asks Docker Hub for the tag again); any other link loses its `<digest>/` directory.
     static func removalTarget(forLink link: URL) -> URL {
         let parent = link.deletingLastPathComponent()
-        if parent.lastPathComponent == "current", parent.deletingLastPathComponent().deletingLastPathComponent()
-            .lastPathComponent == "tags"
+        if parent.lastPathComponent == "current",
+            parent.deletingLastPathComponent().deletingLastPathComponent()
+                .lastPathComponent == "tags"
         {
             return parent.deletingLastPathComponent()
         }
