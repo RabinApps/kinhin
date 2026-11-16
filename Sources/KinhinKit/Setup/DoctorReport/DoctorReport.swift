@@ -43,6 +43,8 @@ public struct DoctorReport: Codable, Equatable, Sendable {
         public var pools: [ContainerPoolStatus]? = nil
         /// kinhin's Docker Hub cache, when some pool uses it; nil otherwise (and in reports from before the cache).
         public var registryCache: RegistryCacheStatus? = nil
+        /// Where `container` came from, its signature and where its data lives; nil when not probed (#106).
+        public var install: AppleContainerInstall? = nil
     }
 
     /// kinhin's Docker Hub pull-through cache (`registry-cache-kinhin`). Not running is not a failure: the first

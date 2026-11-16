@@ -41,6 +41,14 @@ fixes waiting for your approval, and says what only you can do.
   LaunchAgent has no app bundle for macOS to ask about. If **System Settings → Privacy & Security → Local
   Network** lists kinhin, make sure it is on. Do not edit the privacy database or turn off the firewall to work
   around it.
+- **Apple container stops starting after `brew upgrade container`, with its data on an external volume** — macOS
+  needs **Full Disk Access** or **Removable Volumes** access before a process reads an external drive. Tart works
+  because kinhin starts `tart run` itself, so kinhin's grant covers it. The container daemons are started by launchd
+  (`container system start` registers them), so each needs its own grant, and macOS ties a grant to the code
+  signature. The Homebrew build is ad-hoc signed, so every upgrade drops the grants. `kinhin doctor` warns about this
+  on its `cont from:` row. Fix it for good with Apple's signed installer, or re-grant the binaries after each upgrade:
+  [Keeping container data on an external volume](/guide/install#keeping-container-data-on-an-external-volume). Do not
+  edit the privacy database by hand.
 - **Tart: `Error Domain=VZErrorDomain Code=-9 "The virtual machine encountered a security error."`** (with
   `Failed to create new HostKey`; `tart ip` then says `no IP address found, is your VM running?`) — the
   macOS login keychain's password often differs from your account password. Check it with

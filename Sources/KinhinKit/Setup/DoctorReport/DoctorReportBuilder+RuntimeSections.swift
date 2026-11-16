@@ -12,7 +12,8 @@ extension DoctorReportBuilder {
     /// The Docker Hub cache row (`registryCache`) is attached only when some pool uses the cache.
     static func containerSection(
         config cfg: KinhinConfig?, health: RuntimeHealth?, images: ImageInventory.RuntimeImages?,
-        host: HostResources? = nil, registryCache: DoctorReport.RegistryCacheStatus? = nil
+        host: HostResources? = nil, registryCache: DoctorReport.RegistryCacheStatus? = nil,
+        install: AppleContainerInstall? = nil
     ) -> DoctorReport.ContainerSection? {
         guard let cfg, let container = cfg.activeContainer else { return nil }
         let verdict = RuntimeSectionVerdict.from(health: health ?? .broken("container health was not probed"))
@@ -51,7 +52,7 @@ extension DoctorReportBuilder {
         }
         return DoctorReport.ContainerSection(
             state: verdict.state, ok: verdict.ok, fix: fix, image: wanted, imageFound: imageFound, pools: pools,
-            registryCache: container.usesDockerCache ? registryCache : nil
+            registryCache: container.usesDockerCache ? registryCache : nil, install: install
         )
     }
 

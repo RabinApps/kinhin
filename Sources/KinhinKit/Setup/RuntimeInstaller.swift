@@ -125,7 +125,9 @@ public enum RuntimeInstaller {
                     id: "container-brew",
                     title: "Apple container via Homebrew",
                     detail:
-                        "Linux containers as lightweight VMs (Apple silicon, recent macOS). Installs the container CLI, then starts its system service.",
+                        "Linux containers as lightweight VMs (Apple silicon, recent macOS). Installs the container CLI, then starts its system service. "
+                        + "The Homebrew build is ad-hoc signed: keeping its data on an external volume needs a fresh Full Disk "
+                        + "Access grant after every upgrade, so use Apple's signed installer for that.",
                     commands: [["brew", "install", "container"]],
                     postInstall: [["container", "system", "start", "--enable-kernel-install"]],
                     manualURL: URL(string: "https://github.com/apple/container/releases")
