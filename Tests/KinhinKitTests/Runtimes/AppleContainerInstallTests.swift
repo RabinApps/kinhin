@@ -91,10 +91,10 @@ final class AppleContainerInstallTests: XCTestCase {
     func testTheProbeAsksCodesignAboutTheResolvedBinary() async throws {
         let shell = FakeShell()
         shell.defaultResult = ShellResult(exitCode: 0, stdout: "", stderr: adhoc)
-        let probed = try await XCTUnwrap(
-            AppleContainerInstall.probe(
-                shell: shell, binary: "/opt/homebrew/Cellar/container/1.6.1/libexec/container",
-                appRoot: URL(fileURLWithPath: "/Volumes/Fast/container"), isExternal: { _ in true }))
+        let result = await AppleContainerInstall.probe(
+            shell: shell, binary: "/opt/homebrew/Cellar/container/1.6.1/libexec/container",
+            appRoot: URL(fileURLWithPath: "/Volumes/Fast/container"), isExternal: { _ in true }, read: { _ in nil })
+        let probed = try XCTUnwrap(result)
         XCTAssertEqual(probed.source, .homebrew)
         XCTAssertEqual(probed.signature, .adhoc)
         XCTAssertTrue(probed.appRootExternal)
@@ -107,12 +107,58 @@ final class AppleContainerInstallTests: XCTestCase {
         XCTAssertNil(none)
         let shell = FakeShell()
         shell.throwOnRun = true
-        let probed = try await XCTUnwrap(
-            AppleContainerInstall.probe(
-                shell: shell, binary: "/usr/local/bin/container", appRoot: URL(fileURLWithPath: "/tmp"),
-                isExternal: { _ in false }))
+        let result = await AppleContainerInstall.probe(
+            shell: shell, binary: "/usr/local/bin/container", appRoot: URL(fileURLWithPath: "/tmp"),
+            isExternal: { _ in false }, read: { _ in nil })
+        let probed = try XCTUnwrap(result)
         XCTAssertEqual(probed.signature, .unknown)
         XCTAssertNil(probed.warning)
+    }
+
+    // MARK: - Homebrew's wrapper script
+
+    func testTheWrapperScriptIsFollowedToTheBinaryItRuns() {
+        let wrapper = """
+            #!/bin/bash
+            exec "/opt/homebrew/Cellar/container/1.6.1/libexec/container" "$@"
+            """
+        XCTAssertEqual(
+            AppleContainerInstall.wrapperTarget(ofScript: wrapper),
+            "/opt/homebrew/Cellar/container/1.6.1/libexec/container")
+        XCTAssertNil(AppleContainerInstall.wrapperTarget(ofScript: "\u{CF}\u{FA}\u{ED}\u{FE} Mach-O"))
+        XCTAssertNil(AppleContainerInstall.wrapperTarget(ofScript: "#!/bin/sh\necho hi\n"))
+    }
+
+    func testTheProbeSignatureIsTheWrappedBinarysNotTheScripts() async throws {
+        let shell = FakeShell()
+        shell.scriptedResponses = [
+            ScriptedResponse(
+                whenContains: "/libexec/container", ShellResult(exitCode: 0, stdout: "", stderr: adhoc)),
+            ScriptedResponse(
+                whenContains: "/bin/container",
+                ShellResult(exitCode: 1, stdout: "", stderr: "/x/bin/container: code object is not signed at all")),
+        ]
+        let result = await AppleContainerInstall.probe(
+            shell: shell, binary: "/opt/homebrew/Cellar/container/1.6.1/bin/container",
+            appRoot: URL(fileURLWithPath: "/Volumes/Storage/container"), isExternal: { _ in true },
+            read: { path in
+                path.hasSuffix("/bin/container")
+                    ? "#!/bin/bash\nexec \"/opt/homebrew/Cellar/container/1.6.1/libexec/container\" \"$@\"\n" : nil
+            })
+        let probed = try XCTUnwrap(result)
+        XCTAssertEqual(probed.binaryPath, "/opt/homebrew/Cellar/container/1.6.1/libexec/container")
+        XCTAssertEqual(probed.signature, .adhoc)
+        XCTAssertEqual(probed.source, .homebrew)
+        XCTAssertEqual(shell.calls.first?.last, "/opt/homebrew/Cellar/container/1.6.1/libexec/container")
+    }
+
+    func testAnUnsignedBuildIsNotCalledUnsignedSigned() throws {
+        let unsigned = AppleContainerInstall(
+            binaryPath: "/x/container", source: .other, signature: .unsigned, teamID: nil,
+            appRoot: "/Volumes/Fast/container", appRootExternal: true)
+        let warning = try XCTUnwrap(unsigned.warning)
+        XCTAssertTrue(warning.hasPrefix("container is unsigned and its data"), warning)
+        XCTAssertFalse(warning.contains("unsigned signed"), warning)
     }
 
     func testAPathUnderVolumesIsExternal() {

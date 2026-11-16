@@ -67,7 +67,7 @@ public struct AppleContainerInstall: Codable, Equatable, Sendable {
     public var warning: String? {
         guard grantsBreakOnUpgrade, appRootExternal else { return nil }
         let upgrade = source == .homebrew ? "`brew upgrade container`" : "every upgrade"
-        return "container is \(signature.rawValue) signed and its data is on an external volume (\(appRoot)). "
+        return "container is \(signatureWords) and its data is on an external volume (\(appRoot)). "
             + "Its daemons run under launchd, not kinhin, so each needs its own Full Disk Access or Removable "
             + "Volumes grant, and \(upgrade) drops those grants. Install Apple's signed package instead "
             + "(\(Self.installerURL)), or re-grant after every upgrade."
@@ -76,8 +76,18 @@ public struct AppleContainerInstall: Codable, Equatable, Sendable {
     /// A softer note for ad-hoc builds whose data is still on the internal disk.
     public var note: String? {
         guard grantsBreakOnUpgrade, !appRootExternal else { return nil }
-        return "container is \(signature.rawValue) signed: if you move its data to an external volume, its daemons "
+        return "container is \(signatureWords): if you move its data to an external volume, its daemons "
             + "will need their own Full Disk Access grant after every upgrade. Apple's signed package avoids this."
+    }
+
+    /// The signature as words: "ad-hoc signed", "unsigned", "Developer ID (TEAM)", "signature unknown".
+    var signatureWords: String {
+        switch signature {
+        case .developerID: return "Developer ID\(teamID.map { " (\($0))" } ?? "")"
+        case .adhoc: return "ad-hoc signed"
+        case .unsigned: return "unsigned"
+        case .unknown: return "signature unknown"
+        }
     }
 
     /// One line for the human doctor: source, signature, and where the data lives.
@@ -88,15 +98,8 @@ public struct AppleContainerInstall: Codable, Equatable, Sendable {
         case .installer: from = "signed installer"
         case .other: from = binaryPath
         }
-        let signed: String
-        switch signature {
-        case .developerID: signed = "Developer ID\(teamID.map { " (\($0))" } ?? "")"
-        case .adhoc: signed = "ad-hoc signed"
-        case .unsigned: signed = "unsigned"
-        case .unknown: signed = "signature unknown"
-        }
         let data = appRootExternal ? "data on external volume \(appRoot)" : "data on internal disk"
-        return "\(from), \(signed), \(data)\(warning == nil ? " ✓" : " ⚠")"
+        return "\(from), \(signatureWords), \(data)\(warning == nil ? " ✓" : " ⚠")"
     }
 
     // MARK: - Classification
@@ -111,6 +114,21 @@ public struct AppleContainerInstall: Codable, Equatable, Sendable {
             return .installer
         }
         return .other
+    }
+
+    /// The executable a launcher script hands off to, from the script's text: Homebrew's formula installs
+    /// `bin/container` as a bash wrapper (`exec "<cellar>/libexec/container" "$@"`), and the wrapper itself is
+    /// unsigned, so the signature that matters is the binary it runs. nil when `contents` is not a script or names no
+    /// `exec` target.
+    static func wrapperTarget(ofScript contents: String) -> String? {
+        guard contents.hasPrefix("#!") else { return nil }
+        for line in contents.split(whereSeparator: \.isNewline) {
+            let words = line.trimmingCharacters(in: .whitespaces).split(separator: " ", omittingEmptySubsequences: true)
+            guard let index = words.firstIndex(of: "exec"), words.index(after: index) < words.endIndex else { continue }
+            let target = words[words.index(after: index)].trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
+            if target.hasPrefix("/") { return target }
+        }
+        return nil
     }
 
     /// The signature and team from `codesign -dv --verbose=2` output (which `codesign` prints on stderr).
@@ -140,10 +158,11 @@ extension AppleContainerInstall {
     public static func probe(
         shell: ShellRunning = Shell(), binary: String? = Paths.findExecutable(named: "container"),
         appRoot: URL = defaultAppRoot,
-        isExternal: @Sendable (URL) -> Bool = { AppleContainerInstall.isExternalVolume($0) }
+        isExternal: @Sendable (URL) -> Bool = { AppleContainerInstall.isExternalVolume($0) },
+        read: @Sendable (String) -> String? = { AppleContainerInstall.scriptHead(at: $0) }
     ) async -> AppleContainerInstall? {
         guard let binary else { return nil }
-        let resolved = URL(fileURLWithPath: binary).resolvingSymlinksInPath().path
+        let resolved = executable(behind: URL(fileURLWithPath: binary).resolvingSymlinksInPath().path, read: read)
         let root = appRoot.resolvingSymlinksInPath()
         let codesign: (Signature, String?)
         do {
@@ -157,6 +176,23 @@ extension AppleContainerInstall {
         return AppleContainerInstall(
             binaryPath: resolved, source: classifySource(ofResolvedPath: resolved), signature: codesign.0,
             teamID: codesign.1, appRoot: root.path, appRootExternal: isExternal(root))
+    }
+
+    /// The binary that actually runs for `path`: the `exec` target when `path` is a launcher script (followed once,
+    /// symlinks resolved), else `path` itself.
+    static func executable(behind path: String, read: (String) -> String?) -> String {
+        guard let contents = read(path), let target = wrapperTarget(ofScript: contents) else { return path }
+        return URL(fileURLWithPath: target).resolvingSymlinksInPath().path
+    }
+
+    /// The first 4 KB of a file as text, or nil when it cannot be read or is not text (a Mach-O binary).
+    public static func scriptHead(at path: String) -> String? {
+        guard let handle = FileHandle(forReadingAtPath: path) else { return nil }
+        // A close failure after reading changes nothing about what was read.
+        defer { try? handle.close() }
+        // An unreadable file is treated like a binary: there is no script to follow.
+        guard let data = try? handle.read(upToCount: 4096) else { return nil }
+        return String(data: data, encoding: .utf8)
     }
 
     /// Whether `url` lives on a volume other than the internal boot disk: under `/Volumes/`, or a volume macOS

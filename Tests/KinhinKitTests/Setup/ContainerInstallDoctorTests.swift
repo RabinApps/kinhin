@@ -31,7 +31,7 @@ final class ContainerInstallDoctorTests: XCTestCase {
         XCTAssertEqual(built.container?.install, brewExternal)
         XCTAssertTrue(built.plainText.contains("cont from:"), built.plainText)
         XCTAssertTrue(built.plainText.contains("Homebrew, ad-hoc signed, data on external volume"), built.plainText)
-        XCTAssertTrue(built.plainText.contains("⚠ container is adhoc signed"), built.plainText)
+        XCTAssertTrue(built.plainText.contains("⚠ container is ad-hoc signed"), built.plainText)
     }
 
     func testTheWarningDoesNotMakeTheContainerSectionFail() async throws {
