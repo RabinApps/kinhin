@@ -73,4 +73,55 @@ final class ReloadRestartPolicyTests: XCTestCase {
                 }),
             "projects hot-apply, they never restart")
     }
+
+    // MARK: - min_idle floors hot-reload
+
+    private func floorsConfig() -> KinhinConfig {
+        var cfg = makeTestConfig()
+        cfg.container = .init(image: "linux", cpus: 2, memoryGB: 4)
+        cfg.docker = .init(image: "docker-base")
+        return cfg
+    }
+
+    func testMinIdleOnlyChangesDoNotRequireARestart() {
+        let base = floorsConfig()
+        func with(_ mutate: (inout KinhinConfig) -> Void) -> KinhinConfig {
+            var cfg = base
+            mutate(&cfg)
+            return cfg
+        }
+        XCTAssertFalse(
+            FleetEngine.restartRequired(from: base, to: with { $0.imageMinIdle = 1 }), "image_min_idle hot-applies")
+        XCTAssertFalse(
+            FleetEngine.restartRequired(from: base, to: with { $0.container?.minIdle = 1 }),
+            "container.min_idle hot-applies")
+        XCTAssertFalse(
+            FleetEngine.restartRequired(from: base, to: with { $0.docker?.minIdle = 1 }), "docker.min_idle hot-applies")
+        XCTAssertFalse(
+            FleetEngine.restartRequired(from: base, to: with { $0.images = [.init(name: "x", minIdle: 1)] }),
+            "images[].min_idle hot-applies")
+
+        var pooled = base
+        pooled.container?.pools = [.init(name: "big", image: "linux", max: 3), .init(name: "small", image: "linux")]
+        var pooledFloors = pooled
+        pooledFloors.container?.pools[0].minIdle = 2
+        pooledFloors.container?.pools[1].minIdle = 1
+        XCTAssertFalse(
+            FleetEngine.restartRequired(from: pooled, to: pooledFloors), "container.pools.*.min_idle hot-applies")
+
+        var pooledMax = pooled
+        pooledMax.container?.pools[0].max = 4
+        XCTAssertTrue(FleetEngine.restartRequired(from: pooled, to: pooledMax), "a pool max change still restarts")
+        var pooledMaxAndFloor = pooledFloors
+        pooledMaxAndFloor.container?.pools[0].max = 4
+        XCTAssertTrue(
+            FleetEngine.restartRequired(from: pooled, to: pooledMaxAndFloor), "a floor does not mask a max change")
+        var pooledGone = pooled
+        pooledGone.container?.pools.removeLast()
+        XCTAssertTrue(FleetEngine.restartRequired(from: pooled, to: pooledGone), "pool existence still restarts")
+        XCTAssertTrue(
+            FleetEngine.restartRequired(from: base, to: with { $0.docker = nil }), "disabling a runtime still restarts")
+        XCTAssertTrue(
+            FleetEngine.restartRequired(from: base, to: with { $0.docker?.maxSlots = 9 }), "docker.max_slots restarts")
+    }
 }
