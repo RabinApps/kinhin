@@ -19,6 +19,8 @@ extension GeneralConfigEditor.Snapshot {
         /// false for `docker: { cache: false }`; nil otherwise (the cache's default, on). Written only with `docker`
         /// true, so the app's pool sheet carries it like `fleetLabels`.
         public var dockerCache: Bool?
+        /// true for `docker: { build_cache: true }`; nil otherwise (the default, off). Written only with `docker` true.
+        public var dockerBuildCache: Bool?
         public var flags: [String]?
         public var max: Int?
         public var platform: String?
@@ -29,9 +31,10 @@ extension GeneralConfigEditor.Snapshot {
             name: String, image: String? = nil, baseImage: String? = nil, cpus: Int? = nil, memoryGB: Int? = nil,
             labels: [String]? = nil, fleetLabels: Bool? = nil, minIdle: Int? = nil, docker: Bool? = nil,
             dockerCache: Bool? = nil, flags: [String]? = nil, max: Int? = nil, platform: String? = nil,
-            enabled: Bool? = nil
+            enabled: Bool? = nil, dockerBuildCache: Bool? = nil
         ) {
             self.enabled = enabled
+            self.dockerBuildCache = dockerBuildCache
             self.name = name
             self.image = image
             self.baseImage = baseImage
@@ -56,7 +59,8 @@ extension GeneralConfigEditor.Snapshot {
                     minIdle: entry.minIdle, docker: entry.docker?.enabled,
                     // `{ cache: true }` is the default spelled out: kept as nil, so a rewrite writes `docker: true`.
                     dockerCache: entry.docker?.cache == false ? false : nil, flags: entry.flags, max: entry.max,
-                    platform: entry.platform, enabled: entry.enabled)
+                    platform: entry.platform, enabled: entry.enabled,
+                    dockerBuildCache: entry.docker?.buildCache == true ? true : nil)
             }
         }
 
@@ -75,7 +79,10 @@ extension GeneralConfigEditor.Snapshot {
             if let fleetLabels { body.append("\(key)fleet_labels: \(fleetLabels)") }
             if let minIdle { body.append("\(key)min_idle: \(minIdle)") }
             if let docker {
-                let value = docker ? GeneralConfigEditor.dockerValue(cache: dockerCache ?? true) : "false"
+                let value =
+                    docker
+                    ? GeneralConfigEditor.dockerValue(cache: dockerCache ?? true, buildCache: dockerBuildCache ?? false)
+                    : "false"
                 body.append("\(key)docker: \(value)")
             }
             if let flags { body.append("\(key)flags: \(list(flags))") }

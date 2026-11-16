@@ -28,6 +28,11 @@ public struct AppleContainerRuntime: Runtime {
     /// The shared Docker Hub cache this pool's dockerd pulls through; nil = none (Docker off, `cache: false`, or a
     /// runtime built outside the engine). See `AppleContainerRuntime+DockerCache`.
     var registryCache: DockerRegistryCache?
+    /// The persistent Docker volumes this pool's runners keep their Docker state in; nil = none (Docker off, or
+    /// `build_cache` off). See `AppleContainerRuntime+BuildCache`.
+    var buildCacheVolumes: DockerBuildCacheVolumes?
+    /// The pool's name ("" for the section's unnamed pool), which names its build cache volumes.
+    var poolName = ""
     /// Binary-path override (tests); nil resolves from PATH/brew prefixes.
     let binPath: String?
     /// Existence probe for the binary (tests inject a constant; production
@@ -77,16 +82,21 @@ public struct AppleContainerRuntime: Runtime {
                 shapeNote: platform == .arm64 ? nil : platform.rawValue),
             image: image, cpus: cpus, memoryBytes: memoryBytes,
             poolRunFlags: Self.poolRunFlags(docker: docker, flags: flags), startsDocker: docker,
-            buildsThroughBuildxBuilder: platform == .amd64)
+            buildsThroughBuildxBuilder: platform == .amd64, keepsDockerState: docker && buildCacheVolumes != nil)
     }
 
-    /// The runtime for one Apple container pool: its image, shape, Docker, flags and platform, and the engine's shared
-    /// Docker Hub cache when the pool uses it.
-    init(shell: ShellRunning, pool: KinhinConfig.ContainerConfig.Pool, registryCache: DockerRegistryCache? = nil) {
+    /// The runtime for one Apple container pool: its image, shape, Docker, flags and platform, the engine's shared
+    /// Docker Hub cache when the pool uses it, and the engine's build cache volumes when the pool keeps Docker state.
+    init(
+        shell: ShellRunning, pool: KinhinConfig.ContainerConfig.Pool, registryCache: DockerRegistryCache? = nil,
+        buildCacheVolumes: DockerBuildCacheVolumes? = nil
+    ) {
         self.init(
             shell: shell, image: pool.image, cpus: pool.cpus, memoryGB: pool.memoryGB, docker: pool.docker,
             flags: pool.flags, platform: pool.platform)
         self.registryCache = pool.usesDockerCache ? registryCache : nil
+        self.buildCacheVolumes = pool.usesDockerBuildCache ? buildCacheVolumes : nil
+        self.poolName = pool.name
     }
 
     /// The `container run` flags that pick the architecture: none on native arm64 (the argv is exactly as before
@@ -124,7 +134,8 @@ public struct AppleContainerRuntime: Runtime {
     // MARK: - Lifecycle (the shared container CLI)
 
     public func provision(id: String, route: RepoRoute) async throws {
-        try await cli.provision(id: id, route: route)
+        guard let buildCacheVolumes else { return try await cli.provision(id: id, route: route) }
+        try await provisionWithBuildCache(id: id, route: route, volumes: buildCacheVolumes)
     }
 
     /// The bootstrap script (same forge scripts the Docker runtime uses —
@@ -153,6 +164,7 @@ public struct AppleContainerRuntime: Runtime {
     }
 
     public func teardown(id: String) async throws {
+        if buildCacheVolumes != nil { await stopDockerCleanly(id) }
         try await cli.teardown(id: id)
     }
 
