@@ -82,7 +82,8 @@ extension ConfigLoader {
             cfg.baseImage = baseImage
         }
         if let images = partial.images {
-            cfg.images = try Self.parseImages(images, primary: cfg.image, fleetLabels: cfg.labels)
+            cfg.images = try Self.parseImages(
+                images, primary: cfg.image, primaryIsDefault: partial.image == nil, fleetLabels: cfg.labels)
         }
         if let imageLabels = partial.imageLabels {
             cfg.imageLabels = try Self.validatedImageLabels(
