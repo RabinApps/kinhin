@@ -26,7 +26,7 @@ struct BudgetAllocationBar: View {
             HStack(spacing: Self.spacing) {
                 ForEach(segments) { segment in
                     RoundedRectangle(cornerRadius: 3)
-                        .fill(RuntimeTint.color(for: segment.id))
+                        .fill(segment.id.identity.tint)
                         .frame(width: barWidth * segment.share)
                         .overlay {
                             if segment.share >= Self.labelThreshold {

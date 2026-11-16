@@ -1,21 +1,6 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "Another change is still being saved — try again in a moment." : {
-      "comment" : "Settings → App → Alerts status when an edit is refused because one is being written"
-    },
-    "Test alert sent to %@." : {
-      "comment" : "Settings → App → Alerts status after a test succeeds; %@ is the webhook's name"
-    },
-    "disabled" : {
-      "comment" : "Routing tab pool title suffix for a switched-off pool"
-    },
-    "Enable %@ pool" : {
-      "comment" : "Routing tab: accessibility label of a pool's on/off switch; %@ is the runtime name"
-    },
-    "The default pool, or a pool a route uses, stays on." : {
-      "comment" : "Routing tab: tooltip on a pool switch that cannot be turned off"
-    },
     "\nYou can also run this in Terminal: %@" : {
       "comment" : "This Mac form: hint appended to a failed install; %@ is a shell command",
       "localizations" : {
@@ -4140,194 +4125,6 @@
         }
       }
     },
-    "🍎 Tart VMs (macOS)" : {
-      "comment" : "Routing tab pool name",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "🍎 VMs من Tart (macOS)"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "🍎 Tart-VMs (macOS)"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "🍎 VMs de Tart (macOS)"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "🍎 VM Tart (macOS)"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "🍎 Tart VMs (macOS)"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "🍎 VM Tart (macOS)"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "🍎 Tart VM (macOS)"
-          }
-        }
-      }
-    },
-    "🐧 Apple containers (Linux)" : {
-      "comment" : "Routing tab pool name",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "🐧 حاويات Apple (Linux)"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "🐧 Apple-Container (Linux)"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "🐧 Contenedores de Apple (Linux)"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "🐧 Conteneurs Apple (Linux)"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "🐧 Apple containers (Linux)"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "🐧 Container Apple (Linux)"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "🐧 Apple コンテナ (Linux)"
-          }
-        }
-      }
-    },
-    "🐳 Docker (Linux)" : {
-      "comment" : "Routing tab pool name",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "🐳 Docker (Linux)"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "🐳 Docker (Linux)"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "🐳 Docker (Linux)"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "🐳 Docker (Linux)"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "🐳 Docker (Linux)"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "🐳 Docker (Linux)"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "🐳 Docker (Linux)"
-          }
-        }
-      }
-    },
-    "🩺  Diagnostics" : {
-      "comment" : "Text in DiagnosticsView",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "🩺  التشخيص"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "🩺  Diagnose"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "🩺  Diagnóstico"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "🩺  Diagnostic"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "🩺  אבחון"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "🩺  Diagnostica"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "🩺  診断"
-          }
-        }
-      }
-    },
     "0 means VMs only start when a job is waiting." : {
       "comment" : "row in CapacityView",
       "localizations" : {
@@ -5271,53 +5068,6 @@
         }
       }
     },
-    "Advanced" : {
-      "comment" : "Main window tab title",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "متقدم"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Erweitert"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Avanzado"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Avancé"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "מתקדם"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Avanzate"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "詳細"
-          }
-        }
-      }
-    },
     "Advisor: %@" : {
       "comment" : "Diagnostics healing advisor line; %@ is the advisor's name (the on-device model)",
       "localizations" : {
@@ -5661,6 +5411,9 @@
           }
         }
       }
+    },
+    "Another change is still being saved — try again in a moment." : {
+      "comment" : "Settings → App → Alerts status when an edit is refused because one is being written"
     },
     "Apple container" : {
       "comment" : "Linux runtime option name",
@@ -8200,6 +7953,9 @@
         }
       }
     },
+    "Builds download the video image on first run." : {
+      "comment" : "Diagnostics → Tools, hint beside the Make a Video button"
+    },
     "Builds run in a container (Apple container or Docker); the first build downloads the video image." : {
       "comment" : "Text in VideosView",
       "localizations" : {
@@ -9901,53 +9657,6 @@
         }
       }
     },
-    "Close diagnostics" : {
-      "comment" : ".accessibilityLabel in DiagnosticsView",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "إغلاق التشخيص"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Diagnose schließen"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Cerrar diagnóstico"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Fermer le diagnostic"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "סגירת האבחון"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Chiudi diagnostica"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "診断を閉じる"
-          }
-        }
-      }
-    },
     "Close pipeline" : {
       "comment" : ".accessibilityLabel in PipelineView",
       "localizations" : {
@@ -10230,52 +9939,8 @@
         }
       }
     },
-    "config.yaml can't be read — %@. Fix it in Advanced → Edit YAML." : {
-      "comment" : "Form status line; %@ is the YAML parse error",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "تعذّرت قراءة config.yaml — %@. أصلحه في متقدم ← تحرير YAML."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "config.yaml kann nicht gelesen werden – %@. Behebe es unter Erweitert → YAML bearbeiten."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No se puede leer config.yaml: %@. Corrígelo en Avanzado → Editar YAML."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "config.yaml est illisible — %@. Corrigez-le dans Avancé → Modifier le YAML."
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "לא ניתן לקרוא את config.yaml — %@. תקנו אותו במתקדם ← עריכת YAML."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Impossibile leggere config.yaml — %@. Correggerlo in Avanzate → Modifica YAML."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "config.yaml を読み込めません — %@。詳細 → YAML を編集 で修正してください。"
-          }
-        }
-      }
+    "config.yaml can't be read — %@. Fix it in Runtimes → Edit YAML." : {
+      "comment" : "Form status line; %@ is the YAML parse error"
     },
     "config.yaml could not be read; see the message below." : {
       "comment" : "HintText in ToolchainsView",
@@ -10418,52 +10083,8 @@
         }
       }
     },
-    "config.yaml has a problem — %@. Use Advanced → App → Open config file." : {
-      "comment" : "Config-error status in the Capacity form and the More accounts section; %@ is the config error",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "في config.yaml مشكلة — %@. استخدم متقدم ← تطبيق ← فتح ملف الإعدادات."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "config.yaml hat ein Problem – %@. Verwende Erweitert → App → Konfigurationsdatei öffnen."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "config.yaml tiene un problema: %@. Usa Avanzado → App → Abrir archivo de configuración."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "config.yaml pose problème — %@. Utilisez Avancé → App → Ouvrir le fichier de config."
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "יש בעיה ב-config.yaml — %@. השתמשו במתקדם ← אפליקציה ← פתיחת קובץ תצורה."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "config.yaml ha un problema — %@. Usare Avanzate → App → Apri file di configurazione."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "config.yaml に問題があります — %@。詳細 → アプリ → 設定ファイルを開く を使用してください。"
-          }
-        }
-      }
+    "config.yaml has a problem — %@. Use Settings → Open config file." : {
+      "comment" : "Capacity form status; %@ is the config error"
     },
     "Connect" : {
       "comment" : "Forge card button that saves the token",
@@ -13626,6 +13247,12 @@
         }
       }
     },
+    "Diagnostics" : {
+      "comment" : "Sidebar section title"
+    },
+    "Diagnostics sections" : {
+      "comment" : "VoiceOver label of the segmented control that switches Diagnostics between Health, Logs, Benchmarks, Containers and Tools"
+    },
     "Diagnostics…" : {
       "comment" : "Button in FleetView",
       "localizations" : {
@@ -13719,6 +13346,9 @@
           }
         }
       }
+    },
+    "disabled" : {
+      "comment" : "Routing tab pool title suffix for a switched-off pool"
     },
     "Disk pressure" : {
       "comment" : "Diagnostics row title",
@@ -15039,6 +14669,9 @@
         }
       }
     },
+    "Enable %@ pool" : {
+      "comment" : "Routing tab: accessibility label of a pool's on/off switch; %@ is the runtime name"
+    },
     "Enable Auto-Resume" : {
       "comment" : "AppShortcut in KinhinShortcuts",
       "localizations" : {
@@ -15556,52 +15189,8 @@
         }
       }
     },
-    "Everything you chose is saved. You can change any of it later in the Setup tab." : {
-      "comment" : "Setup wizard step 3 subtitle",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "كل ما اخترته محفوظ. يمكنك تغيير أي منه لاحقًا في تبويب الإعداد."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Alles, was du gewählt hast, ist gespeichert. Du kannst es später im Tab „Setup“ ändern."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Todo lo que elegiste está guardado. Puedes cambiarlo más tarde en la pestaña Configuración."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tout ce que vous avez choisi est enregistré. Vous pourrez tout modifier plus tard dans l’onglet Configuration."
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "כל מה שבחרתם נשמר. אפשר לשנות כל דבר מאוחר יותר בלשונית Setup."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Quanto scelto è salvato. Si può modificare tutto più tardi nella scheda Configurazione."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "選択した内容はすべて保存されました。あとで「セットアップ」タブから変更できます。"
-          }
-        }
-      }
+    "Everything you chose is saved. You can change any of it later in Runtimes." : {
+      "comment" : "Setup wizard step 3 subtitle"
     },
     "Examples" : {
       "comment" : "CollapsibleFormCard in ToolchainsCatalogCards",
@@ -17767,6 +17356,9 @@
           }
         }
       }
+    },
+    "Health" : {
+      "comment" : "Diagnostics sub-section title"
     },
     "healthy" : {
       "comment" : "Diagnostics Tart row detail",
@@ -22001,53 +21593,6 @@
         }
       }
     },
-    "kinhin sections" : {
-      "comment" : "Picker in MainTabsView",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "أقسام kinhin"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "kinhin-Bereiche"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Secciones de kinhin"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sections de kinhin"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "חלקי kinhin"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sezioni di kinhin"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "kinhin のセクション"
-          }
-        }
-      }
-    },
     "kinhin stops starting runners for this pool, and jobs that ask for its labels wait. Its image stays on disk." : {
       "comment" : "Confirmation body for removing a container pool; keep kinhin",
       "localizations" : {
@@ -23382,6 +22927,9 @@
         }
       }
     },
+    "Launch videos built in a container" : {
+      "comment" : "Diagnostics → Tools: subtitle of the Make a video card; the product name kinhin stays verbatim"
+    },
     "Leave a field blank to use the container: section's value. Run flags take one argument per line. The pool's runners also carry the label kinhin-container-<name>; build its image with kinhin image prepare --container --pool <name>." : {
       "comment" : "Container pool sheet hint; keep container:, kinhin-container-<name> and the command verbatim",
       "localizations" : {
@@ -24090,6 +23638,9 @@
         }
       }
     },
+    "Logs" : {
+      "comment" : "Diagnostics sub-section title"
+    },
     "Logs…" : {
       "comment" : "Button in FleetView",
       "localizations" : {
@@ -24653,6 +24204,9 @@
           }
         }
       }
+    },
+    "Make a video" : {
+      "comment" : "Diagnostics → Tools: title of the card that opens the Make a Video sheet"
     },
     "Make a Video" : {
       "comment" : "Text in VideosView",
@@ -26020,6 +25574,9 @@
         }
       }
     },
+    "Needs setup" : {
+      "comment" : "Fleet state chip"
+    },
     "needs tart first" : {
       "comment" : "This Mac form: Base image row status",
       "localizations" : {
@@ -26490,52 +26047,8 @@
         }
       }
     },
-    "No config file yet — finish the Setup tab first." : {
-      "comment" : "Routing tab empty state",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "لا يوجد ملف إعدادات بعد — أنهِ تبويب الإعداد أولًا."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Noch keine Konfigurationsdatei – schließe zuerst den Tab „Setup“ ab."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Aún no hay archivo de configuración: termina primero la pestaña Configuración."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Aucun fichier de config — terminez d’abord l’onglet Configuration."
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "אין עדיין קובץ תצורה — סיימו קודם את לשונית Setup."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ancora nessun file di configurazione — completare prima la scheda Configurazione."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "設定ファイルがまだありません — 先に「セットアップ」タブを完了してください。"
-          }
-        }
-      }
+    "No config file yet — finish setup first." : {
+      "comment" : "Routing tab empty state"
     },
     "No containers." : {
       "comment" : "HintText in ContainersView",
@@ -28137,6 +27650,9 @@
           }
         }
       }
+    },
+    "Not responding" : {
+      "comment" : "Fleet state chip"
     },
     "Not saved — %@" : {
       "comment" : "Form status line; %@ is the error's description",
@@ -29974,52 +29490,11 @@
         }
       }
     },
-    "Pause or resume the fleet" : {
-      "comment" : ".accessibilityLabel in FleetView",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "إيقاف الأسطول مؤقتًا أو استئنافه"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Flotte pausieren oder fortsetzen"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pausar o reanudar la flota"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mettre la flotte en pause ou la reprendre"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "השהיה או חידוש של הצי"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Metti in pausa o riprendi la flotta"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "フリートを一時停止または再開"
-          }
-        }
-      }
+    "Pause the fleet" : {
+      "comment" : "VoiceOver label of the Pause button"
+    },
+    "Paused" : {
+      "comment" : "Fleet state chip"
     },
     "Paused. Running jobs finish, but no new VMs will start." : {
       "comment" : "Spoken reply to a pause request",
@@ -30071,52 +29546,8 @@
     "Pick at least one event type, or choose all of them." : {
       "comment" : "Alerts sheet problem when no event type is selected"
     },
-    "Pick how this Mac runs Linux jobs. You can change this later in the Setup tab." : {
-      "comment" : "Text in LinuxRuntimeSetupSheet",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "اختر كيف يشغّل هذا الـ Mac مهام Linux. يمكنك تغيير هذا لاحقًا في تبويب الإعداد."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Wähle, wie dieser Mac Linux-Jobs ausführt. Du kannst das später im Tab „Setup“ ändern."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Elige cómo ejecuta este Mac los trabajos de Linux. Puedes cambiarlo más tarde en la pestaña Configuración."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Choisissez comment ce Mac exécute les jobs Linux. Vous pourrez le modifier plus tard dans l’onglet Configuration."
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "בחרו איך ה-Mac הזה מריץ משימות Linux. אפשר לשנות זאת מאוחר יותר בלשונית Setup."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Scegliere come questo Mac esegue i job Linux. Si può cambiare più tardi nella scheda Configurazione."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "この Mac で Linux ジョブを実行する方法を選択します。あとで「セットアップ」タブから変更できます。"
-          }
-        }
-      }
+    "Pick how this Mac runs Linux jobs. You can change this later in Runtimes." : {
+      "comment" : "Linux runtime chooser sheet intro; Runtimes is the sidebar section"
     },
     "Pick the repository whose .kinhin/videos/ folder holds your videos." : {
       "comment" : "Text in VideosView",
@@ -33925,6 +33356,9 @@
         }
       }
     },
+    "Resume the fleet" : {
+      "comment" : "VoiceOver label of the Resume button"
+    },
     "Resumed." : {
       "comment" : "Spoken reply to a resume request",
       "localizations" : {
@@ -34300,6 +33734,9 @@
           }
         }
       }
+    },
+    "Run a workflow file locally before pushing" : {
+      "comment" : "Diagnostics → Tools: subtitle of the Test a workflow card"
     },
     "Run again" : {
       "comment" : "Text in WorkflowTestView",
@@ -36140,99 +35577,8 @@
         }
       }
     },
-    "Setup" : {
-      "comment" : "Main window tab title",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "الإعداد"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Setup"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Configuración"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Configuration"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Setup"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Configurazione"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "セットアップ"
-          }
-        }
-      }
-    },
-    "Setup isn't complete: connect GitHub or Gitea and choose a repository, and make sure tart is installed. Open the Setup tab to finish." : {
-      "comment" : "Alert body when Start Fleet is pressed before setup finished",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "الإعداد غير مكتمل: اتصل بـ GitHub أو Gitea واختر مستودعًا، وتأكد من تثبيت tart. افتح تبويب الإعداد للإنهاء."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Das Setup ist nicht abgeschlossen: Verbinde GitHub oder Gitea, wähle ein Repository und stelle sicher, dass tart installiert ist. Öffne zum Abschließen den Tab „Setup“."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "La configuración no está completa: conecta GitHub o Gitea, elige un repositorio y asegúrate de que tart esté instalado. Abre la pestaña Configuración para terminar."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "La configuration n’est pas terminée : connectez GitHub ou Gitea et choisissez un dépôt, puis assurez-vous que tart est installé. Ouvrez l’onglet Configuration pour terminer."
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ההגדרה לא הושלמה: חברו את GitHub או Gitea ובחרו מאגר קוד, וודאו ש-tart מותקן. פתחו את לשונית Setup כדי לסיים."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "La configurazione non è completa: connettere GitHub o Gitea e scegliere un repository, e verificare che tart sia installato. Aprire la scheda Configurazione per completare."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "セットアップが完了していません: GitHub または Gitea に接続してリポジトリを選択し、tart がインストールされていることを確認してください。「セットアップ」タブで完了してください。"
-          }
-        }
-      }
+    "Setup isn't complete: connect GitHub or Gitea and choose a repository, and make sure tart is installed. Open Setup to finish." : {
+      "comment" : "Alert body when Start Fleet is pressed before setup finished"
     },
     "Setup…" : {
       "comment" : "Menu item that opens the Setup tab",
@@ -37358,53 +36704,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "キャパシティを分割"
-          }
-        }
-      }
-    },
-    "Sponsor kinhin" : {
-      "comment" : ".help in MainTabsView",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ادعم kinhin"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "kinhin sponsern"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Patrocinar kinhin"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Soutenir kinhin"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "חסות על kinhin"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sostieni kinhin"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "kinhin を支援"
           }
         }
       }
@@ -38631,6 +37930,9 @@
         }
       }
     },
+    "Stopped" : {
+      "comment" : "Fleet state chip"
+    },
     "Stopped. No new VMs will start." : {
       "comment" : "Spoken reply to a stop request",
       "localizations" : {
@@ -39762,6 +39064,12 @@
     "Test" : {
       "comment" : "Button in AlertsCard"
     },
+    "Test a workflow" : {
+      "comment" : "Diagnostics → Tools: title of the card that opens the Test Workflow sheet"
+    },
+    "Test alert sent to %@." : {
+      "comment" : "Settings → App → Alerts status after a test succeeds; %@ is the webhook's name"
+    },
     "Test to %@ failed — %@" : {
       "comment" : "Settings → App → Alerts status; the webhook's name, then the reason"
     },
@@ -40188,52 +39496,11 @@
         }
       }
     },
-    "The default pool also keeps whatever share the others leave (Advanced → Capacity)." : {
-      "comment" : "HintText in RuntimesView",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "تحتفظ المجموعة الافتراضية أيضًا بأي حصة تتركها البقية (متقدم ← السعة)."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Der Standard-Pool behält außerdem den Anteil, den die anderen übrig lassen (Erweitert → Kapazität)."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "El pool predeterminado también conserva la parte que dejen los demás (Avanzado → Capacidad)."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Le pool par défaut conserve aussi ce que les autres laissent (Avancé → Capacité)."
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ה-pool של ברירת המחדל שומר גם את מה שהאחרים משאירים (מתקדם ← קיבולת)."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Il pool predefinito mantiene anche la quota che gli altri lasciano (Avanzate → Capacità)."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "デフォルトのプールは、ほかのプールが使わない分の配分も保持します (詳細 → キャパシティ)。"
-          }
-        }
-      }
+    "The default pool also keeps whatever share the others leave (Runtimes → Capacity)." : {
+      "comment" : "Hint under the default-pool card; Runtimes → Capacity names the sidebar section and its capacity cards"
+    },
+    "The default pool, or a pool a route uses, stays on." : {
+      "comment" : "Routing tab: tooltip on a pool switch that cannot be turned off"
     },
     "The expo stack needs Node, so node is in specs." : {
       "comment" : "Toolchain example note; names like node, pnpm and java stay verbatim",
@@ -40329,52 +39596,8 @@
         }
       }
     },
-    "The fleet didn't start at launch: %@. Start it from the menu or the Fleet tab." : {
-      "comment" : "Status line when auto-start at launch fails; %@ is the reason",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "لم يبدأ الأسطول عند التشغيل: %@. ابدأه من القائمة أو من تبويب الأسطول."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Die Flotte wurde beim Start nicht gestartet: %@. Starte sie über das Menü oder den Tab „Flotte“."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "La flota no se inició al abrir la app: %@. Inícialo desde el menú o la pestaña Flota."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "La flotte n’a pas démarré au lancement : %@. Démarrez-la depuis le menu ou l’onglet Flotte."
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "הצי לא הופעל בעת הפתיחה: %@. הפעילו אותו מהתפריט או מלשונית Fleet."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "La flotta non si è avviata all'apertura: %@. Avviarla dal menu o dalla scheda Flotta."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "フリートは起動時に開始されませんでした: %@。メニューまたは「フリート」タブから開始してください。"
-          }
-        }
-      }
+    "The fleet didn't start at launch: %@. Start it from the menu or the Fleet screen." : {
+      "comment" : "Status line when auto-start at launch fails; %@ is the reason"
     },
     "The fleet engine couldn't be created: %@. The fleet can't run until this is fixed and kinhin is reopened." : {
       "comment" : "Status line when the app can't build its fleet engine; %@ is the reason",
@@ -41419,52 +40642,8 @@
         }
       }
     },
-    "The runtime list hasn't loaded yet. If this keeps happening, check that config.yaml exists and is valid (Advanced → App → Open config file)." : {
-      "comment" : "Alert body",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "لم تُحمَّل قائمة بيئات التشغيل بعد. إذا تكرر هذا، تأكد من وجود config.yaml وصلاحيته (متقدم ← تطبيق ← فتح ملف الإعدادات)."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Die Runtime-Liste wurde noch nicht geladen. Wenn das weiter auftritt, prüfe, ob config.yaml existiert und gültig ist (Erweitert → App → Konfigurationsdatei öffnen)."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "La lista de entornos de ejecución aún no se ha cargado. Si esto sigue ocurriendo, comprueba que config.yaml exista y sea válido (Avanzado → App → Abrir archivo de configuración)."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "La liste des runtimes n’est pas encore chargée. Si cela persiste, vérifiez que config.yaml existe et est valide (Avancé → App → Ouvrir le fichier de config)."
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "רשימת הסביבות עדיין לא נטענה. אם זה ממשיך לקרות, ודאו ש-config.yaml קיים ותקין (מתקדם ← אפליקציה ← פתיחת קובץ תצורה)."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "L'elenco dei runtime non è ancora stato caricato. Se il problema persiste, verificare che config.yaml esista e sia valido (Avanzate → App → Apri file di configurazione)."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ランタイムの一覧がまだ読み込まれていません。この状態が続く場合は、config.yaml が存在し有効であることを確認してください (詳細 → アプリ → 設定ファイルを開く)。"
-          }
-        }
-      }
+    "The runtime list hasn't loaded yet. If this keeps happening, check that config.yaml exists and is valid (Settings → Open config file)." : {
+      "comment" : "Alert body"
     },
     "The start is in progress — check the fleet status in a moment." : {
       "comment" : "Spoken reply to a start request",
@@ -43207,6 +42386,12 @@
           }
         }
       }
+    },
+    "Update available" : {
+      "comment" : "Sidebar badge shown when a newer kinhin release was found"
+    },
+    "Update available — kinhin %@" : {
+      "comment" : "Tooltip and VoiceOver label of the sidebar update badge; %@ is the new version"
     },
     "Update available — kinhin %@ (you have %@)." : {
       "comment" : "Settings → App update status; the new version, then the installed one",

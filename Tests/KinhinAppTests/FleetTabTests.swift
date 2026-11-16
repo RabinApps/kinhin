@@ -272,13 +272,13 @@ final class FleetTabTests: MainWindowTestCase {
     }
 
     func testUpdateCardButtonChecksWhenNothingIsWaiting() {
-        tabs.showAdvanced(.app)
+        tabs.select(.settings)
         XCTAssertEqual(models.appModel.updateButtonTitle, "Check for Updates…")
         XCTAssertTrue(models.appModel.updateButtonEnabled)
     }
 
     func testUpdateCardRendersEachState() {
-        tabs.showAdvanced(.app)
+        tabs.select(.settings)
         let model = models.appModel
         updates.updateCardState = .checking
         XCTAssertFalse(model.updateButtonEnabled)
@@ -297,7 +297,7 @@ final class FleetTabTests: MainWindowTestCase {
     }
 
     func testAppSectionShowsStaleDaemonNotice() {
-        tabs.showAdvanced(.app)
+        tabs.select(.settings)
         models.appModel.fleetController = fleet
         fleet.staleDaemonPlist =
             "the daemon LaunchAgent is installed but its binary is missing — run `kinhin daemon uninstall` to remove it"
@@ -306,7 +306,7 @@ final class FleetTabTests: MainWindowTestCase {
     }
 
     func testAppSectionHidesDaemonNoticeWhenPlistIsClean() {
-        tabs.showAdvanced(.app)
+        tabs.select(.settings)
         models.appModel.fleetController = fleet
         fleet.staleDaemonPlist = nil
         XCTAssertNil(models.appModel.daemonNotice, "App section hides the notice when there is no stale plist")
@@ -322,9 +322,11 @@ final class FleetTabTests: MainWindowTestCase {
         XCTAssertTrue(models.fleetModel.running, "running shows Stop and Pause")
     }
 
-    func testLogsButtonPresentsTheSearchableViewer() throws {
+    func testLogsButtonOpensTheSearchableViewer() throws {
         models.fleetModel.onShowLogs()
-        XCTAssertEqual(tabs.sheet, .logs, "the Logs… button presents the sheet")
+        XCTAssertEqual(tabs.selectedSection, .diagnostics, "the Logs… button opens Diagnostics")
+        XCTAssertEqual(tabs.diagnosticsPane, .logs, "on its Logs pane")
+        XCTAssertNil(tabs.sheet, "inline, not a sheet")
         let model = try XCTUnwrap(models.logsModel, "the Logs… button creates the viewer")
         // The viewer is SwiftUI-hosted; its state lives in the model.
         XCTAssertEqual(model.query, "", "the search starts empty")
@@ -333,9 +335,6 @@ final class FleetTabTests: MainWindowTestCase {
         // "1 line" or "N lines", depending on what earlier tests logged.
         let status = model.statusText
         XCTAssertTrue(status.hasSuffix(" line") || status.hasSuffix(" lines"), "a line count is shown")
-
-        tabs.dismissSheet()
-        XCTAssertNil(tabs.sheet)
     }
 
     func testDeleteButtonConfirmsThenDeletesTheVM() async {

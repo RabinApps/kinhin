@@ -1,16 +1,27 @@
 import KinhinKit
 import SwiftUI
 
-/// Semantic colors for one-line status text.
+/// The four status styles of the design. Never color alone: every use pairs the color with its text (or an icon).
 enum StatusStyle {
     case secondary, ok, warn, error
 
+    /// The color of status *text*: the AA-safe variants of the design.
     var color: Color {
         switch self {
-        case .secondary: return Color(nsColor: .secondaryLabelColor)
-        case .ok: return Color(nsColor: .systemGreen)
-        case .warn: return Color(nsColor: .systemOrange)
-        case .error: return Color(nsColor: .systemRed)
+        case .secondary: return Palette.secondaryText
+        case .ok: return Palette.greenText
+        case .warn: return Palette.orangeText
+        case .error: return Palette.redText
+        }
+    }
+
+    /// The system color for a dot, bar or tinted background that accompanies the text.
+    var fill: Color {
+        switch self {
+        case .secondary: return Palette.secondaryText
+        case .ok: return Palette.green
+        case .warn: return Palette.orange
+        case .error: return Palette.red
         }
     }
 }
@@ -33,7 +44,7 @@ struct StatusLine: Equatable {
     static func unreadableConfig(_ error: Error) -> StatusLine {
         StatusLine(
             text: String(
-                localized: "config.yaml can't be read — \(error.localizedDescription). Fix it in Advanced → Edit YAML.",
+                localized: "config.yaml can't be read — \(error.localizedDescription). Fix it in Runtimes → Edit YAML.",
                 bundle: .l10n, comment: "Form status line; %@ is the YAML parse error"),
             style: .error)
     }
@@ -59,7 +70,7 @@ struct StatusText: View {
 
     var body: some View {
         text
-            .font(.system(size: 11))
+            .typeStyle(.caption)
             .foregroundStyle(style.color)
             .fixedSize(horizontal: false, vertical: true)
     }
@@ -78,7 +89,7 @@ struct HintText: View {
 
     var body: some View {
         text
-            .font(.system(size: 11))
+            .typeStyle(.caption)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
     }
@@ -93,7 +104,7 @@ struct SectionHeader: View {
     var body: some View {
         Text(key)
             .textCase(.uppercase)
-            .font(.system(size: 11, weight: .semibold))
+            .font(.callout.weight(.semibold))
             .foregroundStyle(.tertiary)
     }
 }

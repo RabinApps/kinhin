@@ -119,11 +119,11 @@ struct FleetDiagramModel {
         // container, docker, host); records keep their status order inside a
         // lane, so the rows read exactly like the old VM list did.
         lanes = RuntimeID.allCases.filter(configured.contains).map { id in
-            let name = Self.identity(id)
+            let identity = id.identity
             return Lane(
                 id: id,
-                mark: name.mark,
-                title: name.title,
+                mark: identity.mark,
+                title: identity.title,
                 cap: caps[id],
                 instances: (grouped[id] ?? []).map(Self.instance)
             )
@@ -137,36 +137,6 @@ struct FleetDiagramModel {
     /// here, so the row and the pipeline sheet agree.
     static func opensPipeline(_ record: VMRecord) -> Bool {
         record.phase == .busy || record.job != nil
-    }
-
-    /// The identity mark and title, matching the Routing pane and the CLI
-    /// (🍎 Tart VMs, 🐧 Apple containers, 🐳 Docker, 🖥 Host).
-    private static func identity(_ id: RuntimeID) -> (mark: String, title: String) {
-        switch id {
-        case .tart:
-            return (
-                "🍎",
-                String(localized: "Tart VMs (macOS)", bundle: .l10n, comment: "Runtime lane name; Tart runs macOS VMs")
-            )
-        case .appleContainer:
-            return (
-                "🐧",
-                String(
-                    localized: "Apple containers (Linux)", bundle: .l10n,
-                    comment: "Runtime lane name; Apple containers run Linux")
-            )
-        case .docker:
-            return (
-                "🐳", String(localized: "Docker (Linux)", bundle: .l10n, comment: "Runtime lane name; Docker runs Linux")
-            )
-        case .host:
-            return (
-                "🖥",
-                String(
-                    localized: "Host (this Mac)", bundle: .l10n,
-                    comment: "Runtime lane name; jobs run directly on this Mac")
-            )
-        }
     }
 
     /// One record reduced to an icon-led row: the phase-colored icon, the

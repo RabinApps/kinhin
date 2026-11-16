@@ -2,20 +2,14 @@ import KinhinKit
 import Observation
 import SwiftUI
 
-/// The Diagnostics sheet content: header, one card per check, the healing
-/// card, Close.
+/// The Diagnostics section's Health pane: the report's status line, one card per
+/// check, and the healing card. It fills the pane and scrolls on its own.
 struct DiagnosticsView: View {
-    static let size = CGSize(width: 560, height: 520)
-
     let model: DiagnosticsModel
-    let onClose: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("🩺  Diagnostics").font(.system(size: 18, weight: .bold))
-                StatusText(verbatim: model.status)
-            }
+            StatusText(verbatim: model.status)
             ScrollView {
                 VStack(spacing: 8) {
                     ForEach(model.rows) { row in
@@ -30,17 +24,8 @@ struct DiagnosticsView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            HStack {
-                Spacer()
-                Button("Close", action: onClose)
-                    .keyboardShortcut(.defaultAction)
-                    .accessibilityLabel("Close diagnostics")
-            }
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 16)
-        .padding(.bottom, 14)
-        .frame(width: Self.size.width, height: Self.size.height, alignment: .topLeading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 }
 

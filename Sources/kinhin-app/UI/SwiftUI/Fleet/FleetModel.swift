@@ -81,7 +81,12 @@ final class FleetModel {
     /// Intent): its button shows a progress indicator and the fleet controls
     /// disable until the command and its status refresh complete.
     var pendingAction: FleetAction? { controller.pendingFleetAction }
-    var isBusy: Bool { pendingAction != nil }
+    var isBusy: Bool { controls.isBusy }
+
+    /// Start / Stop / Pause / Resume: visibility, titles and busy-disable, shared with the status-bar menu.
+    var controls: FleetControls { controller.controls }
+    /// The state chip, counters and problem lines, shared with the status-bar menu.
+    var presenter: FleetStatusPresenter { controller.statusPresenter }
 
     var statusLine: String { controller.statusLine }
     /// The runtime/instance diagram at the top of the tab, derived from the
@@ -116,23 +121,13 @@ final class FleetModel {
             localized: "Auto-resume is on — the fleet releases itself when the queue is empty.", bundle: .l10n,
             comment: "Fleet tab note shown while paused with auto-resume on")
     }
-    var pauseTitle: String {
-        paused
-            ? String(localized: "Resume", bundle: .l10n, comment: "Fleet tab button that resumes a paused fleet")
-            : String(localized: "Pause", bundle: .l10n, comment: "Fleet tab button that pauses the fleet")
-    }
+    var pauseTitle: String { controls.title(.pauseResume) }
     var records: [VMRecord] { status?.records ?? [] }
 
     /// Any app-side failure (launch, config push) and any stale-daemon
     /// LaunchAgent warning, rendered as a compact footer under the Fleet
     /// tab's status line with distinct styling.
-    var fleetStatusFooter: [StatusLine] {
-        var lines = controller.problemLines.map { StatusLine(text: $0, style: .error) }
-        if let stale = controller.staleDaemonPlist {
-            lines.append(StatusLine(text: stale, style: .warn))
-        }
-        return lines
-    }
+    var fleetStatusFooter: [StatusLine] { presenter.banners }
 
     /// A short, at-a-glance fleet mode label for the Fleet tab header badge.
     /// Nil when no backend is attached (setup unfinished, or before the first poll).

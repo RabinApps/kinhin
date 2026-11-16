@@ -238,31 +238,24 @@ final class FleetController {
         }
     }
 
-    /// The status line shared by the menu and the Fleet tab.
-    var statusLine: String {
-        let base: String
-        if let status {
-            base = FleetStatusFormatter.summary(status)
-        } else if service == nil {
-            base = FleetStatusFormatter.summary(nil)
-        }  // setup unfinished
-        else if let unreachableReason {
-            base = String(
-                localized: "Fleet not responding — \(unreachableReason)", bundle: .l10n,
-                comment: "Status line when the fleet can't be reached; %@ is the reason")
-        } else {
-            base = String(
-                localized: "Checking the fleet…", bundle: .l10n, comment: "Status line while the first poll is pending")
-        }
-        var line = base
-        if let mode = fleetMode {
-            line += "\n  \(mode)"
-        }
-        if let stale = staleDaemonPlist {
-            line += "\n  ⚠ \(stale)"
-        }
-        return line
+    /// The status text assembled for a snapshot: the Fleet screen and the status-bar menu both render this one
+    /// presenter. `status` and `pending` are parameters so a caller can render a state other than the current one.
+    func statusPresenter(status: FleetStatus?, pending: FleetAction?) -> FleetStatusPresenter {
+        FleetStatusPresenter(
+            .init(
+                status: status, hasService: service != nil, unreachableReason: unreachableReason, mode: fleetMode,
+                staleDaemon: staleDaemonPlist, problems: problemLines, pending: pending))
     }
+
+    /// The presenter for the current status and in-flight command.
+    var statusPresenter: FleetStatusPresenter { statusPresenter(status: status, pending: pendingFleetAction) }
+
+    /// The Start / Stop / Pause / Resume controls for the current status and in-flight command.
+    var controls: FleetControls { FleetControls(status: status, pending: pendingFleetAction) }
+
+    /// The state text shared by the menu and the Fleet screen: counters, detail lines, engine mode, stale-daemon
+    /// warning (no in-flight word and no app-side problems; the presenter's `menuText` adds those).
+    var statusLine: String { statusPresenter(status: status, pending: nil).stateText }
 
     // MARK: - Actions
 

@@ -4,6 +4,13 @@
 
 <!-- changelog: entries for the next release go here -->
 
+**Changed**
+
+- The app's window is one sidebar (Fleet, Runtimes, Accounts, Toolchains, Diagnostics, Settings) instead of Fleet and
+  Advanced tabs. Logs, Diagnostics, Benchmarks and Containers are panes of Diagnostics, and **Support kinhin** moved to the
+  sidebar footer. The menu bar's **Settings…** now opens Settings, and **Open Logs** opens Diagnostics → Logs. See
+  [the app](docs/app.md).
+
 **Added**
 
 - Pools have an on/off switch. `enabled: false` on `container:`, a `container.pools` entry or `docker:`, and

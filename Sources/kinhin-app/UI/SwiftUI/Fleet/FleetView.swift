@@ -115,43 +115,33 @@ struct FleetView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
-    /// Only the actions that apply: Start when stopped; Stop and Pause/Resume
-    /// when running. While a start/stop is in flight its button shows
-    /// progress and every fleet control disables.
+    /// Only the actions that apply (`FleetControls`): Start when stopped; Stop and Pause/Resume when running. While a
+    /// start/stop is in flight its button shows progress and every fleet control disables.
     private var controls: some View {
-        HStack(spacing: 8) {
-            if model.running {
-                if model.pendingAction == .stop {
-                    Button {
-                    } label: {
-                        HStack(spacing: 4) {
-                            ProgressView().controlSize(.small).accessibilityLabel("Working")
-                            Text("Stop")
-                        }
-                    }
-                    .accessibilityLabel("Stopping the fleet")
-                } else {
-                    Button("Stop") { model.stopClicked() }
-                        .accessibilityLabel("Stop the fleet")
+        let controls = model.controls
+        return HStack(spacing: Spacing.sm) {
+            if controls.isVisible(.stop) { controlButton(.stop, controls) { model.stopClicked() } }
+            if controls.isVisible(.pauseResume) { controlButton(.pauseResume, controls) { model.togglePause() } }
+            if controls.isVisible(.start) { controlButton(.start, controls, prominent: true) { model.startClicked() } }
+        }
+    }
+
+    private func controlButton(
+        _ control: FleetControls.Control, _ controls: FleetControls, prominent: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
+        let button = Button(action: action) {
+            HStack(spacing: Spacing.xs) {
+                if controls.showsProgress(control) {
+                    ProgressView().controlSize(.small).accessibilityLabel("Working")
                 }
-                Button(model.pauseTitle) { model.togglePause() }
-                    .accessibilityLabel("Pause or resume the fleet")
-                    .disabled(model.isBusy)
-            } else if model.pendingAction == .start {
-                Button {
-                } label: {
-                    HStack(spacing: 4) {
-                        ProgressView().controlSize(.small).accessibilityLabel("Working")
-                        Text("Start")
-                    }
-                }
-                .buttonStyle(.borderedProminent)
-                .accessibilityLabel("Starting the fleet")
-            } else {
-                Button("Start") { model.startClicked() }
-                    .buttonStyle(.borderedProminent)
-                    .accessibilityLabel("Start the fleet")
+                Text(verbatim: controls.title(control))
             }
+        }
+        .disabled(!controls.isEnabled(control))
+        .accessibilityLabel(controls.accessibilityLabel(control))
+        return Group {
+            if prominent { button.buttonStyle(.borderedProminent) } else { button }
         }
     }
 
@@ -219,30 +209,9 @@ struct FleetView: View {
     /// Dismissing hides it for the session; it returns only with a new
     /// pressure episode (or a relaunch).
     private func diskPressureBanner(_ notice: String) -> some View {
-        HStack(alignment: .top, spacing: 8) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 11))
-                .foregroundStyle(StatusStyle.warn.color)
-                .accessibilityLabel("Warning")
-            Text(notice)
-                .font(.system(size: 11))
-                .foregroundStyle(StatusStyle.warn.color)
-                .fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: 8)
-            Button("Dismiss") { model.dismissDiskPressureNotice() }
-                .controlSize(.small)
-                .accessibilityLabel("Dismiss the disk pressure warning")
-        }
-        .padding(8)
-        .background(
-            RoundedRectangle(cornerRadius: 6)
-                .fill(StatusStyle.warn.color.opacity(0.12))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 6)
-                .strokeBorder(StatusStyle.warn.color.opacity(0.5), lineWidth: 1)
-        )
-        .accessibilityIdentifier("disk-pressure-banner")
+        Banner(verbatim: notice, kind: .warn)
+            .action("Dismiss", label: "Dismiss the disk pressure warning") { model.dismissDiskPressureNotice() }
+            .accessibilityIdentifier("disk-pressure-banner")
     }
 
     private func secondary(_ text: Text, mono: Bool = false) -> some View {

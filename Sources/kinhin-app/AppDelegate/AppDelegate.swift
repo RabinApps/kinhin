@@ -276,7 +276,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 .launch,
                 String(
                     localized:
-                        "The fleet didn't start at launch: \(error.localizedDescription). Start it from the menu or the Fleet tab.",
+                        "The fleet didn't start at launch: \(error.localizedDescription). Start it from the menu or the Fleet screen.",
                     bundle: .l10n, comment: "Status line when auto-start at launch fails; %@ is the reason"))
         }
     }

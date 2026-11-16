@@ -68,7 +68,7 @@ final class CapacityModel: ConfigFormModel {
                 text:
                     String(
                         localized:
-                            "config.yaml has a problem — \(error.localizedDescription). Use Advanced → App → Open config file.",
+                            "config.yaml has a problem — \(error.localizedDescription). Use Settings → Open config file.",
                         bundle: .l10n, comment: "Capacity form status; %@ is the config error"),
                 style: .error)
         }

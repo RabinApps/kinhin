@@ -39,7 +39,7 @@ struct LinuxRuntimeSetupSheet: View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Choose a Linux runtime")
                 .font(.system(size: 22, weight: .bold))
-            Text("Pick how this Mac runs Linux jobs. You can change this later in the Setup tab.")
+            Text("Pick how this Mac runs Linux jobs. You can change this later in Runtimes.")
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
                 .lineLimit(2)

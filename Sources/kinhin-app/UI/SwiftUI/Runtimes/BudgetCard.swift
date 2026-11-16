@@ -61,7 +61,7 @@ struct BudgetCard: View {
     private func shareRow(_ row: RuntimesModel.BudgetRow) -> some View {
         HStack(spacing: 8) {
             Circle()
-                .fill(RuntimeTint.color(for: row.id))
+                .fill(row.id.identity.tint)
                 .frame(width: 7, height: 7)
             Text(row.id.rawValue)
                 .font(.system(size: 12))

@@ -139,7 +139,7 @@ final class RuntimesModel: ConfigFormModel {
         guard FileManager.default.fileExists(atPath: configURL.path) else {
             loadFailed = true
             emptyMessage = String(
-                localized: "No config file yet — finish the Setup tab first.", bundle: .l10n,
+                localized: "No config file yet — finish setup first.", bundle: .l10n,
                 comment: "Routing tab empty state")
             return
         }
@@ -202,7 +202,7 @@ final class RuntimesModel: ConfigFormModel {
             + vm.disabledPools.map { runtime in
                 PoolDisplay(
                     id: runtime.rawValue,
-                    title: Self.poolName(runtime) + " — "
+                    title: runtime.identity.markedTitle + " — "
                         + String(
                             localized: "disabled", bundle: .l10n,
                             comment: "Routing tab pool title suffix for a switched-off pool"),
@@ -210,27 +210,10 @@ final class RuntimesModel: ConfigFormModel {
             }
     }
 
-    static func poolName(_ runtime: RuntimeID) -> String {
-        switch runtime {
-        case .tart: return String(localized: "🍎 Tart VMs (macOS)", bundle: .l10n, comment: "Routing tab pool name")
-        case .appleContainer:
-            return String(localized: "🐧 Apple containers (Linux)", bundle: .l10n, comment: "Routing tab pool name")
-        case .docker: return String(localized: "🐳 Docker (Linux)", bundle: .l10n, comment: "Routing tab pool name")
-        case .host: return String(localized: "Host (this Mac)", bundle: .l10n, comment: "Routing tab pool name")
-        }
-    }
-
     private var enabledPoolRows: [PoolDisplay] {
         guard let vm = viewModel else { return [] }
         return vm.pools.map { pool in
-            let name: String
-            switch pool.runtime {
-            case .tart: name = String(localized: "🍎 Tart VMs (macOS)", bundle: .l10n, comment: "Routing tab pool name")
-            case .appleContainer:
-                name = String(localized: "🐧 Apple containers (Linux)", bundle: .l10n, comment: "Routing tab pool name")
-            case .docker: name = String(localized: "🐳 Docker (Linux)", bundle: .l10n, comment: "Routing tab pool name")
-            case .host: name = String(localized: "Host (this Mac)", bundle: .l10n, comment: "Routing tab pool name")
-            }
+            let name = pool.runtime.identity.markedTitle
             let capText =
                 pool.cap.map { cap in
                     String(

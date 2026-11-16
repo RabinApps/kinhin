@@ -48,11 +48,14 @@ struct L10nSourceScanner {
         ".navigationTitle", ".alert", ".confirmationDialog",
         // this app's own helpers that forward a LocalizedStringKey
         "statusRow", "chipRow", "row", "runtimeRow",
+        // the design system's components (UI/SwiftUI/DesignSystem)
+        "Chip", "Banner", "StepperRow", "SheetConfirmFooter", ".action",
     ]
 
     /// `callee` → labels whose argument is localized.
     static let labeledArguments: [String: Set<String>] = [
         "FormCard": ["title", "subtitle"], "CollapsibleFormCard": ["title", "subtitle"],
+        "Card": ["title", "subtitle"], "SheetScaffold": ["title"], ".action": ["label"],
         "StatusText": ["text"], "Parameter": ["title"], "row": ["help"],
         "AppShortcut": ["shortTitle"], "TypeDisplayRepresentation": ["name"],
         "statusRow": ["title", "text"], "chipRow": ["label"],
@@ -62,7 +65,7 @@ struct L10nSourceScanner {
     static let technicalCallees: Set<String> = [
         ".info", ".warn", ".error", ".debug", "fatalError", "preconditionFailure", "assertionFailure",
         "NSUserInterfaceItemIdentifier", "Selector", ".accessibilityIdentifier", "URL", "Image", "NSImage",
-        "UserDefaults", "Bundle", ".id", "print", "XCTAssert",
+        "UserDefaults", "Bundle", ".id", "print", "XCTAssert", "Preview", "#Preview",
     ]
 
     /// Labels whose value is never user-facing.

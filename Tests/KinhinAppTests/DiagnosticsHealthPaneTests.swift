@@ -5,16 +5,16 @@ import XCTest
 @testable import KinhinKit
 @testable import kinhin_app
 
-/// The Diagnostics sheet hosted by the main window.
+/// The Health pane of the Diagnostics section.
 @MainActor
-final class DiagnosticsSheetTests: MainWindowTestCase {
-    // MARK: - Diagnostics sheet
+final class DiagnosticsHealthPaneTests: MainWindowTestCase {
+    // MARK: - Health pane
 
-    /// Presents the diagnostics sheet the way the Fleet tab's button does,
+    /// Opens Diagnostics the way the Fleet screen's button does,
     /// but with a fixture report — never the live doctor probe, which would
     /// subprocess-spam the host. Returns once the load has rendered.
     @discardableResult
-    private func presentDiagnosticsSheet(withFixture fixture: Data) async throws -> (DiagnosticsModel, probes: Int) {
+    private func openDiagnostics(withFixture fixture: Data) async throws -> (DiagnosticsModel, probes: Int) {
         let model = models.ensureDiagnosticsModel()
         let report = try JSONDecoder().decode(DoctorReport.self, from: fixture)
         var probes = 0
@@ -48,10 +48,13 @@ final class DiagnosticsSheetTests: MainWindowTestCase {
         """.data(using: .utf8)!
     }
 
-    func testDiagnosticsButtonPresentsTheSheetAndRendersTheReport() async throws {
-        let (model, probes) = try await presentDiagnosticsSheet(withFixture: doctorFixture())
-        XCTAssertEqual(tabs.sheet, .diagnostics, "presented as a sheet on the main window")
-        XCTAssertEqual(probes, 1, "presenting probes once")
+    func testDiagnosticsButtonOpensTheHealthPaneAndRendersTheReport() async throws {
+        let (model, probes) = try await openDiagnostics(withFixture: doctorFixture())
+        XCTAssertEqual(
+            tabs.selectedSection, .diagnostics, "opens the Diagnostics section, inline rather than as a sheet")
+        XCTAssertEqual(tabs.diagnosticsPane, .health)
+        XCTAssertNil(tabs.sheet)
+        XCTAssertEqual(probes, 1, "opening probes once")
 
         let titles = model.rows.map(\.title)
         XCTAssertEqual(
@@ -63,16 +66,10 @@ final class DiagnosticsSheetTests: MainWindowTestCase {
         XCTAssertTrue(model.rows.allSatisfy(\.ok), "the fixture report is all green")
     }
 
-    func testDiagnosticsCloseDismissesTheSheet() async throws {
-        _ = try await presentDiagnosticsSheet(withFixture: doctorFixture())
-        XCTAssertEqual(tabs.sheet, .diagnostics)
-        tabs.dismissSheet()
-        XCTAssertNil(tabs.sheet, "Close must dismiss the sheet")
-    }
-
     func testDiagnosticsModelIsReusedAcrossPresentations() async throws {
-        let (first, _) = try await presentDiagnosticsSheet(withFixture: doctorFixture())
-        tabs.dismissSheet()
+        let (first, _) = try await openDiagnostics(withFixture: doctorFixture())
+        tabs.select(.fleet)
+        tabs.select(.diagnostics)
         XCTAssertTrue(models.ensureDiagnosticsModel() === first, "re-opening keeps the same model")
     }
 }

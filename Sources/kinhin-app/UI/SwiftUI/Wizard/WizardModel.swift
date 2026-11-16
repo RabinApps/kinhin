@@ -54,7 +54,7 @@ final class WizardModel {
                     bundle: .l10n, comment: "Setup wizard step 2 subtitle")
             case .review:
                 return String(
-                    localized: "Everything you chose is saved. You can change any of it later in the Setup tab.",
+                    localized: "Everything you chose is saved. You can change any of it later in Runtimes.",
                     bundle: .l10n, comment: "Setup wizard step 3 subtitle")
             }
         }

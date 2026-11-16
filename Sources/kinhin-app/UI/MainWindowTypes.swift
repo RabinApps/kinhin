@@ -31,66 +31,68 @@ func shouldQuitOnMainWindowClose(launchMode: LaunchMode) -> Bool {
     launchMode == .mainWindowOnly
 }
 
-// MARK: - Tabs
+// MARK: - Sections
 
-/// The main window's tabs. Fleet is the day-to-day view, Setup is where an
-/// account and this Mac are connected (a guided wizard on first run), and
-/// Advanced holds everything you rarely touch.
-enum MainTab: String, CaseIterable {
+/// The main window's sections, in sidebar order. Fleet is the day-to-day view; the rest are where the fleet is
+/// configured and inspected. First-run setup is not a section: while it is unfinished the window shows only the
+/// wizard, with no sidebar (`MainTabsModel.isGatedBySetup`).
+enum MainSection: String, CaseIterable {
     case fleet
-    case setup
-    case advanced
-
-    var label: String {
-        switch self {
-        case .fleet: return String(localized: "Fleet", bundle: .l10n, comment: "Main window tab title")
-        case .setup: return String(localized: "Setup", bundle: .l10n, comment: "Main window tab title")
-        case .advanced: return String(localized: "Advanced", bundle: .l10n, comment: "Main window tab title")
-        }
-    }
-}
-
-/// Sub-sections of the Advanced tab. `capacity` is the "Capacity" section:
-/// the This Mac form (its macOS and Linux cards) above the VM capacity steppers.
-enum AdvancedSection: String, CaseIterable {
+    case runtimes
     case accounts
-    /// "Capacity" — this Mac's runtimes plus the fleet's VM capacity.
-    case capacity
-    case routing
-    case containers
     case toolchains
-    case benchmarks
-    case app
+    case diagnostics
+    case settings
 
-    /// The SF Symbol shown beside the section in the Advanced sidebar.
+    /// The SF Symbol shown beside the section in the sidebar (the same names the design uses).
     var symbol: String {
         switch self {
+        case .fleet: return "server.rack"
+        case .runtimes: return "cpu"
         case .accounts: return "person.2"
-        case .capacity: return "gauge.with.dots.needle.67percent"
-        case .routing: return "arrow.triangle.branch"
-        case .containers: return "shippingbox"
         case .toolchains: return "wrench.and.screwdriver"
-        case .benchmarks: return "speedometer"
-        case .app: return "gearshape"
+        case .diagnostics: return "stethoscope"
+        case .settings: return "gearshape"
         }
     }
 
     var label: String {
         switch self {
-        case .accounts: return String(localized: "Accounts", bundle: .l10n, comment: "Advanced section title")
-        case .capacity: return String(localized: "Capacity", bundle: .l10n, comment: "Advanced section title")
-        case .routing: return String(localized: "Routing", bundle: .l10n, comment: "Advanced section title")
-        case .containers: return String(localized: "Containers", bundle: .l10n, comment: "Advanced section title")
-        case .toolchains: return String(localized: "Toolchains", bundle: .l10n, comment: "Advanced section title")
-        case .benchmarks: return String(localized: "Benchmarks", bundle: .l10n, comment: "Advanced section title")
-        case .app: return String(localized: "Settings", bundle: .l10n, comment: "Advanced section title")
+        case .fleet: return String(localized: "Fleet", bundle: .l10n, comment: "Sidebar section title")
+        case .runtimes: return String(localized: "Runtimes", bundle: .l10n, comment: "Sidebar section title")
+        case .accounts: return String(localized: "Accounts", bundle: .l10n, comment: "Sidebar section title")
+        case .toolchains: return String(localized: "Toolchains", bundle: .l10n, comment: "Sidebar section title")
+        case .diagnostics: return String(localized: "Diagnostics", bundle: .l10n, comment: "Sidebar section title")
+        case .settings: return String(localized: "Settings", bundle: .l10n, comment: "Sidebar section title")
         }
     }
 }
 
-// MARK: - Tab delegate
+/// The sub-sections of Diagnostics: the health report, the logs, benchmarks, containers, and the tools that open the
+/// Test Workflow and Make a Video sheets.
+enum DiagnosticsPane: String, CaseIterable {
+    case health
+    case logs
+    case benchmarks
+    case containers
+    case tools
 
-/// What the tabbed window still needs from the app: the process-level
+    var label: String {
+        switch self {
+        case .health: return String(localized: "Health", bundle: .l10n, comment: "Diagnostics sub-section title")
+        case .logs: return String(localized: "Logs", bundle: .l10n, comment: "Diagnostics sub-section title")
+        case .benchmarks:
+            return String(localized: "Benchmarks", bundle: .l10n, comment: "Diagnostics sub-section title")
+        case .containers:
+            return String(localized: "Containers", bundle: .l10n, comment: "Diagnostics sub-section title")
+        case .tools: return String(localized: "Tools", bundle: .l10n, comment: "Diagnostics sub-section title")
+        }
+    }
+}
+
+// MARK: - Window delegate
+
+/// What the main window still needs from the app: the process-level
 /// concerns (activation policy, login item, window lifecycle, engine
 /// bootstrap). Fleet actions go through `FleetController` instead.
 @MainActor
@@ -102,9 +104,9 @@ protocol MainTabsWindowDelegate: AnyObject {
     func mainTabsWindowWillClose()
     /// Setup finished (its Start Fleet was pressed): re-bootstrap the engine.
     func setupTabFinished()
-    /// Open config.yaml from the Setup wizard button row.
+    /// Open config.yaml (the Setup wizard's button row, Settings → Files).
     func openConfig()
-    /// "Reset kinhin…" finished wiping (App section): clear the login item
+    /// "Reset kinhin…" finished wiping (Settings): clear the login item
     /// for config-scoped resets and re-bootstrap (the wizard reappears when
     /// the config was erased).
     func resetFinished(scope: ResetScope)
@@ -112,7 +114,7 @@ protocol MainTabsWindowDelegate: AnyObject {
 
 // MARK: - Update card state
 
-/// Where the self-update check stands, rendered by Settings → App.
+/// Where the self-update check stands, rendered by Settings.
 enum UpdateCardState: Equatable {
     case idle(lastChecked: Date?)
     case checking

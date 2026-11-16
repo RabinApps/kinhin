@@ -41,7 +41,7 @@ final class RoutingTests: XCTestCase {
         let window = MainTabsWindowController(
             defaults: UserDefaults(suiteName: "kinhin-routing-\(UUID().uuidString)")!, fleet: FleetController(),
             updates: UpdateController())
-        window.tabs.showAdvanced(.routing)
+        window.tabs.select(.runtimes)
         XCTAssertGreaterThanOrEqual(window.models.runtimesModel?.loads ?? 0, 1)
     }
 

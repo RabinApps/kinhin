@@ -14,45 +14,58 @@ struct CapacityView: View {
     let mac: MacToolsModel
     /// Drives the Budget card; its instance counts read the saved config.
     let runtimes: RuntimesModel
+    /// Part of a larger scrolling page (the Runtimes section): no scroll view of its own, and Revert / Apply follow
+    /// the cards instead of pinning below them.
+    var embedded = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
-                    SectionHeader("This Mac")
-                    MacToolsView(model: mac)
-                    // The capacity cards need a config that parses; the This Mac
-                    // card always renders (it carries its own config error line).
-                    if model.draft != nil {
-                        SectionHeader("Capacity")
-                        reserveCard
-                        if runtimes.showsBudget {
-                            SectionHeader("Split between runtimes")
-                            BudgetCard(model: runtimes)
-                            if model.hasPendingChanges {
-                                HintText("Instance counts update once you Apply the changes below.")
-                            }
-                        }
-                        capacityCards
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
+            if embedded {
+                content
+            } else {
+                ScrollView { content }
             }
-            HStack {
-                StatusText(verbatim: model.status.text, style: model.status.style)
-                Spacer()
-                Button("Revert") { model.revert() }
-                    .disabled(!model.hasPendingChanges)
-                    .accessibilityIdentifier("capacity-revert")
-                Button("Apply") { model.applyPending() }
-                    .keyboardShortcut(.defaultAction)
-                    .disabled(!model.hasPendingChanges)
-                    .accessibilityIdentifier("capacity-apply")
-            }
-            .frame(width: FormMetrics.width)
+            applyBar
         }
         .padding(.leading, 4)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .frame(maxWidth: .infinity, maxHeight: embedded ? nil : .infinity, alignment: .topLeading)
+    }
+
+    private var content: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SectionHeader("This Mac")
+            MacToolsView(model: mac)
+            // The capacity cards need a config that parses; the This Mac
+            // card always renders (it carries its own config error line).
+            if model.draft != nil {
+                SectionHeader("Capacity")
+                reserveCard
+                if runtimes.showsBudget {
+                    SectionHeader("Split between runtimes")
+                    BudgetCard(model: runtimes)
+                    if model.hasPendingChanges {
+                        HintText("Instance counts update once you Apply the changes below.")
+                    }
+                }
+                capacityCards
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var applyBar: some View {
+        HStack {
+            StatusText(verbatim: model.status.text, style: model.status.style)
+            Spacer()
+            Button("Revert") { model.revert() }
+                .disabled(!model.hasPendingChanges)
+                .accessibilityIdentifier("capacity-revert")
+            Button("Apply") { model.applyPending() }
+                .keyboardShortcut(.defaultAction)
+                .disabled(!model.hasPendingChanges)
+                .accessibilityIdentifier("capacity-apply")
+        }
+        .frame(width: FormMetrics.width)
     }
 
     @ViewBuilder

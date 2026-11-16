@@ -7,6 +7,8 @@ import SwiftUI
 /// `isYAMLEditorOpen`).
 struct RuntimesView: View {
     @Bindable var model: RuntimesModel
+    /// Part of a larger scrolling page (the Runtimes section): no scroll view of its own.
+    var embedded = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -14,42 +16,15 @@ struct RuntimesView: View {
             if model.loadFailed {
                 StatusText(verbatim: model.emptyMessage, style: .warn)
                     .frame(width: FormMetrics.width, alignment: .leading)
+            } else if embedded {
+                content
             } else {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 10) {
-                        SectionHeader("Pools")
-                        ForEach(model.poolRows) { pool in
-                            poolCard(pool)
-                        }
-
-                        if model.showsContainerPools {
-                            SectionHeader("Container pools")
-                            ContainerPoolsSection(model: model)
-                        }
-
-                        SectionHeader("Routes")
-                        StarvedRoutesStrip(warnings: model.starvedRoutes)
-                        if model.routeRows.isEmpty {
-                            StatusText(text: "  No routes — every job uses the default pool.")
-                        } else {
-                            ForEach(model.routeRows, id: \.pattern) { route in
-                                routeCard(route)
-                            }
-                        }
-
-                        defaultRuntimeCard
-
-                        SectionHeader("Labels")
-                        labelsCard
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.top, 2)
-                }
+                ScrollView { content }
             }
             footer
         }
         .padding(.leading, 4)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .frame(maxWidth: .infinity, maxHeight: embedded ? nil : .infinity, alignment: .topLeading)
         .sheet(isPresented: $model.isYAMLEditorOpen) {
             EditYAMLSheet(model: model)
         }
@@ -72,6 +47,37 @@ struct RuntimesView: View {
     }
 
     // MARK: - Sections
+
+    private var content: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SectionHeader("Pools")
+            ForEach(model.poolRows) { pool in
+                poolCard(pool)
+            }
+
+            if model.showsContainerPools {
+                SectionHeader("Container pools")
+                ContainerPoolsSection(model: model)
+            }
+
+            SectionHeader("Routes")
+            StarvedRoutesStrip(warnings: model.starvedRoutes)
+            if model.routeRows.isEmpty {
+                StatusText(text: "  No routes — every job uses the default pool.")
+            } else {
+                ForEach(model.routeRows, id: \.pattern) { route in
+                    routeCard(route)
+                }
+            }
+
+            defaultRuntimeCard
+
+            SectionHeader("Labels")
+            labelsCard
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.top, 2)
+    }
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 2) {
@@ -181,7 +187,7 @@ struct RuntimesView: View {
                     }
                 }
                 .controlSize(.small)
-                HintText("The default pool also keeps whatever share the others leave (Advanced → Capacity).")
+                HintText("The default pool also keeps whatever share the others leave (Runtimes → Capacity).")
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
