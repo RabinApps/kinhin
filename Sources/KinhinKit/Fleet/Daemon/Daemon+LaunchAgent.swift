@@ -114,10 +114,48 @@ extension Daemon {
             .replacingOccurrences(of: "'", with: "&apos;")
     }
 
-    /// Write the LaunchAgent plist pointing at the given kinhin binary.
-    public static func installAgent(binaryPath: String) throws {
-        let logs = Paths.logsDirectory
-        let plist = """
+    /// Write the LaunchAgent plist pointing at the given kinhin binary. `environment` lands in its
+    /// `EnvironmentVariables` on top of whatever the plist already carried there, so a reinstall (an upgrade, a new
+    /// binary path) keeps a `TART_HOME` or other variable the agent had.
+    public static func installAgent(binaryPath: String, environment: [String: String] = [:]) throws {
+        let url = agentPlistPath()
+        let merged = existingAgentEnvironment(at: url).merging(environment) { _, new in new }
+        let plist = agentPlist(binaryPath: binaryPath, logs: Paths.logsDirectory, environment: merged)
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try plist.write(to: url, atomically: true, encoding: .utf8)
+        Log.info("daemon", "launchagent written to \(url.path)")
+    }
+
+    /// The variables the daemon's LaunchAgent sets for `storage`: `TART_HOME` when `tart_home:` is configured.
+    public static func agentEnvironment(for storage: KinhinConfig.StorageConfig) -> [String: String] {
+        storage.tartHome.map { [StorageLocations.tartHomeVariable: $0] } ?? [:]
+    }
+
+    /// The `EnvironmentVariables` of the plist at `url`; empty when there is no plist or it has none.
+    static func existingAgentEnvironment(at url: URL) -> [String: String] {
+        guard FileManager.default.fileExists(atPath: url.path) else { return [:] }
+        do {
+            let data = try Data(contentsOf: url)
+            let root = try PropertyListSerialization.propertyList(from: data, options: [], format: nil)
+            return (root as? [String: Any])?["EnvironmentVariables"] as? [String: String] ?? [:]
+        } catch {
+            // The plist is rewritten in full next; an unreadable one only loses its variables, which the log names.
+            Log.warn("daemon", "could not read \(url.path) to keep its environment: \(error.localizedDescription)")
+            return [:]
+        }
+    }
+
+    /// The LaunchAgent plist text.
+    static func agentPlist(binaryPath: String, logs: URL, environment: [String: String]) -> String {
+        let variables =
+            environment.isEmpty
+            ? ""
+            : "    <key>EnvironmentVariables</key>\n    <dict>\n"
+                + environment.keys.sorted().map { key in
+                    "        <key>\(xmlEscaped(key))</key>\n        <string>\(xmlEscaped(environment[key] ?? ""))</string>\n"
+                }.joined()
+                + "    </dict>\n"
+        return """
             <?xml version="1.0" encoding="UTF-8"?>
             <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
             <plist version="1.0">
@@ -137,13 +175,9 @@ extension Daemon {
                 <string>\(xmlEscaped(logs.appendingPathComponent("daemon.out.log").path))</string>
                 <key>StandardErrorPath</key>
                 <string>\(xmlEscaped(logs.appendingPathComponent("daemon.err.log").path))</string>
-            </dict>
+            \(variables)</dict>
             </plist>
             """
-        let url = agentPlistPath()
-        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try plist.write(to: url, atomically: true, encoding: .utf8)
-        Log.info("daemon", "launchagent written to \(url.path)")
     }
 
     public static func uninstallAgent() throws {

@@ -24,8 +24,10 @@ actor DockerRegistryCache {
     static let guestDataPath = "/var/lib/registry"
 
     /// The host directory bind-mounted at `guestDataPath`: cached layers survive the container.
+    /// `registry_cache_path:` moves it (`StorageLocations`).
     static var defaultDataDirectory: URL {
-        Paths.appSupport.appendingPathComponent("registry-cache", isDirectory: true)
+        StorageLocations.configuredDirectory(.registryCache)
+            ?? Paths.appSupport.appendingPathComponent("registry-cache", isDirectory: true)
     }
 
     /// What `container inspect` says about the cache container.
@@ -130,6 +132,11 @@ actor DockerRegistryCache {
     }
 
     private func runningAddress() async throws -> String {
+        // A configured data directory on a volume that is away would leave the bind mount empty (or create it on
+        // the internal disk): fail here, and the runner pulls from Docker Hub directly.
+        if dataDirectory.path == StorageLocations.current.registryCachePath {
+            try StoragePreflight.live.requireReady(.registryCache)
+        }
         if let current = try await inspect() {
             if current.isRunning, let address = current.address { return address }
             if !current.isRunning { try await start(from: current.state) }

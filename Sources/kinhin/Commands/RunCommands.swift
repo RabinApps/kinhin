@@ -366,7 +366,17 @@ enum RunCommands {
                 "refusing to install a LaunchAgent for a debug build (\(binary)); install a release build",
                 exit: .usage)
         }
-        try Daemon.installAgent(binaryPath: binary)
+        // `tart_home:` goes into the agent's environment too, so the daemon starts with TART_HOME set before it even
+        // reads the config. A config that does not load leaves the plist's existing variables as they are; the daemon
+        // reports that config problem itself when it starts.
+        var environment: [String: String] = [:]
+        do {
+            let config = try ConfigLoader.load()
+            environment = Daemon.agentEnvironment(for: config.storage)
+        } catch {
+            warn("config not read for the LaunchAgent environment (\(error.localizedDescription)); keeping its variables")
+        }
+        try Daemon.installAgent(binaryPath: binary, environment: environment)
         let res = try await Daemon.loadAgent()
         guard res.succeeded else { throw ControlFailure("launchctl bootstrap failed: \(res.stderr)", exit: .runtime) }
     }

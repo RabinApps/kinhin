@@ -186,6 +186,8 @@ public struct TartController: TartControlling {
     }
 
     public func clone(source: String, to name: String) async throws {
+        // A configured TART_HOME on a volume that is away: stop before tart writes a VM anywhere else.
+        try StoragePreflight.live.requireReady(.tartHome)
         defer { listCache?.invalidate() }
         let res = try await exec(["clone", source, name], timeout: 300)
         guard res.succeeded else { throw TartError.commandFailed(what: "clone \(source) \(name)", stderr: res.stderr) }
@@ -200,6 +202,7 @@ public struct TartController: TartControlling {
     }
 
     public func run(name: String, mounts: [String]) async throws {
+        try StoragePreflight.live.requireReady(.tartHome)
         defer { listCache?.invalidate() }
         // `tart run` blocks while the VM runs; launch it detached and return.
         let process = Process()

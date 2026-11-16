@@ -71,6 +71,15 @@ public enum Daemon {
             Log.error("daemon", "config problem: \(error.localizedDescription)")
             throw error
         }
+        // Configured storage on a volume that is not mounted, or that ignores ownership: start nothing, so no VM,
+        // container or cache lands on the internal disk. launchd's KeepAlive retries, and the start goes ahead once
+        // the volume is back.
+        do {
+            try StoragePreflight.live.requireReady(cfg.storage)
+        } catch {
+            Log.error("daemon", "not starting: \(error.localizedDescription)")
+            throw error
+        }
         // Telemetry starts once per process, before the engine, and is flushed on SIGTERM/SIGINT.
         await TelemetryService.shared.apply(cfg.telemetry)
         let terminationSources = installTerminationFlush()

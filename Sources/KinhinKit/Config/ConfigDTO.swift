@@ -47,6 +47,10 @@ public struct PartialConfig: Decodable {
     var healing: PartialHealing?
     var telemetry: PartialTelemetry?
     var alerts: PartialAlerts?
+    var tartHome: String?
+    var containerAppRoot: String?
+    var registryCachePath: String?
+    var toolchainCachePath: String?
 
     struct PartialAccount: Decodable {
         var name: String?
@@ -414,6 +418,10 @@ public struct PartialConfig: Decodable {
         case healing
         case telemetry
         case alerts
+        case tartHome = "tart_home"
+        case containerAppRoot = "container_app_root"
+        case registryCachePath = "registry_cache_path"
+        case toolchainCachePath = "toolchain_cache_path"
     }
 
     /// forgejo is a stored property (decoded for the removed-key rejection);

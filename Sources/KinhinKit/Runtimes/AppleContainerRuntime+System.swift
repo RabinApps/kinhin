@@ -6,28 +6,50 @@ extension AppleContainerRuntime {
     // MARK: - System service
 
     /// Makes the container system usable: its service running, and a Linux
-    /// kernel installed (a system started by hand may lack one).
-    public static func startSystem(shell: ShellRunning = Shell()) async throws {
+    /// kernel installed (a system started by hand may lack one). Healing, setup
+    /// and image builds all start it through here, so with `container_app_root:`
+    /// set every start passes `--app-root`, after the preflight has checked that
+    /// volume: a start never falls back to the default app root.
+    public static func startSystem(
+        shell: ShellRunning = Shell(), appRoot: String? = StorageLocations.current.containerAppRoot,
+        preflight: StoragePreflight = .live
+    ) async throws {
+        if let appRoot, let problem = preflight.problem(.containerAppRoot, path: appRoot) {
+            Log.error("container", problem.localizedDescription)
+            throw problem
+        }
         if !(await AppleContainerRuntime(shell: shell).health()).isReady {
             let result = try await shell.run(
-                // --enable-kernel-install: without it the CLI asks a question and
-                // fails ("failed to read user input") when run without a terminal.
-                [resolvedBinaryPath, "system", "start", "--enable-kernel-install"],
-                cwd: nil, timeout: 120
-            )
+                startArguments(binary: resolvedBinaryPath, appRoot: appRoot), cwd: nil, timeout: 120)
             guard result.succeeded else {
                 throw ContainerManagerError.commandFailed(what: "starting the container system", stderr: result.stderr)
             }
         }
-        try await ensureKernel(shell: shell)
+        try await ensureKernel(
+            shell: shell, binary: resolvedBinaryPath, directory: kernels(underAppRoot: appRoot))
+    }
+
+    /// The `container system start` argv. `--enable-kernel-install`: without it
+    /// the CLI asks a question and fails ("failed to read user input") when run
+    /// without a terminal.
+    static func startArguments(binary: String, appRoot: String?) -> [String] {
+        [binary, "system", "start"] + (appRoot.map { ["--app-root", $0] } ?? []) + ["--enable-kernel-install"]
     }
 
     // MARK: - Linux kernel
 
-    /// Where the `container` CLI keeps installed kernels (its default app root).
+    /// Where the `container` CLI keeps installed kernels: `kernels/` under the
+    /// app root (`container_app_root:`, else the CLI's default).
     public static var kernelDirectory: URL {
-        Paths.userLibrarySubdirectory(.applicationSupportDirectory, fallback: "Library/Application Support")
-            .appendingPathComponent("com.apple.container/kernels", isDirectory: true)
+        kernels(underAppRoot: StorageLocations.current.containerAppRoot)
+    }
+
+    static func kernels(underAppRoot appRoot: String?) -> URL {
+        let root =
+            appRoot.map { URL(fileURLWithPath: $0, isDirectory: true) }
+            ?? Paths.userLibrarySubdirectory(.applicationSupportDirectory, fallback: "Library/Application Support")
+            .appendingPathComponent("com.apple.container", isDirectory: true)
+        return root.appendingPathComponent("kernels", isDirectory: true)
     }
 
     /// Whether a default Linux kernel is installed. `container system start`
@@ -66,8 +88,10 @@ extension AppleContainerRuntime {
     }
 
     /// Installs the kernel only when none is present.
-    public static func ensureKernel(shell: ShellRunning = Shell(), binary: String = resolvedBinaryPath) async throws {
-        guard !hasInstalledKernel() else { return }
+    public static func ensureKernel(
+        shell: ShellRunning = Shell(), binary: String = resolvedBinaryPath, directory: URL = kernelDirectory
+    ) async throws {
+        guard !hasInstalledKernel(in: directory) else { return }
         try await installKernel(shell: shell, binary: binary)
     }
 }

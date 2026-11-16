@@ -114,7 +114,13 @@ public enum Paths {
     /// Shared toolchain download cache (mise, brew, npm, fvm, Go, Cargo…).
     /// Mounted read-write into scratch VMs at prepare time and — opt-in via
     /// `toolchains.share_cache` — into runner VMs. See `ToolchainCacheMount`.
+    /// `toolchain_cache_path:` moves it (`StorageLocations`).
     public static var toolchainCache: URL {
+        StorageLocations.configuredDirectory(.toolchainCache) ?? defaultToolchainCache
+    }
+
+    /// The toolchain cache when `toolchain_cache_path:` is not set.
+    static var defaultToolchainCache: URL {
         appSupport.appendingPathComponent(ToolchainCacheMount.hostDirectoryName, isDirectory: true)
     }
 
@@ -135,6 +141,9 @@ public enum Paths {
             }
         }
         bestEffort("paths", "creating \(toolchainCache.path)") {
+            // A configured cache on a volume that is not mounted (or ignores ownership) is left alone: creating it
+            // would put the directory on the internal disk. Whatever needs the cache next reports the problem.
+            try StoragePreflight.live.requireReady(.toolchainCache)
             try FileManager.default.createDirectory(at: toolchainCache, withIntermediateDirectories: true)
         }
         restrictExistingFiles()
