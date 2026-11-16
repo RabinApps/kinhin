@@ -174,6 +174,7 @@ final class RegistryCacheDoctorTests: XCTestCase {
         XCTAssertTrue(line.contains("UNHEALTHY: 2 broken entries"), line)
         XCTAssertTrue(line.contains("unexpected EOF"), line)
         XCTAssertTrue(line.contains("library/golang"), line)
+        XCTAssertTrue(line.contains("_layers/sha256/4f4f/link (+1 more) ✗"), line)
         XCTAssertTrue(line.hasSuffix("✗"), line)
 
         cache.brokenEntries = 0

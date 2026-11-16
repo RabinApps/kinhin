@@ -93,7 +93,9 @@ extension DoctorReport {
             }
         }
         if let broken = cache.brokenEntries, broken > 0 {
-            let examples = (cache.brokenExamples ?? []).joined(separator: ", ")
+            let shown = cache.brokenExamples ?? []
+            let more = broken > shown.count ? " (+\(broken - shown.count) more)" : ""
+            let examples = shown.joined(separator: ", ") + more
             line +=
                 " · UNHEALTHY: \(broken) broken entr\(broken == 1 ? "y" : "ies") (pulls of them fail with "
                 + "unexpected EOF; the next Docker runner deletes them so they are fetched again): \(examples) ✗"
