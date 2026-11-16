@@ -2,6 +2,7 @@ import CryptoKit
 import XCTest
 
 @testable import KinhinKit
+@testable import KinhinTestSupport
 
 /// The Docker Hub cache's data directory checked from the host: a link whose blob the proxy TTL expired (the
 /// `unexpected EOF` of #107), an empty blob, a corrupt blob and a tag whose manifest is gone are found, and a repair
@@ -42,6 +43,7 @@ final class DockerRegistryCacheStorageTests: XCTestCase {
         return url
     }
 
+    @discardableResult
     private func layer(_ repository: String, _ digest: String) throws -> URL {
         try link("\(repository)/_layers/sha256/\(digest)", to: digest)
     }

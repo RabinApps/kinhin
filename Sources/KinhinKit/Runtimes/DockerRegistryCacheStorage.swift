@@ -42,7 +42,7 @@ enum DockerRegistryCacheStorage {
     /// Checks every link and blob under `dataDirectory` without changing anything. A data directory the registry has
     /// not written yet is healthy and empty. `verifyDigests` also hashes each blob (slow on a big cache).
     static func scan(_ dataDirectory: URL, verifyDigests: Bool = false) -> Report {
-        let root = storageRoot(in: dataDirectory.resolvingSymlinksInPath())
+        let root = storageRoot(in: canonical(dataDirectory))
         var report = Report()
         var bad = Set<String>()
         for blob in blobDirectories(under: root) {
@@ -80,7 +80,7 @@ enum DockerRegistryCacheStorage {
     /// that is already gone counts, one that cannot be deleted is logged and skipped.
     @discardableResult
     static func repair(_ report: Report, in dataDirectory: URL) -> Int {
-        let root = storageRoot(in: dataDirectory.resolvingSymlinksInPath())
+        let root = storageRoot(in: canonical(dataDirectory))
         var removed = 0
         let targets =
             (report.brokenBlobs + report.corruptBlobs).map { root.appendingPathComponent($0) }
@@ -165,17 +165,28 @@ enum DockerRegistryCacheStorage {
         guard let handle = try? FileHandle(forReadingFrom: url) else { return false }  // unreadable: not verifiable
         defer { try? handle.close() }  // a failed close of a read handle loses nothing
         var hasher = SHA256()
-        while true {
-            // A read error mid-file: the bytes cannot be confirmed, so the blob counts as corrupt.
-            guard let chunk = try? handle.read(upToCount: 1 << 20) else { return false }
-            if chunk.isEmpty { break }
-            hasher.update(data: chunk)
+        do {
+            // `read(upToCount:)` answers nil (or empty data) at the end of the file.
+            while let chunk = try handle.read(upToCount: 1 << 20), !chunk.isEmpty { hasher.update(data: chunk) }
+        } catch {
+            return false  // a read error mid-file: the bytes cannot be confirmed, so the blob counts as corrupt
         }
         return hasher.finalize().map { String(format: "%02x", $0) }.joined() == digest
     }
 
+    /// `url`'s path under the storage root (`blobs/…`, `repositories/…`). Read from the layout's own marker rather
+    /// than by prefix, since the file system may spell the same directory two ways (`/var` and `/private/var`).
     private static func relative(_ url: URL, to root: URL) -> String {
-        let base = root.path.hasSuffix("/") ? root.path : root.path + "/"
-        return url.path.hasPrefix(base) ? String(url.path.dropFirst(base.count)) : url.path
+        let marker = "/docker/registry/v2/"
+        guard let range = url.path.range(of: marker, options: .backwards) else { return url.path }
+        return String(url.path[range.upperBound...])
+    }
+
+    /// `url` with every symlink resolved, the way the file system itself spells it (`realpath`): a data directory
+    /// moved to another disk and left as a symlink is walked at its target. `url` unchanged when it does not exist.
+    static func canonical(_ url: URL) -> URL {
+        guard let resolved = realpath(url.path, nil) else { return url }
+        defer { free(resolved) }
+        return URL(fileURLWithPath: String(cString: resolved), isDirectory: true)
     }
 }
