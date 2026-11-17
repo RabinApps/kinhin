@@ -34,7 +34,7 @@ struct SplitCard: View {
         Card(
             title: "Split between runtimes",
             subtitle: model.showsBudget
-                ? "Shares always total 100%. Drag or type a number; lock a pool to keep its share.": nil,
+                ? "Shares always total 100%. Drag or type a number; lock a pool to keep its share." : nil,
             layout: .fill,
             trailing: {
                 if model.showsBudget, hasUnappliedCapacity {

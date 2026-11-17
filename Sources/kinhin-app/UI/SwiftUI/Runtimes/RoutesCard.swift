@@ -77,8 +77,11 @@ struct RoutesCard: View {
                             set: { model.defaultRuntimeChanged(to: $0) })
                     ) {
                         ForEach(model.budgetRuntimeIDs, id: \.rawValue) { runtime in
-                            Text(verbatim: RuntimesModel.cardTitle(runtime) + MaturityTable.maturity(of: runtime).pickerSuffix)
-                                .tag(runtime)
+                            Text(
+                                verbatim: RuntimesModel.cardTitle(runtime)
+                                    + MaturityTable.maturity(of: runtime).pickerSuffix
+                            )
+                            .tag(runtime)
                         }
                     }
                     .labelsHidden()

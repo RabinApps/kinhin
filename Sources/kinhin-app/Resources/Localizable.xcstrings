@@ -38196,7 +38196,7 @@
         }
       }
     },
-    "The runtime list hasn't loaded yet. If this keeps happening, check that config.yaml exists and is valid (Settings → Open config file)." : {
+    "The runtime list hasn't loaded yet. If this keeps happening, check that config.yaml exists and is valid (Settings → Files → Open config file)." : {
       "comment" : "Alert body"
     },
     "The start is in progress — check the fleet status in a moment." : {

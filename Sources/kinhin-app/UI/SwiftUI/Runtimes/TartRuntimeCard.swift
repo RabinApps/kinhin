@@ -69,7 +69,9 @@ struct TartRuntimeCard: View {
                 "Keep idle",
                 value: Binding(
                     get: { capacity.draft?.imageMinIdle ?? 0 },
-                    set: { capacity.set("image-min-idle", to: $0, in: CapacityModel.keepIdleRange) { .imageMinIdle($0) } }
+                    set: {
+                        capacity.set("image-min-idle", to: $0, in: CapacityModel.keepIdleRange) { .imageMinIdle($0) }
+                    }
                 ), in: CapacityModel.keepIdleRange,
                 hint: Text("macOS allows \(cap) VMs per Mac across all images"),
                 error: capacity.issue(for: .imageMinIdle).map { Text(verbatim: $0) }, fieldID: "image-min-idle"
@@ -211,6 +213,7 @@ private struct WarmPoolStepper: View {
         // Each change restarts this task, so the config is written once the clicks settle, not per click.
         .task(id: pending) {
             guard let target = pending, target != count else { return }
+            // try?: cancelled means another click restarted the debounce; the isCancelled check below stops this one.
             try? await Task.sleep(for: .milliseconds(600))
             guard !Task.isCancelled else { return }
             commit(target)

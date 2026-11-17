@@ -51,7 +51,11 @@ struct ContainerRuntimeCard: View {
             "Keep idle",
             value: Binding(
                 get: { capacity.draft?.container?.minIdle ?? 0 },
-                set: { capacity.set("container-min-idle", to: $0, in: CapacityModel.keepIdleRange) { .containerMinIdle($0) } }
+                set: {
+                    capacity.set("container-min-idle", to: $0, in: CapacityModel.keepIdleRange) {
+                        .containerMinIdle($0)
+                    }
+                }
             ), in: CapacityModel.keepIdleRange, hint: Text("Used by the default pool"),
             error: capacity.issue(for: .containerMinIdle).map { Text(verbatim: $0) }, fieldID: "container-min-idle"
         )

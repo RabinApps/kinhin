@@ -1,7 +1,7 @@
 import Foundation
 import KinhinKit
 
-// Named Apple container pools (`container.pools:`) on Advanced → Routing: one card per pool with what it resolves
+// Named Apple container pools (`container.pools:`) on the Runtimes page: one card per pool with what it resolves
 // to and whether its image is built, and the Add / Edit sheet (`ContainerPoolSheet`) and Remove that write the
 // pools through `ContainerPoolsConfigEditor`.
 

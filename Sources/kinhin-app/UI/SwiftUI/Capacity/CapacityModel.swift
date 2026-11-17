@@ -91,6 +91,7 @@ final class CapacityModel: ConfigFormModel {
     /// Re-reads the config after something else wrote it (a runtime switch, an image edit, a route) and puts the
     /// staged edits back on top, so the page never shows stale untouched values and never loses unapplied ones.
     func refreshFromDisk() {
+        // A config that no longer loads keeps the page as it is; the Runtimes model says why it is unreadable.
         guard let loaded = try? ConfigStore.snapshot(at: configURL) else { return }
         baseline = loaded
         draft = loaded
@@ -191,12 +192,12 @@ final class CapacityModel: ConfigFormModel {
     /// The config the staged values would produce, checked by the engine's own `min_idle` rules. A config that does
     /// not load today has nothing to compare against, so it reports nothing here (the page says it is unreadable).
     private func recomputeIssues() {
-        guard hasPendingChanges, let draft, let text = try? ConfigStore.text(at: configURL),
-            var config = try? ConfigLoader.parse(text)
-        else {
-            minIdleIssues = []
-            return
-        }
+        minIdleIssues = []
+        guard hasPendingChanges, let draft else { return }
+        // try?: a config that does not load has no floors to check; the page already says it is unreadable.
+        guard let text = try? ConfigStore.text(at: configURL) else { return }
+        // try?: same reason as above.
+        guard var config = try? ConfigLoader.parse(text) else { return }
         config.maxRunners = draft.maxRunners
         config.minRunners = draft.minRunners
         config.warmPool = draft.warmPool

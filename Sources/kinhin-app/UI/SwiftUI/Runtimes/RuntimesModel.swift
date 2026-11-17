@@ -2,7 +2,7 @@ import Foundation
 import KinhinKit
 import Observation
 
-/// State and actions behind Advanced → Routing: the fleet's runtime pools,
+/// State and actions behind the Runtimes page: the fleet's runtime pools,
 /// capacity budget, per-repo routes, and labels — with light editing (add and
 /// remove routes, budget sliders, label fields).
 ///
@@ -194,7 +194,9 @@ final class RuntimesModel: ConfigFormModel {
     }
 
     var routeRows: [RouteDisplay] {
-        (viewModel?.routes ?? []).map { RouteDisplay(pattern: $0.pattern, runtime: $0.runtime, isWorkflow: $0.isWorkflow) }
+        (viewModel?.routes ?? []).map {
+            RouteDisplay(pattern: $0.pattern, runtime: $0.runtime, isWorkflow: $0.isWorkflow)
+        }
     }
 
     /// Whether the budget card applies: only when the fleet is partitioned.
@@ -223,7 +225,7 @@ final class RuntimesModel: ConfigFormModel {
     // RuntimesModel+YAML); the views only read them or bind for presentation.
 
     /// The open Add Route sheet's offer: which runtimes the route may target.
-    /// `RuntimesView` presents `AddRouteSheet` while this is non-nil.
+    /// `RuntimesPage` presents `AddRouteSheet` while this is non-nil.
     var routeOffer: RouteOffer?
     /// A problem with the pending sheet values (Add Route or Edit YAML,
     /// which are never open at once), shown inside the sheet.
@@ -232,7 +234,7 @@ final class RuntimesModel: ConfigFormModel {
     var isYAMLEditorOpen = false
     /// The config's exact on-disk bytes, captured when the YAML editor opened.
     var yamlAtOpen = ""
-    /// The open container pool sheet (add or edit). `RuntimesView` presents `ContainerPoolSheet` while non-nil.
+    /// The open container pool sheet (add or edit). `RuntimesPage` presents `ContainerPoolSheet` while non-nil.
     var containerPoolOffer: ContainerPoolOffer?
 
     // MARK: - Container pools

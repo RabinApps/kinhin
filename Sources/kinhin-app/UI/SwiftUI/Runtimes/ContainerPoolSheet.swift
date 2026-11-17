@@ -41,13 +41,16 @@ struct ContainerPoolSheet: View {
                         "CPUs", prompt: Text(verbatim: Self.inherited(String(defaults.cpus))), text: $draft.cpus,
                         label: Text("CPUs per runner"), width: 80)
                     poolField(
-                        "Memory (GB)", prompt: Text(verbatim: Self.inherited(String(defaults.memoryGB))), text: $draft.memoryGB,
+                        "Memory (GB)", prompt: Text(verbatim: Self.inherited(String(defaults.memoryGB))),
+                        text: $draft.memoryGB,
                         label: Text("Memory per runner in GB"), width: 100)
                     poolField(
-                        "Max runners", prompt: Text(verbatim: Self.noLimit), text: $draft.max, label: Text("Max runners at once"),
+                        "Max runners", prompt: Text(verbatim: Self.noLimit), text: $draft.max,
+                        label: Text("Max runners at once"),
                         width: 100)
                     poolField(
-                        "Idle runners", prompt: Text(verbatim: Self.inherited(String(defaults.minIdle))), text: $draft.minIdle,
+                        "Idle runners", prompt: Text(verbatim: Self.inherited(String(defaults.minIdle))),
+                        text: $draft.minIdle,
                         label: Text("Idle runners kept"), width: 100)
                 }
                 LabeledControl("Docker") {
@@ -61,9 +64,11 @@ struct ContainerPoolSheet: View {
                     .fixedSize()
                 }
                 poolField(
-                    "Image", prompt: Text(verbatim: Self.imagePlaceholder(defaults.image)), text: $draft.image, label: Text("Pool image"))
+                    "Image", prompt: Text(verbatim: Self.imagePlaceholder(defaults.image)), text: $draft.image,
+                    label: Text("Pool image"))
                 poolField(
-                    "Base image", prompt: Text(verbatim: Self.inherited(defaults.baseImage ?? LinuxBaseImage.defaultReference)),
+                    "Base image",
+                    prompt: Text(verbatim: Self.inherited(defaults.baseImage ?? LinuxBaseImage.defaultReference)),
                     text: $draft.baseImage, label: Text("Pool base image"))
                 LabeledControl("Run flags (one per line)") {
                     TextEditor(text: $draft.flags)
@@ -85,7 +90,8 @@ struct ContainerPoolSheet: View {
                 }
             }
         } footer: {
-            SheetConfirmFooter("Save", confirm: { model.confirmContainerPool(draft) }, cancel: model.cancelContainerPool)
+            SheetConfirmFooter(
+                "Save", confirm: { model.confirmContainerPool(draft) }, cancel: model.cancelContainerPool)
         }
     }
 

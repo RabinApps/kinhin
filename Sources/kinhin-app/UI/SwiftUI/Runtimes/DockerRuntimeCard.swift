@@ -73,7 +73,9 @@ struct DockerRuntimeCard: View {
                 "Keep idle",
                 value: Binding(
                     get: { capacity.draft?.docker?.minIdle ?? 0 },
-                    set: { capacity.set("docker-min-idle", to: $0, in: CapacityModel.keepIdleRange) { .dockerMinIdle($0) } }
+                    set: {
+                        capacity.set("docker-min-idle", to: $0, in: CapacityModel.keepIdleRange) { .dockerMinIdle($0) }
+                    }
                 ), in: CapacityModel.keepIdleRange,
                 hint: Text("Applies without restart"),
                 error: capacity.issue(for: .dockerMinIdle).map { Text(verbatim: $0) }, fieldID: "docker-min-idle")
