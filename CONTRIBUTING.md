@@ -255,9 +255,12 @@ layout follows these steps, in this order:**
    size) and no new warnings. Re-export the changed pages to `design/exports/`.
 3. **Implement from the design.** Build the Swift views to match the design: same layout, grouping, copy, states and
    tokens. If the design is missing something the code needs, go back to step 1; do not invent it in code.
-4. **Compare against the design.** Run the app (`scripts/dev-run.sh`, or `KINHIN_DEMO` for scripted fleet states) and
-   check each designed state against its export. If the implementation has to differ, update the design in the same
-   change so the two never drift.
+4. **Compare against the design.** Run `scripts/capture-ui.sh`: it renders every sidebar section, every Diagnostics
+   pane and the setup wizard offscreen, in light, dark and right-to-left, against a throwaway config (no Keychain,
+   daemon or forge), and writes PNGs to `shots/out/`. Check each against its export in `design/exports/`. For states it
+   doesn't cover, run the app (`scripts/dev-run.sh`, or `KINHIN_DEMO` for scripted fleet states). If the
+   implementation has to differ, update the design in the same change so the two never drift. When you add a screen or
+   a Diagnostics pane, add it to `UICaptureTests` too.
 
 A pull request that changes the app's UI includes the design change (`design/` files and exports) alongside the code,
 and says which design frames it implements. Code-only UI changes are not accepted.
