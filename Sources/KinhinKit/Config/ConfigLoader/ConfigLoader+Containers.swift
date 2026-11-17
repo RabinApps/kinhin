@@ -21,6 +21,11 @@ extension ConfigLoader {
         if let minIdle = container.minIdle, minIdle < 0 {
             throw ConfigError.invalid("container.min_idle must be >= 0")
         }
+        if let ttl = container.registryCacheTTLHours, !Self.registryCacheTTLRange.contains(ttl) {
+            throw ConfigError.invalid(
+                "container.registry_cache_ttl_hours must be between \(Self.registryCacheTTLRange.lowerBound) (cached "
+                    + "layers never expire) and \(Self.registryCacheTTLRange.upperBound), got \(ttl)")
+        }
         let containerBase = try Self.validatedBaseImage(container.baseImage, key: "container.base_image")
         let flags = try Self.validatedContainerRunFlags(container.flags, key: "container.flags")
         let section = KinhinConfig.ContainerConfig(
@@ -33,13 +38,18 @@ extension ConfigLoader {
             minIdle: container.minIdle ?? 0,
             docker: container.docker?.enabled ?? false,
             dockerCache: container.docker?.cache ?? true,
+            dockerBuildCache: container.docker?.buildCache ?? false,
             flags: flags,
             platform: platform,
-            enabled: container.enabled ?? true
+            enabled: container.enabled ?? true,
+            registryCacheTTLHours: container.registryCacheTTLHours
         )
         guard container.pools != nil else { return section }
         return try parseContainerPools(container, section: section)
     }
+
+    /// What `container.registry_cache_ttl_hours` accepts: 0 (never expire) up to ten years.
+    static let registryCacheTTLRange = 0...87_600
 
     /// `raw` (the value at `key`) as a platform; nil when unset.
     static func parsedContainerPlatform(_ raw: String?, key: String) throws -> LinuxPlatform? {

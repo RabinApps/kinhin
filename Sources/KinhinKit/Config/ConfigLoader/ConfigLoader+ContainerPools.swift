@@ -106,13 +106,16 @@ extension ConfigLoader {
         let base =
             try entry.baseImage.map { try validatedBaseImage($0, key: "\(key).base_image") } ?? defaults.baseImage
         let flags = try entry.flags.map { try validatedContainerRunFlags($0, key: "\(key).flags") } ?? defaults.flags
-        // `docker:` is inherited as a whole: a pool that sets it gets the cache default, not the section's cache.
-        let docker = entry.docker.map { ($0.enabled, $0.cache ?? true) } ?? (defaults.docker, defaults.dockerCache)
+        // `docker:` is inherited as a whole: a pool that sets it gets the cache defaults, not the section's caches.
+        let docker =
+            entry.docker.map { ($0.enabled, $0.cache ?? true, $0.buildCache ?? false) }
+            ?? (defaults.docker, defaults.dockerCache, defaults.dockerBuildCache)
         return KinhinConfig.ContainerConfig.Pool(
             name: name, image: image, baseImage: base, cpus: entry.cpus ?? defaults.cpus,
             memoryGB: entry.memoryGB ?? defaults.memoryGB, labels: entry.labels ?? defaults.labels,
             fleetLabels: entry.fleetLabels ?? defaults.fleetLabels, minIdle: minIdle,
-            docker: docker.0, dockerCache: docker.1, flags: flags, max: entry.max, platform: platform,
+            docker: docker.0, dockerCache: docker.1, dockerBuildCache: docker.2, flags: flags, max: entry.max,
+            platform: platform,
             enabled: (entry.enabled ?? true) && defaults.enabled)
     }
 }

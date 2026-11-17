@@ -105,6 +105,8 @@ public struct PartialConfig: Decodable {
         var pools: [String: PartialContainerPool]?
         /// `false` turns the Apple-container pool(s) off without dropping the section (default true).
         var enabled: Bool?
+        /// The Docker Hub cache's proxy TTL in hours, shared by every pool (0 = nothing expires).
+        var registryCacheTTLHours: Int?
 
         enum CodingKeys: String, CodingKey, CaseIterable {
             case enabled
@@ -119,6 +121,7 @@ public struct PartialConfig: Decodable {
             case flags
             case platform
             case pools
+            case registryCacheTTLHours = "registry_cache_ttl_hours"
         }
     }
 
