@@ -20,6 +20,29 @@
   kinhin, starts its daemons, so each needs its own Full Disk Access grant, and `brew upgrade container` drops it. The
   install docs recommend Apple's signed installer for external storage. See
   [Install](docs/install.md#keeping-container-data-on-an-external-volume).
+- Storage paths: `tart_home`, `container_app_root`, `registry_cache_path` and `toolchain_cache_path` move Tart's home,
+  Apple container's app root, the Docker Hub cache and the toolchain cache to another volume. kinhin exports
+  `TART_HOME` (and sets or removes it in the LaunchAgent on each install), passes `--app-root` to every
+  `container system start`, and checks before any start that the volume is mounted with ownership enabled, never
+  falling back to the internal disk. `kinhin doctor` reports each path. See
+  [Storage on another volume](website/guide/config.md#storage-on-another-volume).
+- `docker: { build_cache: true }` on `container:` or a pool keeps each Docker runner's images and build cache between
+  jobs, in an Apple container volume of its own at `/var/lib/docker` (one runner per volume, so BuildKit's cache is
+  never shared by two daemons). Off by default; for pools whose jobs you trust alike. See
+  [Docker build cache](docs/runtimes.md#docker-build-cache).
+- `container.registry_cache_ttl_hours` sets how long the Docker Hub cache keeps a layer (default 336; `0` never
+  expires). `kinhin doctor` shows the TTL. See [Expiry and broken entries](docs/runtimes.md#expiry-and-broken-entries).
+- `kinhin config validate` notes when `image:` is left out and the default `tahoe-base` applies (`notes` in `--json`).
+
+**Fixed**
+
+- A Docker Hub cache entry whose blob the proxy TTL expired while another image still linked to it no longer breaks
+  pulls with `unexpected EOF`: before handing out the cache, kinhin deletes such broken entries (at most every five
+  minutes) so they are fetched again, and `kinhin doctor` reports the cache as unhealthy while it holds any.
+- `kinhin doctor` reports the Docker Hub cache's size when its data directory is a symlink (for example to an external
+  disk); it showed 0 MB.
+- A duplicate `images:` name says which key already has it (`image:`, also when it is left out and defaults to
+  `tahoe-base`, or which `images:` entry) and how to fix it.
 
 ## v0.0.1-beta-6
 

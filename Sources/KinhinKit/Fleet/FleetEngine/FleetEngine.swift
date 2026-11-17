@@ -217,13 +217,19 @@ public final class FleetEngine: Sendable {
                 container.usesDockerCache
                 ? DockerRegistryCache(
                     shell: shell,
-                    dataDirectory: dependencies.registryCacheDirectory ?? DockerRegistryCache.defaultDataDirectory)
+                    dataDirectory: dependencies.registryCacheDirectory ?? DockerRegistryCache.defaultDataDirectory,
+                    ttlHours: container.effectiveRegistryCacheTTLHours)
                 : nil
+            // One set of build cache volumes too: it reads which runner holds which volume across every pool.
+            let buildCacheVolumes =
+                container.effectivePools.contains(where: \.usesDockerBuildCache)
+                ? DockerBuildCacheVolumes(shell: shell) : nil
             runtimes[.appleContainer] = AppleContainerRuntime(
-                shell: shell, pool: container.defaultPool, registryCache: registryCache)
+                shell: shell, pool: container.defaultPool, registryCache: registryCache,
+                buildCacheVolumes: buildCacheVolumes)
             for pool in container.pools {
                 containerPoolRuntimes[pool.name] = AppleContainerRuntime(
-                    shell: shell, pool: pool, registryCache: registryCache)
+                    shell: shell, pool: pool, registryCache: registryCache, buildCacheVolumes: buildCacheVolumes)
             }
         }
         if let docker = config.docker {

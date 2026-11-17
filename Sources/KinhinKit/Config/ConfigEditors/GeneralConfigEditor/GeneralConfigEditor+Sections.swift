@@ -52,9 +52,12 @@ extension GeneralConfigEditor {
         if let labels = c.labels { lines.append("  labels: [\(labels.map(YAMLText.quoted).joined(separator: ", "))]") }
         if let fleetLabels = c.fleetLabels { lines.append("  fleet_labels: \(fleetLabels)") }
         if c.minIdle > 0 { lines.append("  min_idle: \(c.minIdle)") }
-        if c.docker { lines.append("  docker: \(dockerValue(cache: c.dockerCache))") }
+        if c.docker {
+            lines.append("  docker: \(dockerValue(cache: c.dockerCache, buildCache: c.dockerBuildCache))")
+        }
         if !c.flags.isEmpty { lines.append("  flags: [\(c.flags.map(YAMLText.quoted).joined(separator: ", "))]") }
         if let platform = c.platform, !platform.isEmpty { lines.append("  platform: \(YAMLText.quoted(platform))") }
+        if let ttl = c.registryCacheTTLHours { lines.append("  registry_cache_ttl_hours: \(ttl)") }
         if !c.pools.isEmpty {
             lines.append("  pools:")
             lines += c.pools.flatMap { $0.lines(indent: "    ") }
@@ -62,9 +65,11 @@ extension GeneralConfigEditor {
         return lines.joined(separator: "\n")
     }
 
-    /// `docker:` with Docker on, as the file writes it: `true`, or `{ cache: false }` when the cache is off.
-    static func dockerValue(cache: Bool) -> String {
-        cache ? "true" : "{ cache: false }"
+    /// `docker:` with Docker on, as the file writes it: `true`, or a mapping naming the options that differ from their
+    /// defaults (`{ cache: false }`, `{ build_cache: true }`, or both).
+    static func dockerValue(cache: Bool, buildCache: Bool = false) -> String {
+        let options = (cache ? [] : ["cache: false"]) + (buildCache ? ["build_cache: true"] : [])
+        return options.isEmpty ? "true" : "{ \(options.joined(separator: ", ")) }"
     }
 
     static func sectionText(_ d: Snapshot.Docker) -> String {

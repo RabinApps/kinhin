@@ -126,6 +126,16 @@ extension ConfigLoader {
         # Running PRs from outside contributors? Also keep projects[].share_cache off (docs/toolchains.md).
         # token_ttl: 3000      # seconds to cache the runner registration token
 
+        # Optional: keep the large trees on another volume (an external disk).
+        # Each key is absolute and optional; a missing key keeps the default
+        # location. The volume must be mounted with ownership enabled
+        # (sudo diskutil enableOwnership /Volumes/Storage) or kinhin starts
+        # nothing; it never falls back to the internal disk.
+        # tart_home: /Volumes/Storage/tart                        # TART_HOME (default ~/.tart)
+        # container_app_root: /Volumes/Storage/container          # container system start --app-root
+        # registry_cache_path: /Volumes/Storage/kinhin/registry-cache
+        # toolchain_cache_path: /Volumes/Storage/kinhin/toolchain-cache
+
         # Optional: bake your own toolchains into the base image. The script
         # runs (verbatim, as the admin user) inside the VM during
         # `kinhin image prepare`, after the runner agents are installed;
@@ -258,7 +268,9 @@ extension ConfigLoader {
         #   fleet_labels: false          # replace-not-add: drop the fleet labels entirely
         #   min_idle: 1                  # idle registered runners kept for this pool
         #   docker: true                 # Docker inside each runner (dockerd starts before it registers),
-        #                                # pulling through kinhin's Docker Hub cache; docker: { cache: false } skips it
+        #                                # pulling through kinhin's Docker Hub cache; docker: { cache: false } skips it;
+        #                                # docker: { build_cache: true } keeps each runner's images and build cache
+        #   registry_cache_ttl_hours: 336  # how long the Docker Hub cache keeps a layer (0 = never expires)
         #   flags: ["--shm-size", "2g"]  # extra `container run` arguments, one list element each
         #   platform: "linux/arm64"      # default; "linux/amd64" runs x86_64 under Rosetta (label x64, not arm64)
         #   pools:                       # optional: several named pools; the keys above are their defaults

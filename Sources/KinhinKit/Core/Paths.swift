@@ -114,7 +114,13 @@ public enum Paths {
     /// Shared toolchain download cache (mise, brew, npm, fvm, Go, Cargo…).
     /// Mounted read-write into scratch VMs at prepare time and — opt-in via
     /// `toolchains.share_cache` — into runner VMs. See `ToolchainCacheMount`.
+    /// `toolchain_cache_path:` moves it (`StorageLocations`).
     public static var toolchainCache: URL {
+        StorageLocations.configuredDirectory(.toolchainCache) ?? defaultToolchainCache
+    }
+
+    /// The toolchain cache when `toolchain_cache_path:` is not set.
+    static var defaultToolchainCache: URL {
         appSupport.appendingPathComponent(ToolchainCacheMount.hostDirectoryName, isDirectory: true)
     }
 
@@ -134,10 +140,21 @@ public enum Paths {
                 try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directory.path)
             }
         }
+        // Before the config is applied, `toolchainCache` is only the default path; creating it then would leave an
+        // empty directory on the internal disk when `toolchain_cache_path:` moves the cache. `ConfigLoader.load()`
+        // creates it once the config says where it lives.
+        if StorageLocations.isApplied { ensureToolchainCache() }
+        restrictExistingFiles()
+    }
+
+    /// Creates the toolchain cache where the applied config puts it. A configured cache on a volume that is not
+    /// mounted (or ignores ownership) is left alone: creating it would put the directory on the internal disk.
+    /// Whatever needs the cache next reports the problem.
+    static func ensureToolchainCache() {
         bestEffort("paths", "creating \(toolchainCache.path)") {
+            try StoragePreflight.live.requireReady(.toolchainCache)
             try FileManager.default.createDirectory(at: toolchainCache, withIntermediateDirectories: true)
         }
-        restrictExistingFiles()
     }
 
     /// Tightens files earlier builds created world-readable: the config and its

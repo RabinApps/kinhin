@@ -10,6 +10,11 @@ import Foundation
 /// `kinhin`, so recovery, the orphan sweep and capacity never count it, and `kinhin image prune` keeps its image while
 /// a pool uses it. Apple container gives it a new address on every start (and no DNS name), so each runner asks for
 /// the current one (`address()`) when it registers; `AppleContainerRuntime+DockerCache` wires it in.
+///
+/// Blobs expire after the proxy TTL (`container.registry_cache_ttl_hours`, two weeks by default; 0 keeps them until
+/// deleted). An expired blob can leave other repositories' links to it behind, which breaks their pulls, so each runner
+/// that asks for the cache first gets the data directory checked and any broken entry deleted
+/// (`DockerRegistryCacheStorage`), at most every `storageCheckInterval`.
 actor DockerRegistryCache {
     static let containerName = "registry-cache-kinhin"
     static let image = "registry:3"
@@ -17,15 +22,19 @@ actor DockerRegistryCache {
     static let port = 5000
     static let cpus = 1
     static let memory = "1024M"
-    /// How long the proxy keeps a blob or manifest before asking Docker Hub again (two weeks).
-    static let proxyTTL = "336h"
+    /// How long the proxy keeps a blob or manifest before asking Docker Hub again, by default (two weeks).
+    static let defaultTTLHours = KinhinConfig.ContainerConfig.defaultRegistryCacheTTLHours
+    /// How often a runner's request for the cache also checks its data directory for broken entries.
+    static let storageCheckInterval: Duration = .seconds(300)
     static let upstream = "https://registry-1.docker.io"
     /// Where `registry:3` keeps its data inside the container.
     static let guestDataPath = "/var/lib/registry"
 
     /// The host directory bind-mounted at `guestDataPath`: cached layers survive the container.
+    /// `registry_cache_path:` moves it (`StorageLocations`).
     static var defaultDataDirectory: URL {
-        Paths.appSupport.appendingPathComponent("registry-cache", isDirectory: true)
+        StorageLocations.configuredDirectory(.registryCache)
+            ?? Paths.appSupport.appendingPathComponent("registry-cache", isDirectory: true)
     }
 
     /// What `container inspect` says about the cache container.
@@ -34,6 +43,10 @@ actor DockerRegistryCache {
         let state: String
         /// Its IPv4 address on the container network, without the prefix length; nil until it has one.
         let address: String?
+        /// The `REGISTRY_PROXY_TTL` it was created with; nil when `container inspect` does not show its environment.
+        var ttl: String? = nil
+        /// The host directory mounted at `guestDataPath`; nil when `container inspect` does not show its mounts.
+        var dataSource: String? = nil
 
         var isRunning: Bool { state == "running" }
     }
@@ -50,25 +63,40 @@ actor DockerRegistryCache {
         var dataDirectory: String
         /// Why the container could not be inspected, when it could not.
         var problem: String?
+        /// The TTL the running container uses (`REGISTRY_PROXY_TTL`), when it shows it.
+        var ttl: String? = nil
+        /// The TTL the config asks for; differs from `ttl` until the cache is next started.
+        var wantedTTL: String? = nil
+        /// What a check of the data directory found; nil when there is no data directory yet.
+        var storage: DockerRegistryCacheStorage.Report? = nil
     }
 
     let shell: ShellRunning
     /// Binary-path override (tests); nil resolves like `AppleContainerRuntime`.
     let binPath: String?
     let dataDirectory: URL
+    /// `REGISTRY_PROXY_TTL` in hours (`container.registry_cache_ttl_hours`); 0 never expires anything.
+    let ttlHours: Int
     /// How often, and how far apart, a started container is asked for its address before giving up.
     let addressPolls: Int
     let pollInterval: Duration
     /// The start in progress, which concurrent callers join instead of starting a second container.
     private var inFlight: Task<String, any Error>?
+    /// Whether the running cache's other data directory was already logged (once per process).
+    private var reportedDataMismatch = false
+    /// When the data directory was last checked for broken entries (`checkStorageIfDue`).
+    private var lastStorageCheck: ContinuousClock.Instant?
+    /// Whether a running cache with another TTL than `ttlHours` has been reported (once per engine).
+    private var reportedTTLMismatch = false
 
     init(
         shell: ShellRunning = Shell(), binPath: String? = nil, dataDirectory: URL = defaultDataDirectory,
-        addressPolls: Int = 20, pollInterval: Duration = .milliseconds(500)
+        ttlHours: Int = defaultTTLHours, addressPolls: Int = 20, pollInterval: Duration = .milliseconds(500)
     ) {
         self.shell = shell
         self.binPath = binPath
         self.dataDirectory = dataDirectory
+        self.ttlHours = ttlHours
         self.addressPolls = addressPolls
         self.pollInterval = pollInterval
     }
@@ -77,6 +105,11 @@ actor DockerRegistryCache {
 
     /// The `registry-mirrors` entry for the cache at `address`.
     static func mirrorURL(address: String) -> String { "http://\(address):\(port)" }
+
+    /// `REGISTRY_PROXY_TTL` for `hours`: a Go duration, where 0 turns expiry off.
+    static func ttlValue(hours: Int) -> String { "\(hours)h" }
+
+    nonisolated var ttl: String { Self.ttlValue(hours: ttlHours) }
 
     // MARK: - Starting and adopting
 
@@ -130,13 +163,84 @@ actor DockerRegistryCache {
     }
 
     private func runningAddress() async throws -> String {
-        if let current = try await inspect() {
-            if current.isRunning, let address = current.address { return address }
-            if !current.isRunning { try await start(from: current.state) }
-        } else {
-            try await create()
+        // A configured data directory on a volume that is away would leave the bind mount empty (or create it on
+        // the internal disk): fail here, and the runner pulls from Docker Hub directly.
+        if dataDirectory.path == StorageLocations.current.registryCachePath {
+            try StoragePreflight.live.requireReady(.registryCache)
         }
+        checkStorageIfDue()
+        guard let current = try await inspect() else {
+            try await create()
+            return try await awaitAddress()
+        }
+        var stale: [String] = []
+        if let other = current.ttl, other != ttl {
+            if current.isRunning { reportTTLMismatch(running: other) } else { stale.append("TTL \(other) → \(ttl)") }
+        }
+        if let source = current.dataSource, !StoragePreflight.sameDirectory(source, dataDirectory.path) {
+            if current.isRunning {
+                reportDataMismatch(running: source)
+            } else {
+                stale.append("data \(source) → \(dataDirectory.path)")
+            }
+        }
+        if !stale.isEmpty {
+            // A stopped cache is recreated with the configured TTL and directory; the old directory keeps its data.
+            try await delete(stoppedBecause: stale)
+            try await create()
+            return try await awaitAddress()
+        }
+        if current.isRunning, let address = current.address { return address }
+        if !current.isRunning { try await start(from: current.state) }
         return try await awaitAddress()
+    }
+
+    /// Checks the data directory and deletes broken entries, at most every `storageCheckInterval`. Never throws: a
+    /// cache that cannot be checked is used as it is.
+    func checkStorageIfDue(now: ContinuousClock.Instant = .now) {
+        if let last = lastStorageCheck, now - last < Self.storageCheckInterval { return }
+        lastStorageCheck = now
+        let report = DockerRegistryCacheStorage.scan(dataDirectory)
+        guard !report.isHealthy else { return }
+        let removed = DockerRegistryCacheStorage.repair(report, in: dataDirectory)
+        let examples = (report.danglingLinks + report.brokenBlobs).prefix(3).joined(separator: ", ")
+        Log.warn(
+            "container",
+            "Docker Hub cache: deleted \(removed) of \(report.problems) broken entries (links to blobs the proxy "
+                + "TTL expired, or empty blobs), so their next pull fetches them from Docker Hub again: \(examples)")
+    }
+
+    private func reportTTLMismatch(running other: String) {
+        guard !reportedTTLMismatch else { return }
+        reportedTTLMismatch = true
+        Log.warn(
+            "container",
+            "the Docker Hub cache runs with TTL \(other), the config asks for \(ttl); it changes the next time the "
+                + "cache starts (container stop \(Self.containerName) applies it once no job is pulling)")
+    }
+
+    /// A running cache keeps its directory until it stops: recreating it would break the pulls of every runner using
+    /// it. Logged once.
+    private func reportDataMismatch(running source: String) {
+        guard !reportedDataMismatch else { return }
+        reportedDataMismatch = true
+        Log.warn(
+            "container",
+            "the Docker Hub cache keeps its data in \(source), the config asks for \(dataDirectory.path); it moves "
+                + "the next time the cache starts (container stop \(Self.containerName) applies it once no job is "
+                + "pulling)")
+    }
+
+    /// Deletes the stopped cache container so it can be created again with the configured TTL and data directory.
+    private func delete(stoppedBecause reasons: [String]) async throws {
+        Log.info(
+            "container",
+            "recreating the stopped Docker Hub cache \(Self.containerName): \(reasons.joined(separator: ", "))")
+        let result = try await shell.run([bin, "delete", Self.containerName], cwd: nil, timeout: 60)
+        guard result.succeeded || result.stderr.localizedCaseInsensitiveContains("not found") else {
+            throw ContainerManagerError.commandFailed(
+                what: "container: deleting \(Self.containerName)", stderr: result.failureExcerpt)
+        }
     }
 
     private func start(from state: String) async throws {
@@ -160,7 +264,7 @@ actor DockerRegistryCache {
             "starting the Docker Hub cache \(Self.containerName) (\(Self.image), data in \(dataDirectory.path))")
         // The first start pulls registry:3, so allow for a slow network.
         let result = try await shell.run(
-            Self.runArguments(bin: bin, dataDirectory: dataDirectory), cwd: nil, timeout: 600)
+            Self.runArguments(bin: bin, dataDirectory: dataDirectory, ttlHours: ttlHours), cwd: nil, timeout: 600)
         guard result.succeeded else {
             // Created by someone else between the inspect and the run (another kinhin, a person): adopt it.
             if let raced = try await inspect() {
@@ -174,12 +278,12 @@ actor DockerRegistryCache {
 
     /// The `container run` argv that creates the cache. No `--rm`: a cache stopped with the host keeps its container,
     /// and the next runner starts it again.
-    static func runArguments(bin: String, dataDirectory: URL) -> [String] {
+    static func runArguments(bin: String, dataDirectory: URL, ttlHours: Int = defaultTTLHours) -> [String] {
         [
             bin, "run", "--detach", "--name", containerName, "--cpus", String(cpus), "--memory", memory,
             "--volume", "\(dataDirectory.path):\(guestDataPath)",
             "--env", "REGISTRY_PROXY_REMOTEURL=\(upstream)",
-            "--env", "REGISTRY_PROXY_TTL=\(proxyTTL)",
+            "--env", "REGISTRY_PROXY_TTL=\(ttlValue(hours: ttlHours))",
             image,
         ]
     }
@@ -210,9 +314,10 @@ actor DockerRegistryCache {
         return try Self.parseInspection(result.stdout)
     }
 
-    /// `container inspect NAME` (a JSON array): the first entry's `status.state` and the IPv4 address of its first
-    /// network, without the prefix length. nil for an empty array (no such container); throws for anything else
-    /// that is not that shape.
+    /// `container inspect NAME` (a JSON array): the first entry's `status.state`, the IPv4 address of its first
+    /// network, without the prefix length, and the `REGISTRY_PROXY_TTL` in its init process's environment
+    /// (`configuration.initProcess.environment`, when shown). nil for an empty array (no such container); throws for
+    /// anything else that is not that shape.
     static func parseInspection(_ text: String) throws -> Inspection? {
         let parsed: Any
         do {
@@ -231,18 +336,27 @@ actor DockerRegistryCache {
         let address = networks.lazy.compactMap { $0["ipv4Address"] as? String }.first
             .map { String($0.split(separator: "/").first ?? Substring($0)) }
             .flatMap { $0.isEmpty ? nil : $0 }
-        return Inspection(state: state, address: address)
+        let configuration = first["configuration"] as? [String: Any]
+        let initProcess = configuration?["initProcess"] as? [String: Any]
+        let environment = initProcess?["environment"] as? [String] ?? []
+        let ttlPrefix = "REGISTRY_PROXY_TTL="
+        let ttl = environment.first { $0.hasPrefix(ttlPrefix) }.map { String($0.dropFirst(ttlPrefix.count)) }
+        let mounts = configuration?["mounts"] as? [[String: Any]] ?? []
+        let source = mounts.first { $0["destination"] as? String == guestDataPath }?["source"] as? String
+        return Inspection(state: state, address: address, ttl: ttl, dataSource: source)
     }
 
     /// The cache's state for doctor, read without starting anything.
     func status() async -> Status {
+        let bytes = Self.dataBytes(at: dataDirectory)
         var status = Status(
-            exists: false, running: false, address: nil, dataBytes: Self.dataBytes(at: dataDirectory),
-            dataDirectory: dataDirectory.path)
+            exists: false, running: false, address: nil, dataBytes: bytes, dataDirectory: dataDirectory.path,
+            wantedTTL: ttl, storage: bytes == nil ? nil : DockerRegistryCacheStorage.scan(dataDirectory))
         do {
             guard let current = try await inspect() else { return status }
             status.exists = true
             status.running = current.isRunning
+            status.ttl = current.ttl
             if current.isRunning, let address = current.address { status.address = "\(address):\(Self.port)" }
         } catch {
             status.problem = error.localizedDescription
@@ -252,6 +366,8 @@ actor DockerRegistryCache {
 
     /// The bytes the files under `directory` take on disk; nil when it is missing or cannot be read.
     static func dataBytes(at directory: URL) -> Int64? {
+        // The directory may be a symlink (to an external disk, say): the enumerator would not follow it.
+        let directory = DockerRegistryCacheStorage.canonical(directory)
         let keys: [URLResourceKey] = [.totalFileAllocatedSizeKey, .isRegularFileKey]
         guard FileManager.default.fileExists(atPath: directory.path),
             let walk = FileManager.default.enumerator(at: directory, includingPropertiesForKeys: keys)

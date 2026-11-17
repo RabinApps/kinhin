@@ -65,7 +65,14 @@ public struct ConfigLoader {
         } catch {
             throw ConfigError.unreadable(url.path, reason: error.localizedDescription)
         }
-        return try Self.parse(yaml)
+        let config = try Self.parse(yaml)
+        // The Mac's own config decides where Tart, Apple container and the caches live for this whole process
+        // (daemon, app and CLI alike); a config read from anywhere else (an import, a `config validate FILE`) does not.
+        if url.standardizedFileURL.path == Paths.config.standardizedFileURL.path {
+            StorageLocations.apply(config.storage)
+            Paths.ensureToolchainCache()
+        }
+        return config
     }
 
     public static func parse(_ yaml: String) throws -> KinhinConfig {
@@ -92,6 +99,7 @@ public struct ConfigLoader {
         if let healing = partial.healing { cfg.healing = try parseHealing(healing) }
         if let telemetry = partial.telemetry { cfg.telemetry = try parseTelemetry(telemetry) }
         if let alerts = partial.alerts { cfg.alerts = try parseAlerts(alerts) }
+        cfg.storage = try parseStorage(partial)
         try validateHostScopes(cfg)
         try validateEphemeralForges(cfg)
         try validateMinIdle(cfg)

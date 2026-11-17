@@ -10,7 +10,7 @@
 | `labels`                                   | Jobs must request _all_ of these to be picked up                                                                                                                                                                                                                                                                                                             |
 | `min_runners` / `max_runners` | Scaling bounds (in VMs). Defaults `0` / `2`. `min_runners` is one floor for the whole fleet: busy instances count toward it and the instances it adds run on `runtimes.default` (see [Scaling](/guide/scaling#min-runners-a-fleet-wide-floor-not-an-idle-one)) |
 | `image_min_idle` / `min_idle` | Registered, idle runners kept at all times so the forge always lists one: `image_min_idle` for the top-level `image:`, `min_idle` on each `images:` entry, on `container:` and on `docker:`. A busy runner does not count, so a replacement starts as soon as one takes a job. Default `0` (off); see [Idle runners per pool and image](/guide/scaling#idle-runners-per-pool-and-image) |
-| `container` | Linux jobs in Apple `container` microVMs: `image`, `base_image`, `cpus` (4), `memory_gb` (8), `labels`, `fleet_labels`, `min_idle`, `docker` (`false`; `true` runs Docker inside each runner, pulling Docker Hub images through kinhin's cache, and `{ cache: false }` runs Docker without the [Docker Hub cache](/guide/runtimes#docker-hub-cache)), `flags` (extra `container run` arguments), `platform` (`linux/arm64`; `linux/amd64` runs x86_64 runners under Rosetta, registered with `x64`) and `pools` (named pools: each takes those keys plus `max`, the top-level ones are their defaults). See [apple/container](/guide/runtimes#apple-container) and [Several container pools](/guide/runtimes#several-container-pools) |
+| `container` | Linux jobs in Apple `container` microVMs: `image`, `base_image`, `cpus` (4), `memory_gb` (8), `labels`, `fleet_labels`, `min_idle`, `docker` (`false`; `true` runs Docker inside each runner, pulling Docker Hub images through kinhin's cache, `{ cache: false }` runs Docker without the [Docker Hub cache](/guide/runtimes#docker-hub-cache), and `{ build_cache: true }` keeps each runner's Docker images and build cache between jobs, see [Docker build cache](/guide/runtimes#docker-build-cache)), `registry_cache_ttl_hours` (336; how long the Docker Hub cache keeps a layer, `0` = never expires, see [Expiry and broken entries](/guide/runtimes#expiry-and-broken-entries)), `flags` (extra `container run` arguments), `platform` (`linux/arm64`; `linux/amd64` runs x86_64 runners under Rosetta, registered with `x64`) and `pools` (named pools: each takes those keys plus `max`, the top-level ones are their defaults). See [apple/container](/guide/runtimes#apple-container) and [Several container pools](/guide/runtimes#several-container-pools) |
 | `enabled` (on `container`, `container.pools.NAME`, `docker`) / `runtimes.tart.enabled` | `true`. `false` keeps the pool's settings but takes it out of routing, scheduling and the Fleet page; running instances drain. The default pool and pools a route names cannot be disabled. See [Turning a pool off](/guide/runtimes#turning-a-pool-off) |
 | `warm_pool` / `warm_max_age_minutes` | Pre-booted, unregistered Tart VMs kept for instant pickup (per image: also `warm_pool` on each `images:` entry), and when to recycle them. Defaults `0` (off) / `60` |
 | `runners_per_vm`                           | Runner processes per VM — many-to-one job density (1–8; 1 = one job per VM, most isolated)                                                                                                                                                                                                                                                                   |
@@ -21,6 +21,7 @@
 | `provision_script`                         | Host script baked into the image by `image prepare` (your toolchains; see [Toolchains](/guide/toolchains))                                                                                                                                                                                                                                                   |
 | `projects`                                 | Per-repo rules (`pattern`, `repo_file`, `toolchains`, `share_cache`): `repo_file: true` lets a repo's `.kinhin/config.yml` (or older `.kinhin.yml`) choose its toolchains; `toolchains` declares them here instead. There is no global `toolchains:` (see [Per-project toolchains](/guide/toolchains#per-project-toolchains))                                                                |
 | `toolchain_cache`                          | Host download-cache expiry: `auto_prune`, `max_age_days` (30), `max_gb` (50). `max_project_images` (8) caps derived images                                                                                                                                                                                                                                   |
+| `tart_home` / `container_app_root` / `registry_cache_path` / `toolchain_cache_path` | Where the large trees live: Tart's home (`TART_HOME`, default `~/.tart`), Apple container's app root (`container system start --app-root`), the Docker Hub cache and the toolchain cache. Absolute paths, all optional; a missing key keeps the default. kinhin checks the volume before it starts anything there. See [Storage on another volume](#storage-on-another-volume) |
 | `reserve.cpu` / `reserve.memory_gb`        | Host headroom kept free                                                                                                                                                                                                                                                                                                                                      |
 | `reserve.disk_gb`                          | Host disk (GB) kept free (default 10)                                                                                                                                                                                                                                                                                                                        |
 | `healing`                                  | The healing agent: `enabled` (true), `auto` (`safe`, or `none` to approve every fix), `ai` (`auto` or `off`), `max_attempts` (3, 1–10). See [The healing agent](/guide/healing)                                                                                                                                                                              |
@@ -40,6 +41,53 @@ The effective concurrency cap is
 Linux container slots). The scaler re-checks free disk before every spawn and holds new VMs when
 the disk would dip below `reserve.disk_gb` plus one instance's footprint.
 `kinhin doctor` prints the result and the binding constraint.
+
+## Storage on another volume
+
+Tart VMs, Apple container's images and kernels, the Docker Hub cache and the toolchain cache are large. On a Mac whose
+internal disk is tight, move them to an external volume with four optional keys:
+
+```yaml
+tart_home: /Volumes/Storage/tart                          # TART_HOME (default ~/.tart)
+container_app_root: /Volumes/Storage/container            # container system start --app-root
+registry_cache_path: /Volumes/Storage/kinhin/registry-cache
+toolchain_cache_path: /Volumes/Storage/kinhin/toolchain-cache
+```
+
+- **Every start path uses them.** kinhin exports `TART_HOME` for every `tart` it runs and writes it into the daemon's
+  LaunchAgent (`kinhin daemon install`); a reinstall keeps the LaunchAgent's other variables. Every
+  `container system start` (setup, healing, image builds) passes `--app-root`, and kinhin looks for the container
+  kernel under that root. No symlinks or hand-edited LaunchAgents are needed.
+- **The volume is checked first.** Before the daemon starts, and before Tart, the container system or either cache
+  starts, kinhin checks that each configured path's volume is mounted (a path under `/Volumes/<name>` needs that
+  volume) and that the volume has ownership enabled. If not, it starts nothing and says which volume and what to do.
+  It never falls back to the internal default path. Under launchd the daemon retries, so it starts once the volume is
+  mounted.
+- **Ownership must be on.** External APFS volumes often ship with ownership ignored, and launchd then rejects the
+  container service files under the app root (`bad ownership/permissions`). Run
+  `sudo diskutil enableOwnership /Volumes/Storage`. Files copied there *before* you enabled ownership can still be
+  rejected even with the right owner and mode; copy them again afterwards. See
+  [Troubleshooting](/guide/troubleshooting).
+- **Moving existing data.** Stop the fleet (`kinhin stop`, or quit the app), stop the container system
+  (`container system stop`), enable ownership on the volume, then copy each tree to its new path (for example
+  `ditto ~/.tart /Volumes/Storage/tart`). Set the keys, then start again. Remove a leftover symlink or a hand-added
+  `TART_HOME` first, so only the config decides.
+- **Keep a link at Apple container's old app root.** Apple container records absolute paths under the app root it
+  unpacked an image in, so a copied image still points at `~/Library/Application Support/com.apple.container/…`.
+  Without that path, every container start fails with `Code=260 … "snapshot" … no such file`. After copying the
+  app root, leave a symlink at the old path pointing at the new root (for example
+  `~/Library/Application Support/com.apple.container` → `/Volumes/Storage/container`) until every image has been
+  pulled or baked again on the new root.
+- **Already running elsewhere.** A container system that is already running keeps the app root it started with, so
+  kinhin starts no container while that root is not `container_app_root:`; run `container system stop` once no
+  runner is busy (it stops every container). A running Docker Hub cache keeps its old directory until it stops; a
+  stopped one is recreated on `registry_cache_path:`.
+- `kinhin config validate` rejects an empty, relative (`~/…` included), or nested path, and a path that names a file.
+  `kinhin doctor` lists each configured path, its volume and the preflight result; a path that fails makes the report
+  not ready.
+- The config decides `TART_HOME` in the LaunchAgent: after you remove `tart_home:`, the next `kinhin daemon install`
+  removes it too (also one added by hand). If the config does not load, the install keeps the LaunchAgent's
+  variables as they are.
 
 ## Validation and defaults
 

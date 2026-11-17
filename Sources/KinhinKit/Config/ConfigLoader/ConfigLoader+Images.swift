@@ -17,10 +17,14 @@ extension ConfigLoader {
     /// Validates the `images:` list: unique, safe names distinct from `image:`.
     /// Names starting with `kinhin-` or `orchard-` are rejected because fleet
     /// recovery and `kinhin cleanup` treat such VMs as runners and delete them.
+    /// `primaryIsDefault`: the file leaves `image:` out, so `primary` is `KinhinConfig.default.image`; a clash with it
+    /// says so, since the file never names it.
     static func parseImages(
-        _ entries: [PartialConfig.PartialImage], primary: String, fleetLabels: [String]
+        _ entries: [PartialConfig.PartialImage], primary: String, primaryIsDefault: Bool = false,
+        fleetLabels: [String]
     ) throws -> [KinhinConfig.ImageConfig] {
-        var seen: Set<String> = [primary]
+        // Each name taken so far, and where: nil for `image:`, the index for an `images:` entry.
+        var seen: [String: Int?] = [primary: nil]
         var seenLabelSets: Set<Set<String>> = []
         let fleet = Set(fleetLabels.map { $0.lowercased() })
         var result: [KinhinConfig.ImageConfig] = []
@@ -39,10 +43,12 @@ extension ConfigLoader {
                     "\(position).name '\(name)' must not start with 'kinhin-' or 'orchard-': those names are reserved for runner VMs"
                 )
             }
-            guard seen.insert(name).inserted else {
+            if let owner = seen[name] {
                 throw ConfigError.invalid(
-                    "\(position).name '\(name)' is already used (image: or another images: entry)")
+                    Self.duplicateImageNameMessage(
+                        name: name, index: index, earlier: owner, primaryIsDefault: primaryIsDefault))
             }
+            seen[name] = index
             if let base = entry.baseImage, let problem = TartBaseImage.problem(with: base) {
                 throw ConfigError.invalid("\(position).base_image \(problem)")
             }
@@ -76,6 +82,23 @@ extension ConfigLoader {
                 .init(name: name, baseImage: entry.baseImage, labels: entry.labels, warmPool: warm, minIdle: minIdle))
         }
         return result
+    }
+
+    /// The error for `images[index].name` reusing a name: which key already has it, and how to fix it. `earlier` is
+    /// the index of the `images:` entry that has it, or nil when it is `image:` (left out of the file when
+    /// `primaryIsDefault`, so the default name is spelled out).
+    static func duplicateImageNameMessage(name: String, index: Int, earlier: Int?, primaryIsDefault: Bool) -> String {
+        let position = "images[\(index)].name"
+        if let earlier {
+            return "\(position) '\(name)' is already used by images[\(earlier)].name. Each images: entry needs its own "
+                + "name: rename one of them"
+        }
+        if primaryIsDefault {
+            return "\(position) '\(name)' clashes with image:, which is not set and so defaults to '\(name)'. "
+                + "Rename this images: entry, or set image: to the name of the macOS image you prepared"
+        }
+        return "\(position) '\(name)' is the same as image: '\(name)'. image: is the default macOS image and "
+            + "images: are extra ones, so each needs its own name: rename this images: entry, or change image:"
     }
 
     /// Labels for the default `image:` (`image_labels:`). Same rules as an `images:` entry's

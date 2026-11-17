@@ -22,9 +22,14 @@ final class DockerRegistryCacheTests: XCTestCase {
             pollInterval: .milliseconds(1))
     }
 
-    private static func inspected(_ state: String, address: String? = nil) -> ShellResult {
+    private static func inspected(_ state: String, address: String? = nil, source: String? = nil) -> ShellResult {
         let networks = address.map { #"[{"ipv4Address":"\#($0)/24","network":"default"}]"# } ?? "[]"
-        let json = #"[{"id":"registry-cache-kinhin","status":{"state":"\#(state)","networks":\#(networks)}}]"#
+        let configuration =
+            source.map {
+                #","configuration":{"mounts":[{"destination":"/var/lib/registry","source":"\#($0)"}]}"#
+            } ?? ""
+        let json =
+            #"[{"id":"registry-cache-kinhin","status":{"state":"\#(state)","networks":\#(networks)}\#(configuration)}]"#
         return ShellResult(exitCode: 0, stdout: json, stderr: "")
     }
 
@@ -66,6 +71,38 @@ final class DockerRegistryCacheTests: XCTestCase {
         var isDirectory: ObjCBool = false
         XCTAssertTrue(FileManager.default.fileExists(atPath: dataDirectory.path, isDirectory: &isDirectory))
         XCTAssertTrue(isDirectory.boolValue, "the bind mount's host side exists before the run")
+    }
+
+    func testAStoppedCacheOnAnotherDirectoryIsRecreatedOnTheConfiguredOne() async throws {
+        let shell = FakeShell()
+        shell.responses = [
+            Self.inspected("stopped", source: "/Users/ci/old-cache"), Self.ok, Self.ok,
+            Self.inspected("running", address: "192.168.64.5", source: dataDirectory.path),
+        ]
+        let address = try await cache(shell).address()
+        XCTAssertEqual(address, "192.168.64.5")
+        XCTAssertEqual(verbs(shell), ["inspect", "delete", "run", "inspect"])
+        XCTAssertEqual(shell.calls[2], DockerRegistryCache.runArguments(bin: bin, dataDirectory: dataDirectory))
+    }
+
+    func testARunningCacheOnAnotherDirectoryIsKeptUntilItStops() async throws {
+        let shell = FakeShell()
+        shell.responses = [Self.inspected("running", address: "192.168.64.7", source: "/Users/ci/old-cache")]
+        let address = try await cache(shell).address()
+        XCTAssertEqual(address, "192.168.64.7")
+        XCTAssertEqual(verbs(shell), ["inspect"], "a running cache serves other runners' pulls; it is not replaced")
+    }
+
+    func testAStoppedCacheOnTheSameDirectoryThroughASymlinkIsJustStarted() async throws {
+        try FileManager.default.createDirectory(at: dataDirectory, withIntermediateDirectories: true)
+        let link = dataDirectory.deletingLastPathComponent().appendingPathComponent("link")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: dataDirectory)
+        let shell = FakeShell()
+        shell.responses = [
+            Self.inspected("stopped", source: link.path), Self.ok, Self.inspected("running", address: "192.168.64.9"),
+        ]
+        _ = try await cache(shell).address()
+        XCTAssertEqual(verbs(shell), ["inspect", "start", "inspect"])
     }
 
     func testTheRunArgumentsMakeAPullThroughCacheOfDockerHub() {
@@ -240,6 +277,14 @@ final class DockerRegistryCacheTests: XCTestCase {
         let inspection = try XCTUnwrap(DockerRegistryCache.parseInspection(text))
         XCTAssertEqual(inspection, .init(state: "running", address: "192.168.64.3"))
         XCTAssertTrue(inspection.isRunning)
+    }
+
+    func testInspectionReadsTheDataMountsSource() throws {
+        let json =
+            #"[{"status":{"state":"running","networks":[]},"configuration":{"mounts":[{"destination":"/etc/x","source":"/a"},{"destination":"/var/lib/registry","source":"/Volumes/Storage/kinhin/registry-cache"}]}}]"#
+        XCTAssertEqual(
+            try DockerRegistryCache.parseInspection(json)?.dataSource, "/Volumes/Storage/kinhin/registry-cache")
+        XCTAssertNil(try DockerRegistryCache.parseInspection(#"[{"status":{"state":"running"}}]"#)?.dataSource)
     }
 
     func testAStoppedContainerHasNoAddress() throws {

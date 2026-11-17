@@ -76,6 +76,9 @@ enum ConfigCommands {
         var accounts: [Account]
         var labels: [String]
         var runtimeRoutes: Int
+        /// What the valid config does that its author may not have meant (`ConfigLoader.notes(forYAML:)`), such as
+        /// the default `image:` applied; absent when there are none or the config is invalid.
+        var notes: [String]? = nil
 
         struct Account: Codable, Equatable {
             var name: String
@@ -101,11 +104,17 @@ enum ConfigCommands {
     /// `ConfigError` when it parses but has no accounts yet.
     private static func validated(configURL: URL) throws -> ValidationDocument {
         let config = try ConfigLoader.load(from: configURL)
+        // A storage path that names a file is never usable. An unmounted volume is not a config error (the daemon's
+        // preflight and `kinhin doctor` report it), so only what is at the path is checked here.
+        for (location, path) in config.storage.configured where StoragePreflight.liveEntry(path) == .notDirectory {
+            throw ConfigError.invalid("\(location.configKey): \(path) exists but is not a directory")
+        }
         guard ConfigLoader.hasAnyForge(config) else {
             throw ConfigError.invalid(
                 "\(configURL.path) has no accounts yet; add one (accounts: [{name: github, forge: github, scope: owner/name}]) or run `kinhin auth add`"
             )
         }
+        let notes = ConfigLoader.notes(at: configURL)
         let accounts = config.accounts.map {
             ValidationDocument.Account(name: $0.name, forge: $0.forge.rawValue, scope: $0.scope)
         }
@@ -115,7 +124,8 @@ enum ConfigCommands {
             error: nil,
             accounts: accounts,
             labels: config.labels,
-            runtimeRoutes: config.runtimes?.routes.count ?? 0
+            runtimeRoutes: config.runtimes?.routes.count ?? 0,
+            notes: notes.isEmpty ? nil : notes
         )
     }
 
@@ -133,6 +143,7 @@ enum ConfigCommands {
         let configURL = files.first.map { URL(fileURLWithPath: $0) } ?? Paths.config
         guard args.contains("--json") else {
             print(try validate(configURL: configURL))
+            for note in ConfigLoader.notes(at: configURL) { printError("note: \(note)") }
             return
         }
         let document = validationDocument(configURL: configURL)
