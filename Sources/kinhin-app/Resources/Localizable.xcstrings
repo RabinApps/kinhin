@@ -706,6 +706,9 @@
         }
       }
     },
+    "(click a VM to delete it — confirms first)" : {
+      "comment" : "Disabled hint row under the VM list in the status-bar menu"
+    },
     "%@  →  %@  (workflow)" : {
       "comment" : "Routing tab route row for one workflow: the pattern, then the runtime",
       "localizations" : {
@@ -7295,53 +7298,6 @@
         }
       }
     },
-    "Become a Sponsor…" : {
-      "comment" : "Help menu item",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "كن راعيًا…"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sponsor werden…"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Hacerse patrocinador…"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Devenir sponsor…"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "להיות נותן חסות…"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Diventa sponsor…"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "スポンサーになる…"
-          }
-        }
-      }
-    },
     "being deleted" : {
       "comment" : "VoiceOver phase description",
       "localizations" : {
@@ -9046,6 +9002,9 @@
         }
       }
     },
+    "Check the summary, then start. Change any of it later in Accounts and Runtimes." : {
+      "comment" : "Setup wizard step 3 subtitle"
+    },
     "Checked %@" : {
       "comment" : "Diagnostics sheet status; %@ is the localized time of day",
       "localizations" : {
@@ -9465,53 +9424,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "リポジトリを選択…"
-          }
-        }
-      }
-    },
-    "Choose what runs your jobs: Linux (Docker, Apple container, or a full Linux VM), macOS virtual machines (tart), or both. You only need one — the button below walks the comparison." : {
-      "comment" : "Setup wizard step 2 subtitle",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "اختر ما يشغّل مهامك: Linux (Docker أو حاوية Apple أو VM كاملة بنظام Linux)، أو آلات macOS الافتراضية (tart)، أو كليهما. تحتاج إلى واحد فقط — الزر أدناه يعرض المقارنة."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Wähle, was deine Jobs ausführt: Linux (Docker, Apple-Container oder eine vollständige Linux-VM), macOS-virtuelle Maschinen (tart) oder beides. Du brauchst nur eines – die Schaltfläche unten führt durch den Vergleich."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Elige qué ejecuta tus trabajos: Linux (Docker, contenedor de Apple o una VM Linux completa), máquinas virtuales macOS (tart), o ambos. Solo necesitas una opción: el botón de abajo recorre la comparación."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Choisissez ce qui exécute vos jobs : Linux (Docker, conteneur Apple ou VM Linux complète), machines virtuelles macOS (tart), ou les deux. Un seul suffit — le bouton ci-dessous guide la comparaison."
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "בחרו מה מריץ את המשימות שלכם: Linux (Docker, Apple container או VM מלא של Linux), מכונות וירטואליות של macOS (tart), או שניהם. מספיק אחד — הכפתור למטה מציג את ההשוואה."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Scegliere cosa esegue i job: Linux (Docker, container Apple o una VM Linux completa), macchine virtuali macOS (tart) o entrambi. Ne basta uno: il pulsante qui sotto guida al confronto."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ジョブを実行する環境を選びます。Linux (Docker、Apple コンテナ、または完全な Linux VM)、macOS 仮想マシン (tart)、またはその両方です。必要なのは 1 つだけです — 下のボタンで比較を確認できます。"
           }
         }
       }
@@ -10179,6 +10091,9 @@
           }
         }
       }
+    },
+    "Connect a forge and choose where jobs run, then try again. The wizard is shown again." : {
+      "comment" : "Alert body when Start Fleet is pressed before setup finished"
     },
     "Connect first to choose a repository" : {
       "comment" : "Placeholder in the repository field while disabled",
@@ -15189,9 +15104,6 @@
         }
       }
     },
-    "Everything you chose is saved. You can change any of it later in Runtimes." : {
-      "comment" : "Setup wizard step 3 subtitle"
-    },
     "Examples" : {
       "comment" : "CollapsibleFormCard in ToolchainsCatalogCards",
       "localizations" : {
@@ -19478,53 +19390,6 @@
         }
       }
     },
-    "Install method" : {
-      "comment" : ".accessibilityLabel in InstallConfirmationSheet",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "طريقة التثبيت"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Installationsmethode"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Método de instalación"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Méthode d’installation"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "שיטת התקנה"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Metodo di installazione"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "インストール方法"
-          }
-        }
-      }
-    },
     "Install Update…" : {
       "comment" : "Settings → App button",
       "localizations" : {
@@ -19571,6 +19436,9 @@
           }
         }
       }
+    },
+    "Install what you need to run jobs. You can add more later in Runtimes." : {
+      "comment" : "Setup wizard step 2 subtitle"
     },
     "Install, verify and build with every catalog toolchain" : {
       "comment" : "Benchmark suite description",
@@ -21542,53 +21410,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "kinhin がログイン時に開くには、承認が必要です。システム設定 → 一般 → ログイン項目 で承認してください。"
-          }
-        }
-      }
-    },
-    "kinhin runs your CI jobs on this Mac. Select the forges to serve — %@ — then paste a token and choose the repository, project or group to serve for each." : {
-      "comment" : "Setup wizard step 1 subtitle; %@ is a localized list of forge names",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "يشغّل kinhin مهام CI الخاصة بك على هذا الـ Mac. حدّد الـ forges المراد خدمتها — %@ — ثم الصق رمزًا واختر المستودع أو المشروع أو المجموعة المراد خدمتها لكل منها."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "kinhin führt deine CI-Jobs auf diesem Mac aus. Wähle die zu bedienenden Forges – %@ – füge dann ein Token ein und wähle für jede das Repository, Projekt oder die Gruppe."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "kinhin ejecuta tus trabajos de CI en este Mac. Selecciona las forjas que se atenderán (%@), luego pega un token y elige el repositorio, proyecto o grupo que se atenderá en cada una."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "kinhin exécute vos jobs CI sur ce Mac. Sélectionnez les forges à servir — %@ — puis collez un jeton et choisissez le dépôt, le projet ou le groupe à servir pour chacune."
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "kinhin מריץ את משימות ה-CI שלכם ב-Mac הזה. בחרו את הפורג'ים לשירות — %@ — ואז הדביקו טוקן ובחרו לכל אחד את מאגר הקוד, הפרויקט או הקבוצה לשירות."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "kinhin esegue i job CI su questo Mac. Selezionare i forge da servire — %@ — poi incollare un token e scegliere per ciascuno il repository, progetto o gruppo da servire."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "kinhin はこの Mac で CI ジョブを実行します。対象のフォージ — %@ — を選択し、トークンを貼り付けて、それぞれの対象リポジトリ、プロジェクト、またはグループを選択してください。"
           }
         }
       }
@@ -24862,53 +24683,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "プールのビルド時に、kinhin-container マーカー (常に付与) と統合されます。"
-          }
-        }
-      }
-    },
-    "Method" : {
-      "comment" : "Picker in InstallConfirmationSheet",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "الطريقة"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Methode"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Método"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Méthode"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "שיטה"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Metodo"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "方法"
           }
         }
       }
@@ -29546,6 +29320,9 @@
     "Pick at least one event type, or choose all of them." : {
       "comment" : "Alerts sheet problem when no event type is selected"
     },
+    "Pick every forge kinhin should serve and paste a token. It stays in your Keychain." : {
+      "comment" : "Setup wizard step 1 subtitle"
+    },
     "Pick how this Mac runs Linux jobs. You can change this later in Runtimes." : {
       "comment" : "Linux runtime chooser sheet intro; Runtimes is the sidebar section"
     },
@@ -33453,6 +33230,9 @@
         }
       }
     },
+    "Review" : {
+      "comment" : "Card in WizardView"
+    },
     "Review & Start" : {
       "comment" : "Setup wizard step title",
       "localizations" : {
@@ -35577,9 +35357,6 @@
         }
       }
     },
-    "Setup isn't complete: connect GitHub or Gitea and choose a repository, and make sure tart is installed. Open Setup to finish." : {
-      "comment" : "Alert body when Start Fleet is pressed before setup finished"
-    },
     "Setup…" : {
       "comment" : "Menu item that opens the Setup tab",
       "localizations" : {
@@ -36661,52 +36438,8 @@
         }
       }
     },
-    "Split your capacity" : {
-      "comment" : "Text in WizardView",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "قسّم سعتك"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kapazität aufteilen"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Reparte tu capacidad"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Répartissez votre capacité"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "חלוקת הקיבולת"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Suddividi la capacità"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "キャパシティを分割"
-          }
-        }
-      }
+    "Split your capacity and see how toolchains work." : {
+      "comment" : "HintText in WizardView"
     },
     "Sponsored by" : {
       "comment" : "HintText in AppSectionView",
