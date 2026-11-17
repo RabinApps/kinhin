@@ -18,10 +18,10 @@ gt=forge("Gitea","That token didn't work — 401 unauthorized. It needs: repo, r
 more=card("More accounts…","Serve additional accounts (another org, a second server, a GitLab group) with their own tokens.",
   row("GitHub · client-b @ github.example.com",hrow(sbtn("Remove"),fill=False),"No token yet — paste one to connect.")
  +hrow(field("","Paste a GitHub access token",ph=True,secure=False,w=300),btn("Connect","p"),gap=8)
- +T("Add an account",13,600)+hrow(combo("Forge","GitLab",w=160),field("Name","work",w=140),field("Group or project","acme/platform",w=240),field("Server (required for Gitea, Forgejo, Azure DevOps)","https://gitlab.com (optional)",w=300),gap=12,items="end")+perm("Group access token",["api","read_repository"])+hrow(btn("Add account"),status("Added ‘work’ — paste its token below.","ok"),gap=10))
+ +T("Add an account",13,600)+hrow(combo("Forge","GitLab",w=160),field("Name","work",w=140),field("Group or project","acme/platform",w=240),gap=12,items="end")+hrow(field("Server (required for Gitea, Forgejo, Azure DevOps)","https://gitlab.com (optional)",w=420),gap=12,items="end")+perm("Group access token",["api","read_repository"])+hrow(btn("Add account"),status("Added ‘work’ — paste its token below.","ok"),gap=10))
 accounts=head("Accounts","Where kinhin picks up jobs. Tokens live in your Keychain, never in a file.")+chips+gh+gt+more
 page("Accounts");clear("Accounts")
-render(window(2,"Accounts · full page",accounts,h=1350),0,0,"acct")
+render(window(2,"Accounts · full page",accounts,h=1560),0,0,"acct")
 accerr=head("Accounts","")+banner("error","config.yaml has a problem — accounts: duplicate name ‘github’. Fix it in Runtimes → Edit YAML.",sbtn("Open config"))+card("More accounts…","The add form is hidden until config.yaml loads.","")
 render(window(2,"Accounts · config error",accerr,h=380),1100,0,"acct-err")
 confirm=alert("Remove confirmation","Stop serving GitHub?","This removes its account and token.",[btn("Remove account and token","x"),btn("Cancel")])

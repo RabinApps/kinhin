@@ -36,7 +36,7 @@ page("Diagnostics");clear("Diagnostics")
 render(window(4,"Diagnostics · Health",diag,h=2750),0,0,"health")
 # logs
 def logline(t,lvl,m,c): return hrow(T(t,11,400,TX2),T(lvl,11,700,c),T(m,12,400,c if c!=TX2 else TX),gap=10)
-logs=head("Diagnostics","")+tabs("Logs")+card("Logs","",hrow(field("","Search logs (message, component, level)",ph=True,w=380),seg(["All","Info+","Warnings+","Errors"],"All"),chk(True,"Follow"),sp(),T("1,204 lines",11,400,TX2))
+logs=head("Diagnostics","")+tabs("Logs")+card("Logs","",hrow(field("","Search logs (message, component, level)",ph=True,w=240),seg(["All","Info+","Warnings+","Errors"],"All"),chk(True,"Follow"),sp(),T("1,204 lines",11,400,TX2))
  +f'<Frame flex="col" w="fill" p={{12}} gap={{4}} rounded={{6}} bg="{BG}">{logline("12:04:11","INFO","runner vm-a1 started",TX2)}{logline("12:05:30","INFO","job acme/web build picked up",TX2)}{logline("12:07:02","WARN","forge poll slow (2.4s)",WARN)}{logline("12:07:44","ERROR","image not found: kinhin-linux",ERR)}{T("No log lines yet. · No lines match.",11,400,TX2)}</Frame>',hrow(sbtn("Open logs folder"),fill=False))
 render(window(4,"Diagnostics · Logs",logs,h=700),1100,0,"logs")
 # benchmarks
