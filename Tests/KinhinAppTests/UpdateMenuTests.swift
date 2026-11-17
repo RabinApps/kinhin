@@ -34,7 +34,7 @@ final class UpdateMenuTests: XCTestCase {
         delegate.refreshUpdateItems()
 
         XCTAssertEqual(updateItem?.isHidden, true)
-        XCTAssertEqual(versionItem?.title, "  kinhin \(kinhinVersion.current)")
+        XCTAssertEqual(versionItem?.title, "  kinhin \(kinhinVersion.current) (up to date)")
         XCTAssertEqual(versionItem?.isEnabled, false)
     }
 
@@ -45,7 +45,7 @@ final class UpdateMenuTests: XCTestCase {
         XCTAssertEqual(updateItem?.title, "Update available — kinhin 9.9.9…")
         XCTAssertEqual(updateItem?.isEnabled, true)
         XCTAssertEqual(updateItem?.isHidden, false)
-        XCTAssertEqual(versionItem?.title, "  kinhin \(kinhinVersion.current) (up to date)")
+        XCTAssertEqual(versionItem?.title, "  kinhin \(kinhinVersion.current)")
         XCTAssertEqual(versionItem?.isEnabled, false)
     }
 
@@ -56,7 +56,7 @@ final class UpdateMenuTests: XCTestCase {
         delegate.refreshUpdateItems()
 
         XCTAssertEqual(updateItem?.isHidden, true)
-        XCTAssertEqual(versionItem?.title, "  kinhin \(kinhinVersion.current)")
+        XCTAssertEqual(versionItem?.title, "  kinhin \(kinhinVersion.current) (up to date)")
     }
 
     // MARK: - feed override policy

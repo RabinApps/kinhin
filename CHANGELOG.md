@@ -4,8 +4,19 @@
 
 <!-- changelog: entries for the next release go here -->
 
+**Changed**
+
+- The app's window is one sidebar (Fleet, Runtimes, Accounts, Toolchains, Diagnostics, Settings) instead of Fleet and
+  Advanced tabs. Logs, Diagnostics, Benchmarks and Containers are panes of Diagnostics, and **Support kinhin** moved to the
+  sidebar footer. The menu bar's **Settings…** now opens Settings, and **Open Logs** opens Diagnostics → Logs. See
+  [the app](docs/app.md).
+- Diagnostics and Settings follow the new design: Health has a **Re-check** button, and Settings has one **Support kinhin** card.
+
 **Added**
 
+- The Runtimes page is rebuilt: fleet capacity, the split, a card per runtime and the routes in one place, with a pinned
+  Apply bar. Every runtime has a **Keep idle** floor (`min_idle`) that is checked before Apply and takes effect without
+  restarting the fleet. See [the app](docs/app.md).
 - Pools have an on/off switch. `enabled: false` on `container:`, a `container.pools` entry or `docker:`, and
   `runtimes.tart.enabled: false`, keep a pool's settings but take it out of routing, scheduling and the Fleet page;
   running instances drain. In Advanced → Routing each pool card has the switch. See
@@ -43,6 +54,13 @@
   disk); it showed 0 MB.
 - A duplicate `images:` name says which key already has it (`image:`, also when it is left out and defaults to
   `tahoe-base`, or which `images:` entry) and how to fix it.
+
+**Changed**
+
+- Every `min_idle` floor (`image_min_idle`, `images[].min_idle`, `container.min_idle`, each container pool's and
+  `docker.min_idle`) now applies on a config reload without restarting the engine. Before, only `images[].min_idle`
+  did. Adding or removing a pool, switching a pool or runtime on or off, or changing a pool's `max` still rebuilds the
+  engine.
 
 ## v0.0.1-beta-6
 

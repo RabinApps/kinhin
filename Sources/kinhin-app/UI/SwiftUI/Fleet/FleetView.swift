@@ -1,253 +1,209 @@
 import KinhinKit
 import SwiftUI
 
-/// The Fleet tab: the runtime diagram (each runtime's lanes, each live
-/// instance one icon-led row — the VM list that used to have a card of its
-/// own — or an explicit "idle"), the fleet card (live status and the start/stop
-/// controls), current jobs and the queued-work controls — all of them scroll
-/// together — over a support row that stays pinned. State lives in
-/// `FleetModel`.
+/// The Fleet page (`design/exports/fleet.png`): the header (state chip, engine mode, Start / Stop / Pause / Resume),
+/// the banners, the status block, one card per runtime with its instances, the current jobs and the queued-work
+/// controls. The header stays put; everything under it scrolls. State lives in `FleetModel`.
 struct FleetView: View {
     let model: FleetModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 8) {
-                Text("○  kinhin").font(.system(size: 22, weight: .bold))
-                if let badge = model.fleetModeBadge {
-                    Text(badge)
-                        .font(.system(size: 10, design: .monospaced))
-                        .foregroundStyle(.tertiary)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(
-                            RoundedRectangle(cornerRadius: 4)
-                                .fill(Color(nsColor: .controlBackgroundColor))
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 4)
-                                .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5)
-                        )
-                }
-            }
-
+        VStack(alignment: .leading, spacing: Spacing.lg) {
+            header
             ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
-                    FleetDiagramView(
-                        model: model.diagram,
-                        placeholder: model.diagramPlaceholder,
-                        onOpenPipeline: { model.pipelineClicked($0) },
-                        onDelete: { model.deleteClicked($0) }
-                    )
-
-                    FormCard(title: "Fleet") {
-                        VStack(alignment: .leading, spacing: 6) {
-                            if let notice = model.diskPressureNotice {
-                                diskPressureBanner(notice)
-                            }
-                            Text(model.statusLine)
-                                .font(.system(size: 12))
-                                .foregroundStyle(.secondary)
-                                // Ceiling on the shared line: counters, plus the
-                                // auto-resume note, queue age, and both per-repo
-                                // breakdowns on a paused fleet draining its last jobs.
-                                .lineLimit(5)
-                            if let notice = model.imageNotice {
-                                Text(notice)
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(3)
-                                    .accessibilityIdentifier("image-notice")
-                            }
-                            ForEach(model.fleetStatusFooter, id: \.text) { foot in
-                                StatusText(verbatim: foot.text, style: foot.style)
-                            }
+                VStack(alignment: .leading, spacing: Spacing.md) {
+                    ForEach(model.bannerRows) { row in banner(row) }
+                    if model.showsOnlyNote {
+                        pageNoteCard
+                    } else {
+                        if let note = model.pausedAutoResumeNote { HintText(verbatim: note) }
+                        if model.showsStatusBlock { statusBlock }
+                        if let notice = model.imageNotice {
+                            HintText(verbatim: notice)
+                                .accessibilityIdentifier("image-notice")
                         }
-                        controls
-                        if let note = model.pausedAutoResumeNote {
-                            Text(note)
-                                .font(.system(size: 11))
-                                .foregroundStyle(.secondary)
+                        if let stopped = model.stoppedNote { noteCard(stopped) }
+                        FleetDiagramView(
+                            model: model.diagram,
+                            placeholder: model.diagramPlaceholder,
+                            onOpenPipeline: { model.pipelineClicked($0) },
+                            onDelete: { model.deleteClicked($0) }
+                        )
+                        if model.status?.running == true {
+                            currentJobs
+                            queuedWork
                         }
-                    }
-
-                    FormCard(title: "Current jobs") {
-                        VStack(alignment: .leading, spacing: 3) {
-                            if model.working.isEmpty { secondary(Text("No jobs running.")) }
-                            ForEach(model.working, id: \.id) {
-                                secondary(Text(verbatim: model.jobLine(for: $0)), mono: true)
-                            }
-                        }
-                    }
-
-                    FormCard(title: "Queued work") {
-                        requeueBlock
-                    }
-
-                    FormCard(title: "Benchmarks") {
-                        HintText(
-                            verbatim: model.benchmarkSummary
-                                ?? String(
-                                    localized: "Measure boot, workload and toolchain speed on this Mac.", bundle: .l10n,
-                                    comment: "Fleet tab benchmark card hint, shown before any benchmark has run"))
-                        Button("Open Benchmarks…") { model.onShowBenchmarks() }
-                            .controlSize(.small)
-                            .accessibilityIdentifier("open-benchmarks")
                     }
                 }
-            }
-
-            // Pinned below the scroll: the support actions stay reachable no
-            // matter how much fleet content is on screen.
-            HStack(spacing: 8) {
-                Button("Logs…") { model.onShowLogs() }
-                Button("Diagnostics…") { model.onShowDiagnostics() }
-                Button("Test Workflow…") { model.onShowWorkflowTest() }
-                Button("Make a Video…") { model.onShowVideos() }
-                    .accessibilityIdentifier("open-videos")
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.bottom, Spacing.md)
             }
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 8)
-        .padding(.bottom, 14)
-        // A form-width column centered in the window, like the Advanced pages.
-        .frame(maxWidth: FormMetrics.width + 40, maxHeight: .infinity, alignment: .topLeading)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
-    /// Only the actions that apply: Start when stopped; Stop and Pause/Resume
-    /// when running. While a start/stop is in flight its button shows
-    /// progress and every fleet control disables.
+    // MARK: - Header
+
+    private var header: some View {
+        HStack(spacing: Spacing.sm) {
+            Text("Fleet")
+                .typeStyle(.display)
+                .accessibilityAddTraits(.isHeader)
+            let chip = model.stateChip
+            Chip(verbatim: chip.text, tone: chip.tone)
+                .accessibilityIdentifier("fleet-state-chip")
+            Chip(verbatim: model.fleetModeBadge ?? "—", tone: .neutral)
+                .accessibilityIdentifier("fleet-mode-badge")
+            Spacer(minLength: Spacing.md)
+            controls
+        }
+    }
+
+    /// Only the actions that apply (`FleetControls`): Start when stopped; Stop and Pause/Resume when running. While a
+    /// start/stop is in flight its button shows progress and every fleet control disables.
     private var controls: some View {
-        HStack(spacing: 8) {
-            if model.running {
-                if model.pendingAction == .stop {
-                    Button {
-                    } label: {
-                        HStack(spacing: 4) {
-                            ProgressView().controlSize(.small).accessibilityLabel("Working")
-                            Text("Stop")
-                        }
-                    }
-                    .accessibilityLabel("Stopping the fleet")
-                } else {
-                    Button("Stop") { model.stopClicked() }
-                        .accessibilityLabel("Stop the fleet")
+        let controls = model.controls
+        return HStack(spacing: Spacing.sm) {
+            if controls.isVisible(.pauseResume) {
+                controlButton(.pauseResume, controls, prominent: controls.isResume) { model.togglePause() }
+            }
+            if controls.isVisible(.stop) { controlButton(.stop, controls) { model.stopClicked() } }
+            if controls.isVisible(.start) { controlButton(.start, controls, prominent: true) { model.startClicked() } }
+        }
+    }
+
+    private func controlButton(
+        _ control: FleetControls.Control, _ controls: FleetControls, prominent: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
+        let title =
+            control == .start && model.presenter.state == .needsSetup
+            ? String(localized: "Set up…", bundle: .l10n, comment: "Fleet button that opens first-run setup")
+            : controls.title(control)
+        let button = Button(action: action) {
+            HStack(spacing: Spacing.xs) {
+                if controls.showsProgress(control) {
+                    ProgressView().controlSize(.small).accessibilityLabel("Working")
                 }
-                Button(model.pauseTitle) { model.togglePause() }
-                    .accessibilityLabel("Pause or resume the fleet")
-                    .disabled(model.isBusy)
-            } else if model.pendingAction == .start {
-                Button {
-                } label: {
-                    HStack(spacing: 4) {
-                        ProgressView().controlSize(.small).accessibilityLabel("Working")
-                        Text("Start")
-                    }
-                }
-                .buttonStyle(.borderedProminent)
-                .accessibilityLabel("Starting the fleet")
+                Text(verbatim: title)
+            }
+        }
+        .disabled(!controls.isEnabled(control))
+        .accessibilityLabel(controls.accessibilityLabel(control))
+        return Group {
+            if prominent { button.buttonStyle(.borderedProminent) } else { button }
+        }
+    }
+
+    // MARK: - Banners and status
+
+    private func banner(_ row: FleetModel.BannerRow) -> some View {
+        Group {
+            if row.kind == .diskPressure {
+                Banner(verbatim: row.text, kind: row.banner)
+                    .action("Dismiss", label: "Dismiss the disk pressure warning") { model.dismissDiskPressureNotice() }
+                    .accessibilityIdentifier("disk-pressure-banner")
             } else {
-                Button("Start") { model.startClicked() }
-                    .buttonStyle(.borderedProminent)
-                    .accessibilityLabel("Start the fleet")
+                Banner(verbatim: row.text, kind: row.banner)
             }
         }
     }
 
-    /// Per-forge requeue/skip queued: one row per attached forge, with the
-    /// org-only scope and the fleet-wide button.
-    private var requeueBlock: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            #if DEBUG
-                if let forges = model.demoForges {
-                    ForEach(forges, id: \.self) { forge in
-                        HStack(spacing: 6) {
-                            Text(verbatim: forge).frame(width: 120, alignment: .leading)
-                            Button("Requeue") {}
-                            Button("Skip") {}
-                        }
-                    }
-                } else {
-                    attachedForgeRows
+    private var statusBlock: some View {
+        let lines = model.statusLines
+        return Card(layout: .fill) {
+            VStack(alignment: .leading, spacing: Spacing.xs) {
+                if let headline = lines.first {
+                    Text(verbatim: headline).typeStyle(.emphasis)
                 }
-            #else
-                attachedForgeRows
-            #endif
+                ForEach(Array(lines.dropFirst().enumerated()), id: \.offset) { _, line in
+                    HintText(verbatim: line)
+                }
+            }
+            .accessibilityElement(children: .combine)
+        }
+        .accessibilityIdentifier("fleet-status-card")
+    }
+
+    private var pageNoteCard: some View {
+        Group {
+            if let note = model.pageNote { noteCard(note) }
         }
     }
 
-    @ViewBuilder private var attachedForgeRows: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            if model.attachedForges.isEmpty {
-                secondary(Text("No forges attached — queue will always be empty."))
+    private func noteCard(_ text: String) -> some View {
+        Card(layout: .fill) { StatusText(verbatim: text) }
+            .accessibilityIdentifier("fleet-note-card")
+    }
+
+    // MARK: - Current jobs
+
+    private var currentJobs: some View {
+        Card(title: "Current jobs", layout: .fill) {
+            if model.working.isEmpty {
+                StatusText(text: "No jobs running.")
             } else {
-                ForEach(Array(model.attachedForges.enumerated()), id: \.offset) { _, forge in
-                    HStack(spacing: 6) {
-                        Picker("", selection: .constant(forge.keys.sorted().first ?? "")) {
-                            ForEach(forge.keys.sorted(), id: \.self) { id in Text(id).tag(id) }
+                VStack(alignment: .leading, spacing: Spacing.sm) {
+                    ForEach(model.working, id: \.id) { row in
+                        HStack(spacing: Spacing.sm) {
+                            Text(verbatim: model.jobTitle(for: row)).typeStyle(.body)
+                            Spacer(minLength: Spacing.md)
+                            Text(verbatim: model.jobLocation(for: row))
+                                .typeStyle(.caption)
+                                .foregroundStyle(.secondary)
                         }
-                        .pickerStyle(.menu)
-                        .frame(width: 120)
-                        .accessibilityLabel("Forge: \(forge.keys.sorted().first ?? "unknown")")
-                        Button("Requeue") {
-                            let scope = forgeScope(forge)
-                            model.requeueQueuedJobs(for: scope ?? .github, forAll: scope == nil)
-                        }
-                        .disabled(model.isBusy)
-                        .accessibilityLabel("Requeue queued jobs on \(forge.keys.sorted().first ?? "unknown")")
-                        Button("Skip") {
-                            let scope = forgeScope(forge)
-                            model.skipQueuedJobs(for: scope ?? .github, forAll: scope == nil)
-                        }
-                        .disabled(model.isBusy)
-                        .accessibilityLabel("Skip queued jobs on \(forge.keys.sorted().first ?? "unknown")")
+                        .padding(.horizontal, Spacing.md - 2)
+                        .padding(.vertical, Spacing.sm)
+                        .background(RoundedRectangle(cornerRadius: Radius.md).fill(Palette.grouped))
+                        .accessibilityElement(children: .combine)
                     }
                 }
             }
         }
+        .accessibilityIdentifier("fleet-current-jobs")
     }
 
-    /// True when the forge has no slash in its scope (org-wide); a
-    /// single-repo scope (a slash) targets that forge.
-    func forgeScope(_ forge: [String: Forge]) -> ForgeID? {
-        guard let first = forge.keys.sorted().first, let target = forge[first] else { return nil }
-        return target.attributesByRepo ? nil : target.id
-    }
+    // MARK: - Queued work
 
-    /// Dismissible warning while the engine holds spawns for disk pressure.
-    /// Dismissing hides it for the session; it returns only with a new
-    /// pressure episode (or a relaunch).
-    private func diskPressureBanner(_ notice: String) -> some View {
-        HStack(alignment: .top, spacing: 8) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 11))
-                .foregroundStyle(StatusStyle.warn.color)
-                .accessibilityLabel("Warning")
-            Text(notice)
-                .font(.system(size: 11))
-                .foregroundStyle(StatusStyle.warn.color)
-                .fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: 8)
-            Button("Dismiss") { model.dismissDiskPressureNotice() }
-                .controlSize(.small)
-                .accessibilityLabel("Dismiss the disk pressure warning")
+    private var queuedWork: some View {
+        Card(
+            title: "Queued work", subtitle: "Counts per forge; actions apply to every queued job on that forge",
+            layout: .fill
+        ) {
+            if model.isDaemonMode {
+                VStack(alignment: .leading, spacing: Spacing.xs) {
+                    Text(verbatim: model.queueSummary).typeStyle(.emphasis)
+                    StatusText(
+                        text:
+                            "Queue actions need forge access — not available in daemon mode. Use kinhin CLI or switch to in-process engine.",
+                        style: .warn)
+                }
+            } else if model.forgeRows.isEmpty {
+                StatusText(text: "No forges attached — queue will always be empty.")
+            } else {
+                VStack(alignment: .leading, spacing: Spacing.sm) {
+                    Text(verbatim: model.queueSummary).typeStyle(.emphasis)
+                    ForEach(model.forgeRows) { forgeRow($0) }
+                }
+            }
         }
-        .padding(8)
-        .background(
-            RoundedRectangle(cornerRadius: 6)
-                .fill(StatusStyle.warn.color.opacity(0.12))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 6)
-                .strokeBorder(StatusStyle.warn.color.opacity(0.5), lineWidth: 1)
-        )
-        .accessibilityIdentifier("disk-pressure-banner")
+        .accessibilityIdentifier("fleet-queued-work")
     }
 
-    private func secondary(_ text: Text, mono: Bool = false) -> some View {
-        text
-            .font(mono ? .system(size: 11, design: .monospaced) : .system(size: 11))
-            .foregroundStyle(.secondary)
+    private func forgeRow(_ row: FleetModel.ForgeRow) -> some View {
+        HStack(spacing: Spacing.sm) {
+            Text(verbatim: row.label).typeStyle(.body)
+            Spacer(minLength: Spacing.md)
+            Button("Requeue") { model.requeue(row) }
+                .disabled(model.isBusy)
+                .accessibilityLabel("Requeue queued jobs on \(row.label)")
+            Button("Skip") { model.skip(row) }
+                .disabled(model.isBusy)
+                .accessibilityLabel("Skip queued jobs on \(row.label)")
+        }
+        .controlSize(.small)
+        .padding(.horizontal, Spacing.md - 2)
+        .padding(.vertical, Spacing.sm)
+        .background(RoundedRectangle(cornerRadius: Radius.md).fill(Palette.grouped))
     }
 }

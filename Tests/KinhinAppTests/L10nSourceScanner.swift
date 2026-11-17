@@ -48,21 +48,28 @@ struct L10nSourceScanner {
         ".navigationTitle", ".alert", ".confirmationDialog",
         // this app's own helpers that forward a LocalizedStringKey
         "statusRow", "chipRow", "row", "runtimeRow",
+        // the design system's components (UI/SwiftUI/DesignSystem)
+        "Chip", "Banner", "StepperRow", "SheetConfirmFooter", ".action",
+        // the Diagnostics and Settings pages' row helpers
+        "RowLabel", "toggleRow", "labeled", "fieldLabel",
+        // the Runtimes page's labelled-control helpers
+        "LabeledControl", "capacityStepper", "capacityGroup", "poolField",
     ]
 
     /// `callee` → labels whose argument is localized.
     static let labeledArguments: [String: Set<String>] = [
         "FormCard": ["title", "subtitle"], "CollapsibleFormCard": ["title", "subtitle"],
+        "Card": ["title", "subtitle"], "SheetScaffold": ["title"], ".action": ["label"],
         "StatusText": ["text"], "Parameter": ["title"], "row": ["help"],
         "AppShortcut": ["shortTitle"], "TypeDisplayRepresentation": ["name"],
-        "statusRow": ["title", "text"], "chipRow": ["label"],
+        "statusRow": ["title", "text"], "chipRow": ["label"], "RowLabel": ["detail"],
     ]
 
     /// Callees whose string arguments are logs, identifiers or other non-UI text.
     static let technicalCallees: Set<String> = [
         ".info", ".warn", ".error", ".debug", "fatalError", "preconditionFailure", "assertionFailure",
         "NSUserInterfaceItemIdentifier", "Selector", ".accessibilityIdentifier", "URL", "Image", "NSImage",
-        "UserDefaults", "Bundle", ".id", "print", "XCTAssert",
+        "UserDefaults", "Bundle", ".id", "print", "XCTAssert", "Preview", "#Preview",
     ]
 
     /// Labels whose value is never user-facing.

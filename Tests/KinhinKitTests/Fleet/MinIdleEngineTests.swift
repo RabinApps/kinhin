@@ -90,4 +90,76 @@ final class MinIdleEngineTests: XCTestCase {
         XCTAssertTrue(status.records.isEmpty)
         XCTAssertEqual(tart.cloneCalls.count, clonesBefore)
     }
+
+    // MARK: - Reload
+
+    func testReloadedFloorsAreReadFromTheSwappedSnapshot() throws {
+        var config = makeTestConfig()
+        config.container = .init(image: "linux", cpus: 2, memoryGB: 4)
+        config.docker = .init(image: "docker-base")
+        let engine = FleetEngine(
+            config: config, github: FakeGitHub(), tart: FakeTart(), store: makeTestStore(), ssh: FakeSSH(),
+            host: testHost, dependencies: .init(tokenLoader: { _, _ in "t" }, exitWatchInterval: .milliseconds(20)))
+        XCTAssertTrue(engine.minIdleTargets(snapshot: engine.router.snapshot).isEmpty)
+
+        var edited = config
+        edited.imageMinIdle = 1
+        edited.container?.minIdle = 1
+        edited.docker?.minIdle = 1
+        engine.applyReloaded(config: edited, host: testHost)
+
+        XCTAssertEqual(
+            engine.minIdleTargets(snapshot: engine.router.snapshot),
+            [
+                .init(runtime: .tart): 1, .init(runtime: .appleContainer, pool: ""): 1,
+                .init(runtime: .docker): 1,
+            ])
+
+        edited.container?.pools = [.init(name: "big", image: "linux", minIdle: 2)]
+        edited.container?.minIdle = 0
+        edited.imageMinIdle = 0
+        engine.applyReloaded(config: edited, host: testHost)
+        XCTAssertEqual(
+            engine.minIdleTargets(snapshot: engine.router.snapshot),
+            [.init(runtime: .appleContainer, pool: "big"): 2, .init(runtime: .docker): 1])
+    }
+
+    func testTheNextPassTopsUpToAReloadedFloor() async throws {
+        let tart = FakeTart()
+        let engine = makeEngine(tart: tart, github: FakeGitHub(), minIdle: 0)
+        try await engine.reconcileOnce()
+        let before = await engine.status().records
+        XCTAssertTrue(before.isEmpty, "no floor, nothing queued: nothing runs")
+
+        var edited = engine.activeConfig
+        edited.imageMinIdle = 1
+        engine.applyReloaded(config: edited, host: testHost)
+        try await engine.reconcileOnce()
+        try await waitUntil(timeout: 10) {
+            await engine.status().records.filter { $0.image == nil && $0.phase == .ready }.count == 1
+        }
+
+        edited.imageMinIdle = 2
+        engine.applyReloaded(config: edited, host: testHost)
+        try await engine.reconcileOnce()
+        try await waitUntil(timeout: 10) {
+            await engine.status().records.filter { $0.image == nil && $0.phase == .ready }.count == 2
+        }
+    }
+
+    func testDisabledPoolsKeepNoFloorEvenAfterAReload() throws {
+        var config = makeTestConfig()
+        config.container = .init(image: "linux", cpus: 2, memoryGB: 4)
+        config.container?.pools = [
+            .init(name: "on", image: "linux", minIdle: 1),
+            .init(name: "off", image: "linux", minIdle: 1, enabled: false),
+        ]
+        config.docker = .init(image: "docker-base", minIdle: 1, enabled: false)
+        let engine = FleetEngine(
+            config: config, github: FakeGitHub(), tart: FakeTart(), store: makeTestStore(), ssh: FakeSSH(),
+            host: testHost, dependencies: .init(tokenLoader: { _, _ in "t" }, exitWatchInterval: .milliseconds(20)))
+        engine.applyReloaded(config: config, host: testHost)
+        XCTAssertEqual(
+            engine.minIdleTargets(snapshot: engine.router.snapshot), [.init(runtime: .appleContainer, pool: "on"): 1])
+    }
 }

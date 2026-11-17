@@ -3,7 +3,7 @@ import Foundation
 import KinhinKit
 import SwiftUI
 
-/// The models behind the main window's tabs, built on first use (a section's
+/// The models behind the main window's sections, built on first use (a section's
 /// model exists once it has been shown) and kept for the window's lifetime.
 /// `MainTabsModel` decides when each is created and reloaded; the views only
 /// render what exists.
@@ -11,13 +11,13 @@ import SwiftUI
 final class WindowModels {
     let fleet: FleetController
     let updates: UpdateController
-    /// Where the App section persists prefs. The real app uses .standard;
+    /// Where Settings persists prefs. The real app uses .standard;
     /// tests inject a scratch suite.
     let prefs: UserDefaults
 
     /// App-level callbacks (launch mode, login item, logs folder, setup done).
     weak var delegate: MainTabsWindowDelegate?
-    /// Config writes from Setup/Advanced must reach the engine/daemon.
+    /// Config writes from Setup and the sections must reach the engine/daemon.
     var runtimesEdited: (() -> Void)?
     /// Token saves persist to the Keychain and live-swap the engine token;
     /// the app injects the handler. Throws on Keychain/RPC failure so the
@@ -41,7 +41,7 @@ final class WindowModels {
         self.prefs = prefs
     }
 
-    // MARK: - Tab models
+    // MARK: - Section models
 
     lazy var fleetModel: FleetModel = {
         let model = FleetModel(controller: fleet)
@@ -58,7 +58,7 @@ final class WindowModels {
         return model
     }()
 
-    /// The Telemetry card under Advanced → App: reads from whoever owns the exporters, edits `telemetry:` in the
+    /// The Telemetry card under Settings: reads from whoever owns the exporters, edits `telemetry:` in the
     /// config and pushes the edit like the other config forms.
     lazy var telemetryModel: TelemetryModel = {
         let model = TelemetryModel()
@@ -68,7 +68,7 @@ final class WindowModels {
         return model
     }()
 
-    /// The Alerts card under Advanced → App: edits `alerts:` in the config and pushes the edit like the other forms.
+    /// The Alerts card under Settings: edits `alerts:` in the config and pushes the edit like the other forms.
     lazy var alertsModel: AlertsModel = {
         let model = AlertsModel()
         model.configURL = fleet.environment.configURL
@@ -124,62 +124,89 @@ final class WindowModels {
 
     func discardWizard() { wizardModel = nil }
 
-    // MARK: - Advanced sections
+    // MARK: - Sections
 
-    /// Builds a section's model on first use. Capacity, Routing and Accounts
-    /// load once as they are built: `reloadSection` deliberately skips
-    /// Capacity (a stale reload would discard unapplied edits), so a fresh
+    /// Builds a section's model on first use. Runtimes, Accounts and Toolchains load once as they are built:
+    /// `reloadSection` deliberately skips the capacity form (a stale reload would discard unapplied edits), so a fresh
     /// model must fetch its own snapshot or the form renders blank forever.
-    /// The Capacity section (`.capacity`) also builds This Mac's model and the
-    /// shared Runtimes model (its Budget card), so that section is
-    /// self-contained; Accounts keeps only Connect.
-    func ensureSection(_ section: AdvancedSection) {
+    /// Runtimes builds This Mac's model and the shared Runtimes model (its Budget card and Routing) beside the
+    /// capacity form, so that section is self-contained; Accounts keeps only Connect. Diagnostics builds the health
+    /// model and whichever sub-section `pane` names.
+    func ensureSection(_ section: MainSection, pane: DiagnosticsPane = .health) {
         switch section {
+        case .fleet:
+            break
+        case .runtimes:
+            ensureRuntimes()
         case .accounts:
-            guard connectModel == nil else { return }
-            let connect = ConnectModel()
-            connect.saveToken = { [weak self] forge, token in
-                try await self?.tokenSaved?(forge, token)
-            }
-            connect.accounts.saveToken = { [weak self] account, token in
-                try await self?.accountTokenSaved?(account, token)
-            }
-            connect.hasStoredToken = tokenProbe
-            connect.onChanged = { [weak self] in self?.runtimesEdited?() }
-            connectModel = connect
-            connect.reload()
-        case .capacity:
-            guard capacityModel == nil else { return }
-            if macToolsModel == nil {
-                let mac = MacToolsModel()
-                mac.onChanged = { [weak self] in self?.runtimesEdited?() }
-                macToolsModel = mac
-                mac.reload()
-            }
-            ensureRuntimesModel()
-            let model = CapacityModel()
-            model.configURL = Paths.config
-            model.onChanged = { [weak self] in
-                // Reserve and VM size feed the Budget card's instance counts.
-                self?.runtimesModel?.reload()
-                self?.runtimesEdited?()
-            }
-            capacityModel = model
-            model.reload()
-        case .routing:
-            ensureRuntimesModel()
-        case .containers:
-            guard containersModel == nil else { return }
-            let model = ContainersModel()
-            // A runner container is named after its fleet instance, whose record knows its container pool.
-            model.poolOfInstance = { [fleet] id in fleet.status?.records.first { $0.id == id }?.pool }
-            containersModel = model
+            ensureAccounts()
         case .toolchains:
             guard toolchainsModel == nil else { return }
             let model = ToolchainsModel()
             model.configURL = Paths.config
             toolchainsModel = model
             model.reload()
+        case .diagnostics:
+            ensureDiagnosticsPane(pane)
+        case .settings:
+            _ = appModel
+            _ = telemetryModel
+            _ = alertsModel
+        }
+    }
+
+    private func ensureAccounts() {
+        guard connectModel == nil else { return }
+        let connect = ConnectModel()
+        connect.saveToken = { [weak self] forge, token in
+            try await self?.tokenSaved?(forge, token)
+        }
+        connect.accounts.saveToken = { [weak self] account, token in
+            try await self?.accountTokenSaved?(account, token)
+        }
+        connect.hasStoredToken = tokenProbe
+        connect.onChanged = { [weak self] in self?.runtimesEdited?() }
+        connectModel = connect
+        connect.reload()
+    }
+
+    private func ensureRuntimes() {
+        guard capacityModel == nil else { return }
+        if macToolsModel == nil {
+            let mac = MacToolsModel()
+            mac.onChanged = { [weak self] in
+                self?.capacityModel?.refreshFromDisk()
+                self?.runtimesEdited?()
+            }
+            macToolsModel = mac
+            mac.reload()
+        }
+        ensureRuntimesModel()
+        let model = CapacityModel()
+        model.configURL = Paths.config
+        model.onChanged = { [weak self] in
+            // Reserve and VM size feed the Budget card's instance counts.
+            self?.runtimesModel?.reload()
+            self?.runtimesEdited?()
+        }
+        capacityModel = model
+        model.reload()
+    }
+
+    /// Builds the models behind one Diagnostics sub-section. Health always has its model: the pane the window opens on.
+    func ensureDiagnosticsPane(_ pane: DiagnosticsPane) {
+        _ = ensureDiagnosticsModel()
+        switch pane {
+        case .health, .tools:
+            break
+        case .logs:
+            _ = ensureLogsModel()
+        case .containers:
+            guard containersModel == nil else { return }
+            let model = ContainersModel()
+            // A runner container is named after its fleet instance, whose record knows its container pool.
+            model.poolOfInstance = { [fleet] id in fleet.status?.records.first { $0.id == id }?.pool }
+            containersModel = model
         case .benchmarks:
             guard benchmarksModel == nil else { return }
             let model = BenchmarksModel()
@@ -192,40 +219,49 @@ final class WindowModels {
             model.onSummaryChanged = { [weak self] in self?.fleetModel.benchmarkSummary = $0 }
             benchmarksModel = model
             model.reload()
-        case .app:
-            _ = appModel
-            _ = telemetryModel
-            _ = alertsModel
         }
     }
 
-    /// The one `RuntimesModel` shared by Routing and Capacity's Budget card,
-    /// so locks, drags and the loaded config are the same in both places.
+    /// The one `RuntimesModel` shared by Routing and the Budget card, so locks, drags and the loaded config are the
+    /// same in both places.
     private func ensureRuntimesModel() {
         guard runtimesModel == nil else { return }
         let model = RuntimesModel()
         model.configURL = Paths.config
-        model.onChanged = { [weak self] in self?.runtimesEdited?() }
+        model.onChanged = { [weak self] in
+            // The page's staged edits keep their values; everything else follows what was just written.
+            self?.capacityModel?.refreshFromDisk()
+            self?.runtimesEdited?()
+        }
         runtimesModel = model
         model.reload()
     }
 
-    /// Data-backed sections load when shown (Capacity's own form is skipped:
-    /// reloading it would discard unapplied edits — its This Mac model does
-    /// reload, it has nothing pending).
-    func reloadSection(_ section: AdvancedSection) {
+    /// Data-backed sections load when shown (the capacity form itself is skipped: reloading it would discard
+    /// unapplied edits — This Mac's model does reload, it has nothing pending). The health probe is not started
+    /// here: `MainTabsModel` starts it when Diagnostics is opened, never from a bare refresh.
+    func reloadSection(_ section: MainSection, pane: DiagnosticsPane = .health) {
         switch section {
-        case .routing: runtimesModel?.reload()
-        case .containers: containersModel?.reload()
-        case .accounts: connectModel?.reload()
-        case .capacity:
+        case .fleet: break
+        case .runtimes:
             macToolsModel?.reload()
             runtimesModel?.reload()
+        case .accounts: connectModel?.reload()
         case .toolchains: toolchainsModel?.reload()
-        case .benchmarks: benchmarksModel?.reload()
-        case .app:
+        case .diagnostics: reloadDiagnosticsPane(pane)
+        case .settings:
             telemetryModel.reload()
             alertsModel.reload()
+        }
+    }
+
+    /// Reloads what one Diagnostics sub-section shows from disk (logs, containers, benchmarks); health is a probe.
+    func reloadDiagnosticsPane(_ pane: DiagnosticsPane) {
+        switch pane {
+        case .health, .tools: break
+        case .logs: logsModel?.refresh()
+        case .containers: containersModel?.reload()
+        case .benchmarks: benchmarksModel?.reload()
         }
     }
 

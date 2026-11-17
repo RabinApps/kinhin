@@ -13,7 +13,7 @@ out = os.path.normpath(os.path.join(here, "..", "out"))
 
 names = sys.argv[1:] or sorted(os.path.basename(p) for p in glob.glob(os.path.join(out, "cap-*.png")))
 if not names:
-    sys.exit("no captures found — run shots/capture/build-captures.sh first")
+    sys.exit("no captures found — run scripts/capture-ui.sh first")
 
 parts = ["""<!doctype html>
 <html><head><meta charset="utf-8"><title>kinhin UI captures</title>

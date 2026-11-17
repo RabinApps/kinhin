@@ -2,7 +2,7 @@ import Foundation
 import KinhinKit
 import Observation
 
-/// State behind the Advanced → Toolchains tab. The tab is read-only:
+/// State behind the Toolchains page. The tab is read-only:
 /// toolchain versions are declared in each repo's `.kinhin/config.yml` (or in the
 /// `projects:` / `toolchains:` YAML), never edited here. It shows how every
 /// configured repo resolves its toolchains, the derived images kinhin has
@@ -89,7 +89,7 @@ final class ToolchainsModel {
                 text:
                     String(
                         localized:
-                            "config.yaml has a problem — \(error.localizedDescription). Use Advanced → App → Open config file.",
+                            "config.yaml has a problem — \(error.localizedDescription). Fix it in Runtimes → Edit YAML.",
                         bundle: .l10n, comment: "Toolchains tab status; %@ is the config error"),
                 style: .error)
             return

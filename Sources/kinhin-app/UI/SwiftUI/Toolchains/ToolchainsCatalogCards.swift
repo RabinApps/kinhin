@@ -12,13 +12,14 @@ struct ToolchainsCatalogCards: View {
                 title: Text(
                     verbatim: String(
                         localized: "Available: \(category.title)", bundle: .l10n,
-                        comment: "Card title in the toolchains catalog; %@ is a category such as Languages"))
+                        comment: "Card title in the toolchains catalog; %@ is a category such as Languages")),
+                layout: .fill
             ) {
                 ForEach(ToolchainsCatalogListing.tools(in: category)) { item in itemRow(item, prefix: "tool") }
             }
         }
         CollapsibleFormCard(
-            title: "Available: Stacks", subtitle: "Bundled recipes: several tools installed together."
+            title: "Available: Stacks", subtitle: "Bundled recipes: several tools installed together.", layout: .fill
         ) {
             ForEach(ToolchainsCatalogListing.stacks) { item in itemRow(item, prefix: "stack") }
         }
@@ -26,13 +27,13 @@ struct ToolchainsCatalogCards: View {
     }
 
     private func itemRow(_ item: CatalogListingItem, prefix: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack(spacing: 8) {
-                Text(item.id).font(.system(size: 12, weight: .semibold)).textSelection(.enabled)
+        VStack(alignment: .leading, spacing: Spacing.xxs) {
+            HStack(spacing: Spacing.sm) {
+                Text(item.id).typeStyle(.emphasis).textSelection(.enabled)
                 Spacer(minLength: 0)
-                Text(item.platforms).font(.system(size: 10)).foregroundStyle(.secondary)
+                Text(item.platforms).typeStyle(.caption).foregroundStyle(.secondary)
                 Text(item.defaultVersion)
-                    .font(.system(size: 10, design: .monospaced))
+                    .font(.system(.callout, design: .monospaced))
                     .foregroundStyle(.secondary)
                 copyButton(
                     item.copyText, id: "\(prefix):\(item.id)",
@@ -43,16 +44,20 @@ struct ToolchainsCatalogCards: View {
             HintText(verbatim: item.summary)
             if let requirement = item.requirement { HintText(verbatim: requirement) }
         }
+        .padding(Spacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: Radius.lg).fill(Palette.grouped))
     }
 
     private var examplesCard: some View {
         CollapsibleFormCard(
-            title: "Examples", subtitle: "Copy into .kinhin/config.yml in a repo (or into config.yaml)."
+            title: "Examples", subtitle: "Copy into .kinhin/config.yml in a repo (or into config.yaml).",
+            layout: .fill
         ) {
             ForEach(ToolchainsCatalogListing.examples) { example in
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: Spacing.xs) {
                     HStack {
-                        Text(example.title).font(.system(size: 12, weight: .semibold))
+                        Text(example.title).typeStyle(.emphasis)
                         Spacer(minLength: 0)
                         copyButton(
                             example.yaml, id: "example:\(example.title)",
@@ -61,16 +66,11 @@ struct ToolchainsCatalogCards: View {
                                 comment: "VoiceOver label of a Copy button; %@ is an example title"))
                     }
                     HintText(verbatim: example.note)
-                    Text(example.yaml)
-                        .font(.system(size: 11, design: .monospaced))
-                        .textSelection(.enabled)
-                        .padding(6)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
+                    YAMLSnippet(yaml: example.yaml)
                 }
             }
             Divider()
-            Text("How images bake").font(.system(size: 12, weight: .semibold))
+            Text("How images bake").typeStyle(.emphasis)
             HintText(verbatim: ToolchainsCatalogListing.howItWorks)
             HintText(verbatim: ToolchainsCatalogListing.platformNotes)
         }

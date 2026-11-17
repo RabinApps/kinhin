@@ -23,27 +23,15 @@ struct LinuxRuntimeSetupSheet: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            header
-            choices
-            Spacer(minLength: 0)
+        SheetScaffold(title: "Choose a Linux runtime", width: 700) {
+            VStack(alignment: .leading, spacing: Spacing.md) {
+                HintText("Pick how this Mac runs Linux jobs. You can change this later in Runtimes.")
+                choices
+            }
+        } footer: {
             footer
         }
-        .padding(.horizontal, 24)
-        .padding(.bottom, 24)
-        .frame(width: 560)
         .onAppear { choosing = firstChoice }
-    }
-
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Choose a Linux runtime")
-                .font(.system(size: 22, weight: .bold))
-            Text("Pick how this Mac runs Linux jobs. You can change this later in the Setup tab.")
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
-        }
     }
 
     private var firstChoice: LinuxRuntimeSetup? {
@@ -51,7 +39,7 @@ struct LinuxRuntimeSetupSheet: View {
     }
 
     private var choices: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        HStack(alignment: .top, spacing: Spacing.md) {
             ForEach([LinuxRuntimeSetup.appleContainer, .docker, .tartLinux], id: \.id) { option in
                 LinuxRuntimeChoiceRow(
                     option: option,
@@ -68,16 +56,16 @@ struct LinuxRuntimeSetupSheet: View {
     }
 
     private var footer: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: Spacing.md) {
             Spacer(minLength: 0)
             Button("Cancel") { offer.onConfirm(nil) }
-                .controlSize(.small)
+                .keyboardShortcut(.cancelAction)
             if let choice = choosing {
                 Button(choice.startInstallButtonTitle) {
                     installing = true
                     Task { await choice.startInstall(model: model) }
                 }
-                .controlSize(.small)
+                .keyboardShortcut(.defaultAction)
                 .disabled(installing)
                 .accessibilityIdentifier("linux-setup-confirm-\(choice.id)")
             }
@@ -94,67 +82,35 @@ private struct LinuxRuntimeChoiceRow: View {
     let disabled: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
-                roundedBox(for: option)
-                Text(option.displayName)
-                    .font(.system(size: 13, weight: .semibold))
+        VStack(alignment: .leading, spacing: Spacing.xs) {
+            HStack(spacing: Spacing.sm) {
+                Text(option.displayName).typeStyle(.emphasis)
+                Spacer(minLength: 0)
                 MaturityBadge(option.maturity)
-                Spacer(minLength: 0)
-                if installed {
-                    Text("installed ✓")
-                        .font(.system(size: 11))
-                        .foregroundStyle(StatusStyle.ok.color)
-                }
             }
-            Text(option.summary)
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
-            HStack(spacing: 6) {
-                Text(option.prerequisite)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                Spacer(minLength: 0)
-                if let blocked = option.unavailableReason, !highlighted {
-                    Text(blocked)
-                        .font(.system(size: 11))
-                        .foregroundStyle(StatusStyle.warn.color)
-                }
+            HintText(verbatim: option.summary)
+            HintText(verbatim: option.prerequisite)
+            if installed {
+                Chip("installed ✓", tone: .ok)
             }
+            if let blocked = option.unavailableReason, !highlighted {
+                StatusText(verbatim: blocked, style: .warn)
+            }
+            Spacer(minLength: 0)
         }
-        .padding(10)
+        .padding(Spacing.md)
+        .frame(maxWidth: .infinity, minHeight: 130, alignment: .topLeading)
         .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(highlighted ? Color(nsColor: .selectedContentBackgroundColor) : Color.clear)
+            RoundedRectangle(cornerRadius: Radius.lg)
+                .fill(highlighted ? Palette.accent.opacity(0.12) : Palette.surface)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .strokeBorder(
-                    highlighted ? Color(nsColor: .controlAccentColor) : Color(nsColor: .separatorColor),
-                    lineWidth: 1
-                )
+            RoundedRectangle(cornerRadius: Radius.lg)
+                .strokeBorder(highlighted ? Palette.accent : Palette.separator, lineWidth: highlighted ? 2 : 1)
         )
         .opacity(disabled && !highlighted ? 0.5 : 1)
-    }
-
-    private func roundedBox(for option: LinuxRuntimeSetup) -> some View {
-        let symbol: String
-        let color: Color
-        switch option {
-        case .appleContainer:
-            symbol = "shippingbox.fill"; color = .orange
-        case .docker:
-            symbol = "cube.fill"; color = .blue
-        case .tartLinux:
-            symbol = "desktopcomputer"; color = .purple
-        }
-        return Image(systemName: symbol)
-            .font(.system(size: 14))
-            .foregroundStyle(.white)
-            .frame(width: 24, height: 24)
-            .background(color)
-            .clipShape(RoundedRectangle(cornerRadius: 5))
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(highlighted ? .isSelected : [])
     }
 }
 

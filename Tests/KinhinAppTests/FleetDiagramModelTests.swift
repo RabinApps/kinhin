@@ -95,6 +95,8 @@ final class FleetDiagramModelTests: XCTestCase {
         XCTAssertTrue(model.lanes[0].isIdle, "the configured runtime is idle")
         XCTAssertEqual(model.lanes[1].instances.map(\.id), ["kinhin-d"])
         XCTAssertEqual(model.lanes[1].title, "Host (this Mac)")
+        XCTAssertEqual(model.lanes[1].subtitle, "1 instance · unisolated", "the Host card discloses it")
+        XCTAssertEqual(model.lanes[0].subtitle, "idle", "a configured, empty runtime says idle")
     }
 
     func testInstancesWithinALaneKeepTheStatusOrder() {
@@ -110,22 +112,29 @@ final class FleetDiagramModelTests: XCTestCase {
     func testInstanceIconsAndColorsFollowThePhase() {
         let busy = instance(for: record("kinhin-b", phase: .busy))
         XCTAssertEqual(busy.symbol, "bolt.fill")
-        XCTAssertEqual(busy.style, .ok)
+        XCTAssertEqual(busy.tone, .ok)
 
         let ready = instance(for: record("kinhin-r"))
-        XCTAssertEqual(ready.symbol, "checkmark.circle")
-        XCTAssertEqual(ready.style, .secondary)
+        XCTAssertEqual(ready.symbol, "checkmark.circle.fill")
+        XCTAssertEqual(ready.tone, .ok)
 
         let booting = instance(for: record("kinhin-t", phase: .booting))
         XCTAssertEqual(booting.symbol, "arrow.triangle.2.circlepath")
-        XCTAssertEqual(booting.style, .secondary)
+        XCTAssertEqual(booting.tone, .accent)
 
         let deleting = instance(for: record("kinhin-x", phase: .deleting))
         XCTAssertEqual(deleting.symbol, "xmark.circle")
+        XCTAssertEqual(deleting.tone, .neutral)
+        XCTAssertEqual(deleting.phaseWord, "deleting")
+
+        let warm = instance(for: record("kinhin-w", phase: .warm))
+        XCTAssertEqual(warm.symbol, "flame.fill")
+        XCTAssertEqual(warm.tone, .warn)
+        XCTAssertEqual(warm.name, "kinhin-w")
 
         let failed = instance(for: record("kinhin-f", phase: .failed))
         XCTAssertEqual(failed.symbol, "exclamationmark.triangle.fill")
-        XCTAssertEqual(failed.style, .error)
+        XCTAssertEqual(failed.tone, .error)
     }
 
     func testAnErrorOnAnyPhaseReadsAsAFailure() {
@@ -133,7 +142,7 @@ final class FleetDiagramModelTests: XCTestCase {
         record.error = "boot timed out"
         let row = instance(for: record)
         XCTAssertEqual(row.symbol, "exclamationmark.triangle.fill")
-        XCTAssertEqual(row.style, .error)
+        XCTAssertEqual(row.tone, .error)
         XCTAssertTrue(row.hasError, "the row reads red")
         XCTAssertTrue(row.detail.contains("⚠︎ boot timed out"), row.detail)
     }

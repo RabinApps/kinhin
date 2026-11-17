@@ -103,7 +103,7 @@ of the take whichever mode you use; the guest needs Screen Recording granted onc
 - `--gui`: a VM window on your Mac; the guest has a real desktop session.
 - `--vnc`: the same desktop with no window; connect with Screen Sharing.
 - `--headless`: no desktop, so no recording. It runs the demo unit tests and renders the offscreen UI captures
-  (`shots/capture`) instead.
+  (`scripts/capture-ui.sh`) instead.
 
 Both set `KINHIN_DEMO` the same way (`KINHIN_DEMO=path/in/repo.json video/adapters/kinhin/record-app.sh`). The pointer is
 left out of the take, so no cursor smoothing is needed; for auto-zoom, run the raw take through an editor such as
@@ -207,6 +207,9 @@ The "Video image" workflow runs the same smoke test on a pull request, so a mism
 
 ## The site
 
+**Rule: a video change ships with its site copy.** Any change to the launch video's script, adapter, clips or music, or to the
+app UI it records, is not done until the rebuilt files are in `website/public/` in the same pull request.
+
 Copy the built `<project>.mp4`, `<project>.webm` and `<project>-poster.png` from `video/out/<project>/` into `website/public/` as
 `launch.mp4`, `launch.webm` and `launch-poster.png`. The home page shows the player only when `launch.mp4` exists, so
 the site never renders a broken video. Keep the files small (under about 10 MB) or host them elsewhere. The player
@@ -220,5 +223,6 @@ say so. Forges and runtimes that are only planned (see [Forges](forges.md)) do n
 
 ## Not yet covered
 
-The demo fleet fills the Fleet tab and menu data. The Logs and Diagnostics windows, and the Advanced tabs, still show
-real (empty) data in demo mode; seeding them is the next step if a video needs to open them.
+The demo fleet fills the Fleet screen and menu data. The other sidebar sections (Runtimes, Accounts, Toolchains,
+Diagnostics, Settings) still show real (empty) data in demo mode; seeding them is the next step if a video needs to open
+them.

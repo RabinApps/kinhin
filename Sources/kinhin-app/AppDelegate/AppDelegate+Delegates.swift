@@ -84,7 +84,7 @@ extension AppDelegate: MainTabsWindowDelegate, NSMenuItemValidation, NSMenuDeleg
                     fleet.problems[.launch]
                         ?? String(
                             localized:
-                                "Setup isn't complete: connect GitHub or Gitea and choose a repository, and make sure tart is installed. Open the Setup tab to finish.",
+                                "Connect a forge and choose where jobs run, then try again. The wizard is shown again.",
                             bundle: .l10n, comment: "Alert body when Start Fleet is pressed before setup finished")
                 )
                 mainController?.tabs.showSetup()

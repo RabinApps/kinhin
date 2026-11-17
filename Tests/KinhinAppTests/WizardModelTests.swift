@@ -26,6 +26,19 @@ final class WizardModelTests: XCTestCase {
         XCTAssertTrue(WizardModel.forgeNames.hasPrefix("GitHub, GitLab, Gitea, Forgejo, Buildkite, Azure DevOps"))
     }
 
+    func testStepTitlesAndSubtitlesFollowTheDesign() {
+        XCTAssertEqual(
+            WizardModel.Step.allCases.map(\.title), ["Connect your code", "Get this Mac ready", "Review & Start"])
+        XCTAssertEqual(
+            WizardModel.Step.connect.subtitle,
+            "Pick every forge kinhin should serve and paste a token. It stays in your Keychain.")
+        XCTAssertEqual(
+            WizardModel.Step.mac.subtitle, "Install what you need to run jobs. You can add more later in Runtimes.")
+        XCTAssertEqual(
+            WizardModel.Step.review.subtitle,
+            "Check the summary, then start. Change any of it later in Accounts and Runtimes.")
+    }
+
     func testThreeStepsEndingInReviewAndStart() {
         XCTAssertEqual(WizardModel.Step.allCases, [.connect, .mac, .review])
         XCTAssertEqual(WizardModel.Step.review.title, "Review & Start")

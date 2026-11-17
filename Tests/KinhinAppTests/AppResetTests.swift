@@ -12,7 +12,7 @@ final class AppResetTests: MainWindowTestCase {
     private var model: AppSectionModel { models.appModel }
 
     private func showAppSection() {
-        tabs.showAdvanced(.app)
+        tabs.select(.settings)
         _ = model
     }
 

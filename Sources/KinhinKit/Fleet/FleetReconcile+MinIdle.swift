@@ -4,20 +4,25 @@ import Foundation
 extension FleetEngine {
     /// Idle registered instances to keep per pool and per Tart image: the default image's `image_min_idle`
     /// (keyed "", like its warm pool), each `images:` entry's `min_idle`, `container.min_idle` (each named
-    /// container pool's own, with `container.pools:`) and `docker.min_idle`. `images` is the router snapshot's table, so a reload applies on the next pass; its
-    /// synthesized default-image entry carries 0, so the base image is only ever keyed "". Named images in
-    /// `unprepared` keep no floor this pass (see `unpreparedIdleImages`).
-    func minIdleTargets(images: [KinhinConfig.ImageConfig], unprepared: Set<String> = []) -> [ScalePlan.IdleKey: Int] {
+    /// container pool's own, with `container.pools:`) and `docker.min_idle`. Every floor is read from the router
+    /// `snapshot`, so a reload applies on the next pass without rebuilding the engine. The snapshot's synthesized
+    /// default-image entry carries 0, so the base image is only ever keyed "". Named images in `unprepared` keep no
+    /// floor this pass (see `unpreparedIdleImages`).
+    func minIdleTargets(snapshot: Router.Snapshot, unprepared: Set<String> = []) -> [ScalePlan.IdleKey: Int] {
         var targets: [ScalePlan.IdleKey: Int] = [:]
-        // A disabled pool keeps no floor: it spawns nothing new while its running instances drain.
-        if config.tartEnabled, config.imageMinIdle > 0 { targets[.init(runtime: .tart)] = config.imageMinIdle }
-        for image in images where config.tartEnabled && image.minIdle > 0 && !unprepared.contains(image.name) {
+        // A disabled pool keeps no floor (the snapshot already carries 0 for it): it spawns nothing new while its
+        // running instances drain.
+        // Tart's switch lives in `runtimes:` but a change to it always rebuilds the engine, so the frozen `config`'s
+        // answer is current. Pool and Docker enablement are baked into the snapshot's floors.
+        let tart = config.tartEnabled
+        if tart, snapshot.imageMinIdle > 0 { targets[.init(runtime: .tart)] = snapshot.imageMinIdle }
+        for image in snapshot.images where tart && image.minIdle > 0 && !unprepared.contains(image.name) {
             targets[.init(runtime: .tart, image: image.name)] = image.minIdle
         }
-        for pool in config.container?.enabledPools ?? [] where pool.minIdle > 0 {
-            targets[.init(runtime: .appleContainer, pool: pool.name)] = pool.minIdle
+        for (pool, floor) in snapshot.containerMinIdle where floor > 0 {
+            targets[.init(runtime: .appleContainer, pool: pool)] = floor
         }
-        if let docker = config.activeDocker, docker.minIdle > 0 { targets[.init(runtime: .docker)] = docker.minIdle }
+        if snapshot.dockerMinIdle > 0 { targets[.init(runtime: .docker)] = snapshot.dockerMinIdle }
         return targets
     }
 

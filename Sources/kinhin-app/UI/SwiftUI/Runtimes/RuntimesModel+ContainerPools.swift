@@ -1,7 +1,7 @@
 import Foundation
 import KinhinKit
 
-// Named Apple container pools (`container.pools:`) on Advanced → Routing: one card per pool with what it resolves
+// Named Apple container pools (`container.pools:`) on the Runtimes page: one card per pool with what it resolves
 // to and whether its image is built, and the Add / Edit sheet (`ContainerPoolSheet`) and Remove that write the
 // pools through `ContainerPoolsConfigEditor`.
 
@@ -91,8 +91,8 @@ extension RuntimesModel {
     /// The card's chip: built (green) or not built (orange); nothing while unknown.
     static func builtChip(_ built: Bool?) -> (text: String, style: StatusStyle)? {
         switch built {
-        case true?: return (String(localized: "● built", bundle: .l10n, comment: "Container pool chip"), .ok)
-        case false?: return (String(localized: "● not built", bundle: .l10n, comment: "Container pool chip"), .warn)
+        case true?: return (String(localized: "built", bundle: .l10n, comment: "Container pool chip"), .ok)
+        case false?: return (String(localized: "not built", bundle: .l10n, comment: "Container pool chip"), .warn)
         case nil: return nil
         }
     }

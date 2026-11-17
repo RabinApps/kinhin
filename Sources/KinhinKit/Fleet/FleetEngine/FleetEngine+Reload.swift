@@ -6,9 +6,10 @@ import Synchronization
 extension FleetEngine {
     /// Which parts of a config edit the *running* engine can adopt without
     /// a rebuild: the routing model (pools/routes/budget), the capacity
-    /// partition, the forges' label sets (`Forge.relabeled`), the named `images:` entries
-    /// and the `projects:` rules — exactly what `applyReloaded` swaps under
-    /// the locks. Everything else (bounds, poll cadence, per-VM shape,
+    /// partition, the forges' label sets (`Forge.relabeled`), the named `images:` entries,
+    /// the `projects:` rules and every `min_idle` floor (`image_min_idle`, `images[].min_idle`,
+    /// `container.min_idle`, each pool's `min_idle`, `docker.min_idle`) — exactly what
+    /// `applyReloaded` swaps under the locks. Everything else (bounds, poll cadence, per-VM shape,
     /// reserve, forge sections, toolchains) lives in the frozen `config` the
     /// engine was built with, so a change there silently does nothing until
     /// the engine is rebuilt.
@@ -25,6 +26,14 @@ extension FleetEngine {
         b.images = []
         a.labels = []
         b.labels = []
+        // The `min_idle` floors travel in the router snapshot, so editing one never rebuilds the engine. Pool
+        // existence, `max` and every other field still compare.
+        a.imageMinIdle = 0
+        b.imageMinIdle = 0
+        a.container = a.container?.withoutMinIdle()
+        b.container = b.container?.withoutMinIdle()
+        a.docker?.minIdle = 0
+        b.docker?.minIdle = 0
         // Telemetry is owned by the process's `TelemetryService`, which applies it in place.
         a.telemetry = .default
         b.telemetry = .default
@@ -181,13 +190,13 @@ extension FleetEngine {
 
     /// Swap in routing state from a freshly loaded config: the routing model
     /// (pools + routes), the capacity partition, the pool set, the named
-    /// `images:` entries and the `projects:` rules. Callable while running —
+    /// `images:` entries, the `projects:` rules and the `min_idle` floors. Callable while running —
     /// the next reconcile demand-buckets and spawns against the new shapes
     /// without a restart. Existing records keep their assigned runtime until
     /// they finish (teardown is per-record), so no instance is disrupted
     /// mid-job.
     ///
-    /// Scope: routing and the label/image/project tables. A container-image
+    /// Scope: routing, the label/image/project tables and the `min_idle` floors. A container-image
     /// change or a runtime's shape lives in the runtime instance (fixed per
     /// engine) and still needs a daemon restart.
     public func applyReloaded(config newConfig: KinhinConfig, host: HostResources) {

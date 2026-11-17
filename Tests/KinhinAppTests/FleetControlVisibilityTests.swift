@@ -42,11 +42,11 @@ final class FleetControlVisibilityTests: XCTestCase {
         XCTAssertEqual(hidden("startFleet"), true)
         XCTAssertEqual(hidden("stopFleet"), false)
         XCTAssertEqual(hidden("pauseResumeFleet"), false)
-        XCTAssertEqual(title("pauseResumeFleet"), "Pause")
+        XCTAssertEqual(title("pauseResumeFleet"), "Pause Fleet")
 
         delegate.applyFleetControlVisibility(to: menu, status: status(running: true, paused: true))
         XCTAssertEqual(hidden("pauseResumeFleet"), false)
-        XCTAssertEqual(title("pauseResumeFleet"), "Resume", "one toggle: the same item flips to Resume")
+        XCTAssertEqual(title("pauseResumeFleet"), "Resume Fleet", "one toggle: the same item flips to Resume")
 
         delegate.applyFleetControlVisibility(to: menu, status: nil)
         XCTAssertEqual(hidden("startFleet"), false)

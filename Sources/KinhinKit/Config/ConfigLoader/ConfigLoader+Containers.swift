@@ -77,8 +77,8 @@ extension ConfigLoader {
         let maxSlots = docker.maxSlots ?? KinhinConfig.DockerForgeConfig.defaultMaxSlots
         if let minIdle = docker.minIdle {
             guard minIdle >= 0 else { throw ConfigError.invalid("docker.min_idle must be >= 0") }
-            guard minIdle <= maxSlots else {
-                throw ConfigError.invalid("docker.min_idle (\(minIdle)) must be <= docker.max_slots (\(maxSlots))")
+            if let message = MinIdleValidation.dockerSlotsMessage(minIdle: minIdle, maxSlots: maxSlots) {
+                throw ConfigError.invalid(message)
             }
         }
         let dockerBase = try Self.validatedBaseImage(docker.baseImage, key: "docker.base_image")

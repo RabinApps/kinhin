@@ -4,7 +4,7 @@ import Synchronization
 /// Everything a live config reload can change about where jobs run, held as
 /// ONE atomic snapshot behind a single lock: the routing model (pools and
 /// routes), the per-runtime caps, the named `images:` entries, the `projects:`
-/// rules and the fleet labels. A reader takes `snapshot` once and uses it for
+/// rules, the fleet labels and the `min_idle` floors. A reader takes `snapshot` once and uses it for
 /// a whole decision, so it never sees routes from one config and images from
 /// another (the old layout kept each in its own lock).
 ///
@@ -31,6 +31,12 @@ final class Router: Sendable {
         /// The CPU and memory the named container pools share
         /// (`RuntimeCapacity.containerBudget`); nil without named pools.
         var containerBudget: RuntimeCapacity.Budget? = nil
+        /// The default Tart image's `image_min_idle` floor (the named images' floors ride in `images`).
+        var imageMinIdle: Int = 0
+        /// Each enabled Apple container pool's `min_idle` floor (a disabled pool keeps none), keyed by pool name ("" for the unnamed section pool).
+        var containerMinIdle: [String: Int] = [:]
+        /// `docker.min_idle`; 0 without an enabled `docker:` section.
+        var dockerMinIdle: Int = 0
 
         /// The union of the labels every pool (every named container pool and
         /// every named image included) registers runners with, de-duplicated
@@ -58,7 +64,12 @@ final class Router: Sendable {
                 projects: config.projects,
                 labels: config.labels,
                 baseImage: config.image,
-                containerBudget: RuntimeCapacity.containerBudget(for: config, host: host))
+                containerBudget: RuntimeCapacity.containerBudget(for: config, host: host),
+                imageMinIdle: config.imageMinIdle,
+                containerMinIdle: Dictionary(
+                    (config.container?.enabledPools ?? []).map { ($0.name, $0.minIdle) },
+                    uniquingKeysWith: { first, _ in first }),
+                dockerMinIdle: config.activeDocker?.minIdle ?? 0)
         }
 
         /// Job slots the pool of `runtime` offers: its instance cap (the

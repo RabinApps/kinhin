@@ -16,106 +16,98 @@ struct ContainerPoolSheet: View {
         _draft = State(initialValue: offer.original.map { ContainerPoolDraft(pool: $0) } ?? ContainerPoolDraft())
     }
 
-    /// Width of the label column, so every field starts at the same x.
-    private static let labelWidth: CGFloat = 110
-
     var body: some View {
         let defaults = offer.defaults
-        VStack(alignment: .leading, spacing: 8) {
-            Text(offer.original == nil ? "Add Container Pool" : "Edit Container Pool")
-                .font(.system(size: 13, weight: .semibold))
-            if offer.isFirstPool {
-                HintText(
-                    "Named pools replace the single container pool: the keys under container: become each pool's defaults, and a job no pool's labels claim goes to the pool with the fewest labels among those of the architecture it asks for (x64 or arm64)."
-                )
-            }
-
-            row("Name") {
-                TextField("e.g. big", text: $draft.name)
-                    .accessibilityLabel("Pool name")
-            }
-            row("Labels") {
-                TextField(Self.labelsPlaceholder(defaults.labels), text: $draft.labels)
-                    .accessibilityLabel("Pool labels")
-            }
-            row("CPUs") {
-                TextField(Self.inherited(String(defaults.cpus)), text: $draft.cpus)
-                    .accessibilityLabel("CPUs per runner")
-            }
-            row("Memory (GB)") {
-                TextField(Self.inherited(String(defaults.memoryGB)), text: $draft.memoryGB)
-                    .accessibilityLabel("Memory per runner in GB")
-            }
-            row("Max runners") {
-                TextField(Self.noLimit, text: $draft.max)
-                    .accessibilityLabel("Max runners at once")
-            }
-            row("Idle runners") {
-                TextField(Self.inherited(String(defaults.minIdle)), text: $draft.minIdle)
-                    .accessibilityLabel("Idle runners kept")
-            }
-            row("Docker") {
-                Picker("Docker", selection: $draft.docker) {
-                    Text(verbatim: Self.dockerDefault(defaults.docker)).tag(ContainerPoolDraft.DockerChoice.inherit)
-                    Text("On").tag(ContainerPoolDraft.DockerChoice.on)
-                    Text("Off").tag(ContainerPoolDraft.DockerChoice.off)
-                }
-                .labelsHidden()
-                .pickerStyle(.segmented)
-                .fixedSize()
-            }
-            row("Image") {
-                TextField(Self.imagePlaceholder(defaults.image), text: $draft.image)
-                    .accessibilityLabel("Pool image")
-            }
-            row("Base image") {
-                TextField(Self.inherited(defaults.baseImage ?? LinuxBaseImage.defaultReference), text: $draft.baseImage)
-                    .accessibilityLabel("Pool base image")
-            }
-            row("Run flags") {
-                TextEditor(text: $draft.flags)
-                    .font(.system(size: 11, design: .monospaced))
-                    .scrollContentBackground(.hidden)
-                    .background(Color(nsColor: .textBackgroundColor))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 4)
-                            .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 1)
+        SheetScaffold(
+            verbatimTitle: offer.original == nil
+                ? String(localized: "Add Container Pool", bundle: .l10n, comment: "Sheet title")
+                : String(localized: "Edit Container Pool", bundle: .l10n, comment: "Sheet title"),
+            width: 480
+        ) {
+            VStack(alignment: .leading, spacing: Spacing.md) {
+                if offer.isFirstPool {
+                    HintText(
+                        "Named pools replace the single container pool: the keys under container: become each pool's defaults, and a job no pool's labels claim goes to the pool with the fewest labels among those of the architecture it asks for (x64 or arm64)."
                     )
-                    .frame(height: 44)
-                    .accessibilityLabel("Extra container run arguments, one per line")
+                }
+                HStack(alignment: .top, spacing: Spacing.md) {
+                    poolField("Name", prompt: Text("e.g. big"), text: $draft.name, label: Text("Pool name"), width: 180)
+                    poolField(
+                        "Labels", prompt: Text(verbatim: Self.labelsPlaceholder(defaults.labels)), text: $draft.labels,
+                        label: Text("Pool labels"))
+                }
+                HStack(alignment: .top, spacing: Spacing.md) {
+                    poolField(
+                        "CPUs", prompt: Text(verbatim: Self.inherited(String(defaults.cpus))), text: $draft.cpus,
+                        label: Text("CPUs per runner"), width: 80)
+                    poolField(
+                        "Memory (GB)", prompt: Text(verbatim: Self.inherited(String(defaults.memoryGB))),
+                        text: $draft.memoryGB,
+                        label: Text("Memory per runner in GB"), width: 100)
+                    poolField(
+                        "Max runners", prompt: Text(verbatim: Self.noLimit), text: $draft.max,
+                        label: Text("Max runners at once"),
+                        width: 100)
+                    poolField(
+                        "Idle runners", prompt: Text(verbatim: Self.inherited(String(defaults.minIdle))),
+                        text: $draft.minIdle,
+                        label: Text("Idle runners kept"), width: 100)
+                }
+                LabeledControl("Docker") {
+                    Picker("Docker", selection: $draft.docker) {
+                        Text(verbatim: Self.dockerDefault(defaults.docker)).tag(ContainerPoolDraft.DockerChoice.inherit)
+                        Text("On").tag(ContainerPoolDraft.DockerChoice.on)
+                        Text("Off").tag(ContainerPoolDraft.DockerChoice.off)
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.segmented)
+                    .fixedSize()
+                }
+                poolField(
+                    "Image", prompt: Text(verbatim: Self.imagePlaceholder(defaults.image)), text: $draft.image,
+                    label: Text("Pool image"))
+                poolField(
+                    "Base image",
+                    prompt: Text(verbatim: Self.inherited(defaults.baseImage ?? LinuxBaseImage.defaultReference)),
+                    text: $draft.baseImage, label: Text("Pool base image"))
+                LabeledControl("Run flags (one per line)") {
+                    TextEditor(text: $draft.flags)
+                        .font(.system(.callout, design: .monospaced))
+                        .scrollContentBackground(.hidden)
+                        .padding(Spacing.xs)
+                        .background(RoundedRectangle(cornerRadius: Radius.md).fill(Palette.grouped))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: Radius.md).strokeBorder(Palette.separator, lineWidth: 1)
+                        )
+                        .frame(height: 56)
+                        .accessibilityLabel("Extra container run arguments, one per line")
+                }
+                HintText(
+                    "Leave a field blank to use the container: section's value. Run flags take one argument per line. The pool's runners also carry the label kinhin-container-<name>; build its image with kinhin image prepare --container --pool <name>."
+                )
+                if !model.sheetProblem.isEmpty {
+                    StatusText(verbatim: model.sheetProblem, style: .error)
+                }
             }
-            HintText(
-                "Leave a field blank to use the container: section's value. Run flags take one argument per line. The pool's runners also carry the label kinhin-container-<name>; build its image with kinhin image prepare --container --pool <name>."
-            )
-
-            if !model.sheetProblem.isEmpty {
-                StatusText(verbatim: model.sheetProblem, style: .error)
-            }
-
-            HStack {
-                Spacer()
-                Button("Cancel", action: model.cancelContainerPool)
-                    .keyboardShortcut(.cancelAction)
-                Button("Save") { model.confirmContainerPool(draft) }
-                    .keyboardShortcut(.defaultAction)
-                    .accessibilityLabel("Save container pool")
-            }
+        } footer: {
+            SheetConfirmFooter(
+                "Save", confirm: { model.confirmContainerPool(draft) }, cancel: model.cancelContainerPool)
         }
-        .textFieldStyle(.roundedBorder)
-        .controlSize(.small)
-        .padding(16)
-        .frame(width: 440, alignment: .leading)
     }
 
-    /// One labelled field: the label in a fixed column, the control filling the rest.
-    private func row<Control: View>(_ label: LocalizedStringKey, @ViewBuilder control: () -> Control) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text(label)
-                .font(.system(size: 12))
-                .frame(width: Self.labelWidth, alignment: .leading)
-            control()
-                .frame(maxWidth: .infinity, alignment: .leading)
+    /// One captioned text field; `width` nil lets it take the rest of the row.
+    private func poolField(
+        _ title: LocalizedStringKey, prompt: Text, text: Binding<String>, label: Text,
+        width: CGFloat? = nil
+    ) -> some View {
+        LabeledControl(title) {
+            TextField(text: text, prompt: prompt) { label }
+                .labelsHidden()
+                .textFieldStyle(.roundedBorder)
+                .accessibilityLabel(label)
         }
+        .frame(width: width)
+        .frame(maxWidth: width == nil ? .infinity : nil, alignment: .leading)
     }
 
     // MARK: - Placeholders (pinned by tests without presenting the sheet)

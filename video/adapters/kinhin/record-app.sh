@@ -50,9 +50,15 @@ sleep 3
 WID="$(shots/tools/winid "$PROC" || true)"
 [ -n "$WID" ] || { echo "no kinhin window; open it from the menu bar item first" >&2; exit 1; }
 
-# A taller window shows the whole Fleet tab without scrolling. Resizing needs Accessibility for the terminal; without
-# it the window keeps its default size, which is still a valid take.
-osascript -e "tell application \"System Events\" to tell process \"$PROC\" to set {position, size} of window 1 to {{300, 40}, {820, 880}}" \
+# A wide, tall window shows the Fleet screen (the sidebar and the whole page) without scrolling; 1000 points wide is
+# the app's default width and above its minimum, and the height is clamped to the screen. Size and position are set as
+# two statements: the combined `set {position, size}` form is refused ("Access not allowed") on current macOS. Resizing
+# needs Accessibility for the terminal; without it the window keeps its default size, which is still a valid take.
+osascript \
+    -e "tell application \"System Events\" to tell process \"$PROC\"" \
+    -e "set size of window 1 to {1000, 900}" \
+    -e "set position of window 1 to {240, 30}" \
+    -e "end tell" \
     >/dev/null 2>&1 || echo "(window kept its default size: grant Accessibility to your terminal to make it taller)"
 sleep 1
 

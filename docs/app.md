@@ -18,7 +18,7 @@ wizard covers what the CLI quick start does:
 **Continue** and **Start fleet** stay disabled until nothing blocks the step, and the wizard says what is missing beside
 the button (for example "Connect GitHub and choose a repository"). **Skip for now** moves past a step anyway. You can
 press **Start fleet** while the macOS image is still being prepared: the preparation continues in the background and
-macOS jobs begin when it finishes. Everything can be changed later in the Setup tab. The fleet lives in kinhin's single
+macOS jobs begin when it finishes. Everything can be changed later in Accounts and Runtimes. The fleet lives in kinhin's single
 main window (and the ○ in your menu bar shows the number of live runner VMs).
 
 ### Supported forges and runtimes
@@ -34,19 +34,27 @@ Experimental forges (real jobs for a user, not yet in the project's own tests): 
 Tart serving Linux VMs is live-tested too. Every other forge and runtime is shown with an **untested** badge.
 <!-- docs-sync:end maturity -->
 
-## One window, three tabs
+## One window, one sidebar
 
-Everything kinhin does happens in a single main window. A segmented control switches between:
+Everything kinhin does happens in a single main window. A sidebar switches between six sections (Cmd-Opt-S folds it to an
+icon rail); its footer shows **Update available** when a newer release was found, and **Support kinhin**. First run is
+the exception: until the three-step setup wizard finishes, the window shows only the wizard, with no sidebar.
 
-| Tab          | Contents                                                                                                                                                                                                                                                                                |
-| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Fleet**    | The **Runtimes** diagram: a lane per execution runtime — 🍎 Tart VMs, 🐧 Apple containers, 🐳 Docker, 🖥 Host — holding one icon-led row per live instance — the phase-colored icon, that instance's VM-row detail, and its **Pipeline…**/**Delete** actions (a busy row opens its pipeline) — or the word *idle* when the runtime has nothing running; then live status, Start/Stop/Pause, Current jobs, Queued work, and buttons for Logs and Diagnostics. If the background daemon stops answering, the status line says "Fleet not responding" (with the reason) rather than sending you back to Setup.                                                         |
-| **Setup**    | Connect your forges (a grid of GitHub, GitLab, Gitea and Forgejo — select every one to serve; the planned forges carry an **untested** badge), pick each account's repo, org, project or group (its `scope` in `accounts:`), get this Mac ready. Toolchains are per repo (see Advanced → Toolchains). First run is a three-step wizard.                                                  |
-| **Advanced** | **Accounts** (forges), **Capacity** (this Mac's macOS and Linux runtimes, the reserve, the budget split between runtimes, VM counts and sizes, with Apply), **Routing** (pools, the named Apple container pools with Add/Edit/Remove, routes, the default pool, labels), **Containers** (containers and volumes, with each runner's container pool), **Toolchains** (read-only: **Repos** with each project's source and derived images, **Available toolchains**, **Examples**), **App** (launch options, updates, **Telemetry**, **Alerts**, config file).                           |
+| Section         | Contents |
+| --------------- | -------- |
+| **Fleet**       | The **Runtimes** diagram: a lane per execution runtime — 🍎 Tart VMs, 🐧 Apple containers, 🐳 Docker, 🖥 Host — holding one icon-led row per live instance (phase icon, VM-row detail, **Pipeline…**/**Delete**), or the word *idle*; then live status, Start/Stop/Pause, Current jobs, Queued work, and buttons for Logs, Diagnostics, Test Workflow and Make a Video. If the background daemon stops answering, the status line says "Fleet not responding" (with the reason). |
+| **Runtimes**    | Fleet capacity (VM counts and sizes, what stays free for your Mac), the split between runtimes, a card per runtime (tool, base image, switch, **Keep idle** floors, named Apple container pools), then routes, the default pool and labels. Capacity and Keep idle stage until the pinned Apply bar; the rest saves as you go. |
+| **Accounts**    | Connect your forges (GitHub, GitLab, Gitea and Forgejo — select every one to serve; the planned forges carry an **untested** badge) and pick each account's repo, org, project or group (its `scope` in `accounts:`). |
+| **Toolchains**  | Read-only: **Repos** with each project's source and derived images, **Available toolchains**, **Examples**. |
+| **Diagnostics** | A segmented control: **Health** (the doctor report and the healing card), **Logs**, **Benchmarks**, **Containers** (containers and volumes, with each runner's container pool) and **Tools** (Test Workflow and Make a Video). |
+| **Settings**    | Launch options, updates, **Telemetry**, **Alerts**, config file, daemon mode, reset. |
+
+The menu bar's **Settings…** opens Settings, **Setup…** opens the wizard (Accounts once setup is done) and **Open Logs**
+opens Diagnostics → Logs.
 
 ### This Mac: macOS and Linux jobs
 
-The **This Mac** card (wizard step 2, and Advanced → Capacity) has two parts. **macOS jobs** runs workflows in tart
+The **This Mac** card (wizard step 2, and Runtimes) has two parts. **macOS jobs** runs workflows in tart
 virtual machines. **Linux jobs** lists, in order, **Tart (Linux VM)**, **Apple container** and **Docker**
 (see [Runtimes](runtimes.md#choosing-a-linux-runtime) for the side-by-side comparison and when to use each):
 
@@ -62,11 +70,11 @@ virtual machines. **Linux jobs** lists, in order, **Tart (Linux VM)**, **Apple c
 - **Apple container** and **Docker** each have their own base-image picker (Docker also picks an architecture).
 
 Additional accounts (another org, a second server) are not part of first-run setup; add them under
-**Advanced → Accounts → More accounts…**, which opens by itself when extra accounts already exist.
+**Accounts → More accounts…**, which opens by itself when extra accounts already exist.
 
 ## Live pipeline view
 
-Click a busy VM in the Fleet tab (or its **Pipeline…** button) to see the pipeline it is running. A sheet lists the
+Click a busy VM in Fleet (or its **Pipeline…** button) to see the pipeline it is running. A sheet lists the
 pipeline's jobs with their state and elapsed time, the job on this VM marked *this VM*. Click a job to see just its
 steps; **‹ All jobs** goes back. The view refreshes every two seconds while it is open, shows the last state when the
 job finishes, and **Open in browser** jumps to the run on the forge.
@@ -105,7 +113,7 @@ The data comes from the forge APIs your token already uses, so no extra permissi
 
 ## Make a Video
 
-The Fleet tab's **Make a Video…** button opens a sheet for making a narrated video of a repository, with the same code as
+The Fleet screen's **Make a Video…** (and Diagnostics → Tools) button opens a sheet for making a narrated video of a repository, with the same code as
 `kinhin video` ([Add videos to your project](videos-for-your-project.md)). Choose a repository (it needs, or gets, a
 `.kinhin/videos/` folder), pick a video or create one from a starter, and press **Build**. The build runs in a container (Apple
 `container` if it is running, else Docker) and its output scrolls in the sheet; **Fast preview** skips the slow parts, and
@@ -120,8 +128,8 @@ kinhin shows how busy the Mac and each running instance are, so you can tell whe
 
 - **Menu bar.** The status lines gain a host line, `🖥 Host CPU 34% · RAM 21.0/64 GB`, and each VM row ends with
   ` · CPU 120% · RAM 3.2/8 GB`.
-- **Fleet tab.** The same host line and per-VM suffix appear in the VM list.
-- **Advanced → Containers.** Rows for running containers show their usage.
+- **Fleet.** The same host line and per-VM suffix appear in the VM list.
+- **Diagnostics → Containers.** Rows for running containers show their usage.
 - **CLI.** `kinhin status` and `kinhin watch` print a `host:` line and per-VM usage. `kinhin status --json` carries it
   as `fleet.host` and `fleet.records[].usage`.
 
@@ -135,7 +143,7 @@ Not included: history or graphs, alerts, metrics from inside the guest, and per-
 
 ## Healing
 
-The **Diagnostics** sheet (from the Fleet tab) ends with a **Healing** card for the [healing agent](healing.md): the policy
+The **Diagnostics** section's Health pane ends with a **Healing** card for the [healing agent](healing.md): the policy
 (safe fixes on their own, or every fix waits), the advisor, fixes waiting for your approval (**Approve**, **Dismiss**),
 problems only you can fix (**Dismiss**), what is being fixed now and the last 10 closed entries. The dot is amber while
 something waits on you. A fix waiting for approval also raises the "kinhin needs attention" notification, and each fix
@@ -150,7 +158,7 @@ daemon runs the fleet, quitting the app leaves it running, and the daemon keeps 
 
 ## Telemetry
 
-**Advanced → App → Telemetry** is the app's view of [OpenTelemetry export](telemetry.md). It shows whether telemetry is on, the
+**Settings → Telemetry** is the app's view of [OpenTelemetry export](telemetry.md). It shows whether telemetry is on, the
 signals, where each one goes, the Prometheus address and the last export problem, never a header value or credential. The data
 comes from whoever runs the exporters: this app when it runs the engine itself, the daemon when one runs the fleet (the app then
 starts no exporters). The **Send telemetry** switch and the **Prometheus address** field edit the `telemetry:` section of
@@ -158,7 +166,7 @@ starts no exporters). The **Send telemetry** switch and the **Prometheus address
 
 ## Alerts
 
-**Advanced → App → Alerts** manages the [alert webhooks](alerts.md): the **Send alerts** switch and one row per webhook, with
+**Settings → Alerts** manages the [alert webhooks](alerts.md): the **Send alerts** switch and one row per webhook, with
 **Add webhook**, **Edit**, **Test** and **Remove**. Each webhook picks the event types it receives (disk, credentials,
 queue, spawn-backoff, orphans, startup) and a minimum severity; a token typed in the sheet goes to the Keychain, never to
 `config.yaml`, and a URL is shown as `scheme://host` only. Changes edit the `alerts:` section of `config.yaml` and apply
@@ -166,13 +174,13 @@ at once, without restarting the fleet.
 
 ## Launch mode and login item
 
-Under **Advanced → Settings**, _Show at launch_ controls how kinhin presents itself (stored in UserDefaults, effective
+Under **Settings**, _Show at launch_ controls how kinhin presents itself (stored in UserDefaults, effective
 immediately):
 
 | Show at launch                       | Behavior                                                                               |
 | ------------------------------------ | -------------------------------------------------------------------------------------- |
-| **Main window + menu bar** (default) | The tabbed window opens at launch and the ○ stays in the menu bar.                     |
-| **Main window only**                 | A plain app — no menu bar item; closing the window quits kinhin.                       |
+| **Window + menu bar** (default)      | The tabbed window opens at launch and the ○ stays in the menu bar.                     |
+| **Window only**                      | A plain app — no menu bar item; closing the window quits kinhin.                       |
 | **Menu bar only**                    | The classic tray app; reopen the window any time from the menu's **Open kinhin** item. |
 
 The same section offers **Launch kinhin at login** (a standard macOS login item via `SMAppService`,
@@ -185,7 +193,7 @@ regular app with a Dock icon; in menu-bar-only mode it stays an accessory app ex
 
 ## Reset kinhin
 
-**Advanced → Settings → Reset** wipes kinhin's local state — irreversibly. Nothing goes to the Trash and
+**Settings → Reset** wipes kinhin's local state — irreversibly. Nothing goes to the Trash and
 nothing is backed up; the only way back is setting up again (config, `kinhin auth set`, and
 re-baking any image you still want).
 

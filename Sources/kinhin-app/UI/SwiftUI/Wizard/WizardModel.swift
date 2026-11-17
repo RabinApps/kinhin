@@ -44,17 +44,15 @@ final class WizardModel {
             switch self {
             case .connect:
                 return String(
-                    localized:
-                        "kinhin runs your CI jobs on this Mac. Select the forges to serve — \(WizardModel.forgeNames) — then paste a token and choose the repository, project or group to serve for each.",
-                    bundle: .l10n, comment: "Setup wizard step 1 subtitle; %@ is a localized list of forge names")
+                    localized: "Pick every forge kinhin should serve and paste a token. It stays in your Keychain.",
+                    bundle: .l10n, comment: "Setup wizard step 1 subtitle")
             case .mac:
                 return String(
-                    localized:
-                        "Choose what runs your jobs: Linux (Docker, Apple container, or a full Linux VM), macOS virtual machines (tart), or both. You only need one — the button below walks the comparison.",
+                    localized: "Install what you need to run jobs. You can add more later in Runtimes.",
                     bundle: .l10n, comment: "Setup wizard step 2 subtitle")
             case .review:
                 return String(
-                    localized: "Everything you chose is saved. You can change any of it later in the Setup tab.",
+                    localized: "Check the summary, then start. Change any of it later in Accounts and Runtimes.",
                     bundle: .l10n, comment: "Setup wizard step 3 subtitle")
             }
         }

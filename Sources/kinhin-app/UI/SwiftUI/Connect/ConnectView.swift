@@ -7,19 +7,21 @@ import SwiftUI
 /// token-requirements hint.
 struct ConnectView: View {
     @Bindable var model: ConnectModel
-    /// First-run setup hides "More accounts"; Advanced → Accounts shows it.
+    /// First-run setup hides "More accounts"; the Accounts page shows it.
     var showsMoreAccounts = true
+    /// The wizard keeps the fixed form width; the Accounts page fills its column.
+    var layout: CardLayout = .form
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: Spacing.lg) {
             selector
             ForEach(ConnectModel.allForges, id: \.self) { forge in
                 if let card = model.card(for: forge) {
-                    ForgeCard(model: card, onDeselect: { model.requestDeselect(forge) })
+                    ForgeCard(model: card, layout: layout, onDeselect: { model.requestDeselect(forge) })
                         .transition(.opacity)
                 }
             }
-            if showsMoreAccounts { MoreAccountsCard(model: model.accounts) }
+            if showsMoreAccounts { MoreAccountsCard(model: model.accounts, layout: layout) }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .animation(.default, value: model.selected)
@@ -42,52 +44,53 @@ struct ConnectView: View {
     }
 
     private var selector: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .center, spacing: 6) {
-                Text("Where does your code live?").font(.system(size: 12, weight: .semibold))
-                Spacer(minLength: 0)
-
-            }
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            Text("Where does your code live?").typeStyle(.emphasis)
+            HintText("Select every forge kinhin should serve; each gets its own card below.")
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: 280), spacing: Spacing.sm, alignment: .leading)],
+                alignment: .leading, spacing: Spacing.sm
+            ) {
                 ForEach(ConnectModel.allForges, id: \.self) { forge in
                     chip(forge)
                 }
             }
-            HintText("Select every forge kinhin should serve; each gets its own card below.")
         }
     }
 
     private func chip(_ forge: ForgeID) -> some View {
         let on = model.isSelected(forge)
+        let maturity = MaturityTable.maturity(of: forge)
         return Button {
             model.setSelected(!on, for: forge)
         } label: {
-            HStack(spacing: 5) {
-                Image(systemName: on ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 11, weight: .semibold))
-                ForgeIconView(forge: forge, size: 12)
-                Text(forge.displayName)
-                    .font(.system(size: 12, weight: .semibold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.85)
-                Spacer(minLength: 0)
-
-                MaturityBadge(forge: forge)
+            HStack(spacing: Spacing.sm) {
+                Image(systemName: on ? "checkmark" : "circle")
+                    .font(.callout.weight(.bold))
+                    .foregroundStyle(on ? Palette.accentText : Palette.secondaryText)
+                    .frame(width: 14)
+                ForgeIconView(forge: forge, size: 14)
+                Text(forge.displayName).typeStyle(.body).fontWeight(.medium).lineLimit(1).layoutPriority(1)
+                if maturity != .liveTested {
+                    Chip(maturity.isExperimental ? "Experimental" : "Untested", tone: .warn)
+                }
             }
+            .foregroundStyle(Palette.primaryText)
+            .padding(.horizontal, Spacing.md)
+            .padding(.vertical, Spacing.sm)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
-            .background(on ? Color.accentColor.opacity(0.18) : Color.primary.opacity(0.05))
-            .cornerRadius(12)
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .strokeBorder(on ? Color.accentColor : Color.primary.opacity(0.12), lineWidth: 1)
+            .background(
+                RoundedRectangle(cornerRadius: Radius.lg).fill(on ? Palette.accent.opacity(0.12) : Palette.surface)
             )
+            .overlay(
+                RoundedRectangle(cornerRadius: Radius.lg)
+                    .strokeBorder(on ? Palette.accent : Palette.separator, lineWidth: 1)
+            )
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .foregroundStyle(on ? Color.primary : Color.secondary)
         .accessibilityIdentifier("connect-forge-\(forge.rawValue)")
-        .accessibilityLabel("\(forge.displayName)\(MaturityTable.maturity(of: forge).pickerSuffix)")
+        .accessibilityLabel("\(forge.displayName)\(maturity.pickerSuffix)")
         .accessibilityAddTraits(on ? [.isSelected] : [])
     }
 }

@@ -92,11 +92,6 @@ extension AppDelegate {
             withTitle: String(localized: "Support kinhin…", bundle: .l10n, comment: "Help menu item"),
             action: #selector(openSupportPage), keyEquivalent: ""
         ).target = self
-        help.addItem(
-            withTitle: String(localized: "Become a Sponsor…", bundle: .l10n, comment: "Help menu item"),
-            action: #selector(openBecomeSponsor), keyEquivalent: ""
-        ).target =
-            self
         helpItem.submenu = help
         main.addItem(helpItem)
         NSApp.helpMenu = help
@@ -106,22 +101,15 @@ extension AppDelegate {
 
     // MARK: - Menu state
 
-    /// Start/Stop/Pause/Resume only enable when they would do something.
-    /// While a start/stop is in flight the fleet controls all disable — the
-    /// command already runs; a second one would double-drive it.
+    /// Start/Stop/Pause/Resume only enable when they would do something. While a command is in flight the fleet
+    /// controls all disable — it already runs; a second one would double-drive it. `FleetControls` decides.
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         guard let id = item.identifier?.rawValue else { return true }
-        if fleet.pendingFleetAction != nil {
-            switch id {
-            case "startFleet", "stopFleet", "pauseResumeFleet": return false
-            default: break
-            }
-        }
-        let running = fleet.status?.running ?? false
+        let controls = fleet.controls
         switch id {
-        case "startFleet": return !running
-        case "stopFleet": return running
-        case "pauseResumeFleet": return running
+        case "startFleet": return controls.isEnabled(.start)
+        case "stopFleet": return controls.isEnabled(.stop)
+        case "pauseResumeFleet": return controls.isEnabled(.pauseResume)
         default: return true
         }
     }

@@ -21,6 +21,12 @@ exactly; do not duplicate its rules here.
 - Adding a forge: follow [docs/adding-a-forge.md](docs/adding-a-forge.md) step by step.
 - `skills/` is shipped product surface (agent skills for *using* kinhin), not contributor docs — see "Skills" in
   CONTRIBUTING.md before editing it; `scripts/skills-lint.sh` gates it.
+- Desktop app UI changes (`Sources/kinhin-app`) start in the design: update `design/kinhin-app.fig` first, then implement
+  from it and compare against it — see "Design first" in CONTRIBUTING.md.
 - Don't commit or push unless asked.
+- Whenever you change what the launch video shows or says (`video/script/launch.json`, `video/adapters/kinhin/`, the
+  app clip, the terminal tapes, the music) or the app UI it records, rebuild it and copy the result into
+  `website/public/` (`launch.mp4`, `launch.webm`, `launch-poster.png`) in the same PR. The site must never show an old
+  version of the app. See "The site" in docs/making-a-video.md.
 - Never burn captions into kinhin's own videos (launch, examples, any `kinhin` adapter build): leave `captions.burn` false and
   don't pass `--captions on|all`; the `.srt` is still written. See docs/making-a-video.md.

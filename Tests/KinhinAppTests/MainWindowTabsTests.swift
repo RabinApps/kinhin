@@ -5,8 +5,8 @@ import XCTest
 @testable import KinhinKit
 @testable import kinhin_app
 
-/// Window-level decisions and tab structure: which tabs exist when, tab
-/// switching, and the setup wizard's steps.
+/// Window-level decisions and section structure: which sections exist when,
+/// section switching, and the setup wizard's steps.
 @MainActor
 final class MainWindowTabsTests: MainWindowTestCase {
     // MARK: - Pure decisions
@@ -35,58 +35,59 @@ final class MainWindowTabsTests: MainWindowTestCase {
     }
 
     func testClosingTheWindowTellsTheDelegateEvenWithASheetUp() {
-        tabs.present(.logs)
+        tabs.present(.sponsor)
         window.windowWillClose(Notification(name: NSWindow.willCloseNotification))
         XCTAssertEqual(delegate.closeCalls, 1, "the app re-evaluates its activation policy and quit-on-close")
     }
 
-    // MARK: - Tab structure
+    // MARK: - Section structure
 
-    func testTabsAndAdvancedSectionsInDisplayOrder() {
-        XCTAssertEqual(MainTab.allCases, [.fleet, .setup, .advanced])
+    func testSectionsInSidebarOrder() {
+        XCTAssertEqual(MainSection.allCases, [.fleet, .runtimes, .accounts, .toolchains, .diagnostics, .settings])
         XCTAssertEqual(
-            AdvancedSection.allCases.map(\.label),
-            ["Accounts", "Capacity", "Routing", "Containers", "Toolchains", "Benchmarks", "Settings"])
+            MainSection.allCases.map(\.label),
+            ["Fleet", "Runtimes", "Accounts", "Toolchains", "Diagnostics", "Settings"])
+        XCTAssertEqual(
+            DiagnosticsPane.allCases.map(\.label), ["Health", "Logs", "Benchmarks", "Containers", "Tools"])
     }
 
-    func testTabBarIsHiddenWhileSetupIsUnfinished() {
-        XCTAssertEqual(tabs.visibleTabs, [.fleet, .advanced], "a configured app has no Setup tab")
-        XCTAssertEqual(tabs.visibleTabs.map(\.label), ["Fleet", "Advanced"])
+    func testSidebarIsHiddenWhileSetupIsUnfinished() {
+        XCTAssertEqual(tabs.visibleSections.count, 6, "a configured app shows every section")
 
         tabs.setupIncomplete = true
-        XCTAssertEqual(tabs.visibleTabs, [], "only the wizard is shown")
-        XCTAssertEqual(tabs.selectedTab, .setup)
+        XCTAssertEqual(tabs.visibleSections, [], "only the wizard is shown")
+        XCTAssertTrue(tabs.isGatedBySetup)
 
         tabs.setupIncomplete = false
-        XCTAssertEqual(tabs.visibleTabs, [.fleet, .advanced], "finishing setup reveals the tab bar")
+        XCTAssertEqual(tabs.visibleSections.count, 6, "finishing setup reveals the sidebar")
     }
 
-    func testWindowStartsOnTheFleetTab() {
-        XCTAssertEqual(tabs.selectedTab, .fleet)
+    func testWindowStartsOnFleet() {
+        XCTAssertEqual(tabs.selectedSection, .fleet)
     }
 
-    func testSelectingATabSwapsTheVisibleContent() {
-        tabs.select(.advanced)
-        XCTAssertEqual(tabs.selectedTab, .advanced)
+    func testSelectingASectionSwapsThePage() {
+        tabs.select(.settings)
+        XCTAssertEqual(tabs.selectedSection, .settings)
         tabs.select(.fleet)
-        XCTAssertEqual(tabs.selectedTab, .fleet)
+        XCTAssertEqual(tabs.selectedSection, .fleet)
     }
 
-    func testTabBarSelectionSwitchesTabs() {
-        tabs.userSelected(.advanced)
-        XCTAssertEqual(tabs.selectedTab, .advanced)
+    func testSidebarSelectionSwitchesSections() {
+        tabs.userSelected(.toolchains)
+        XCTAssertEqual(tabs.selectedSection, .toolchains)
     }
 
     func testWizardOwnsTheWindowDuringOnboardingAndHandsOffWhenDone() {
         tabs.setupIncomplete = true
         tabs.showSetup()
-        XCTAssertEqual(tabs.selectedTab, .setup)
+        XCTAssertTrue(tabs.isGatedBySetup)
         XCTAssertNotNil(models.wizardModel, "first run shows the guided wizard")
 
-        // Finishing removes the Setup tab and hands the window to Fleet.
+        // Finishing removes the gate and hands the window to Fleet.
         finishSetupForTesting()
-        XCTAssertEqual(tabs.selectedTab, .fleet)
-        XCTAssertEqual(tabs.visibleTabs, [.fleet, .advanced])
+        XCTAssertEqual(tabs.selectedSection, .fleet)
+        XCTAssertEqual(tabs.visibleSections.count, 6)
         XCTAssertNil(models.wizardModel)
         XCTAssertEqual(delegate.setupFinishedCalls, 1, "the delegate re-bootstraps the engine")
     }
@@ -98,26 +99,25 @@ final class MainWindowTabsTests: MainWindowTestCase {
         XCTAssertFalse(wizard.canSkip, "there is no Finish later")
         wizard.skip()
         XCTAssertEqual(wizard.step, .review)
-        XCTAssertEqual(tabs.selectedTab, .setup)
-        XCTAssertEqual(tabs.visibleTabs, [])
+        XCTAssertTrue(tabs.isGatedBySetup)
+        XCTAssertEqual(tabs.visibleSections, [])
     }
 
     func testSetupIncompleteOpensTheWizardWhenTheWindowOpens() {
         tabs.setupIncomplete = true
         tabs.applySetupInProgress()
-        XCTAssertEqual(tabs.selectedTab, .setup)
+        XCTAssertTrue(tabs.isGatedBySetup)
         XCTAssertNotNil(models.wizardModel)
     }
 
-    func testAfterSetupAccountsLiveInAdvanced() {
+    func testAfterSetupAccountsLiveInTheAccountsSection() {
         models.tokenProbe = { _ in false }
         tabs.setupIncomplete = false
         tabs.showSetup()  // menu "Setup…" after onboarding lands here
-        XCTAssertEqual(tabs.selectedTab, .advanced)
-        XCTAssertEqual(tabs.advancedSection, .accounts)
+        XCTAssertEqual(tabs.selectedSection, .accounts)
         XCTAssertNil(models.wizardModel)
         XCTAssertNotNil(models.connectModel)
-        XCTAssertNil(models.macToolsModel, "This Mac lives in Capacity, not Accounts")
+        XCTAssertNil(models.macToolsModel, "This Mac lives in Runtimes, not Accounts")
     }
 
     func testWizardWalksThreeSteps() {
@@ -157,74 +157,69 @@ final class MainWindowTabsTests: MainWindowTestCase {
         XCTAssertEqual(wizard.step, .connect)
     }
 
-    func testAdvancedCapacityHostsTheLoadedForm() {
-        tabs.showAdvanced(.capacity)
-        XCTAssertEqual(tabs.advancedSection, .capacity)
-        XCTAssertNotNil(models.capacityModel, "Capacity embeds the form model")
+    func testRuntimesHostsTheLoadedCapacityForm() {
+        tabs.select(.runtimes)
+        XCTAssertEqual(tabs.selectedSection, .runtimes)
+        XCTAssertNotNil(models.capacityModel, "Runtimes embeds the capacity form model")
     }
 
-    /// Accounts and Capacity are separate: Accounts keeps the Connect form
-    /// alone; the renamed Capacity section hosts This Mac above the cards.
-    func testMacAndVmSettingsShareTheRenamedCapacitySection() {
-        tabs.showAdvanced(.accounts)
+    /// Accounts and Runtimes are separate: Accounts keeps the Connect form alone; Runtimes hosts This Mac above the
+    /// capacity cards and the routing.
+    func testMacAndVmSettingsShareTheRuntimesSection() {
+        tabs.select(.accounts)
         XCTAssertNotNil(models.connectModel)
         XCTAssertNil(models.macToolsModel, "Accounts no longer builds This Mac")
 
-        tabs.showAdvanced(.capacity)
-        XCTAssertNotNil(models.macToolsModel, "Capacity builds This Mac")
+        tabs.select(.runtimes)
+        XCTAssertNotNil(models.macToolsModel, "Runtimes builds This Mac")
         XCTAssertNotNil(models.capacityModel, "and its own capacity form")
+        XCTAssertNotNil(models.runtimesModel, "and the routing model")
     }
 
-    func testSelectingTheCapacitySectionLoadsIt() {
+    func testSelectingTheRuntimesSectionLoadsIt() {
         // Regression: the form rendered blank because nothing ever loaded the
-        // config into it — selectAdvancedSection deliberately skips reloads
-        // for Capacity (to protect unapplied edits), so the fresh model must
-        // fetch its own snapshot when its section is built.
+        // config into it — reloads deliberately skip the capacity form (to
+        // protect unapplied edits), so the fresh model must fetch its own
+        // snapshot when its section is built.
         let fresh = MainTabsWindowController(
             defaults: UserDefaults(suiteName: "kinhin-capacity-\(UUID().uuidString)")!, fleet: FleetController(),
             updates: UpdateController())
-        fresh.tabs.showAdvanced(.capacity)
+        fresh.tabs.select(.runtimes)
         XCTAssertGreaterThanOrEqual(
             fresh.models.capacityModel?.loads ?? 0, 1, "the section must load its config on first open")
     }
 
-    func testAdvancedSectionsEmbedTheirControllers() {
-        tabs.showAdvanced(.routing)
-        XCTAssertNotNil(models.runtimesModel, "Routing embeds the runtimes pane")
-        tabs.showAdvanced(.app)
-        XCTAssertEqual(tabs.advancedSection, .app)
-    }
-
-    /// Every Advanced section must have its model built and loaded on first
-    /// open. A section hosted on an @Observable model renders an empty form
-    /// when the model never loaded, so "the section exists" proves nothing —
-    /// the data-backed ones must have fetched their config.
-    func testEveryAdvancedSectionBuildsItsModelOnFirstOpen() {
+    /// Every section must have its model built and loaded on first open. A section hosted on an @Observable model
+    /// renders an empty form when the model never loaded, so "the section exists" proves nothing — the data-backed
+    /// ones must have fetched their config.
+    func testEverySectionBuildsItsModelOnFirstOpen() {
         // A fresh window per section, because sections build their models
         // lazily on first selection — the real-user path.
-        for section in AdvancedSection.allCases {
+        for section in MainSection.allCases {
             let fresh = MainTabsWindowController(
                 defaults: UserDefaults(suiteName: "kinhin-sections-\(UUID().uuidString)")!, fleet: FleetController(),
                 updates: UpdateController())
-            fresh.tabs.showAdvanced(section)
+            fresh.models.tokenProbe = { _ in false }
+            let fixture = DoctorReportBuilder(
+                host: HostResources(logicalCores: 8, memoryGB: 16, freeDiskGB: 100, arm64: true),
+                clt: .ok(version: "26.0"), tartHealth: .healthy, tartList: [], config: .missing,
+                authLoad: { _ in nil }, accountLoad: { _, _ in nil })
+            fresh.models.ensureDiagnosticsModel().loadReport = { await fixture.build() }
+            fresh.tabs.select(section)
             let models = fresh.models
             switch section {
-            case .accounts: XCTAssertNotNil(models.connectModel, "Accounts builds Connect")
-            case .capacity:
+            case .fleet: XCTAssertNil(models.capacityModel, "Fleet builds nothing")
+            case .runtimes:
                 XCTAssertGreaterThanOrEqual(models.capacityModel?.loads ?? 0, 1)
-                XCTAssertNotNil(
-                    models.macToolsModel, "Capacity embeds the This Mac form beside the capacity cards")
+                XCTAssertNotNil(models.macToolsModel, "Runtimes embeds the This Mac form beside the capacity cards")
                 XCTAssertGreaterThanOrEqual(
-                    models.runtimesModel?.loads ?? 0, 1,
-                    "Capacity hosts the Budget card, so it loads the runtimes model")
-            case .routing: XCTAssertGreaterThanOrEqual(models.runtimesModel?.loads ?? 0, 1)
-            case .containers: XCTAssertNotNil(models.containersModel)
+                    models.runtimesModel?.loads ?? 0, 1, "Runtimes hosts the Budget card and Routing")
+            case .accounts: XCTAssertNotNil(models.connectModel, "Accounts builds Connect")
             case .toolchains: XCTAssertNotNil(models.toolchainsModel)
-            case .benchmarks: XCTAssertNotNil(models.benchmarksModel)
-            case .app: XCTAssertEqual(models.appModel.launchMode, .mainWindowAndMenuBar)
+            case .diagnostics: XCTAssertNotNil(models.diagnosticsModel)
+            case .settings: XCTAssertEqual(models.appModel.launchMode, .mainWindowAndMenuBar)
             }
-            XCTAssertEqual(fresh.tabs.selectedTab, .advanced)
-            XCTAssertEqual(fresh.tabs.advancedSection, section)
+            XCTAssertEqual(fresh.tabs.selectedSection, section)
         }
     }
 }

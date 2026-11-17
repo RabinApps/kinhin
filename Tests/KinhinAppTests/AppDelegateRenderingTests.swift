@@ -126,7 +126,7 @@ final class AppDelegateRenderingTests: XCTestCase {
         let problem = delegate.fleet.problems[.launch]
         XCTAssertEqual(
             problem,
-            "The fleet didn't start at launch: \(RPCError.timeout.localizedDescription). Start it from the menu or the Fleet tab."
+            "The fleet didn't start at launch: \(RPCError.timeout.localizedDescription). Start it from the menu or the Fleet screen."
         )
         await waitUntil("menu row") { problemRows == ["⚠ \(problem ?? "")"] }
         XCTAssertFalse(alerted, "nobody pressed anything: no modal at launch")

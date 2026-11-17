@@ -104,6 +104,15 @@ extension KinhinConfig.ContainerConfig {
     /// the Fleet page read this; image prepare/prune keep reading `effectivePools`, so a disabled pool's image stays.
     public var enabledPools: [Pool] { effectivePools.filter(\.enabled) }
 
+    /// This section with every `min_idle` (its own and each pool's) zeroed: what `FleetEngine.restartRequired`
+    /// compares, since the floors hot-reload.
+    func withoutMinIdle() -> Self {
+        var copy = self
+        copy.minIdle = 0
+        for index in copy.pools.indices { copy.pools[index].minIdle = 0 }
+        return copy
+    }
+
     /// Whether any pool pulls through the Docker Hub cache, so kinhin runs it (and doctor and `image prune` know it).
     public var usesDockerCache: Bool { effectivePools.contains(where: \.usesDockerCache) }
 

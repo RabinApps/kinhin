@@ -29,6 +29,12 @@ extension GeneralConfigEditor {
         public var docker: Docker?
         /// Extra named tart images (`images:`).
         public var images: [KinhinConfig.ImageConfig] = []
+        /// Top-level `image_min_idle`: idle runners kept on the default Tart image.
+        public var imageMinIdle: Int = KinhinConfig.default.imageMinIdle
+        /// `reserve.disk_gb`.
+        public var reserveDiskGB: Int = KinhinConfig.default.reserve.diskGB
+        /// `warm_max_age_minutes`.
+        public var warmMaxAgeMinutes: Int = KinhinConfig.default.warmMaxAgeMinutes
 
         /// The configured base image for a Linux runtime (nil = default).
         /// The configured Docker platform (arm64 when absent or unrecognized).
@@ -189,7 +195,10 @@ extension GeneralConfigEditor {
                         name: $0, baseImage: entry.baseImage, labels: entry.labels, warmPool: entry.warmPool ?? 0,
                         minIdle: entry.minIdle ?? 0)
                 }
-            }
+            },
+            imageMinIdle: partial.imageMinIdle ?? d.imageMinIdle,
+            reserveDiskGB: reserve?.diskGB ?? d.reserve.diskGB,
+            warmMaxAgeMinutes: partial.warmMaxAgeMinutes ?? d.warmMaxAgeMinutes
         )
     }
 }

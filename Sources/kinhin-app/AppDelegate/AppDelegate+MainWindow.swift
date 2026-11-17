@@ -29,13 +29,25 @@ extension AppDelegate {
         mainController?.showWindow(nil)
         mainController?.window?.makeKeyAndOrderFront(nil)
         mainController?.tabs.applySetupInProgress()
-        mainController?.tabs.refreshVisibleTab()
+        mainController?.tabs.refreshVisibleSection()
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    /// Tab shortcuts shared by the menu and the window's own buttons.
+    /// Section shortcuts shared by the menus and the window's own buttons: "Setup…" opens the wizard (or Accounts once
+    /// setup is done), "Settings…" opens the Settings section, "Open Logs" the Logs pane of Diagnostics.
     @objc func openSetupTab() { openMainWindow(); mainController?.tabs.showSetup() }
-    @objc func openSettingsTab() { openMainWindow(); mainController?.tabs.select(.advanced) }
+    @objc func openSettingsTab() { openMainWindow(); mainController?.tabs.showSettings() }
+
+    /// "Open Logs": the Logs pane in the window. While first-run setup gates the window there is no Logs pane, so it
+    /// opens the logs folder in Finder instead.
+    @objc func openLogsPane() {
+        guard !setupIncomplete else {
+            openLogs()
+            return
+        }
+        openMainWindow()
+        mainController?.tabs.showDiagnostics(.logs)
+    }
 
     /// Dock-icon clicks reopen the window when none is visible (normal-app
     /// behavior for the window-centric launch modes).

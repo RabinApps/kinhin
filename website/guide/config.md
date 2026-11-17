@@ -115,7 +115,8 @@ toolchain_cache_path: /Volumes/Storage/kinhin/toolchain-cache
   [Several container pools](/guide/runtimes#several-container-pools).
 - **`min_idle`.** Every `min_idle` (and `image_min_idle`) must be 0 or more and fit in `max_runners`, each image's
   together with its `warm_pool`, and all of them together too; `docker.min_idle` must also fit in `docker.max_slots`.
-  The values on macOS Tart images may add up to at most 2, Apple's limit of macOS VMs per Mac.
+  The values on macOS Tart images may add up to at most 2, Apple's limit of macOS VMs per Mac. All of them apply on
+  reload without restarting the engine.
 - **Defaults** come from one place, so omitting a key and the starter template agree:
   `min_runners: 0`, `max_runners: 2`, `runners_per_vm: 1`, `poll_interval: 20`,
   `vm: {cpu: 4, memory_gb: 8}`, `reserve: {cpu: 2, memory_gb: 4, disk_gb: 10}`.

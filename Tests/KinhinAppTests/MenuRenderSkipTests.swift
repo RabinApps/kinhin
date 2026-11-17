@@ -23,7 +23,7 @@ final class MenuRenderSkipTests: XCTestCase {
         else {
             return []
         }
-        return Array(menu.items[(start + 1)..<end])
+        return Array(menu.items[(start + 1)..<end]).filter { $0.identifier?.rawValue != "vmHint" }
     }
 
     func testAnUnchangedStateRendersNothing() {

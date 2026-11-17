@@ -96,7 +96,8 @@ labels plus the image's labels. Notes:
 - `min_idle` on an entry keeps that many runners of the image registered and idle, so the forge always lists one for
   its labels (`image_min_idle:` does the same for the top-level `image:`). See
   [Idle runners per pool and image](scaling.md#idle-runners-per-pool-and-image), including how this shares Apple's
-  limit of two macOS VMs.
+  limit of two macOS VMs. Every `min_idle` floor (this one, `image_min_idle`, `container.min_idle`, each pool's and
+  `docker.min_idle`) applies on reload without restarting the engine.
 
 ```yaml
 images:
@@ -476,7 +477,8 @@ container:
   **Add Container Pool…**, **Edit…** and **Remove** write `container.pools:`; in the sheet, a blank field leaves the
   key out so the pool inherits the `container:` value its placeholder shows, and **Run flags** takes one argument per
   line. The edit is validated like any config edit and rewrites only the `container:` section (comments inside it are
-  not kept); the engine restarts to apply it and keeps the runners it has. The Fleet tab's instance rows and
+  not kept); a change to a pool's `min_idle` applies on reload, and any other change restarts the engine, which keeps the
+  runners it has. The Fleet tab's instance rows and
   **Advanced → Containers** show the pool each container runner belongs to.
 
 Pool names are lowercase letters, digits and inner `-`, up to 32 characters (they end up in a label). The loader also

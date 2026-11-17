@@ -1,76 +1,119 @@
 import KinhinKit
 import SwiftUI
 
-/// Advanced → Capacity's Budget card: a stacked bar of the whole split and
-/// one slider row per pool (the default's share is the live remainder, shown
-/// like everyone else's). The picker for jobs with no route lives in
-/// Routing. State and
-/// actions live in `RuntimesModel`; every drag goes through
-/// `budgetSliderChanged`, which keeps the shares totaling 100%.
+/// The split between runtimes: a stacked bar of the whole split and one slider row per pool (the default's share is
+/// the live remainder, shown like everyone else's). The picker for jobs with no route lives with the routes. State and
+/// actions live in `RuntimesModel`; every drag goes through `budgetSliderChanged`, which keeps the shares totaling 100%.
+///
+/// `BudgetCard` is the form-width card the setup wizard embeds; the Runtimes page uses `SplitCard`, the same rows in a
+/// full-width titled card.
 struct BudgetCard: View {
+    @Bindable var model: RuntimesModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            BudgetRowsView(model: model)
+            HintText(
+                "Shares always total 100%. Drag or type a number; lock a pool to keep its share fixed while the others rebalance. Changes apply on release."
+            )
+        }
+        .padding(.horizontal, Spacing.md)
+        .padding(.vertical, Spacing.md - 2)
+        .frame(width: FormMetrics.width, alignment: .leading)
+        .formSurface(cornerRadius: Radius.lg)
+    }
+}
+
+/// The Runtimes page's "Split between runtimes" card. With one pool there is nothing to split and it says so.
+struct SplitCard: View {
+    @Bindable var model: RuntimesModel
+    /// Capacity edits are waiting for Apply, so the instance counts are about to change.
+    let hasUnappliedCapacity: Bool
+
+    var body: some View {
+        Card(
+            title: "Split between runtimes",
+            subtitle: model.showsBudget
+                ? "Shares always total 100%. Drag or type a number; lock a pool to keep its share." : nil,
+            layout: .fill,
+            trailing: {
+                if model.showsBudget, hasUnappliedCapacity {
+                    HintText("Instance counts update once you Apply")
+                }
+            }
+        ) {
+            if model.showsBudget {
+                BudgetRowsView(model: model)
+            } else {
+                Text(
+                    "Only one runtime is enabled, so there's nothing to split. Enable another to share capacity."
+                )
+                .typeStyle(.body)
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier("split-single-runtime")
+            }
+        }
+    }
+}
+
+/// The bar, the column headings, the share rows, the capped notice and the starved-route banner.
+struct BudgetRowsView: View {
     @Bindable var model: RuntimesModel
 
     /// Column widths, shared by the header row and the share rows so the
     /// labels line up over the numbers they name.
     private enum Column {
-        static let name: CGFloat = 135  // color dot + pool name + "default" chip
-        static let lock: CGFloat = 16
         static let slider: CGFloat = 150
-        static let percent: CGFloat = 52  // typed field + "%"
-        static let cap: CGFloat = 54
+        static let percent: CGFloat = 62  // typed field + "%"
+        static let cap: CGFloat = 84  // wide enough for the "INSTANCES" header
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            StarvedRoutesStrip(warnings: model.starvedRoutes)
+        VStack(alignment: .leading, spacing: Spacing.md) {
             BudgetAllocationBar(rows: model.budgetRows)
-            columnHeader
-            ForEach(model.budgetRows) { row in
-                shareRow(row)
+            VStack(alignment: .leading, spacing: Spacing.sm) {
+                columnHeader
+                ForEach(model.budgetRows) { row in
+                    shareRow(row)
+                }
             }
             if !model.budgetNotice.isEmpty {
                 StatusText(verbatim: model.budgetNotice, style: .warn)
             }
-            HintText(
-                "Shares always total 100%. Drag or type a number; lock a pool to keep its share fixed while the others rebalance. Changes apply on release."
-            )
+            StarvedRoutesStrip(warnings: model.starvedRoutes)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .frame(width: FormMetrics.width, alignment: .leading)
-        .formSurface(cornerRadius: 8)
     }
 
     // MARK: - Sections
 
     private var columnHeader: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: Spacing.sm) {
             Text("POOL")
-                .frame(width: Column.name, alignment: .leading)
-            Spacer(minLength: 4)
+            Spacer(minLength: Spacing.xs)
             Text("SHARE")
-                .frame(width: Column.lock + Column.slider + Column.percent + 16, alignment: .center)
+                .frame(width: Column.slider + Column.percent + 52, alignment: .center)
             Text("INSTANCES")
+                .lineLimit(1)
                 .frame(width: Column.cap, alignment: .trailing)
         }
-        .font(.system(size: 9, weight: .semibold))
-        .foregroundStyle(.tertiary)
+        .typeStyle(.caption)
+        .fontWeight(.semibold)
+        .foregroundStyle(.secondary)
         .accessibilityHidden(true)
     }
 
     private func shareRow(_ row: RuntimesModel.BudgetRow) -> some View {
-        HStack(spacing: 8) {
-            Circle()
-                .fill(RuntimeTint.color(for: row.id))
-                .frame(width: 7, height: 7)
-            Text(row.id.rawValue)
-                .font(.system(size: 12))
+        HStack(spacing: Spacing.sm) {
+            RuntimeDot(runtime: row.id)
+            Text(verbatim: RuntimesModel.cardTitle(row.id))
+                .typeStyle(.body)
+                .fontWeight(.medium)
                 .lineLimit(1)
                 .truncationMode(.middle)
             if row.isDefault {
-                defaultChip
+                Chip("default", tone: .accent)
             }
-            Spacer(minLength: 4)
+            Spacer(minLength: Spacing.xs)
             lockButton(row)
             Slider(
                 value: Binding(
@@ -89,7 +132,7 @@ struct BudgetCard: View {
             )
             .frame(width: Column.percent, alignment: .trailing)
             Text(capText(row))
-                .font(.system(size: 11, weight: .medium))
+                .typeStyle(.caption)
                 .foregroundStyle(row.cap == 0 ? StatusStyle.error.color : Color.secondary)
                 .frame(width: Column.cap, alignment: .trailing)
                 .accessibilityLabel(capAccessibilityText(row))
@@ -102,25 +145,11 @@ struct BudgetCard: View {
         return Button {
             model.toggleLock(row.id)
         } label: {
-            Image(systemName: locked ? "lock.fill" : "lock.open")
-                .font(.system(size: 10))
-                .foregroundStyle(locked ? Color.accentColor : Color.secondary)
-                .frame(width: Column.lock)
+            if locked { Text("Unlock") } else { Text("Lock") }
         }
-        .buttonStyle(.plain)
+        .controlSize(.small)
         .help(locked ? "Unlock \(row.id.rawValue)" : "Lock \(row.id.rawValue)'s share so other sliders leave it alone")
         .accessibilityLabel(locked ? "Unlock \(row.id.rawValue) share" : "Lock \(row.id.rawValue) share")
-    }
-
-    /// The default chip marks which pool absorbs unmatched jobs — the
-    /// picker below changes it.
-    private var defaultChip: some View {
-        Text("default")
-            .font(.system(size: 9, weight: .semibold))
-            .padding(.horizontal, 5)
-            .padding(.vertical, 1)
-            .foregroundStyle(.secondary)
-            .background(Capsule().fill(Color(nsColor: .quaternaryLabelColor)))
     }
 
     // MARK: - Cell text
@@ -128,8 +157,8 @@ struct BudgetCard: View {
     private func capText(_ row: RuntimesModel.BudgetRow) -> String {
         row.cap.map { cap in
             String(
-                localized: "\(cap) inst", bundle: .l10n,
-                comment: "Capacity table cell: instance cap; inst abbreviates instances")
+                localized: "cap \(cap)", bundle: .l10n,
+                comment: "Capacity table cell: the pool's instance cap")
         }
             ?? String(
                 localized: "n/a", bundle: .l10n,
@@ -165,23 +194,25 @@ private struct PercentField: View {
     @FocusState private var focused: Bool
 
     var body: some View {
-        HStack(spacing: 1) {
+        HStack(spacing: Spacing.xxs) {
             TextField("", text: $text)
                 .textFieldStyle(.plain)
                 .multilineTextAlignment(.trailing)
                 .monospacedDigit()
-                .font(.system(size: 12, weight: .medium))
+                .typeStyle(.body)
                 .frame(width: 34)
                 .focused($focused)
                 .disabled(!isEnabled)
                 .onSubmit(commit)
                 .accessibilityLabel("\(runtime.rawValue) budget percent")
-            Text(verbatim: "%").font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary)
+            Text(verbatim: "%").typeStyle(.body).foregroundStyle(.secondary)
         }
-        .padding(.horizontal, 3)
-        .padding(.vertical, 1)
-        .background(
-            RoundedRectangle(cornerRadius: 4).fill(Color(nsColor: .quaternaryLabelColor).opacity(focused ? 0.6 : 0.25))
+        .padding(.horizontal, Spacing.xs + 2)
+        .padding(.vertical, Spacing.xs)
+        .background(RoundedRectangle(cornerRadius: Radius.md).fill(Palette.surface))
+        .overlay(
+            RoundedRectangle(cornerRadius: Radius.md)
+                .strokeBorder(focused ? Palette.accent : Palette.separator, lineWidth: 1)
         )
         .onAppear { text = Self.display(share) }
         .onChange(of: share) { _, new in if !focused { text = Self.display(new) } }
@@ -199,29 +230,17 @@ private struct PercentField: View {
 
 /// Inline banner for splits that would strand a routed pool — shown while
 /// the drag is still in progress, not after a failed save. Used by the
-/// Budget card and by Routing (above the routes it is about).
+/// split card and by the routes card (above the routes it is about).
 struct StarvedRoutesStrip: View {
     let warnings: [String]
 
     var body: some View {
         if !warnings.isEmpty {
-            HStack(alignment: .top, spacing: 6) {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.system(size: 10))
-                    .accessibilityLabel("Warning")
-                VStack(alignment: .leading, spacing: 2) {
-                    ForEach(warnings, id: \.self) { warning in
-                        Text(warning)
-                            .font(.system(size: 11, weight: .medium))
-                    }
+            VStack(alignment: .leading, spacing: Spacing.xs) {
+                ForEach(warnings, id: \.self) { warning in
+                    Banner(verbatim: warning, kind: .error)
                 }
             }
-            .foregroundStyle(StatusStyle.error.color)
-            .fixedSize(horizontal: false, vertical: true)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: 6).fill(Color(nsColor: .systemRed).opacity(0.12)))
         }
     }
 }

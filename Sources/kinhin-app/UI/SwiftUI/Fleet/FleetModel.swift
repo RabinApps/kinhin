@@ -81,7 +81,12 @@ final class FleetModel {
     /// Intent): its button shows a progress indicator and the fleet controls
     /// disable until the command and its status refresh complete.
     var pendingAction: FleetAction? { controller.pendingFleetAction }
-    var isBusy: Bool { pendingAction != nil }
+    var isBusy: Bool { controls.isBusy }
+
+    /// Start / Stop / Pause / Resume: visibility, titles and busy-disable, shared with the status-bar menu.
+    var controls: FleetControls { controller.controls }
+    /// The state chip, counters and problem lines, shared with the status-bar menu.
+    var presenter: FleetStatusPresenter { controller.statusPresenter }
 
     var statusLine: String { controller.statusLine }
     /// The runtime/instance diagram at the top of the tab, derived from the
@@ -92,6 +97,11 @@ final class FleetModel {
     /// fleet…", "Needs setup — …", "Fleet not responding — …").
     var diagramPlaceholder: String? {
         guard status == nil else { return nil }
+        if presenter.state == .unreachable {
+            return String(
+                localized: "Fleet not responding — check the daemon in Settings → Daemon.", bundle: .l10n,
+                comment: "Runtimes card text when the fleet cannot be reached")
+        }
         return String(statusLine.split(separator: "\n").first ?? "")
     }
     /// Set while a per-project image bakes (jobs use the base image meanwhile).
@@ -116,22 +126,143 @@ final class FleetModel {
             localized: "Auto-resume is on — the fleet releases itself when the queue is empty.", bundle: .l10n,
             comment: "Fleet tab note shown while paused with auto-resume on")
     }
-    var pauseTitle: String {
-        paused
-            ? String(localized: "Resume", bundle: .l10n, comment: "Fleet tab button that resumes a paused fleet")
-            : String(localized: "Pause", bundle: .l10n, comment: "Fleet tab button that pauses the fleet")
-    }
+    var pauseTitle: String { controls.title(.pauseResume) }
     var records: [VMRecord] { status?.records ?? [] }
 
     /// Any app-side failure (launch, config push) and any stale-daemon
     /// LaunchAgent warning, rendered as a compact footer under the Fleet
     /// tab's status line with distinct styling.
-    var fleetStatusFooter: [StatusLine] {
-        var lines = controller.problemLines.map { StatusLine(text: $0, style: .error) }
-        if let stale = controller.staleDaemonPlist {
-            lines.append(StatusLine(text: stale, style: .warn))
+    var fleetStatusFooter: [StatusLine] { presenter.banners }
+
+    // MARK: - Header, banners and status block
+
+    /// The header's state chip ("Running", "Stopping…") and its tone.
+    var stateChip: (text: String, tone: Chip.Tone) { (presenter.stateWord, Chip.Tone(presenter.stateStyle)) }
+
+    /// The page-top banners, in the design's order: disk pressure (dismissible), then launch/config-push problems,
+    /// then the stale-daemon warning.
+    struct BannerRow: Identifiable, Equatable {
+        enum Kind: Equatable { case diskPressure, problem, staleDaemon }
+        let kind: Kind
+        let text: String
+        var id: String { "\(kind)-\(text)" }
+        var banner: Banner.Kind { kind == .problem ? .error : .warn }
+    }
+
+    var bannerRows: [BannerRow] {
+        var rows: [BannerRow] = []
+        if presenter.state == .unreachable { rows.append(BannerRow(kind: .problem, text: presenter.headline)) }
+        if let notice = diskPressureNotice { rows.append(BannerRow(kind: .diskPressure, text: notice)) }
+        rows += presenter.problems.map { BannerRow(kind: .problem, text: $0) }
+        if let stale = presenter.staleDaemon { rows.append(BannerRow(kind: .staleDaemon, text: stale)) }
+        return rows
+    }
+
+    /// The status block's lines, headline first: "Queue 3 · Desired 4 · Cap 6 · 8 job slots", then queue age, host
+    /// load, rate-limit warning and the per-repo queued/running lines. At most five; empty until a status exists.
+    /// The auto-resume line is `pausedAutoResumeNote`, shown above the block.
+    var statusLines: [String] {
+        guard let status else { return [] }
+        let detail = presenter.detailLines.filter { !$0.hasPrefix("⏳") }
+        return Array(([Self.headline(for: status)] + detail).prefix(5))
+    }
+
+    /// Whether the status block (a card) is drawn: only once the fleet has answered and is running or paused.
+    var showsStatusBlock: Bool { status?.running == true && !statusLines.isEmpty }
+
+    /// The placeholder card text for a stopped fleet (the design's "Fleet is stopped…").
+    var stoppedNote: String? {
+        guard status?.running == false, presenter.state == .stopped else { return nil }
+        return String(
+            localized: "Fleet is stopped. Start it to pick up queued jobs.", bundle: .l10n,
+            comment: "Fleet page note while the fleet is stopped")
+    }
+
+    /// The needs-setup text, and the in-flight stopping/starting note.
+    var pageNote: String? {
+        switch presenter.state {
+        case .needsSetup:
+            return String(
+                localized: "Needs setup — finish the first-run wizard to connect a forge and choose where jobs run.",
+                bundle: .l10n, comment: "Fleet page note while first-run setup is unfinished")
+        case .stopping:
+            return String(
+                localized: "Stopping the fleet… (controls disabled)", bundle: .l10n,
+                comment: "Fleet page note while a stop command runs")
+        case .starting:
+            return String(
+                localized: "Starting the fleet… (controls disabled)", bundle: .l10n,
+                comment: "Fleet page note while a start command runs")
+        default: return stoppedNote
         }
-        return lines
+    }
+
+    /// True when the page shows only `pageNote` (no runtimes or jobs yet): needs setup, in-flight start/stop.
+    var showsOnlyNote: Bool {
+        [.needsSetup, .stopping, .starting].contains(presenter.state)
+    }
+
+    static func headline(for status: FleetStatus) -> String {
+        let base = String(
+            localized: "Queue \(status.queueDepth) · Desired \(status.desired) · Cap \(status.capacityCap)",
+            bundle: .l10n, comment: "Fleet status headline: queued jobs, desired and maximum VMs")
+        guard status.jobCapacity > 0 else { return base }
+        return String(
+            localized: "\(base) · \(status.jobCapacity) job slots", bundle: .l10n,
+            comment: "Fleet status headline; the base counters, then the concurrent job slots")
+    }
+
+    // MARK: - Queued work
+
+    /// One forge the Requeue/Skip actions can target.
+    struct ForgeRow: Identifiable, Equatable {
+        let id: Int
+        let label: String
+        let forge: ForgeID
+        /// The scope covers an organization, so the action widens to every attached forge.
+        let widens: Bool
+        /// A KINHIN_DEMO row: the buttons do nothing.
+        var isDemo = false
+    }
+
+    var forgeRows: [ForgeRow] {
+        #if DEBUG
+            if let names = demoForges {
+                return names.enumerated().map {
+                    ForgeRow(id: $0.offset, label: $0.element, forge: .github, widens: false, isDemo: true)
+                }
+            }
+        #endif
+        return attachedForges.enumerated().compactMap { index, entry in
+            guard let key = entry.keys.sorted().first, let forge = entry[key] else { return nil }
+            return ForgeRow(id: index, label: key, forge: forge.id, widens: forge.attributesByRepo)
+        }
+    }
+
+    /// A daemon does not expose its forge list over RPC, so the queued card shows counts only.
+    var isDaemonMode: Bool {
+        guard forgeRows.isEmpty, let backend = controller.service as? FleetBackend else { return false }
+        if case .daemon = backend { return true }
+        return false
+    }
+
+    /// "3 queued · acme/api ×2, acme/web ×1": the queue depth and its per-repo split.
+    var queueSummary: String {
+        let depth = status?.queueDepth ?? 0
+        let count = String(
+            localized: "\(depth) queued", bundle: .l10n, comment: "Queued work count: number of jobs waiting")
+        guard let byRepo = status?.queueByRepo, depth > 0, !byRepo.isEmpty else { return count }
+        return "\(count) · \(FleetStatusFormatter.repoBreakdown(byRepo))"
+    }
+
+    func requeue(_ row: ForgeRow) {
+        guard !row.isDemo else { return }
+        requeueQueuedJobs(for: row.forge, forAll: row.widens)
+    }
+
+    func skip(_ row: ForgeRow) {
+        guard !row.isDemo else { return }
+        skipQueuedJobs(for: row.forge, forAll: row.widens)
     }
 
     /// A short, at-a-glance fleet mode label for the Fleet tab header badge.
@@ -201,6 +332,19 @@ final class FleetModel {
     }
 
     // MARK: - Row text
+
+    /// "build — acme/web": the job, then its repository (just the job when the repo is unknown).
+    func jobTitle(for row: JobRow) -> String {
+        guard let repo = row.repo, !repo.isEmpty else { return row.job }
+        return String(
+            localized: "\(row.job) — \(repo)", bundle: .l10n, comment: "Current jobs row title: job, then repository")
+    }
+
+    /// "vm-b1 · runner 1 · busy": where the job runs and the VM's phase.
+    func jobLocation(for row: JobRow) -> String {
+        let place = row.showsRunner ? "\(row.vmID) · \(row.runner)" : row.vmID
+        return "\(place) · \(row.phase.rawValue)"
+    }
 
     func jobLine(for row: JobRow) -> String {
         let repoText = row.repo ?? ""

@@ -160,7 +160,7 @@ final class AccountsModel: ConfigFormModel {
             loadError = StatusLine(
                 text: String(
                     localized:
-                        "config.yaml has a problem — \(error.localizedDescription). Use Advanced → App → Open config file.",
+                        "config.yaml has a problem — \(error.localizedDescription). Fix it in Runtimes → Edit YAML.",
                     bundle: .l10n,
                     comment:
                         "Config-error status in the Capacity form and the More accounts section; %@ is the config error"

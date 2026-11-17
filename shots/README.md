@@ -1,15 +1,13 @@
 # shots/ — UI capture & audit tooling
 
-Two independent ways to inspect kinhin's UI, plus the instruments they share.
-**Prefer the harness** — it is deterministic, needs no permissions or running
-app, and never touches the Keychain or real config.
+Ways to inspect kinhin's UI, plus the instruments they share.
+**Prefer `scripts/capture-ui.sh`** — it is deterministic, needs no permissions or
+running app, and never touches the Keychain or real config.
 
 ```
+scripts/capture-ui.sh   offline capture: runs UICaptureTests (Tests/KinhinAppTests)
+                        against a throwaway config and writes shots/out/cap-*.png
 shots/
-├── capture/            offline harness (preferred)
-│   ├── harness_main.swift    @main: renders wizard steps 1–4 + Config tab
-│   ├── AppMainLite.swift     AppMain stand-in (kinhinPresentCrashAlert only)
-│   └── build-captures.sh     compile harness WITH app sources → run → gallery
 ├── tools/              shared instruments
 │   ├── axdump.swift          AX tree dump (role, frame, title/value) of the
 │   │                         running app's window → for live-app layout audits
@@ -20,22 +18,25 @@ shots/
 │   ├── drive.py              drive the RUNNING app (tabs, wizard steps) and
 │   │                         capture its window + AX dump
 │   └── gallery.py            embed out/cap-*.png as data URIs → out/view.html
-└── out/                artifacts (gitignored): cap-*.png, *-frames.txt,
-                        view.html, drive.py captures
+└── out/                artifacts (gitignored): cap-*.png, view.html, drive.py
+                        captures
 ```
 
 ## Workflows
 
-**Audit wizard + Config tab layout/contrast (no app needed):**
+**Render every screen (no app needed):** every sidebar section and Diagnostics
+pane plus the setup wizard, in light, dark and right-to-left, from the real window
+controller:
 
 ```bash
-shots/capture/build-captures.sh     # writes shots/out/ and opens-ready gallery
-swift shots/tools/probe.swift shots/out/cap-config.png contrast X Y W H ...
+scripts/capture-ui.sh                                  # writes shots/out/cap-*.png
+KINHIN_CAPTURE_PAGES=runtimes,settings scripts/capture-ui.sh   # only some pages
+python3 shots/tools/gallery.py                         # one viewable shots/out/view.html
+swift shots/tools/probe.swift shots/out/cap-runtimes-light.png contrast X Y W H ...
 ```
 
-Then register `shots/out/view.html` as the thread preview to eyeball the PNGs.
-Each capture also lands a `*-frames.txt` (view-frame tree, local coords) —
-grep it for `[0,0 0x0]` zero-sized views or negative origins.
+Compare each image with its frame in `design/exports/` ("Design first" step 4 in
+CONTRIBUTING.md). Add a new screen to `UICaptureTests` when you add one to the app.
 
 **Capture the live app** (real launch state, menu bar, daemon):
 

@@ -62,44 +62,40 @@ extension AppDelegate {
         openItem.target = self
         openItem.identifier = NSUserInterfaceItemIdentifier("openMainWindow")
 
-        // Shortcuts into the window's tabs.
+        // Shortcuts into the window's sections.
         let setupItem = m.addItem(
-            withTitle: String(localized: "Setup…", bundle: .l10n, comment: "Menu item that opens the Setup tab"),
+            withTitle: String(
+                localized: "Setup…", bundle: .l10n,
+                comment: "Menu item that opens the Setup wizard (Accounts once setup is done)"),
             action: #selector(openSetupTab), keyEquivalent: "")
         setupItem.target = self
         setupItem.identifier = NSUserInterfaceItemIdentifier("openSetupTab")
         let settingsItem = m.addItem(
-            withTitle: String(localized: "Settings…", bundle: .l10n, comment: "Menu item that opens Settings"),
+            withTitle: String(
+                localized: "Settings…", bundle: .l10n, comment: "Menu item that opens the Settings section"),
             action: #selector(openSettingsTab), keyEquivalent: ",")
         settingsItem.target = self
         settingsItem.identifier = NSUserInterfaceItemIdentifier("openSettingsTab")
 
         m.addItem(.separator())
-        for (title, action, key, id) in [
-            (
-                String(localized: "Start Fleet", bundle: .l10n, comment: "Status-bar menu item"), #selector(startFleet),
-                "s", "startFleet"
-            ),
-            (
-                String(localized: "Stop Fleet", bundle: .l10n, comment: "Status-bar menu item"), #selector(stopFleet),
-                "k", "stopFleet"
-            ),
-            (
-                String(localized: "Pause", bundle: .l10n, comment: "Status-bar menu item; toggles with Resume"),
-                #selector(togglePauseFleet), "p", "pauseResumeFleet"
-            ),
-        ] as [(String, Selector, String, String)] {
-            let item = m.addItem(withTitle: title, action: action, keyEquivalent: key)
+        let controls = fleet.controls
+        for (control, action, id) in [
+            (FleetControls.Control.start, #selector(startFleet), "startFleet"),
+            (.stop, #selector(stopFleet), "stopFleet"),
+            (.pauseResume, #selector(togglePauseFleet), "pauseResumeFleet"),
+        ] as [(FleetControls.Control, Selector, String)] {
+            let item = m.addItem(
+                withTitle: controls.title(control, on: .menu), action: action, keyEquivalent: controls.menuKey(control))
             item.keyEquivalentModifierMask = [.command]
             item.target = self
             item.identifier = NSUserInterfaceItemIdentifier(id)
         }
-        applyFleetControlVisibility(to: m, status: fleet.status)
+        applyFleetControlVisibility(to: m, status: fleet.status, pending: fleet.pendingFleetAction)
         applySetupItemVisibility(to: m)
 
         m.addItem(.separator())
         // Hidden until a background check finds a newer release; manual checks
-        // live in Settings → App.
+        // live in Settings.
         let updateItem = m.addItem(
             withTitle: String(
                 localized: "Update available…", bundle: .l10n,
@@ -110,15 +106,19 @@ extension AppDelegate {
         updateItem.isHidden = true
         let versionItem = m.addItem(
             withTitle: String(
-                localized: "  kinhin \(kinhinVersion.current)", bundle: .l10n,
-                comment: "Disabled version row in the status-bar menu; %@ is the version"), action: nil,
+                localized: "  kinhin \(kinhinVersion.current) (up to date)", bundle: .l10n,
+                comment: "Disabled version row in the status-bar menu when no update is waiting; %@ is the version"),
+            action: nil,
             keyEquivalent: "")
         versionItem.isEnabled = false
-        m.addItem(
+        let logsItem = m.addItem(
             withTitle: String(
-                localized: "Open Logs", bundle: .l10n, comment: "Status-bar menu item that opens the Logs tab"),
-            action: #selector(openLogs), keyEquivalent: ""
-        ).target = self
+                localized: "Open Logs", bundle: .l10n,
+                comment: "Status-bar menu item that opens Diagnostics, Logs (the logs folder while setup is unfinished)"
+            ),
+            action: #selector(openLogsPane), keyEquivalent: "")
+        logsItem.target = self
+        logsItem.identifier = NSUserInterfaceItemIdentifier("openLogs")
         let supportItem = m.addItem(
             withTitle: String(
                 localized: "Support kinhin…", bundle: .l10n, comment: "Menu item that opens the support page"),
@@ -162,25 +162,23 @@ extension AppDelegate {
         FleetStatusFormatter.summary(status)
     }
 
-    /// Hides the fleet actions that make no sense in the current state.
-    /// Items stay in the menu (hidden, not removed) so indices are stable.
-    func applyFleetControlVisibility(to menu: NSMenu?, status: FleetStatus?) {
+    /// Hides the fleet actions that make no sense in the current state and titles the rest from the shared
+    /// `FleetControls`. Items stay in the menu (hidden, not removed) so indices are stable.
+    func applyFleetControlVisibility(to menu: NSMenu?, status: FleetStatus?, pending: FleetAction? = nil) {
         guard let menu else { return }
-        let visibility = FleetControlVisibility(status: status)
+        let controls = FleetControls(status: status, pending: pending)
         for item in menu.items {
+            let control: FleetControls.Control
             switch item.identifier?.rawValue {
-            case "startFleet": item.isHidden = !visibility.start
-            case "stopFleet": item.isHidden = !visibility.stop
-            case "pauseResumeFleet":
-                // One toggle: Pause while running, Resume while paused, gone when stopped.
-                item.isHidden = !(visibility.pause || visibility.resume)
-                item.title =
-                    visibility.resume
-                    ? String(localized: "Resume", bundle: .l10n, comment: "Status-bar menu item; toggles with Pause")
-                    : String(localized: "Pause", bundle: .l10n, comment: "Status-bar menu item; toggles with Resume")
-                item.keyEquivalent = visibility.resume ? "r" : "p"
-            default: break
+            case "startFleet": control = .start
+            case "stopFleet": control = .stop
+            // One toggle: Pause while running, Resume while paused, gone when stopped.
+            case "pauseResumeFleet": control = .pauseResume
+            default: continue
             }
+            item.isHidden = !controls.isVisible(control)
+            item.title = controls.title(control, on: .menu)
+            item.keyEquivalent = controls.menuKey(control)
         }
     }
 
@@ -198,17 +196,10 @@ extension AppDelegate {
         return statusTitle(for: status)
     }
 
-    /// The menu's first line: "Starting…"/"Stopping…" while a command runs,
-    /// otherwise the shared state line plus any app-side problem.
+    /// The menu's status text: "Starting…"/"Stopping…" while a command runs, otherwise the shared state text plus
+    /// any app-side problem (one presenter feeds this and the Fleet screen).
     func statusLineText(pending: FleetAction?, status: FleetStatus?) -> String {
-        if let pending {
-            return pending == .start
-                ? String(localized: "Starting…", bundle: .l10n, comment: "Status line while a start command runs")
-                : String(localized: "Stopping…", bundle: .l10n, comment: "Status line while a stop command runs")
-        }
-        let base = status.map(statusLine(for:)) ?? fleet.statusLine
-        // App-side failures (launch, config push) sit under the state line.
-        return fleet.problemLines.reduce(base) { $0 + "\n  ⚠ \($1)" }
+        fleet.statusPresenter(status: status, pending: pending).menuText
     }
 
     /// Everything the status item and menu show that comes from the fleet
@@ -224,7 +215,7 @@ extension AppDelegate {
         /// What VoiceOver says for the status item ("kinhin, 2 runners, paused").
         var accessibilityLabel: String
         var statusText: String
-        var visibility: FleetControlVisibility
+        var controls: FleetControls
         var setupVisible: Bool
         var rows: [VMRow]
     }
@@ -236,7 +227,7 @@ extension AppDelegate {
             itemTitle: statusItemTitle(pending: pending, status: status),
             accessibilityLabel: Self.statusItemAccessibilityLabel(pending: pending, status: status),
             statusText: statusLineText(pending: pending, status: status),
-            visibility: FleetControlVisibility(status: status),
+            controls: FleetControls(status: status, pending: pending),
             setupVisible: setupIncomplete,
             rows: (status?.records ?? []).map { MenuViewState.VMRow(id: $0.id, title: Self.menuRowTitle(for: $0)) })
     }
@@ -294,7 +285,7 @@ extension AppDelegate {
         lastRenderedMenuState = state
         lastRenderedMenuIdentity = menuIdentity
         let status = fleet.status
-        applyFleetControlVisibility(to: menu, status: status)
+        applyFleetControlVisibility(to: menu, status: status, pending: fleet.pendingFleetAction)
         applySetupItemVisibility(to: menu)
         statusItem?.button?.title = state.itemTitle
         statusItem?.button?.setAccessibilityLabel(state.accessibilityLabel)
@@ -351,25 +342,12 @@ extension AppDelegate {
             menu.insertItem(item, at: next)
             next += 1
         }
-    }
-}
-
-// MARK: - Fleet control visibility
-
-/// Which fleet actions apply to a state. A nil status (no engine or daemon
-/// reachable) counts as stopped.
-struct FleetControlVisibility: Equatable {
-    let start: Bool
-    let stop: Bool
-    let pause: Bool
-    let resume: Bool
-
-    init(status: FleetStatus?) {
-        let running = status?.running ?? false
-        let paused = status?.paused ?? false
-        start = !running
-        stop = running
-        pause = running && !paused
-        resume = running && paused
+        let hint = NSMenuItem(
+            title: String(
+                localized: "(click a VM to delete it — confirms first)", bundle: .l10n,
+                comment: "Disabled hint row under the VM list in the status-bar menu"), action: nil, keyEquivalent: "")
+        hint.isEnabled = false
+        hint.identifier = NSUserInterfaceItemIdentifier("vmHint")
+        menu.insertItem(hint, at: next)
     }
 }

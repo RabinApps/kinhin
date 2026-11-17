@@ -12,7 +12,7 @@ final class SettingsTabTests: MainWindowTestCase {
 
     func testLaunchModeSyncsFromStoredModeWithoutNotifying() {
         // The App section must exist first.
-        tabs.showAdvanced(.app)
+        tabs.select(.settings)
         // Init read the stored (default) mode; the delegate must not have
         // been called back — no re-persist loop at construction time.
         XCTAssertEqual(models.appModel.launchMode, .mainWindowAndMenuBar)
@@ -21,7 +21,7 @@ final class SettingsTabTests: MainWindowTestCase {
     }
 
     func testChoosingAModeUpdatesTheCardAndNotifiesTheDelegate() {
-        tabs.showAdvanced(.app)
+        tabs.select(.settings)
         models.appModel.setLaunchMode(.menuBarOnly)
         XCTAssertEqual(delegate.changedModes, [.menuBarOnly])
         XCTAssertEqual(models.appModel.launchMode, .menuBarOnly)
@@ -43,7 +43,7 @@ final class SettingsTabTests: MainWindowTestCase {
     }
 
     func testLoginCheckboxPersistsAndNotifies() {
-        tabs.showAdvanced(.app)
+        tabs.select(.settings)
         models.appModel.setLaunchAtLogin(true)
         XCTAssertEqual(delegate.loginToggles, [true])
         XCTAssertTrue(AppPreferences.launchAtLogin(in: suite))
@@ -54,7 +54,7 @@ final class SettingsTabTests: MainWindowTestCase {
     }
 
     func testARefusedLoginItemPutsTheToggleBackAndSaysWhy() {
-        tabs.showAdvanced(.app)
+        tabs.select(.settings)
         var shown: [Error] = []
         models.presentLoginItemError = { shown.append($0) }
         delegate.loginError = LaunchAtLoginError.registerFailed("Operation not permitted")
@@ -68,7 +68,7 @@ final class SettingsTabTests: MainWindowTestCase {
     }
 
     func testALoginItemAwaitingApprovalStaysOnAndPointsToSystemSettings() {
-        tabs.showAdvanced(.app)
+        tabs.select(.settings)
         var shown: [Error] = []
         models.presentLoginItemError = { shown.append($0) }
         delegate.loginError = LaunchAtLoginError.requiresApproval
@@ -80,7 +80,7 @@ final class SettingsTabTests: MainWindowTestCase {
     }
 
     func testAnAppliedLoginItemShowsNothing() {
-        tabs.showAdvanced(.app)
+        tabs.select(.settings)
         var shown: [Error] = []
         models.presentLoginItemError = { shown.append($0) }
         models.appModel.setLaunchAtLogin(true)
@@ -89,7 +89,7 @@ final class SettingsTabTests: MainWindowTestCase {
     }
 
     func testAutoStartCheckboxPersists() {
-        tabs.showAdvanced(.app)
+        tabs.select(.settings)
         XCTAssertFalse(models.appModel.autoStartFleet)
         models.appModel.setAutoStartFleet(true)
         XCTAssertTrue(AppPreferences.autoStartFleet(in: suite))

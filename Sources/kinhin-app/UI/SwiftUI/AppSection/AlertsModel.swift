@@ -2,7 +2,7 @@ import Foundation
 import KinhinKit
 import Observation
 
-/// State and actions behind the Alerts card (Advanced → App): the master switch and the list of alert webhooks,
+/// State and actions behind the Alerts card (Settings): the master switch and the list of alert webhooks,
 /// each with the event types it receives. Edits go through `AlertsConfigEditor` (only `alerts.enabled` and the
 /// `webhooks:` list change, validated by `ConfigLoader`), then `onChanged` pushes the file to the engine or daemon,
 /// which restarts alert delivery. The card never shows a webhook URL beyond `scheme://host` (the path is often the

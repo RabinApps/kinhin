@@ -228,6 +228,49 @@ generates `kinhin help`, each `kinhin <command> --help` page and the skills-lint
 - UI: show failures with `AlertKit.present(error:)` (modal) or the form's status label. Never leave a failed user action silent. Load config through `ConfigStore` so a parse error is shown instead of rendering an empty config.
 - CLI: failures end through `fail(_:exit:)` or `fail(error)`; `CLIExit` gives the exit code (1 generic, 2 usage, 3 config, 4 runtime/engine, 5 auth), classified from the error via `ErrorCategory` (KinhinKit). Errors and warnings go to stderr; stdout carries only command output (so `--json` stays parseable).
 
+## Design first (desktop app)
+
+The desktop app's design is the source of truth for how it looks and what each screen holds. It lives in
+`design/kinhin-app.fig` (an [OpenPencil](https://openpencil.dev) document: one page per area, plus Sheets and
+Components), with PNG exports in `design/exports/` and the scripts that generate it in `design/src/`.
+
+The design follows Apple's Human Interface Guidelines for macOS (Cupertino): system colors (`systemBlue`,
+`systemGreen`, `systemOrange`, `systemRed`, the grouped background and separator grays) for fills, dots and selection,
+slightly deeper Apple-hue variants for colored text and filled buttons so every label clears WCAG AA (4.5:1), SF Pro
+Text and SF Pro Display, SF Symbols for icons (the sidebar uses `server.rack`, `cpu`, `person.2`,
+`wrench.and.screwdriver`, `stethoscope`, `gearshape` and `star.fill`; `design/src/sf-symbols/` traces new ones into
+the design, and the Swift views use the same names through `Image(systemName:)`), a sidebar-and-grouped-cards layout, and standard macOS controls (push buttons, segmented
+controls, switches, checkboxes, sheets, alerts). Don't introduce a new color, font or control style outside those; add
+it to the tokens first. In Swift, use the matching system colors and fonts (`Color.accentColor`, semantic
+`NSColor`s, system text styles), never raw hex values.
+
+**Every change to `Sources/kinhin-app` that adds, moves, removes or restyles a screen, control, state, message or
+layout follows these steps, in this order:**
+
+1. **Update the design first.** Change the matching page in `design/kinhin-app.fig` before writing Swift. Design every
+   state the code can reach, not just the happy path: empty, loading, busy, disabled, error and validation, and the long
+   (German) and right-to-left (Arabic, Hebrew) cases. Use the shared tokens and components (colors, type scale, spacing
+   2/4/8/12/16/20/24, radii 2/4/6/8/12) instead of one-off values, and keep each piece of information in one place.
+2. **Check the design.** `openpencil lint design/kinhin-app.fig` must report no errors (text contrast, minimum text
+   size) and no new warnings. Re-export the changed pages to `design/exports/`.
+3. **Implement from the design.** Build the Swift views to match the design: same layout, grouping, copy, states and
+   tokens. If the design is missing something the code needs, go back to step 1; do not invent it in code.
+4. **Compare against the design.** Run `scripts/capture-ui.sh`: it renders every sidebar section, every Diagnostics
+   pane and the setup wizard offscreen, in light, dark and right-to-left, against a throwaway config (no Keychain,
+   daemon or forge), and writes PNGs to `shots/out/`. Check each against its export in `design/exports/`. For states it
+   doesn't cover, run the app (`scripts/dev-run.sh`, or `KINHIN_DEMO` for scripted fleet states). If the
+   implementation has to differ, update the design in the same change so the two never drift. When you add a screen or
+   a Diagnostics pane, add it to `UICaptureTests` too.
+
+A pull request that changes the app's UI includes the design change (`design/` files and exports) alongside the code,
+and says which design frames it implements. Code-only UI changes are not accepted.
+
+**Working on the design.** Install the app and tools once: `brew install --cask openpencil`,
+`npm install -g @open-pencil/cli @open-pencil/mcp`, then `claude mcp add --scope user open-pencil -- openpencil-mcp`.
+The automation needs the OpenPencil app open with the document loaded and frontmost; calls time out otherwise. Edit
+frames in the app, or change `design/src/` and rebuild the page (the scripts clear and redraw it). Save with
+`openpencil documents save`, and export with `openpencil export design/kinhin-app.fig --page <Page> -f png -o <file>`.
+
 ## Localization (menu bar app)
 
 The app ships in English (the source language), Spanish, Japanese, German, Hebrew, Arabic, Italian and French; the

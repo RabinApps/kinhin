@@ -26,12 +26,6 @@ final class L10nStringsTests: XCTestCase {
     }
 
     func testPluralOfFirstArgumentWithASecondNumber() {
-        func summary(_ n: Int, busy: Int) -> String {
-            String(
-                localized: "\(n) instances · \(busy) busy", bundle: .l10n, comment: "test of the plural catalog entry")
-        }
-        XCTAssertEqual(summary(1, busy: 1), "1 instance · 1 busy")
-        XCTAssertEqual(summary(3, busy: 0), "3 instances · 0 busy")
         func capped(_ n: Int, cap: Int) -> String {
             String(localized: "\(n) instances · cap \(cap)", bundle: .l10n, comment: "test of the plural catalog entry")
         }

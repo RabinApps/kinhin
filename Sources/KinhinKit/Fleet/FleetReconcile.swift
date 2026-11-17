@@ -386,7 +386,7 @@ extension FleetEngine {
             heldRuntimes: held, existingPools: Set(routing.pools.keys), defaultRuntime: routing.defaultRuntime,
             warmPool: warmTargets(images: routerState.images),
             warmMaxAge: TimeInterval(config.warmMaxAgeMinutes) * 60, imageDemand: demand.byImage,
-            minIdle: minIdleTargets(images: routerState.images, unprepared: unpreparedIdleImages))
+            minIdle: minIdleTargets(snapshot: routerState, unprepared: unpreparedIdleImages))
         // Named container pools: their demand, shapes and the budget they share (none without `pools:`).
         if let container = config.container, !container.pools.isEmpty {
             input.containerPoolDemand = demand.byContainerPool

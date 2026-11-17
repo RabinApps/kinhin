@@ -1,21 +1,24 @@
+import AppKit
 import SwiftUI
 
-/// Advanced → Accounts: the Connect form the wizard uses, as a page for
-/// changing forges after setup. The This Mac form it used to stack lives with
-/// the VM settings under Advanced → Capacity.
+/// The Accounts page: the Connect form the wizard uses, filling its column, with the load-error banner on top when
+/// config.yaml can't be read. The This Mac form lives with the VM settings under Runtimes.
 struct AccountsSectionView: View {
     let connect: ConnectModel
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                SectionHeader("Connect")
-                ConnectView(model: connect)
+            VStack(alignment: .leading, spacing: Spacing.lg) {
+                HintText("Where kinhin picks up jobs. Tokens live in your Keychain, never in a file.")
+                if let loadError = connect.accounts.loadError {
+                    Banner(verbatim: loadError.text, kind: .error)
+                        .action("Open config") { NSWorkspace.shared.open(connect.accounts.configURL) }
+                        .accessibilityIdentifier("accounts-load-error")
+                }
+                ConnectView(model: connect, layout: .fill)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.leading, 4)
-            .padding(.top, 4)
-            .padding(.bottom, 8)
+            .padding(.bottom, Spacing.md)
         }
     }
 }
