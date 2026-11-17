@@ -22,34 +22,32 @@ struct LogsView: View {
     @Bindable var model: LogsModel
 
     var body: some View {
-        VStack(spacing: 8) {
-            HStack(spacing: 10) {
+        VStack(spacing: Spacing.sm + 2) {
+            HStack(spacing: Spacing.md) {
                 TextField("Search logs (message, component, level)", text: $model.query)
                     .textFieldStyle(.roundedBorder)
+                    .frame(maxWidth: 380)
                     .accessibilityLabel("Search logs")
                 Picker("Level", selection: $model.minLevel) {
                     ForEach(LogsModel.levels, id: \.level) { item in
-                        Text(item.title).tag(item.level)
+                        Text(verbatim: item.title).tag(item.level)
                     }
                 }
+                .pickerStyle(.segmented)
                 .labelsHidden()
                 .fixedSize()
                 .accessibilityLabel("Filter by log level")
                 Toggle("Follow", isOn: $model.follow)
-                    .font(.system(size: 12))
-                Text(model.statusText)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.tertiary)
+                Spacer(minLength: Spacing.sm)
+                HintText(verbatim: model.statusText)
             }
             LogTextView(
                 text: model.text, appended: model.appended, revision: model.revision,
                 rebuildRevision: model.rebuildRevision, searchRevision: model.searchRevision,
                 follow: model.follow
             )
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 1))
+            .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+            .overlay(RoundedRectangle(cornerRadius: Radius.md).strokeBorder(Palette.separator, lineWidth: 1))
         }
     }
 }

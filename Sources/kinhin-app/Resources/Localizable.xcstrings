@@ -17360,6 +17360,9 @@
     "Health" : {
       "comment" : "Diagnostics sub-section title"
     },
+    "Health, logs, benchmarks and tools in one place." : {
+      "comment" : "HintText in DiagnosticsPage"
+    },
     "healthy" : {
       "comment" : "Diagnostics Tart row detail",
       "localizations" : {
@@ -31005,6 +31008,9 @@
           }
         }
       }
+    },
+    "Re-check" : {
+      "comment" : "Button in DiagnosticsView"
     },
     "Read the docs: per-project toolchains" : {
       "comment" : "Link in ToolchainsGuideView",
