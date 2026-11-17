@@ -41,6 +41,9 @@ public struct DoctorReportBuilder: Sendable {
     /// when the container health is live too, so a test that injects the
     /// health never asks the real `container` CLI.
     let registryCache: DoctorReport.RegistryCacheStatus?
+    /// The `container` install source and signature (fixture). nil probes it live, but only when the container
+    /// health is live too, so a test that injects the health never runs `codesign`.
+    let containerInstall: AppleContainerInstall?
     /// The derived-image index; nil reads the live store. Records classify
     /// configured-derived tart images (never prunable) and mark stale index
     /// entries — again, the `image list` read.
@@ -53,6 +56,8 @@ public struct DoctorReportBuilder: Sendable {
     let tokenCheck: @Sendable (AccountConfig, String) async -> TokenHealthCheck.Report
     /// Whether the alert webhook's Keychain token is stored (`KeychainTokenStore` live); tests substitute a fixture.
     let alertsTokenStored: @Sendable (String) throws -> Bool
+    /// The storage preflight (live `statfs`); tests substitute fixture volumes.
+    let storagePreflight: StoragePreflight
 
     public init(
         host: HostResources? = nil,
@@ -80,10 +85,13 @@ public struct DoctorReportBuilder: Sendable {
         fleet: [VMRecord]? = nil,
         projectRecords: [ProjectImageRecord]? = nil,
         registryCache: DoctorReport.RegistryCacheStatus? = nil,
+        containerInstall: AppleContainerInstall? = nil,
         alertsTokenStored: @escaping @Sendable (String) throws -> Bool = {
             try KeychainTokenStore.alertsTokenStored(account: $0)
-        }
+        },
+        storagePreflight: StoragePreflight = .live
     ) {
+        self.storagePreflight = storagePreflight
         self.alertsTokenStored = alertsTokenStored
         self.host = host
         self.clt = clt
@@ -106,6 +114,7 @@ public struct DoctorReportBuilder: Sendable {
         self.fleet = fleet
         self.projectRecords = projectRecords
         self.registryCache = registryCache
+        self.containerInstall = containerInstall
     }
 
     /// Memoizes a Keychain read so the checklist and the auth report share one
@@ -263,9 +272,13 @@ public struct DoctorReportBuilder: Sendable {
             resolvedRegistryCache = await Self.registryCacheStatus(
                 runtimeReady: resolvedContainerHealth?.isReady == true)
         }
+        var resolvedInstall = containerInstall
+        if resolvedInstall == nil, containerHealth == nil, wantsContainer {
+            resolvedInstall = await AppleContainerInstall.probe()
+        }
         let containerSection = Self.containerSection(
             config: parsed, health: resolvedContainerHealth, images: resolvedContainerImages, host: resolvedHost,
-            registryCache: resolvedRegistryCache)
+            registryCache: resolvedRegistryCache, install: resolvedInstall)
         let dockerSection = Self.dockerSection(
             config: parsed, health: resolvedDockerHealth, images: resolvedDockerImages,
             imageArchitecture: dockerArchitecture)
@@ -296,6 +309,7 @@ public struct DoctorReportBuilder: Sendable {
             checkTokens ? await tokenChecks(accounts: parsed?.accounts ?? [], load: sharedAccountLoad) : nil
 
         let alertsSection = Self.alertsSection(config: parsed, tokenStored: alertsTokenStored)
+        let storageSection = Self.storageSection(config: parsed, preflight: storagePreflight)
 
         return DoctorReport(
             host: resolvedHost,
@@ -309,14 +323,14 @@ public struct DoctorReportBuilder: Sendable {
             auth: authReport,
             checks: status.checks,
             ready: status.ready && authReport.allGood && (security?.ok ?? true) && (alertsSection?.ok ?? true)
-                && (tokenChecks?.allSatisfy(\.ok) ?? true),
+                && (storageSection?.ok ?? true) && (tokenChecks?.allSatisfy(\.ok) ?? true),
             capacity: capacitySection,
             tartBaseImage: tartBaseImageSection,
             security: security,
             imageTotalGB: images.totalGB,
             imagePrune: images.prune,
             diskPressure: diskPressure,
-            tokenChecks: tokenChecks, alerts: alertsSection
+            tokenChecks: tokenChecks, alerts: alertsSection, storage: storageSection
         )
     }
 }

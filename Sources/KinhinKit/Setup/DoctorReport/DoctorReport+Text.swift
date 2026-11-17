@@ -137,6 +137,10 @@ extension DoctorReport {
                 )
             }
             if let cache = container.registryCache { row("cont cache", Self.registryCacheLine(cache)) }
+            if let install = container.install {
+                row("cont from", install.summaryLine)
+                if let warning = install.warning ?? install.note { more("⚠ \(warning)") }
+            }
         }
         if let docker {
             row("docker", docker.ok ? "ready ✓ (\(docker.platform))" : docker.fix ?? "✗")
@@ -242,6 +246,18 @@ extension DoctorReport {
                     if index == 0 { row(label, line) } else { more(line) }
                     if let fix = webhook.fix { more(fix) }
                 }
+            }
+        }
+        if let storage {
+            for (index, entry) in storage.paths.enumerated() {
+                let label = index == 0 ? "storage" : ""
+                let volume = entry.mountPoint.map { " on \($0)" } ?? ""
+                let line =
+                    entry.ok
+                    ? "\(entry.key) \(entry.path)\(volume) ✓"
+                    : "\(entry.key) \(entry.path) NOT READY ✗ — \(entry.problem ?? "not usable")"
+                if index == 0 { row(label, line) } else { more(line) }
+                if let fix = entry.fix { more(fix) }
             }
         }
         if let base = tartBaseImage {

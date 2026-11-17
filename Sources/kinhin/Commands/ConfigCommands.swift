@@ -101,6 +101,11 @@ enum ConfigCommands {
     /// `ConfigError` when it parses but has no accounts yet.
     private static func validated(configURL: URL) throws -> ValidationDocument {
         let config = try ConfigLoader.load(from: configURL)
+        // A storage path that names a file is never usable. An unmounted volume is not a config error (the daemon's
+        // preflight and `kinhin doctor` report it), so only what is at the path is checked here.
+        for (location, path) in config.storage.configured where StoragePreflight.liveEntry(path) == .notDirectory {
+            throw ConfigError.invalid("\(location.configKey): \(path) exists but is not a directory")
+        }
         guard ConfigLoader.hasAnyForge(config) else {
             throw ConfigError.invalid(
                 "\(configURL.path) has no accounts yet; add one (accounts: [{name: github, forge: github, scope: owner/name}]) or run `kinhin auth add`"

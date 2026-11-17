@@ -43,6 +43,8 @@ public struct DoctorReport: Codable, Equatable, Sendable {
         public var pools: [ContainerPoolStatus]? = nil
         /// kinhin's Docker Hub cache, when some pool uses it; nil otherwise (and in reports from before the cache).
         public var registryCache: RegistryCacheStatus? = nil
+        /// Where `container` came from, its signature and where its data lives; nil when not probed (#106).
+        public var install: AppleContainerInstall? = nil
     }
 
     /// kinhin's Docker Hub pull-through cache (`registry-cache-kinhin`). Not running is not a failure: the first
@@ -380,6 +382,9 @@ public struct DoctorReport: Codable, Equatable, Sendable {
     /// Outbound alerts — present only when the config has `alerts.enabled: true`. A webhook that cannot work (no
     /// token stored) makes `ready` false: the alerts that should reach you would silently not.
     public let alerts: AlertsSection?
+    /// Configured storage paths and their mount/ownership preflight — present only when a path is configured. A
+    /// failed path makes `ready` false.
+    public let storage: StorageSection?
 
     public init(
         host: HostResources, clt: CLTSection, tart: TartSection, container: ContainerSection?,
@@ -388,8 +393,10 @@ public struct DoctorReport: Codable, Equatable, Sendable {
         auth: AuthStatusReport, checks: [SetupCheckResult], ready: Bool, capacity: CapacitySection?,
         tartBaseImage: TartBaseImageSection? = nil, security: SecuritySection? = nil,
         imageTotalGB: [String: Int]? = nil, imagePrune: ImagePruneSection? = nil,
-        diskPressure: DiskPressureSection? = nil, tokenChecks: [TokenCheck]? = nil, alerts: AlertsSection? = nil
+        diskPressure: DiskPressureSection? = nil, tokenChecks: [TokenCheck]? = nil, alerts: AlertsSection? = nil,
+        storage: StorageSection? = nil
     ) {
+        self.storage = storage
         self.alerts = alerts
         self.tokenChecks = tokenChecks
         self.host = host

@@ -208,7 +208,8 @@ generates `kinhin help`, each `kinhin <command> --help` page and the skills-lint
     `BitbucketError` for each forge's non-HTTP problems (bad instance URL or scope, missing token scopes, unknown pool).
   - Fleet: `EngineError` (also the app's fleet-access errors), `RPCError`, `Daemon.DaemonError` (nested in `Daemon`,
     declared in `Daemon+Error.swift`), `BenchmarkError`.
-  - Core: `ShellError`, `KeychainTokenStore.TokenError` (`Core/TokenStore.swift`).
+  - Core: `ShellError`, `KeychainTokenStore.TokenError` (`Core/TokenStore.swift`), `StorageProblem` (a configured
+    storage path whose volume is not ready, `Core/StoragePreflight.swift`).
   - Workflows: `WorkflowError`, `WorkflowRouteEditor.EditError`.
   - Video and mobile: `VideoError`, `MusicError`, `MobileScaffoldError`.
   - CLI (`Sources/kinhin`): `CLIError` (a failure with its exit code); the usage and route errors

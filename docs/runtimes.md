@@ -264,6 +264,8 @@ container:
 Install it with `kinhin setup repair container`, or by hand with `brew install container` and
 `container system start --enable-kernel-install` (the flag installs the default Linux kernel; without it `container run`
 fails). Then run `kinhin image prepare --container`. [Full install steps](install.md#installing-a-linux-runtime).
+Keeping its data on an external volume? Use Apple's signed installer instead of Homebrew; see
+[Keeping container data on an external volume](install.md#keeping-container-data-on-an-external-volume).
 Once `container:` is configured, the setup checklist and `kinhin doctor` gain container rows with one-click fixes.
 `kinhin runtimes` (or **Advanced → Routing**) shows the pool, its cap and its health.
 

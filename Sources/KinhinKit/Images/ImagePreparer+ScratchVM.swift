@@ -67,6 +67,8 @@ extension ImagePreparer {
         let cacheMounts =
             options.shareCache ? [ToolchainCacheMount.tartDirectorySpec(scope: options.cacheScope)] : []
         if options.shareCache {
+            // A configured cache whose volume is away stops the prepare instead of sharing an internal-disk folder.
+            try StoragePreflight.live.requireReady(.toolchainCache)
             do {
                 try FileManager.default.createDirectory(at: Paths.toolchainCache, withIntermediateDirectories: true)
             } catch {
