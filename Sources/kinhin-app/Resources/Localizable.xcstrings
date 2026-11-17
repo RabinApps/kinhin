@@ -848,7 +848,7 @@
       }
     },
     "%@ · %@ job slots" : {
-      "comment" : "Fleet status headline; plural by the number of concurrent job slots"
+      "comment" : "Fleet status headline; the base counters, then the concurrent job slots"
     },
     "%@ · unisolated" : {
       "comment" : "Host runtime card subtitle: the summary, then that jobs run without isolation"
@@ -1371,7 +1371,7 @@
       }
     },
     "%@ queued" : {
-      "comment" : "Queued work count; plural by queued jobs"
+      "comment" : "Queued work count: number of jobs waiting"
     },
     "%@ ready ✓" : {
       "comment" : "This Mac form: Base image row status; %@ is an image name",
