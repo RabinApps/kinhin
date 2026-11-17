@@ -72,4 +72,26 @@ final class DiagnosticsHealthPaneTests: MainWindowTestCase {
         tabs.select(.diagnostics)
         XCTAssertTrue(models.ensureDiagnosticsModel() === first, "re-opening keeps the same model")
     }
+
+    /// Re-check probes again, and a second request while one is running does nothing.
+    func testRecheckProbesAgainAndIgnoresAClickWhileChecking() async throws {
+        let model = DiagnosticsModel()
+        let report = try JSONDecoder().decode(DoctorReport.self, from: doctorFixture())
+        var probes = 0
+        model.loadReport = {
+            probes += 1
+            try? await Task.sleep(for: .milliseconds(50))  // keep the probe open so the second call overlaps it
+            return report
+        }
+        async let first: Void = model.load()
+        try await Task.sleep(for: .milliseconds(10))
+        XCTAssertTrue(model.isChecking, "the Re-check button disables while probing")
+        await model.load()
+        await first
+        XCTAssertEqual(probes, 1, "an overlapping re-check is ignored")
+        XCTAssertFalse(model.isChecking)
+        await model.load()
+        XCTAssertEqual(probes, 2, "a later re-check probes again")
+        XCTAssertTrue(model.status.hasPrefix("Checked"), "the header shows when it was checked")
+    }
 }

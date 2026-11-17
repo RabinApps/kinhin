@@ -88,7 +88,9 @@ private struct SectionPage: View {
             DiagnosticsPage(model: model)
         case .settings:
             PageHeaderStack(title: MainSection.settings.label) {
-                AppSectionView(model: models.appModel, telemetry: models.telemetryModel, alerts: models.alertsModel)
+                AppSectionView(
+                    model: models.appModel, telemetry: models.telemetryModel, alerts: models.alertsModel,
+                    openSupport: { model.present(.sponsor) })
             }
         }
     }

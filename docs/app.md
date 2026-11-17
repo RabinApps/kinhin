@@ -179,8 +179,8 @@ immediately):
 
 | Show at launch                       | Behavior                                                                               |
 | ------------------------------------ | -------------------------------------------------------------------------------------- |
-| **Main window + menu bar** (default) | The tabbed window opens at launch and the ○ stays in the menu bar.                     |
-| **Main window only**                 | A plain app — no menu bar item; closing the window quits kinhin.                       |
+| **Window + menu bar** (default)      | The tabbed window opens at launch and the ○ stays in the menu bar.                     |
+| **Window only**                      | A plain app — no menu bar item; closing the window quits kinhin.                       |
 | **Menu bar only**                    | The classic tray app; reopen the window any time from the menu's **Open kinhin** item. |
 
 The same section offers **Launch kinhin at login** (a standard macOS login item via `SMAppService`,

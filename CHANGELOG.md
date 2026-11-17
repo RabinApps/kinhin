@@ -10,6 +10,7 @@
   Advanced tabs. Logs, Diagnostics, Benchmarks and Containers are panes of Diagnostics, and **Support kinhin** moved to the
   sidebar footer. The menu bar's **Settings…** now opens Settings, and **Open Logs** opens Diagnostics → Logs. See
   [the app](docs/app.md).
+- Diagnostics and Settings follow the new design: Health has a **Re-check** button, and Settings has one **Support kinhin** card.
 
 **Added**
 

@@ -1,7 +1,7 @@
 import KinhinKit
 import SwiftUI
 
-/// Advanced → Benchmarks: what to measure, a Run button, live progress, the
+/// Diagnostics → Benchmarks: what to measure, a Run button, live progress, the
 /// cross-runtime boot comparison, each suite's steps, the toolchains table and
 /// the history of earlier runs. State and actions live in `BenchmarksModel`.
 struct BenchmarksView: View {
@@ -9,7 +9,7 @@ struct BenchmarksView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: Spacing.lg) {
                 setupCard
                 if model.isRunning { progressCard }
                 if let comparison = model.bootComparison { bootCard(comparison) }
@@ -18,9 +18,8 @@ struct BenchmarksView: View {
                 if !model.history.isEmpty { historyCard }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.top, 2)
+            .padding(.bottom, Spacing.md)
         }
-        .padding(.leading, 4)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onDisappear { model.stopPolling() }
     }
@@ -28,12 +27,13 @@ struct BenchmarksView: View {
     // MARK: - Setup
 
     private var setupCard: some View {
-        FormCard(
+        Card(
             title: "Benchmarks",
             subtitle:
-                "Measure how fast runtimes boot, workloads run and toolchains install on this Mac. Temporary VMs and containers are removed afterwards."
+                "Measure how fast runtimes boot, workloads run and toolchains install on this Mac. Temporary VMs and containers are removed afterwards.",
+            layout: .fill
         ) {
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: Spacing.sm) {
                 ForEach(BenchmarkOptions.Suite.allCases, id: \.self) { suite in
                     Toggle(
                         isOn: Binding(
@@ -79,42 +79,39 @@ struct BenchmarksView: View {
     }
 
     private var progressCard: some View {
-        FormCard(title: "Running") {
-            HStack(spacing: 8) {
-                ProgressView().controlSize(.small).accessibilityLabel("Working")
-                Text(verbatim: model.progressLine ?? "…")
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-                Spacer(minLength: 0)
-                Text(verbatim: AppFormat.duration(model.elapsed))
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-            }
+        Card(title: "Running", layout: .fill) {
+            InsetRow(
+                leading: { ProgressView().controlSize(.small).accessibilityLabel("Working") },
+                content: {
+                    Text(verbatim: model.progressLine ?? "…").typeStyle(.body).lineLimit(2)
+                },
+                trailing: {
+                    Text(verbatim: AppFormat.duration(model.elapsed)).typeStyle(.body).monospacedDigit()
+                })
         }
     }
 
     // MARK: - Results
 
     private func bootCard(_ comparison: BootComparison) -> some View {
-        FormCard(
+        Card(
             title: Text(verbatim: BenchmarkOptions.Suite.boot.label),
-            subtitle: Text("Median per phase, one row per runtime.")
+            subtitle: Text("Median per phase, one row per runtime."), layout: .fill
         ) {
             ScrollView(.horizontal, showsIndicators: false) {
-                Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 3) {
+                Grid(alignment: .leading, horizontalSpacing: Spacing.md, verticalSpacing: Spacing.sm) {
                     GridRow {
                         Text(verbatim: "").gridColumnAlignment(.leading)
                         ForEach(comparison.columns, id: \.self) { column in
-                            Text(verbatim: column).font(.system(size: 10, weight: .semibold)).foregroundStyle(
+                            Text(verbatim: column).typeStyle(.caption).fontWeight(.semibold).foregroundStyle(
                                 .secondary)
                         }
                     }
                     ForEach(comparison.rows) { row in
                         GridRow {
-                            Text(verbatim: row.runtime).font(.system(size: 11, weight: .medium))
+                            Text(verbatim: row.runtime).typeStyle(.body).fontWeight(.medium)
                             ForEach(Array(row.cells.enumerated()), id: \.offset) { _, cell in
-                                Text(verbatim: cell).font(.system(size: 11, design: .monospaced))
+                                Text(verbatim: cell).typeStyle(.caption).monospacedDigit()
                             }
                         }
                     }
@@ -127,25 +124,29 @@ struct BenchmarksView: View {
     }
 
     private func stepsCard(_ suite: BenchmarkSuiteResult) -> some View {
-        FormCard(title: Text(verbatim: model.title(of: suite))) {
+        Card(title: Text(verbatim: model.title(of: suite)), layout: .fill) {
             if let problem = model.problem(of: suite) { StatusText(verbatim: problem.text, style: problem.style) }
-            ForEach(model.lines(of: suite)) { line in
-                HStack(alignment: .firstTextBaseline) {
-                    Text(verbatim: line.name).font(.system(size: 11, weight: .medium))
-                    Spacer(minLength: 8)
-                    VStack(alignment: .trailing, spacing: 0) {
-                        Text(verbatim: line.value)
-                            .font(.system(size: 11, design: .monospaced))
-                            .foregroundStyle(line.skipped ? Color.secondary : Color.primary)
-                        if let detail = line.detail { HintText(verbatim: detail) }
-                    }
+            VStack(spacing: Spacing.sm) {
+                ForEach(model.lines(of: suite)) { line in
+                    InsetRow(
+                        alignment: .firstTextBaseline,
+                        content: { Text(verbatim: line.name).typeStyle(.body).fontWeight(.medium) },
+                        trailing: {
+                            VStack(alignment: .trailing, spacing: 0) {
+                                Text(verbatim: line.value)
+                                    .typeStyle(.body)
+                                    .monospacedDigit()
+                                    .foregroundStyle(line.skipped ? Color.secondary : Color.primary)
+                                if let detail = line.detail { HintText(verbatim: detail) }
+                            }
+                        })
                 }
             }
         }
     }
 
     private func toolchainsCard(_ suite: BenchmarkSuiteResult) -> some View {
-        FormCard(title: Text(verbatim: model.title(of: suite))) {
+        Card(title: Text(verbatim: model.title(of: suite)), layout: .fill) {
             HStack(spacing: 0) {
                 ForEach(BenchmarksModel.ToolchainSort.allCases, id: \.self) { column in
                     Button {
@@ -159,7 +160,8 @@ struct BenchmarksView: View {
                                     .accessibilityHidden(true)
                             }
                         }
-                        .font(.system(size: 10, weight: .semibold))
+                        .typeStyle(.caption)
+                        .fontWeight(.semibold)
                         .frame(width: column == .tool ? 130 : 80, alignment: .leading)
                     }
                     .buttonStyle(.plain)
@@ -173,12 +175,14 @@ struct BenchmarksView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(spacing: 0) {
                         Text(verbatim: row.tool)
-                            .font(.system(size: 11, weight: .medium))
+                            .typeStyle(.caption)
+                            .fontWeight(.medium)
                             .foregroundStyle(row.failed ? StatusStyle.error.color : Color.primary)
                             .frame(width: 130, alignment: .leading)
                         ForEach([row.install, row.verify, row.workload], id: \.self) { value in
                             Text(verbatim: value)
-                                .font(.system(size: 11, design: .monospaced))
+                                .typeStyle(.caption)
+                                .monospacedDigit()
                                 .frame(width: 80, alignment: .leading)
                         }
                     }
@@ -191,17 +195,18 @@ struct BenchmarksView: View {
     }
 
     private var historyCard: some View {
-        FormCard(title: "History", subtitle: "The newest reports are kept; click one to see it.") {
+        Card(title: "History", subtitle: "The newest reports are kept; click one to see it.", layout: .fill) {
             ForEach(Array(model.history.prefix(10)), id: \.url) { entry in
                 Button {
                     model.show(entry)
                 } label: {
-                    HStack {
-                        Text(verbatim: model.historyTitle(entry)).font(.system(size: 11))
-                        Spacer()
-                        Text(verbatim: AppFormat.relative(entry.startedAt)).font(.system(size: 11)).foregroundStyle(
-                            .secondary)
-                    }
+                    InsetRow(
+                        content: { Text(verbatim: model.historyTitle(entry)).typeStyle(.body) },
+                        trailing: {
+                            Text(verbatim: AppFormat.relative(entry.startedAt)).typeStyle(.body)
+                                .foregroundStyle(.secondary)
+                        }
+                    )
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)

@@ -19,7 +19,7 @@ final class DiagnosticsModel {
         var id: String { title }
     }
 
-    private(set) var rows: [Row] = []
+    fileprivate(set) var rows: [Row] = []
     /// The fleet's current image-bake notice, when one is showing.
     @ObservationIgnored var fleetImageNotice: () -> String? = { nil }
     var status = String(
@@ -36,7 +36,13 @@ final class DiagnosticsModel {
     /// fixture report instead of subprocess-probing the host.
     @ObservationIgnored var loadReport: () async -> DoctorReport = { await DoctorReportBuilder().build() }
 
+    /// A probe is running: the Re-check button disables.
+    private(set) var isChecking = false
+
     func load() async {
+        guard !isChecking else { return }
+        isChecking = true
+        defer { isChecking = false }
         status = String(
             localized: "Probing this Mac…", bundle: .l10n, comment: "Diagnostics sheet status while probing")
         render(await loadReport())
@@ -284,5 +290,21 @@ final class DiagnosticsModel {
             await task.value
             busyHealingIDs.remove(id)
         }
+    }
+}
+
+extension DiagnosticsModel {
+    /// A model holding fixed rows, for a `#Preview`; no probe runs.
+    static func previewModel() -> DiagnosticsModel {
+        let model = DiagnosticsModel()
+        let healthy = String(localized: "healthy", bundle: .l10n, comment: "Diagnostics Tart row detail")
+        let host = String(localized: "Host", bundle: .l10n, comment: "Diagnostics row title")
+        let disk = String(localized: "Disk pressure", bundle: .l10n, comment: "Diagnostics row title")
+        model.rows = [
+            Row(title: host, detail: healthy, ok: true),
+            Row(title: host, detail: healthy, ok: true, warning: healthy),
+            Row(title: disk, detail: healthy, ok: false),
+        ]
+        return model
     }
 }

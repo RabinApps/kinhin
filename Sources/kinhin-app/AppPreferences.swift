@@ -20,11 +20,11 @@ extension LaunchMode {
         switch self {
         case .mainWindowAndMenuBar:
             return String(
-                localized: "Main window + menu bar", bundle: .l10n,
+                localized: "Window + menu bar", bundle: .l10n,
                 comment: "Launch-mode picker option in Settings → App")
         case .mainWindowOnly:
             return String(
-                localized: "Main window only", bundle: .l10n, comment: "Launch-mode picker option in Settings → App")
+                localized: "Window only", bundle: .l10n, comment: "Launch-mode picker option in Settings → App")
         case .menuBarOnly:
             return String(
                 localized: "Menu bar only", bundle: .l10n, comment: "Launch-mode picker option in Settings → App")
