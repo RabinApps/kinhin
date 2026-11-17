@@ -28,54 +28,53 @@ struct InstallConfirmationSheet: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Install \(offer.tool.title)?")
-                .font(.system(size: 13, weight: .semibold))
-            Text(
-                "kinhin will run this with Homebrew. It may take several minutes, and some installers ask for your password or need a first launch afterwards."
-            )
-            .font(.system(size: 11))
-            .foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
-
-            if offer.options.count > 1 {
-                Picker("Method", selection: $selectedID) {
+        SheetScaffold(verbatimTitle: String(localized: "Install \(offer.tool.title)?", bundle: .l10n), width: 480) {
+            VStack(alignment: .leading, spacing: Spacing.md) {
+                HintText(
+                    "kinhin will run this with Homebrew. It may take several minutes, and some installers ask for your password or need a first launch afterwards."
+                )
+                VStack(alignment: .leading, spacing: Spacing.sm) {
                     ForEach(offer.options) { option in
-                        Text(option.title).tag(option.id)
+                        optionRow(option)
                     }
                 }
-                .labelsHidden()
-                .controlSize(.small)
-                .accessibilityLabel("Install method")
-            }
-
-            if let option = selected {
-                Text(option.detail)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                Text(option.commandLine)
-                    .font(.system(size: 11, design: .monospaced))
-                    .textSelection(.enabled)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            HStack {
-                Spacer()
-                if offer.options.count > 1 {
-                    Button("Copy Command") {
-                        if let option = selected { onCopy(option) }
-                    }
+                if let option = selected {
+                    HintText(verbatim: option.detail)
                 }
-                Button("Cancel", action: onCancel)
-                    .keyboardShortcut(.cancelAction)
-                Button("Install") {
-                    if let option = selected { onConfirm(option) }
+            }
+        } footer: {
+            SheetConfirmFooter(
+                "Install",
+                confirm: { if let option = selected { onConfirm(option) } },
+                cancel: onCancel
+            ) {
+                Button("Copy Command") {
+                    if let option = selected { onCopy(option) }
                 }
-                .keyboardShortcut(.defaultAction)
             }
         }
-        .padding(16)
-        .frame(width: 340, alignment: .leading)
+    }
+
+    /// One install method: a checkbox-style choice with its command line beside it.
+    private func optionRow(_ option: InstallOption) -> some View {
+        Button {
+            selectedID = option.id
+        } label: {
+            HStack(spacing: Spacing.md) {
+                Image(systemName: option.id == selectedID ? "checkmark.square.fill" : "square")
+                    .foregroundStyle(option.id == selectedID ? Palette.accent : Palette.secondaryText)
+                Text(verbatim: option.title).typeStyle(.body)
+                Text(verbatim: option.commandLine)
+                    .typeStyle(.caption)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+                    .lineLimit(2)
+                Spacer(minLength: 0)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(option.id == selectedID ? .isSelected : [])
+        .accessibilityIdentifier("install-method-\(option.id)")
     }
 }
