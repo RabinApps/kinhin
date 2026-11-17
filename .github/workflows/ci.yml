@@ -16,10 +16,38 @@ permissions:
   contents: read
 
 jobs:
+  changes:
+    # Decides what this diff needs (scripts/ci-changes.sh). Pushes to main/develop, the nightly run and manual runs
+    # always check everything; a diff git cannot compute also falls back to everything.
+    runs-on: ubuntu-latest
+    outputs:
+      swift: ${{ steps.plan.outputs.swift }}
+      tests: ${{ steps.plan.outputs.tests }}
+      swift_files: ${{ steps.plan.outputs.swift_files }}
+      docs: ${{ steps.plan.outputs.docs }}
+      video: ${{ steps.plan.outputs.video }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - id: plan
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [[ "$EVENT_NAME" == pull_request ]]; then
+            bash scripts/ci-changes.sh "$PR_BASE" | tee -a "$GITHUB_OUTPUT"
+          else
+            bash scripts/ci-changes.sh --all | tee -a "$GITHUB_OUTPUT"
+          fi
+
   test:
     # The self-hosted runner shares a Mac with the fleet and its Keychain, so
     # it never runs code from fork PRs (they would execute arbitrary tests).
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    needs: changes
+    if: needs.changes.outputs.swift == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: kinhin-xcode
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -40,7 +68,15 @@ jobs:
         run: swift --version
 
       - name: Lint (swift-format)
-        run: swift format lint --strict -r Sources Tests
+        # Only the changed files on a PR (empty list = everything: main, nightly, or a shared-file change).
+        env:
+          SWIFT_FILES: ${{ needs.changes.outputs.swift_files }}
+        run: |
+          if [[ -n "$SWIFT_FILES" ]]; then
+            swift format lint --strict $SWIFT_FILES
+          else
+            swift format lint --strict -r Sources Tests
+          fi
 
       - name: Run tests
         # A clean run takes about ten minutes; a hung test fails here instead
@@ -49,10 +85,17 @@ jobs:
         # `swift package clean` makes every file recompile so the log carries all of this repo's warnings (an
         # incremental build only re-prints warnings for recompiled files); the scan then fails on any warning in
         # Sources/ or Tests/. pipefail keeps a failing `swift test` failing through the tee.
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          TESTS: ${{ needs.changes.outputs.tests }}
         run: |
           set -o pipefail
-          swift package clean
-          swift test --build-system swiftbuild --parallel 2>&1 | tee "$RUNNER_TEMP/swift-test.log"
+          # PRs build incrementally (the warning scan then covers the files this diff recompiled); everything else
+          # starts clean so the log carries every warning in the repo.
+          if [[ "$EVENT_NAME" != pull_request ]]; then swift package clean; fi
+          filter=()
+          if [[ "$TESTS" != all ]]; then filter=(--filter "$TESTS"); fi
+          swift test --build-system swiftbuild --parallel "${filter[@]}" 2>&1 | tee "$RUNNER_TEMP/swift-test.log"
           bash scripts/warnings-check.sh --scan "$RUNNER_TEMP/swift-test.log"
 
       - name: Build release products
@@ -91,7 +134,8 @@ jobs:
     # they get the same lint, tests and release build on a GitHub-hosted Mac:
     # contributors see results, and their code never runs on our hardware. No
     # secrets, read-only token, and the checkout keeps no credentials.
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+    needs: changes
+    if: needs.changes.outputs.swift == 'true' && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
     runs-on: macos-26
     timeout-minutes: 60
     steps:
@@ -108,24 +152,50 @@ jobs:
           echo "xcode-select: $(xcode-select -p)"
           swift --version
 
+      - name: Cache build
+        # Hosted runners start empty; restore the newest .build for this lockfile + toolchain so PRs build
+        # incrementally. (The self-hosted runner keeps its own .build between runs.)
+        uses: actions/cache@PIN_FULL_COMMIT_SHA # TODO: pin to the v4.x release commit like the other actions (not verified here)
+        with:
+          path: .build
+          key: fork-build-${{ runner.os }}-${{ hashFiles('Package.resolved', 'Package.swift') }}-${{ github.sha }}
+          restore-keys: |
+            fork-build-${{ runner.os }}-${{ hashFiles('Package.resolved', 'Package.swift') }}-
+
       - name: Lint (swift-format)
-        run: swift format lint --strict -r Sources Tests
+        # Only the changed files on a PR (empty list = everything: main, nightly, or a shared-file change).
+        env:
+          SWIFT_FILES: ${{ needs.changes.outputs.swift_files }}
+        run: |
+          if [[ -n "$SWIFT_FILES" ]]; then
+            swift format lint --strict $SWIFT_FILES
+          else
+            swift format lint --strict -r Sources Tests
+          fi
 
       - name: Run tests
         timeout-minutes: 30
         # `swift package clean` makes every file recompile so the log carries all of this repo's warnings (an
         # incremental build only re-prints warnings for recompiled files); the scan then fails on any warning in
         # Sources/ or Tests/. pipefail keeps a failing `swift test` failing through the tee.
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          TESTS: ${{ needs.changes.outputs.tests }}
         run: |
           set -o pipefail
-          swift package clean
-          swift test --build-system swiftbuild --parallel 2>&1 | tee "$RUNNER_TEMP/swift-test.log"
+          # PRs build incrementally (the warning scan then covers the files this diff recompiled); everything else
+          # starts clean so the log carries every warning in the repo.
+          if [[ "$EVENT_NAME" != pull_request ]]; then swift package clean; fi
+          filter=()
+          if [[ "$TESTS" != all ]]; then filter=(--filter "$TESTS"); fi
+          swift test --build-system swiftbuild --parallel "${filter[@]}" 2>&1 | tee "$RUNNER_TEMP/swift-test.log"
           bash scripts/warnings-check.sh --scan "$RUNNER_TEMP/swift-test.log"
 
       - name: Build release products
         run: swift build --build-system swiftbuild -c release --product kinhin-app --product kinhin
 
   docs:
+    needs: changes
     # Docs lint, docs-sync --check and skills lint are grep/sed/awk scripts with
     # no Swift or macOS dependency, so they run on a GitHub-hosted runner, never
     # on the self-hosted fleet. That makes it safe to run for fork PRs too (no
@@ -140,20 +210,37 @@ jobs:
         run: bash scripts/changelog.sh check
 
       - name: Docs lint (stale strings)
+        if: needs.changes.outputs.docs == 'true'
         run: bash scripts/docs-lint.sh
 
       - name: Docs sync (code-derived blocks)
+        if: needs.changes.outputs.docs == 'true'
         run: bash scripts/docs-sync.sh --check
 
       - name: Skills lint (frontmatter + command drift)
+        if: needs.changes.outputs.docs == 'true'
         run: bash scripts/skills-lint.sh
 
       - name: Rules lint (try!, as!, force unwraps, locks, try?, file length)
+        if: needs.changes.outputs.swift == 'true'
         run: bash scripts/rules-lint.sh
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: needs.changes.outputs.video == 'true'
         with:
           node-version: 22
 
       - name: Video suite (claims, ci.json, unit tests)
+        if: needs.changes.outputs.video == 'true'
         run: bash scripts/video-check.sh
+
+  ci-ok:
+    # One stable check for branch protection: skipped jobs (nothing relevant changed) count as passing, a failed or
+    # cancelled one does not. Require this instead of test/fork/docs individually.
+    if: always()
+    needs: [changes, test, fork, docs]
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo '${{ toJSON(needs) }}' | grep -Eq '"result": "(failure|cancelled)"' && exit 1
+          exit 0
