@@ -242,6 +242,14 @@ final class StatusRenderingTests: XCTestCase {
         XCTAssertTrue(rows[2].title.contains("deleting"))
     }
 
+    func testDeleteHintShowsOnlyWithVMs() {
+        delegate.rebuildVMSection(status: FleetStatus(records: [record(phase: .ready)]))
+        XCTAssertEqual(vmHint()?.title, "(click a VM to delete it — confirms first)")
+        XCTAssertEqual(vmHint()?.isEnabled, false)
+        delegate.rebuildVMSection(status: FleetStatus(records: []))
+        XCTAssertNil(vmHint(), "no VMs, nothing to delete")
+    }
+
     func testVMSectionEmptyState() {
         delegate.rebuildVMSection(status: FleetStatus(records: []))
         let rows = vmRows()
@@ -270,7 +278,7 @@ final class StatusRenderingTests: XCTestCase {
     func testVMSectionGrowsOnlyInsideTheVMSection() {
         let before = menu.items.count
         delegate.rebuildVMSection(status: FleetStatus(records: (0..<5).map { _ in record(phase: .ready) }))
-        XCTAssertEqual(menu.items.count, before + 5, "rows must stay inside the VM section")
+        XCTAssertEqual(menu.items.count, before + 6, "five rows and the delete hint stay inside the VM section")
         // The items around the VM section keep their order, with Quit still last.
         let end = menu.items.firstIndex { $0.identifier?.rawValue == "vmSectionEnd" }!
         let tail = originalItems.firstIndex { $0.identifier?.rawValue == "vmSectionEnd" }!
@@ -294,7 +302,11 @@ final class StatusRenderingTests: XCTestCase {
         else {
             return []
         }
-        return Array(menu.items[(start + 1)..<end])
+        return Array(menu.items[(start + 1)..<end]).filter { $0.identifier?.rawValue != "vmHint" }
+    }
+
+    private func vmHint() -> NSMenuItem? {
+        menu.items.first { $0.identifier?.rawValue == "vmHint" }
     }
 
     // MARK: - accessibility label

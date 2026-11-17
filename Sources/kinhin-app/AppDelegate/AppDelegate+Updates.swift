@@ -22,13 +22,13 @@ extension AppDelegate {
             menu.items[idx].isEnabled = true
             menu.items[idx].isHidden = false
             menu.items[idx + 1].title = String(
-                localized: "  kinhin \(kinhinVersion.current) (up to date)", bundle: .l10n,
-                comment: "Disabled version row in the status-bar menu while an update is pending; %@ is the version")
+                localized: "  kinhin \(kinhinVersion.current)", bundle: .l10n,
+                comment: "Disabled version row in the status-bar menu; %@ is the version")
         } else {
             menu.items[idx].isHidden = true
             menu.items[idx + 1].title = String(
-                localized: "  kinhin \(kinhinVersion.current)", bundle: .l10n,
-                comment: "Disabled version row in the status-bar menu; %@ is the version")
+                localized: "  kinhin \(kinhinVersion.current) (up to date)", bundle: .l10n,
+                comment: "Disabled version row in the status-bar menu when no update is waiting; %@ is the version")
         }
         menu.items[idx + 1].isEnabled = false
     }

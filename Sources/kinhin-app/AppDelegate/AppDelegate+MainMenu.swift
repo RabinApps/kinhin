@@ -92,11 +92,6 @@ extension AppDelegate {
             withTitle: String(localized: "Support kinhin…", bundle: .l10n, comment: "Help menu item"),
             action: #selector(openSupportPage), keyEquivalent: ""
         ).target = self
-        help.addItem(
-            withTitle: String(localized: "Become a Sponsor…", bundle: .l10n, comment: "Help menu item"),
-            action: #selector(openBecomeSponsor), keyEquivalent: ""
-        ).target =
-            self
         helpItem.submenu = help
         main.addItem(helpItem)
         NSApp.helpMenu = help

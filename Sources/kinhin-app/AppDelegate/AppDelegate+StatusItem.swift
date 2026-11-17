@@ -106,8 +106,9 @@ extension AppDelegate {
         updateItem.isHidden = true
         let versionItem = m.addItem(
             withTitle: String(
-                localized: "  kinhin \(kinhinVersion.current)", bundle: .l10n,
-                comment: "Disabled version row in the status-bar menu; %@ is the version"), action: nil,
+                localized: "  kinhin \(kinhinVersion.current) (up to date)", bundle: .l10n,
+                comment: "Disabled version row in the status-bar menu when no update is waiting; %@ is the version"),
+            action: nil,
             keyEquivalent: "")
         versionItem.isEnabled = false
         let logsItem = m.addItem(
@@ -341,5 +342,12 @@ extension AppDelegate {
             menu.insertItem(item, at: next)
             next += 1
         }
+        let hint = NSMenuItem(
+            title: String(
+                localized: "(click a VM to delete it — confirms first)", bundle: .l10n,
+                comment: "Disabled hint row under the VM list in the status-bar menu"), action: nil, keyEquivalent: "")
+        hint.isEnabled = false
+        hint.identifier = NSUserInterfaceItemIdentifier("vmHint")
+        menu.insertItem(hint, at: next)
     }
 }
