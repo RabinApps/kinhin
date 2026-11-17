@@ -73,6 +73,9 @@ final class MacToolsModel: ConfigFormModel {
     private(set) var dockerLine = Line(text: "")
     private(set) var containerInstallVisible = false
     private(set) var dockerInstallVisible = false
+    /// The `container` / `docker` tools are on this Mac (the Runtimes page's switches need them to turn a runtime on).
+    private(set) var containerInstalled = false
+    private(set) var dockerInstalled = false
     private(set) var containerInstallTitle = String(
         localized: "Install…", bundle: .l10n, comment: "This Mac form: button that installs Apple container")
     /// Base image each runtime's image is baked on (nil = default); the
@@ -146,6 +149,8 @@ final class MacToolsModel: ConfigFormModel {
         refreshBaseImages(from: snapshot)
         let containerInstalled = Paths.findExecutable(named: "container") != nil
         let dockerInstalled = Paths.findExecutable(named: "docker") != nil
+        self.containerInstalled = containerInstalled
+        self.dockerInstalled = dockerInstalled
         recomputeReadiness()
         // Don't offer an install that can't run here; say why instead.
         let host = seams.hostFacts()

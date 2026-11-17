@@ -91,8 +91,8 @@ extension RuntimesModel {
     /// The card's chip: built (green) or not built (orange); nothing while unknown.
     static func builtChip(_ built: Bool?) -> (text: String, style: StatusStyle)? {
         switch built {
-        case true?: return (String(localized: "● built", bundle: .l10n, comment: "Container pool chip"), .ok)
-        case false?: return (String(localized: "● not built", bundle: .l10n, comment: "Container pool chip"), .warn)
+        case true?: return (String(localized: "built", bundle: .l10n, comment: "Container pool chip"), .ok)
+        case false?: return (String(localized: "not built", bundle: .l10n, comment: "Container pool chip"), .warn)
         case nil: return nil
         }
     }

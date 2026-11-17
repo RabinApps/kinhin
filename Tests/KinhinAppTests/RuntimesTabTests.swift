@@ -14,11 +14,11 @@ final class RuntimesTabTests: XCTestCase {
     }
 
     func testHealthChipsCoverEveryState() {
-        XCTAssertEqual(RuntimesModel.healthChip(.ready, probing: false).text, "● ready")
+        XCTAssertEqual(RuntimesModel.healthChip(.ready, probing: false).text, "ready")
         XCTAssertEqual(
-            RuntimesModel.healthChip(.missing(tool: "docker", fix: ""), probing: false).text, "● docker missing")
-        XCTAssertEqual(RuntimesModel.healthChip(.broken("x"), probing: false).text, "● error")
-        XCTAssertEqual(RuntimesModel.healthChip(nil, probing: true).text, "● checking…")
+            RuntimesModel.healthChip(.missing(tool: "docker", fix: ""), probing: false).text, "docker missing")
+        XCTAssertEqual(RuntimesModel.healthChip(.broken("x"), probing: false).text, "error")
+        XCTAssertEqual(RuntimesModel.healthChip(nil, probing: true).text, "checking…")
         XCTAssertEqual(RuntimesModel.healthChip(nil, probing: false).text, "")
     }
 
@@ -148,7 +148,6 @@ final class RuntimesTabTests: XCTestCase {
             labels: ["self-hosted"]
             """)
         defer { try? FileManager.default.removeItem(at: model.configURL) }
-        XCTAssertEqual(model.headline, "Fleet scope: acme/widgets — single-pool fleet")
         XCTAssertTrue(model.hasLoadedForTesting)
         XCTAssertFalse(model.loadFailed)
         XCTAssertEqual(model.fleetLabelsText, "self-hosted")

@@ -50,6 +50,8 @@ struct L10nSourceScanner {
         "statusRow", "chipRow", "row", "runtimeRow",
         // the design system's components (UI/SwiftUI/DesignSystem)
         "Chip", "Banner", "StepperRow", "SheetConfirmFooter", ".action",
+        // the Runtimes page's labelled-control helpers
+        "LabeledControl", "capacityStepper", "capacityGroup", "poolField",
     ]
 
     /// `callee` → labels whose argument is localized.

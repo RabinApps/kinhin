@@ -174,7 +174,10 @@ final class WindowModels {
         guard capacityModel == nil else { return }
         if macToolsModel == nil {
             let mac = MacToolsModel()
-            mac.onChanged = { [weak self] in self?.runtimesEdited?() }
+            mac.onChanged = { [weak self] in
+                self?.capacityModel?.refreshFromDisk()
+                self?.runtimesEdited?()
+            }
             macToolsModel = mac
             mac.reload()
         }
@@ -225,7 +228,11 @@ final class WindowModels {
         guard runtimesModel == nil else { return }
         let model = RuntimesModel()
         model.configURL = Paths.config
-        model.onChanged = { [weak self] in self?.runtimesEdited?() }
+        model.onChanged = { [weak self] in
+            // The page's staged edits keep their values; everything else follows what was just written.
+            self?.capacityModel?.refreshFromDisk()
+            self?.runtimesEdited?()
+        }
         runtimesModel = model
         model.reload()
     }
