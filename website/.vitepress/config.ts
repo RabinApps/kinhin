@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { docsLinks } from "./docsLinks";
+import { twinPathFor, writeMarkdownTwins } from "./markdownTwins";
 import versions from "../versions.json";
 
 // https://vitepress.dev/reference/site-config
@@ -25,12 +26,14 @@ const base = docsVersion ? `/${docsVersion}/` : "/";
 // The custom domain GitHub Pages serves (website/public/CNAME). Social cards need absolute URLs.
 const siteURL = "https://kinhin.dev";
 
+const siteDescription =
+  "Your Mac is your CI and your repo is your video studio. Autoscaling ephemeral runners for GitHub, GitLab, " +
+  "Gitea and Forgejo, plus narrated launch videos built from a config.";
+
 export default defineConfig({
   base,
   title: "Kinhin",
-  description:
-    "Your Mac is your CI and your repo is your video studio. Autoscaling ephemeral runners for GitHub, GitLab, " +
-    "Gitea and Forgejo, plus narrated launch videos built from a config.",
+  description: siteDescription,
   sitemap: { hostname: `${siteURL}${base}` },
   head: [
     ["link", { rel: "icon", type: "image/svg+xml", href: `${base}favicon.svg` }],
@@ -82,6 +85,27 @@ export default defineConfig({
   // website/public instead: Vite serves it in dev, and buildEnd copies it into the output.
   buildEnd: async (siteConfig) => {
     fs.cpSync(path.join(siteRoot, "public"), siteConfig.outDir, { recursive: true });
+    // Markdown twins and llms.txt for AI agents: latest docs only (snapshots build from old tags).
+    if (!docsVersion) {
+      writeMarkdownTwins(siteConfig, {
+        siteURL,
+        summary: siteDescription,
+        sections: siteConfig.site.themeConfig.sidebar,
+      });
+    }
+  },
+  transformHead: ({ pageData }) => {
+    if (docsVersion || pageData.isNotFound) return [];
+    return [
+      [
+        "link",
+        {
+          rel: "alternate",
+          type: "text/markdown",
+          href: `${siteURL}/${twinPathFor(pageData.relativePath)}`,
+        },
+      ],
+    ];
   },
   vite: {
     publicDir: path.join(siteRoot, "public"),

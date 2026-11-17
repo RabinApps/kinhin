@@ -125,6 +125,17 @@ For agents that shell out instead of speaking MCP:
 - **Tokens never appear in any document.** `auth status --json` reports presence and validity only.
 - `requeue` and `skip` confirm interactively; pass `--yes` only when the user asked for exactly that.
 
+## Reading these docs as markdown
+
+Every page on [kinhin.dev](https://kinhin.dev) has a plain-markdown twin: add `.md` to the URL
+(`https://kinhin.dev/guide/quick-start.md`; the home page is `/index.md`). Each page also carries a
+`<link rel="alternate" type="text/markdown">` pointing at its twin. For an index, fetch
+[`/llms.txt`](https://kinhin.dev/llms.txt) (every page with a one-line description), or
+[`/llms-full.txt`](https://kinhin.dev/llms-full.txt) for all of it in one file.
+
+The site is static, so it cannot answer `Accept: text/markdown` on the HTML URL; request the `.md` URL instead.
+The twins describe the latest docs only, not the versioned snapshots.
+
 ## Working on the kinhin repository
 
 Agents contributing code should start at [`AGENTS.md`](https://github.com/RabinApps/kinhin/blob/main/AGENTS.md)
