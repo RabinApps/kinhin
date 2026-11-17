@@ -65,7 +65,7 @@ struct BudgetRowsView: View {
     private enum Column {
         static let slider: CGFloat = 150
         static let percent: CGFloat = 62  // typed field + "%"
-        static let cap: CGFloat = 54
+        static let cap: CGFloat = 84  // wide enough for the "INSTANCES" header
     }
 
     var body: some View {
@@ -93,6 +93,7 @@ struct BudgetRowsView: View {
             Text("SHARE")
                 .frame(width: Column.slider + Column.percent + 52, alignment: .center)
             Text("INSTANCES")
+                .lineLimit(1)
                 .frame(width: Column.cap, alignment: .trailing)
         }
         .typeStyle(.caption)

@@ -103,7 +103,7 @@ of the take whichever mode you use; the guest needs Screen Recording granted onc
 - `--gui`: a VM window on your Mac; the guest has a real desktop session.
 - `--vnc`: the same desktop with no window; connect with Screen Sharing.
 - `--headless`: no desktop, so no recording. It runs the demo unit tests and renders the offscreen UI captures
-  (`shots/capture`) instead.
+  (`scripts/capture-ui.sh`) instead.
 
 Both set `KINHIN_DEMO` the same way (`KINHIN_DEMO=path/in/repo.json video/adapters/kinhin/record-app.sh`). The pointer is
 left out of the take, so no cursor smoothing is needed; for auto-zoom, run the raw take through an editor such as
@@ -220,5 +220,6 @@ say so. Forges and runtimes that are only planned (see [Forges](forges.md)) do n
 
 ## Not yet covered
 
-The demo fleet fills the Fleet tab and menu data. The Logs and Diagnostics windows, and the Advanced tabs, still show
-real (empty) data in demo mode; seeding them is the next step if a video needs to open them.
+The demo fleet fills the Fleet screen and menu data. The other sidebar sections (Runtimes, Accounts, Toolchains,
+Diagnostics, Settings) still show real (empty) data in demo mode; seeding them is the next step if a video needs to open
+them.

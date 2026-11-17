@@ -48,7 +48,7 @@ struct ConnectView: View {
             Text("Where does your code live?").typeStyle(.emphasis)
             HintText("Select every forge kinhin should serve; each gets its own card below.")
             LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: 250), spacing: Spacing.sm, alignment: .leading)],
+                columns: [GridItem(.adaptive(minimum: 280), spacing: Spacing.sm, alignment: .leading)],
                 alignment: .leading, spacing: Spacing.sm
             ) {
                 ForEach(ConnectModel.allForges, id: \.self) { forge in
