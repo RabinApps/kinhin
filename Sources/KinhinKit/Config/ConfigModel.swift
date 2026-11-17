@@ -117,6 +117,9 @@ public struct KinhinConfig: Sendable, Equatable {
     public var telemetry: TelemetryConfig = .default
     /// Outbound alerts (`alerts:`): off unless `enabled: true`.
     public var alerts: AlertsConfig = .default
+    /// Where Tart, Apple container and kinhin's caches keep their data (`tart_home:`, `container_app_root:`,
+    /// `registry_cache_path:`, `toolchain_cache_path:`). Empty = every default location.
+    public var storage: StorageConfig = .init()
 
     /// True when any project mounts the host toolchain cache into its runners.
     public var sharesToolchainCache: Bool { projects.contains { $0.shareCache == true } }

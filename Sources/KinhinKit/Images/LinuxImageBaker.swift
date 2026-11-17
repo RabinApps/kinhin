@@ -93,7 +93,9 @@ struct LinuxImageBaker: Sendable {
 
         // Always bind-mount the host toolchain cache into the scratch
         // container: every prepare write-through (apt, mise, npm) lands in
-        // one cache that later bakes and runner containers reuse.
+        // one cache that later bakes and runner containers reuse. A configured cache whose volume is away stops the
+        // bake instead of mounting a directory on the internal disk.
+        try StoragePreflight.live.requireReady(.toolchainCache)
         do {
             try FileManager.default.createDirectory(at: Paths.toolchainCache, withIntermediateDirectories: true)
         } catch {

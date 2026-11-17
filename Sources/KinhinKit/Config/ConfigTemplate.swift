@@ -126,6 +126,16 @@ extension ConfigLoader {
         # Running PRs from outside contributors? Also keep projects[].share_cache off (docs/toolchains.md).
         # token_ttl: 3000      # seconds to cache the runner registration token
 
+        # Optional: keep the large trees on another volume (an external disk).
+        # Each key is absolute and optional; a missing key keeps the default
+        # location. The volume must be mounted with ownership enabled
+        # (sudo diskutil enableOwnership /Volumes/Storage) or kinhin starts
+        # nothing; it never falls back to the internal disk.
+        # tart_home: /Volumes/Storage/tart                        # TART_HOME (default ~/.tart)
+        # container_app_root: /Volumes/Storage/container          # container system start --app-root
+        # registry_cache_path: /Volumes/Storage/kinhin/registry-cache
+        # toolchain_cache_path: /Volumes/Storage/kinhin/toolchain-cache
+
         # Optional: bake your own toolchains into the base image. The script
         # runs (verbatim, as the admin user) inside the VM during
         # `kinhin image prepare`, after the runner agents are installed;

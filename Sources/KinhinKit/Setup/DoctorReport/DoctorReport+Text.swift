@@ -248,6 +248,18 @@ extension DoctorReport {
                 }
             }
         }
+        if let storage {
+            for (index, entry) in storage.paths.enumerated() {
+                let label = index == 0 ? "storage" : ""
+                let volume = entry.mountPoint.map { " on \($0)" } ?? ""
+                let line =
+                    entry.ok
+                    ? "\(entry.key) \(entry.path)\(volume) ✓"
+                    : "\(entry.key) \(entry.path) NOT READY ✗ — \(entry.problem ?? "not usable")"
+                if index == 0 { row(label, line) } else { more(line) }
+                if let fix = entry.fix { more(fix) }
+            }
+        }
         if let base = tartBaseImage {
             switch base.state {
             case "known": row("base image", "\(base.reference) ✓ (\(base.pinned ? "pinned" : "pre-configured"))")

@@ -164,4 +164,10 @@ final class AppleContainerInstallTests: XCTestCase {
     func testAPathUnderVolumesIsExternal() {
         XCTAssertTrue(AppleContainerInstall.isExternalVolume(URL(fileURLWithPath: "/Volumes/Fast/container")))
     }
+
+    func testTheProbedAppRootIsTheConfiguredContainerAppRoot() {
+        XCTAssertEqual(
+            AppleContainerInstall.appRoot(configured: "/Volumes/Storage/container").path, "/Volumes/Storage/container")
+        XCTAssertEqual(AppleContainerInstall.appRoot(configured: nil).lastPathComponent, "com.apple.container")
+    }
 }

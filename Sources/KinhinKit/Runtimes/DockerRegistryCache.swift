@@ -24,8 +24,10 @@ actor DockerRegistryCache {
     static let guestDataPath = "/var/lib/registry"
 
     /// The host directory bind-mounted at `guestDataPath`: cached layers survive the container.
+    /// `registry_cache_path:` moves it (`StorageLocations`).
     static var defaultDataDirectory: URL {
-        Paths.appSupport.appendingPathComponent("registry-cache", isDirectory: true)
+        StorageLocations.configuredDirectory(.registryCache)
+            ?? Paths.appSupport.appendingPathComponent("registry-cache", isDirectory: true)
     }
 
     /// What `container inspect` says about the cache container.
@@ -34,6 +36,8 @@ actor DockerRegistryCache {
         let state: String
         /// Its IPv4 address on the container network, without the prefix length; nil until it has one.
         let address: String?
+        /// The host directory mounted at `guestDataPath`; nil when `container inspect` does not show its mounts.
+        var dataSource: String? = nil
 
         var isRunning: Bool { state == "running" }
     }
@@ -61,6 +65,8 @@ actor DockerRegistryCache {
     let pollInterval: Duration
     /// The start in progress, which concurrent callers join instead of starting a second container.
     private var inFlight: Task<String, any Error>?
+    /// Whether the running cache's other data directory was already logged (once per process).
+    private var reportedDataMismatch = false
 
     init(
         shell: ShellRunning = Shell(), binPath: String? = nil, dataDirectory: URL = defaultDataDirectory,
@@ -130,13 +136,52 @@ actor DockerRegistryCache {
     }
 
     private func runningAddress() async throws -> String {
+        // A configured data directory on a volume that is away would leave the bind mount empty (or create it on
+        // the internal disk): fail here, and the runner pulls from Docker Hub directly.
+        if dataDirectory.path == StorageLocations.current.registryCachePath {
+            try StoragePreflight.live.requireReady(.registryCache)
+        }
         if let current = try await inspect() {
+            if let source = current.dataSource, !StoragePreflight.sameDirectory(source, dataDirectory.path) {
+                if current.isRunning {
+                    reportDataMismatch(running: source)
+                } else {
+                    // A stopped cache is recreated on the configured directory; the old directory keeps its data.
+                    try await delete(stoppedWith: source)
+                    try await create()
+                    return try await awaitAddress()
+                }
+            }
             if current.isRunning, let address = current.address { return address }
             if !current.isRunning { try await start(from: current.state) }
         } else {
             try await create()
         }
         return try await awaitAddress()
+    }
+
+    /// A running cache keeps its directory until it stops: recreating it would break the pulls of every runner using
+    /// it. Logged once.
+    private func reportDataMismatch(running source: String) {
+        guard !reportedDataMismatch else { return }
+        reportedDataMismatch = true
+        Log.warn(
+            "container",
+            "the Docker Hub cache keeps its data in \(source), the config asks for \(dataDirectory.path); it moves "
+                + "the next time the cache starts (container stop \(Self.containerName) applies it once no job is "
+                + "pulling)")
+    }
+
+    /// Deletes the stopped cache container so it can be created again on the configured data directory.
+    private func delete(stoppedWith source: String) async throws {
+        Log.info(
+            "container",
+            "recreating the stopped Docker Hub cache \(Self.containerName): data \(source) → \(dataDirectory.path)")
+        let result = try await shell.run([bin, "delete", Self.containerName], cwd: nil, timeout: 60)
+        guard result.succeeded || result.stderr.localizedCaseInsensitiveContains("not found") else {
+            throw ContainerManagerError.commandFailed(
+                what: "container: deleting \(Self.containerName)", stderr: result.failureExcerpt)
+        }
     }
 
     private func start(from state: String) async throws {
@@ -231,7 +276,9 @@ actor DockerRegistryCache {
         let address = networks.lazy.compactMap { $0["ipv4Address"] as? String }.first
             .map { String($0.split(separator: "/").first ?? Substring($0)) }
             .flatMap { $0.isEmpty ? nil : $0 }
-        return Inspection(state: state, address: address)
+        let mounts = (first["configuration"] as? [String: Any])?["mounts"] as? [[String: Any]] ?? []
+        let source = mounts.first { $0["destination"] as? String == guestDataPath }?["source"] as? String
+        return Inspection(state: state, address: address, dataSource: source)
     }
 
     /// The cache's state for doctor, read without starting anything.
