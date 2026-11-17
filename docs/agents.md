@@ -98,7 +98,7 @@ For agents that shell out instead of speaking MCP:
 | `kinhin auth list --json` | Every account with its scope and token state (`stored`, `none`, `error`); never the token |
 | `kinhin runtimes [--json] [--no-health]` | Pools, capacity, budget, health, routes |
 | `kinhin pipeline [VM] [--job N] --json` | Live jobs and steps |
-| `kinhin config validate --json` | `valid` + parsed facts, or `valid: false` + `error` (exit 3) |
+| `kinhin config validate --json` | `valid` + parsed facts (and `notes`, such as the default `image:` applied), or `valid: false` + `error` (exit 3) |
 | `kinhin cleanup … --json` | Dry-run report: what a cleanup *would* remove; refuses `--yes` |
 | `kinhin workflow test … --json` | Local workflow-run report with `outcome` (`succeeded`, `partial`, `failed`, …); exit 1 unless `succeeded` (`--lenient` also accepts `partial`) |
 | `kinhin workflow route … --json` | What the route edit did or would do |

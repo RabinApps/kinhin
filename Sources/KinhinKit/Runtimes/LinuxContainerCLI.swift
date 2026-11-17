@@ -42,13 +42,16 @@ struct LinuxContainerCLI: Sendable {
     /// Route `docker build` through a buildx builder once dockerd answers: dockerd runs under Rosetta in an amd64
     /// container, where its built-in BuildKit cannot run a build step (`RunnerBootstrap.linuxDockerBuilderScript`).
     var buildsThroughBuildxBuilder = false
+    /// dockerd's data root is a persistent volume from earlier jobs (`DockerBuildCacheVolumes`): once it answers, the
+    /// containers, networks and volumes the last job left are removed (`RunnerBootstrap.linuxDockerLeftoversScript`).
+    var keepsDockerState = false
 
     var memoryLabel: String { "\(memoryBytes / 1_048_576)M" }
 
     // MARK: - Provision
 
     /// Starts the runner container (or restarts an existing one: recovery).
-    func provision(id: String, route: RepoRoute) async throws {
+    func provision(id: String, route: RepoRoute, extraRunFlags: [String] = []) async throws {
         if try await containerIDs(all: true).contains(id) {
             Log.info(id, "container already exists; starting it (recovery)")
             try await require(run([bin, "start", id]), "starting container \(id)")
@@ -64,6 +67,7 @@ struct LinuxContainerCLI: Sendable {
             argv += ["--volume", ToolchainCacheMount.volumeSpec(host: host.path)]
         }
         argv += ["--name", id, "--cpus", String(cpus), "--memory", memoryLabel] + dialect.runFlags + poolRunFlags
+        argv += extraRunFlags
         argv += [
             "--rm",  // a container that stops (crash, engine kill) removes itself
             image,
@@ -90,8 +94,10 @@ struct LinuxContainerCLI: Sendable {
         // Docker first: a runner must not take a job before its daemon answers.
         let daemonConfig = dockerDaemonJSON.map { RunnerBootstrap.linuxDockerDaemonConfigScript(json: $0) + "\n\n" }
         let builder = buildsThroughBuildxBuilder ? RunnerBootstrap.linuxDockerBuilderScript() + "\n\n" : ""
+        let leftovers = keepsDockerState ? RunnerBootstrap.linuxDockerLeftoversScript() + "\n\n" : ""
         let dockerPrefix =
-            startsDocker ? (daemonConfig ?? "") + RunnerBootstrap.linuxDockerDaemonScript() + "\n\n" + builder : ""
+            startsDocker
+            ? (daemonConfig ?? "") + RunnerBootstrap.linuxDockerDaemonScript() + "\n\n" + leftovers + builder : ""
         return dockerPrefix + cachePrefix
             + (try forge.credentials.forge.descriptor.registrationScript(for: .linuxContainer, request))
     }

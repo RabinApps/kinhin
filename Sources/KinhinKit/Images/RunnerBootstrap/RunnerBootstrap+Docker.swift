@@ -48,6 +48,35 @@ extension RunnerBootstrap {
         """
     }
 
+    /// How full the build cache volume may get before a runner prunes what no image or build needs any more.
+    static let dockerStatePrunePercent = 80
+
+    /// Run once dockerd answers on a runner whose /var/lib/docker is a build cache volume from earlier jobs
+    /// (`DockerBuildCacheVolumes`): images and the build cache stay, but whatever the last job left behind does not
+    /// carry over into this one: every container (dockerd restarts some on its own), unused networks, and volumes
+    /// other than buildx's own builder state (`buildx_buildkit_*`, the amd64 builder's cache). A volume past
+    /// `dockerStatePrunePercent` full is pruned of unused images and build cache, so it never fills up mid-job. Never
+    /// fails the registration: each step only warns.
+    static func linuxDockerLeftoversScript(prunePercent: Int = dockerStatePrunePercent) -> String {
+        """
+        # Docker build cache (docker: { build_cache: true }): /var/lib/docker is kept between jobs. Images and the build
+        # cache stay; containers, networks and volumes the last job left behind do not.
+        leftover_containers="$(docker ps -aq 2>/dev/null)"
+        if [ -n "$leftover_containers" ]; then
+          docker rm -f $leftover_containers >/dev/null 2>&1 \\
+            || echo "kinhin: warning: could not remove the containers an earlier job left in dockerd" >&2
+        fi
+        docker network prune -f >/dev/null 2>&1 || true
+        docker volume ls -q 2>/dev/null | grep -v '^buildx_buildkit_' | xargs -r docker volume rm -f >/dev/null 2>&1 || true
+        docker_state_used="$(df --output=pcent /var/lib/docker 2>/dev/null | tail -n 1 | tr -dc '0-9')"
+        if [ -n "$docker_state_used" ] && [ "$docker_state_used" -ge \(prunePercent) ]; then
+          echo "kinhin: the Docker build cache volume is ${docker_state_used}% full; pruning unused images and build cache" >&2
+          docker system prune -af >/dev/null 2>&1 || true
+        fi
+        echo "Docker build cache: $(df -h --output=used /var/lib/docker 2>/dev/null | tail -n 1 | tr -d ' ') in /var/lib/docker"
+        """
+    }
+
     /// The buildx builder an amd64 runner's builds go through (`linuxDockerBuilderScript`).
     static let rosettaBuilderName = "kinhin"
 

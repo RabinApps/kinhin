@@ -117,6 +117,7 @@ struct ContainerPoolDraft: Equatable {
             cpus: number(cpus), memoryGB: number(memoryGB), labels: labelList.isEmpty ? nil : labelList,
             fleetLabels: original?.fleetLabels, minIdle: number(minIdle), docker: dockerValue,
             dockerCache: docker == .on ? original?.dockerCache : nil,
-            flags: flagList.isEmpty ? nil : flagList, max: number(max), platform: original?.platform)
+            flags: flagList.isEmpty ? nil : flagList, max: number(max), platform: original?.platform,
+            dockerBuildCache: docker == .on ? original?.dockerBuildCache : nil)
     }
 }

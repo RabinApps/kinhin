@@ -143,8 +143,68 @@ final class RegistryCacheDoctorTests: XCTestCase {
         let status = await DoctorReportBuilder.registryCacheStatus(runtimeReady: true, cache: cache)
         XCTAssertEqual(
             status,
-            .init(running: true, address: "192.168.64.3:5000", dataBytes: nil, dataDirectory: dir.path, problem: nil))
+            .init(
+                running: true, address: "192.168.64.3:5000", dataBytes: nil, dataDirectory: dir.path, problem: nil,
+                wantedTTL: "336h"))
         XCTAssertEqual(shell.calls, [["/usr/local/bin/container", "inspect", "registry-cache-kinhin"]])
+    }
+
+    // MARK: - Health and TTL (#107)
+
+    func testTheLineShowsTheTTLAndAPendingChange() {
+        var cache = running
+        cache.ttl = "336h"
+        cache.wantedTTL = "336h"
+        XCTAssertTrue(
+            DoctorReport.registryCacheLine(cache).contains(" · TTL 336h"), DoctorReport.registryCacheLine(cache))
+        XCTAssertFalse(DoctorReport.registryCacheLine(cache).contains("next start"))
+        cache.wantedTTL = "0h"
+        let pending = DoctorReport.registryCacheLine(cache)
+        XCTAssertTrue(pending.contains("TTL 336h (config: 0h, applied at the cache's next start)"), pending)
+        cache.ttl = "0h"
+        XCTAssertTrue(DoctorReport.registryCacheLine(cache).contains("TTL off (nothing expires)"))
+    }
+
+    func testBrokenEntriesMakeTheCacheUnhealthy() {
+        var cache = running
+        cache.brokenEntries = 2
+        cache.brokenExamples = ["repositories/library/golang/_layers/sha256/4f4f/link"]
+        XCTAssertFalse(cache.isHealthy)
+        let line = DoctorReport.registryCacheLine(cache)
+        XCTAssertTrue(line.contains("UNHEALTHY: 2 broken entries"), line)
+        XCTAssertTrue(line.contains("unexpected EOF"), line)
+        XCTAssertTrue(line.contains("library/golang"), line)
+        XCTAssertTrue(line.contains("_layers/sha256/4f4f/link (+1 more) ✗"), line)
+        XCTAssertTrue(line.hasSuffix("✗"), line)
+
+        cache.brokenEntries = 0
+        XCTAssertTrue(cache.isHealthy)
+        XCTAssertTrue(DoctorReport.registryCacheLine(cache).contains("entries intact ✓"))
+        XCTAssertFalse(DoctorReport.registryCacheLine(running).contains("intact"), "not checked, nothing said")
+    }
+
+    func testTheProbeChecksTheDataDirectory() async throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("doctor-cache-\(UUID().uuidString)")
+        addTeardownBlock { try? FileManager.default.removeItem(at: dir) }
+        let link = dir.appendingPathComponent(
+            "docker/registry/v2/repositories/library/golang/_layers/sha256/\(String(repeating: "a", count: 64))/link")
+        try FileManager.default.createDirectory(
+            at: link.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try "sha256:\(String(repeating: "a", count: 64))".write(to: link, atomically: true, encoding: .utf8)
+        let cache = DockerRegistryCache(shell: FakeShell(), dataDirectory: dir, ttlHours: 0)
+        let status = await DoctorReportBuilder.registryCacheStatus(runtimeReady: false, cache: cache)
+        XCTAssertEqual(status.brokenEntries, 1)
+        XCTAssertEqual(status.wantedTTL, "0h")
+        XCTAssertEqual(status.brokenExamples?.first?.hasPrefix("repositories/library/golang/_layers"), true)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: link.path), "doctor only reports; it deletes nothing")
+    }
+
+    func testAReportWithoutTheHealthFieldsStillDecodes() throws {
+        let json = #"{"running":true,"address":"a:5000","dataBytes":1,"dataDirectory":"/x"}"#
+        let decoded = try JSONDecoder().decode(DoctorReport.RegistryCacheStatus.self, from: Data(json.utf8))
+        XCTAssertNil(decoded.brokenEntries)
+        XCTAssertNil(decoded.ttl)
+        XCTAssertTrue(decoded.isHealthy)
     }
 
     func testWithTheRuntimeDownTheProbeDoesNotCallTheCLI() async {

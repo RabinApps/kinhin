@@ -67,12 +67,20 @@ extension GeneralConfigEditor {
             public var pools: [ContainerPool]
             /// `container.enabled`, carried so a rewrite keeps a switched-off pool off (written only when false).
             public var enabled: Bool
+            /// `docker: { build_cache: true }` (see `KinhinConfig.ContainerConfig.dockerBuildCache`), carried so a
+            /// rewrite keeps it.
+            public var dockerBuildCache: Bool
+            /// `container.registry_cache_ttl_hours` as written, carried so a rewrite keeps it.
+            public var registryCacheTTLHours: Int?
             public init(
                 image: String, cpus: Int, memoryGB: Int, baseImage: String? = nil, labels: [String]? = nil,
                 fleetLabels: Bool? = nil, minIdle: Int = 0, docker: Bool = false, dockerCache: Bool = true,
-                flags: [String] = [], platform: String? = nil, pools: [ContainerPool] = [], enabled: Bool = true
+                flags: [String] = [], platform: String? = nil, pools: [ContainerPool] = [], enabled: Bool = true,
+                dockerBuildCache: Bool = false, registryCacheTTLHours: Int? = nil
             ) {
                 self.enabled = enabled
+                self.dockerBuildCache = dockerBuildCache
+                self.registryCacheTTLHours = registryCacheTTLHours
                 self.image = image
                 self.cpus = cpus
                 self.memoryGB = memoryGB
@@ -165,7 +173,8 @@ extension GeneralConfigEditor {
                     memoryGB: $0.memoryGB ?? 8, baseImage: $0.baseImage, labels: $0.labels,
                     fleetLabels: $0.fleetLabels, minIdle: $0.minIdle ?? 0, docker: $0.docker?.enabled ?? false,
                     dockerCache: $0.docker?.cache ?? true, flags: $0.flags ?? [], platform: $0.platform, pools: pools,
-                    enabled: $0.enabled ?? true)
+                    enabled: $0.enabled ?? true, dockerBuildCache: $0.docker?.buildCache ?? false,
+                    registryCacheTTLHours: $0.registryCacheTTLHours)
             },
             docker: partial.docker.map {
                 .init(

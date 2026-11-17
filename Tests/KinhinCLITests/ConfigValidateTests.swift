@@ -67,8 +67,26 @@ final class ConfigValidateTests: XCTestCase {
             .init(
                 valid: true, path: configURL.path, error: nil,
                 accounts: [.init(name: "github", forge: "github", scope: "acme/widgets")],
-                labels: ["self-hosted", "macos"], runtimeRoutes: 1)
+                labels: ["self-hosted", "macos"], runtimeRoutes: 1, notes: [ConfigLoader.defaultImageNote])
         )
+    }
+
+    func testANoteSaysWhichDefaultImageAConfigWithoutImageGets() throws {
+        let accounts = """
+            accounts:
+              - name: github
+                forge: github
+                scope: "acme/widgets"
+
+            """
+        try accounts.write(to: configURL, atomically: true, encoding: .utf8)
+        let notes = try XCTUnwrap(ConfigCommands.validationDocument(configURL: configURL).notes)
+        XCTAssertEqual(notes.count, 1)
+        XCTAssertTrue(notes[0].contains("'tahoe-base'"), notes[0])
+
+        try (accounts + "image: tahoe-base\n").write(to: configURL, atomically: true, encoding: .utf8)
+        XCTAssertNil(
+            ConfigCommands.validationDocument(configURL: configURL).notes, "no key when there is nothing to say")
     }
 
     func testValidationDocumentReportsFailuresInsteadOfThrowing() throws {

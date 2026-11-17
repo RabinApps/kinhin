@@ -21,6 +21,8 @@ extension KinhinConfig.ContainerConfig {
         public var docker: Bool
         /// See `ContainerConfig.dockerCache`.
         public var dockerCache: Bool
+        /// See `ContainerConfig.dockerBuildCache`.
+        public var dockerBuildCache: Bool
         public var flags: [String]
         /// At most this many of the pool's runners at once (`max:`); nil = only the shared budget and
         /// `max_runners` limit it. Only named pools have one.
@@ -35,10 +37,11 @@ extension KinhinConfig.ContainerConfig {
             name: String, image: String, baseImage: String? = nil, cpus: Int = KinhinConfig.ContainerConfig.defaultCPUs,
             memoryGB: Int = KinhinConfig.ContainerConfig.defaultMemoryGB, labels: [String]? = nil,
             fleetLabels: Bool? = nil, minIdle: Int = 0,
-            docker: Bool = false, dockerCache: Bool = true, flags: [String] = [], max: Int? = nil,
-            platform: LinuxPlatform = .arm64, enabled: Bool = true
+            docker: Bool = false, dockerCache: Bool = true, dockerBuildCache: Bool = false, flags: [String] = [],
+            max: Int? = nil, platform: LinuxPlatform = .arm64, enabled: Bool = true
         ) {
             self.enabled = enabled
+            self.dockerBuildCache = dockerBuildCache
             self.name = name
             self.image = image
             self.baseImage = baseImage
@@ -60,12 +63,15 @@ extension KinhinConfig.ContainerConfig {
                 name: "", image: section.image, baseImage: section.baseImage, cpus: section.cpus,
                 memoryGB: section.memoryGB, labels: section.labels, fleetLabels: section.fleetLabels,
                 minIdle: section.minIdle, docker: section.docker, dockerCache: section.dockerCache,
-                flags: section.flags,
+                dockerBuildCache: section.dockerBuildCache, flags: section.flags,
                 platform: section.platform, enabled: section.enabled)
         }
 
         /// Whether the pool's runners pull through the Docker Hub cache: Docker on, and the cache not turned off.
         public var usesDockerCache: Bool { docker && dockerCache }
+
+        /// Whether the pool's runners keep their Docker state between jobs: Docker on, and `build_cache` on.
+        public var usesDockerBuildCache: Bool { docker && dockerBuildCache }
 
         /// Whether this is a `pools:` entry rather than the section itself.
         public var isNamed: Bool { !name.isEmpty }

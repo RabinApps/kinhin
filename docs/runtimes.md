@@ -283,8 +283,9 @@ capability (`--cap-add ALL`), which dockerd needs for its iptables chains; befor
 `/proc/sys` read-write (Apple container mounts it read-only, and dockerd writes `net.ipv4.ip_forward`), starts
 `dockerd` in the background (log: `/var/log/dockerd.log` in the container) and waits up to 60 seconds for `docker info`
 to answer. A runner whose daemon does not start fails registration with the end of that log. Jobs run as root, so no
-`sudo` is needed. The daemon lives and dies with its runner container, so build cache is not shared between jobs;
-images pulled from Docker Hub come through kinhin's [Docker Hub cache](#docker-hub-cache).
+`sudo` is needed. The daemon lives and dies with its runner container, so by default build cache is not shared between
+jobs (see [Docker build cache](#docker-build-cache) to keep it); images pulled from Docker Hub come through kinhin's
+[Docker Hub cache](#docker-hub-cache).
 
 The image needs Docker: with `docker: true`, `kinhin image prepare --container` (and **Prepare** in the app) installs
 `docker.io`, `iptables`, and `docker-buildx` and `docker-compose-v2` where the distribution has them, unless the base
@@ -298,7 +299,8 @@ Docker actions, test images) from Docker Hub again, and every runner on the Mac 
 limit. So with `docker: true`, kinhin runs a pull-through cache of Docker Hub and points each runner's dockerd at it:
 
 - **The cache** is one Apple container, `registry-cache-kinhin`, running Docker's `registry:3` in proxy mode (1 vCPU,
-  1 GB, entries kept 336 hours) with its data in `~/Library/Application Support/Kinhin/registry-cache/`. The first
+  1 GB, entries kept 336 hours unless [`registry_cache_ttl_hours`](#expiry-and-broken-entries) says otherwise) with its
+  data in `~/Library/Application Support/Kinhin/registry-cache/`. The first
   Docker runner that needs it starts it; a running cache is adopted as it is and a stopped one (after a reboot) is
   started again. It is not a runner: it takes no runner slot or capacity, recovery and the orphan sweep leave it
   alone, and `kinhin image prune` keeps `registry:3` while a pool uses the cache. Stop it with `container stop
@@ -322,7 +324,67 @@ so one job cannot plant an image for the next. Only Docker Hub images go through
 
 To keep Docker but skip the cache, give `docker:` a mapping: `docker: { cache: false }`, on `container:` or on one
 pool. A pool that leaves `docker:` out inherits the section's whole value, cache setting included. `kinhin doctor`
-shows whether the cache is running, its address and how much it holds.
+shows whether the cache is running, its address, how much it holds, its TTL and whether its entries are intact.
+
+###### Expiry and broken entries
+
+`registry:3` forgets a cached layer or manifest once it is older than the proxy TTL, and asks Docker Hub again the next
+time it is pulled. Set the TTL in hours with `registry_cache_ttl_hours:` under `container:` (one cache serves every
+pool, so pools have no key of their own):
+
+```yaml
+container:
+  docker: true
+  registry_cache_ttl_hours: 0     # 0: nothing expires; default 336 (two weeks)
+```
+
+| TTL | Trade-off |
+| --- | --- |
+| `336` (default) | Tags such as `golang:1.25` move to new layers within two weeks; the data directory stays near the size of what jobs pulled recently. |
+| longer (`720`, `2160`) | Fewer trips to Docker Hub and fewer expiries; a moved tag is still re-checked whenever its manifest expires. |
+| `0` | Nothing expires: no expiry can break a pull, but the data directory only grows. Empty it by hand (stop the container, delete the directory) when it gets big. |
+
+A running cache keeps the TTL it was started with: the new value applies when it next starts (`container stop
+registry-cache-kinhin` with no job pulling; the next Docker runner starts it again, recreated with the new TTL, keeping
+its data). `kinhin doctor` shows both while they differ.
+
+When a layer expires, `registry:3` deletes the blob itself, but other repositories' links to the same blob (layers such
+as the one-byte `4f4fb700…` are shared by many images) stay behind. A pull of one of those images then gets the layer
+as an empty or cut-off response and fails with `unexpected EOF`. kinhin checks the data directory for such broken
+entries (a link to a missing blob, an empty blob) before handing a runner the cache's address, at most every five
+minutes, and deletes them, so the next pull fetches those layers from Docker Hub again. `kinhin doctor` reports the
+cache as **UNHEALTHY** while it holds any, with examples; the next Docker runner repairs it.
+
+##### Docker build cache
+
+`docker: { build_cache: true }` (on `container:` or on one pool, off by default) keeps each Docker runner's Docker state
+between jobs, so `docker build` reuses layers from earlier jobs and images are not pulled again:
+
+```yaml
+container:
+  docker: { build_cache: true }       # with the Docker Hub cache: { cache: false, build_cache: true } turns that off
+```
+
+- **Volumes.** Each runner gets an Apple container volume of its own mounted at `/var/lib/docker` (dockerd's image
+  store and BuildKit's cache), named `docker-cache-kinhin-<pool>-<n>` (`default` for a section without `pools:`). A
+  runner takes the lowest-numbered volume of its pool that no container holds, so a pool has as many volumes as it has
+  had runners at once. Volumes are created on first use as sparse 64 GB ext4 disk images (dockerd's overlay2 needs a
+  real file system, which a bind-mounted host directory is not) and take only the space dockerd writes. `container
+  volume list` shows them; `container volume delete <name>` empties one while no runner holds it.
+- **One writer per cache.** A volume belongs to one runner at a time (recorded as the container label
+  `kinhin.docker-build-cache`), so two dockerds never share a data root or a BuildKit cache, which would corrupt it.
+  Runners that run at the same time each warm their own volume.
+- **Between jobs.** Before the runner registers, kinhin removes the containers, networks and volumes the last job left
+  in dockerd (buildx's own builder state, `buildx_buildkit_*`, stays, so amd64 pools keep their build cache too), and
+  prunes unused images and build cache once the volume is 80% full. Before a runner is deleted, kinhin stops its
+  containers and dockerd so the volume is written out cleanly.
+- **If anything fails** (the volumes cannot be listed or created), the runner logs why and starts with an empty
+  Docker, as with the option off.
+
+Like the shared toolchain cache (`share_cache`), this is a writable cache that later jobs trust: a job can leave an
+image or a cache layer behind that a later job on the same pool then uses. Turn it on only for pools whose jobs you
+trust alike, never on a pool that runs pull requests from forks. Images baked into the runner image's own
+`/var/lib/docker` are hidden by the volume.
 
 #### Extra `container run` flags
 

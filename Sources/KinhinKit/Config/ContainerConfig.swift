@@ -20,10 +20,13 @@ extension KinhinConfig {
         public init(
             image: String, cpus: Int = defaultCPUs, memoryGB: Int = defaultMemoryGB, labels: [String]? = nil,
             baseImage: String? = nil, fleetLabels: Bool? = nil, minIdle: Int = 0, docker: Bool = false,
-            dockerCache: Bool = true, flags: [String] = [], platform: LinuxPlatform = .arm64, pools: [Pool] = [],
-            enabled: Bool = true
+            dockerCache: Bool = true, dockerBuildCache: Bool = false, flags: [String] = [],
+            platform: LinuxPlatform = .arm64, pools: [Pool] = [], enabled: Bool = true,
+            registryCacheTTLHours: Int? = nil
         ) {
             self.enabled = enabled
+            self.dockerBuildCache = dockerBuildCache
+            self.registryCacheTTLHours = registryCacheTTLHours
             self.image = image
             self.cpus = cpus
             self.memoryGB = memoryGB
@@ -61,6 +64,22 @@ extension KinhinConfig {
         /// `docker: { cache: false }`. Means nothing while `docker` is off; read `Pool.usesDockerCache`.
         public var dockerCache: Bool
 
+        /// Whether each Docker runner keeps its Docker state (pulled images, build cache) between jobs, in a
+        /// persistent volume of its own at `/var/lib/docker` (`docker: { build_cache: true }`, default off; see
+        /// `DockerBuildCacheVolumes`). Means nothing while `docker` is off; read `Pool.usesDockerBuildCache`.
+        public var dockerBuildCache: Bool
+
+        /// The Docker Hub cache's proxy TTL in hours (`container.registry_cache_ttl_hours`): how long a cached layer
+        /// or manifest is kept before Docker Hub is asked again. nil = `defaultRegistryCacheTTLHours`; 0 = never
+        /// expires (the cache then only grows). One cache serves every pool, so pools have no key of their own.
+        public var registryCacheTTLHours: Int?
+
+        /// The proxy TTL when `registry_cache_ttl_hours` is not set: two weeks.
+        public static let defaultRegistryCacheTTLHours = 336
+
+        /// `registryCacheTTLHours` with the default filled in.
+        public var effectiveRegistryCacheTTLHours: Int { registryCacheTTLHours ?? Self.defaultRegistryCacheTTLHours }
+
         /// Extra `container run` arguments (`container.flags`), passed as separate argv elements after kinhin's own
         /// flags. The loader rejects the flags kinhin sets itself (`ConfigLoader.validatedContainerRunFlags`).
         public var flags: [String]
@@ -86,6 +105,7 @@ extension KinhinConfig {
             case fleetLabels = "fleet_labels"
             case minIdle = "min_idle"
             case docker, flags, platform, pools
+            case registryCacheTTLHours = "registry_cache_ttl_hours"
         }
     }
 }
