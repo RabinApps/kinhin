@@ -9375,53 +9375,6 @@
         }
       }
     },
-    "Choose a workflow file" : {
-      "comment" : "Text in WorkflowTestView",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "اختر ملف سير عمل"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Workflow-Datei wählen"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Elegir un archivo de workflow"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Choisir un fichier de workflow"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "בחירת קובץ workflow"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Scegli un file workflow"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ワークフローファイルを選択"
-          }
-        }
-      }
-    },
     "Choose Repository…" : {
       "comment" : "Text in VideosView",
       "localizations" : {
@@ -20374,53 +20327,6 @@
         }
       }
     },
-    "Jobs" : {
-      "comment" : "Text in WorkflowTestView",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "المهام"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Jobs"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Trabajos"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Jobs"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "משימות"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Job"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ジョブ"
-          }
-        }
-      }
-    },
     "Jobs per VM" : {
       "comment" : "row in CapacityView",
       "localizations" : {
@@ -24211,53 +24117,6 @@
     "Make a video" : {
       "comment" : "Diagnostics → Tools: title of the card that opens the Make a Video sheet"
     },
-    "Make a Video" : {
-      "comment" : "Text in VideosView",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "أنشئ فيديو"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Video erstellen"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Crear un video"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Créer une vidéo"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "יצירת סרטון"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Crea un video"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ビデオを作成"
-          }
-        }
-      }
-    },
     "Make a Video…" : {
       "comment" : "Button in FleetView",
       "localizations" : {
@@ -25291,53 +25150,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "数 GB のディスクとマルチコア CPU のスループット"
-          }
-        }
-      }
-    },
-    "Music" : {
-      "comment" : "Text in VideosView",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "الموسيقى"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Musik"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Música"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Musique"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "מוזיקה"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Musica"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ミュージック"
           }
         }
       }
@@ -29545,6 +29357,9 @@
           }
         }
       }
+    },
+    "pending" : {
+      "comment" : "Text in WorkflowTestView"
     },
     "Pick at least one event type, or choose all of them." : {
       "comment" : "Alerts sheet problem when no event type is selected"
@@ -39079,53 +38894,6 @@
     "Test to %@ failed — %@" : {
       "comment" : "Settings → App → Alerts status; the webhook's name, then the reason"
     },
-    "Test Workflow" : {
-      "comment" : "Text in WorkflowTestView",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "اختبار سير العمل"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Workflow testen"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Probar workflow"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tester le workflow"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "בדיקת Workflow"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Testa workflow"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ワークフローをテスト"
-          }
-        }
-      }
-    },
     "Test Workflow…" : {
       "comment" : "Button in FleetView",
       "localizations" : {
@@ -44243,53 +44011,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ウインドウ"
-          }
-        }
-      }
-    },
-    "Workflow" : {
-      "comment" : "Text in WorkflowTestView",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "سير العمل"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Workflow"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Workflow"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Workflow"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Workflow"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Workflow"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ワークフロー"
           }
         }
       }

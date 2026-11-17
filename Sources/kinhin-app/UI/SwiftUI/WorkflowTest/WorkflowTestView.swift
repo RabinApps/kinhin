@@ -12,106 +12,86 @@ struct WorkflowTestView: View {
     let onClose: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            header
-            if model.state == .idle {
-                preRun
-            } else if model.state == .running {
-                runningView
-            } else {
-                finishedView
-            }
-            footer
-        }
-        .padding(.horizontal, 20)
-        .padding(.top, 16)
-        .padding(.bottom, 14)
-        .frame(width: Self.size.width, height: Self.size.height, alignment: .topLeading)
+        SheetScaffold(
+            title: "Test a workflow", width: Self.size.width,
+            content: {
+                VStack(alignment: .leading, spacing: Spacing.md) {
+                    chooser
+                    if model.state == .idle {
+                        preRun
+                    } else if model.state == .running {
+                        runningView
+                    } else {
+                        finishedView
+                    }
+                    Spacer(minLength: 0)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            },
+            footer: { footer }
+        )
+        .frame(height: Self.size.height, alignment: .topLeading)
         .task { if model.document == nil { await model.chooseWorkflow() } }
     }
 
-    // MARK: - Header
+    // MARK: - Chooser
 
-    private var header: some View {
-        HStack(spacing: 10) {
-            if let name = model.workflowName {
-                Text(name).font(.system(size: 16, weight: .semibold)).lineLimit(1)
-            } else {
-                Text("Test Workflow").font(.system(size: 16, weight: .semibold)).lineLimit(1)
+    /// The choose button, the chosen file's path, and a spinner while it runs.
+    private var chooser: some View {
+        HStack(spacing: Spacing.md) {
+            Button("Choose Workflow File…") { Task { await model.chooseWorkflow() } }
+                .disabled(model.state == .running)
+                .accessibilityIdentifier("workflow-choose-file")
+            if let url = model.workflowURL {
+                Text(verbatim: url.path)
+                    .typeStyle(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
             }
-            Spacer()
+            Spacer(minLength: 0)
             if model.state == .running {
                 ProgressView().controlSize(.small).accessibilityLabel("Working")
             }
         }
-        .foregroundStyle(model.state == .running ? Color.accentColor : Color.primary)
     }
 
     // MARK: - Pre-run
 
+    @ViewBuilder
     private var preRun: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Choose a workflow file")
-                .font(.system(size: 13, weight: .semibold))
-            Button {
-                Task { await model.chooseWorkflow() }
-            } label: {
-                HStack {
-                    Image(systemName: "folder")
-                    Text("Choose Workflow File…")
-                }
-                .frame(maxWidth: .infinity, minHeight: 40)
-                .background(Color.accentColor)
-                .foregroundStyle(.white)
-                .cornerRadius(8)
-            }
-            .buttonStyle(.plain)
-            if let document = model.document {
-                Text(model.workflowURL?.path ?? "")
-                    .font(.system(size: 10, design: .monospaced)).foregroundStyle(.secondary).lineLimit(1)
+        if let document = model.document {
+            VStack(alignment: .leading, spacing: Spacing.xs) {
+                Text("Job").typeStyle(.caption).fontWeight(.medium).foregroundStyle(.secondary)
                 Picker("Job", selection: $selectedJob) {
                     Text("All jobs").tag(String?.none)
-                    ForEach(document.jobs, id: \.id) { job in Text(job.name).tag(Optional(job.id)) }
+                    ForEach(document.jobs, id: \.id) { job in Text(verbatim: job.name).tag(Optional(job.id)) }
                 }
                 .pickerStyle(.menu)
+                .labelsHidden()
+                .fixedSize()
                 .accessibilityLabel("Workflow job")
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text("Workflow").font(.system(size: 11, weight: .bold)).foregroundStyle(.secondary)
-                        Spacer()
-                        Text(document.name).font(.system(size: 12, design: .monospaced)).lineLimit(1)
-                    }
-                    HStack {
-                        Text("Jobs").font(.system(size: 11, weight: .bold)).foregroundStyle(.secondary)
-                        Spacer()
-                        Text("\(model.jobs.count) jobs").font(.system(size: 12))
-                    }
-                }
-                .padding(10)
-                .background(Color.secondary.opacity(0.12))
-                .cornerRadius(8)
-                Button("Run Workflow") {
-                    Task { await model.start(jobName: selectedJob) }
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(model.state == .running)
             }
-            if let error = model.error {
-                Text(error)
-                    .font(.system(size: 12))
-                    .foregroundStyle(Color.red)
-            }
+            InsetRow(
+                content: { RowLabel("Workflow") },
+                trailing: { Text(verbatim: document.name).typeStyle(.caption).foregroundStyle(.secondary) })
+            InsetRow(
+                content: { RowLabel("Jobs") },
+                trailing: {
+                    Text("\(model.jobs.count) jobs").typeStyle(.caption).foregroundStyle(.secondary)
+                })
+        }
+        if let error = model.error {
+            StatusText(verbatim: error, style: .error).textSelection(.enabled)
         }
     }
 
     // MARK: - Running
 
     private var runningView: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
             if model.jobs.isEmpty {
-                Text("No jobs to run")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
+                HintText("No jobs to run")
             } else {
                 ForEach(model.jobs, id: \.self) { job in
                     jobRow(job, state: model.jobState[job] ?? .pending)
@@ -119,47 +99,32 @@ struct WorkflowTestView: View {
             }
             if let output = model.stepOutput {
                 ScrollView {
-                    Text(output)
-                        .font(.system(size: 11, design: .monospaced))
+                    Text(verbatim: output)
+                        .font(.system(.caption, design: .monospaced))
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(10)
+                        .padding(Spacing.sm + 2)
                 }
                 .frame(maxHeight: 140)
-                .background(Color.secondary.opacity(0.08))
-                .cornerRadius(6)
+                .background(RoundedRectangle(cornerRadius: Radius.md).fill(Palette.grouped))
             }
-            Button {
-                model.cancel()
-            } label: {
-                HStack {
-                    Image(systemName: "stop.circle")
-                    Text("Cancel")
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 8)
-                .background(Color.red.opacity(0.15))
-                .foregroundStyle(Color.red)
-                .cornerRadius(8)
-            }
-            .buttonStyle(.plain)
         }
     }
 
     private func jobRow(_ job: String, state: PipelineStepState) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            StateGlyph(state: state)
-            Text(job)
-                .font(.system(size: 12, design: .monospaced))
-            Spacer()
-            if let duration = model.jobDuration[job] {
-                Text(verbatim: AppFormat.duration(duration))
-                    .font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary)
-            }
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(Color.secondary.opacity(0.1))
-        .cornerRadius(6)
+        InsetRow(
+            alignment: .firstTextBaseline,
+            leading: { StateGlyph(state: state) },
+            content: { Text(verbatim: job).typeStyle(.body).fontWeight(.medium) },
+            trailing: {
+                if let duration = model.jobDuration[job] {
+                    Text(verbatim: AppFormat.duration(duration)).typeStyle(.caption).monospacedDigit()
+                        .foregroundStyle(.secondary)
+                } else if state == .running {
+                    Text("running").typeStyle(.caption).foregroundStyle(.secondary)
+                } else if state == .pending {
+                    Text("pending").typeStyle(.caption).foregroundStyle(.secondary)
+                }
+            })
     }
 
     /// A partial run says so (with how much was skipped) instead of reading as
@@ -180,77 +145,63 @@ struct WorkflowTestView: View {
     // MARK: - Finished
 
     private var finishedView: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            HStack(spacing: Spacing.sm) {
                 StateGlyph(state: model.report?.overallState ?? .pending)
-                Text(verbatim: Self.headline(for: model.report))
-                    .font(.system(size: 13, weight: .semibold))
+                Text(verbatim: Self.headline(for: model.report)).typeStyle(.emphasis)
                 Spacer()
                 if let failed = model.report?.failedJobs, failed > 0 {
-                    Text("\(failed) failed")
-                        .font(.system(size: 11)).foregroundStyle(.red)
+                    StatusText(
+                        verbatim: String(
+                            localized: "\(failed) failed", bundle: .l10n,
+                            comment: "Workflow test: number of failed jobs"), style: .error)
                 }
             }
             if let jobs = model.report?.jobs {
                 ForEach(jobs, id: \.id) { step in
-                    HStack {
-                        StateGlyph(state: step.state)
-                        Text(step.name)
-                            .font(.system(size: 12, design: .monospaced))
-                            .lineLimit(1)
-                        Spacer()
-                        if let duration = step.duration {
-                            Text(verbatim: AppFormat.duration(duration))
-                                .font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary)
-                        }
-                    }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(Color.secondary.opacity(0.1))
-                    .cornerRadius(6)
+                    InsetRow(
+                        leading: { StateGlyph(state: step.state) },
+                        content: { Text(verbatim: step.name).typeStyle(.body).fontWeight(.medium).lineLimit(1) },
+                        trailing: {
+                            if let duration = step.duration {
+                                Text(verbatim: AppFormat.duration(duration)).typeStyle(.caption).monospacedDigit()
+                                    .foregroundStyle(.secondary)
+                            }
+                        })
                 }
             }
             if let notices = model.report?.notices, !notices.isEmpty {
-                Text(notices.joined(separator: "\n"))
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
+                HintText(verbatim: notices.joined(separator: "\n"))
             }
-            Button {
-                Task { await model.start(jobName: selectedJob) }
-            } label: {
-                Text("Run again")
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
-                    .background(Color.accentColor)
-                    .foregroundStyle(.white)
-                    .cornerRadius(8)
+            if let error = model.error {
+                StatusText(verbatim: error, style: .error).textSelection(.enabled)
             }
-            .buttonStyle(.plain)
         }
     }
 
     // MARK: - Footer
 
+    /// Run Workflow (or Run again) on the leading edge, Cancel while running, Done otherwise.
     private var footer: some View {
         HStack {
+            if model.document != nil, model.state != .running {
+                Button(model.state == .idle ? "Run Workflow" : "Run again") {
+                    Task { await model.start(jobName: selectedJob) }
+                }
+                .controlSize(.small)
+                .accessibilityIdentifier("workflow-run")
+            }
             Spacer()
             if model.state == .running {
-                Button {
-                    model.cancel()
-                } label: {
-                    Text("Cancel")
-                }
-                .keyboardShortcut(.escape)
-            } else {
-                Button {
-                    onClose()
-                } label: {
-                    Text("Done")
-                }
-                .keyboardShortcut(.defaultAction)
+                Button("Cancel") { model.cancel() }
+                    .keyboardShortcut(.cancelAction)
+                    .accessibilityIdentifier("workflow-cancel")
             }
+            Button("Done", action: onClose)
+                .keyboardShortcut(.defaultAction)
+                .disabled(model.state == .running)
+                .accessibilityIdentifier("sheet-done")
         }
-        .padding(.top, 8)
     }
 }
 
@@ -259,8 +210,8 @@ private struct StateGlyph: View {
     let state: PipelineStepState
 
     var body: some View {
-        Text(PipelineFormatter.symbol(for: state))
-            .font(.system(size: 14, weight: .bold))
+        Text(verbatim: PipelineFormatter.symbol(for: state))
+            .typeStyle(.emphasis)
             .foregroundStyle(color)
             .frame(width: 16)
             .accessibilityHidden(true)
