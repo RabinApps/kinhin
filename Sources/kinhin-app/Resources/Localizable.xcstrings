@@ -4454,6 +4454,9 @@
         }
       }
     },
+    "Access token" : {
+      "comment" : "HintText in ForgeCard"
+    },
     "Accounts" : {
       "comment" : "Advanced section title",
       "localizations" : {
@@ -9704,6 +9707,9 @@
         }
       }
     },
+    "Collapse" : {
+      "comment" : "Button in ToolchainsGuideView"
+    },
     "collapsed" : {
       "comment" : "Text in FormComponents",
       "localizations" : {
@@ -10035,6 +10041,9 @@
           }
         }
       }
+    },
+    "config.yaml has a problem — %@. Fix it in Runtimes → Edit YAML." : {
+      "comment" : "Config-error status in the Capacity form and the More accounts section; %@ is the config error"
     },
     "config.yaml has a problem — %@. Fix it with Edit YAML…" : {
       "comment" : "Routing tab empty state; %@ is the parse error",
@@ -15239,6 +15248,9 @@
         }
       }
     },
+    "Expand" : {
+      "comment" : "Button in ToolchainsGuideView"
+    },
     "expanded" : {
       "comment" : "Text in FormComponents",
       "localizations" : {
@@ -18252,6 +18264,9 @@
           }
         }
       }
+    },
+    "How toolchains work" : {
+      "comment" : "Card in ToolchainsGuideView"
     },
     "https://dev.azure.com/your-org" : {
       "comment" : "Placeholder in the server address field; keep the example URL verbatim",
@@ -26567,52 +26582,8 @@
         }
       }
     },
-    "No runtime is set up yet. Set one up in Advanced → Capacity." : {
-      "comment" : "HintText in ToolchainsView",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "لم يُعدّ أي runtime بعد. أعدّ واحدًا في متقدم ← السعة."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Noch keine Runtime eingerichtet. Richte unter Erweitert → Kapazität eine ein."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Aún no hay ningún entorno de ejecución configurado. Configura uno en Avanzado → Capacidad."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Aucun runtime n’est configuré. Configurez-en un dans Avancé → Capacité."
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "עדיין לא הוגדרה סביבה. הגדירו אחת במתקדם ← קיבולת."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nessun runtime è ancora configurato. Configurarne uno in Avanzate → Capacità."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ランタイムがまだセットアップされていません。詳細 → キャパシティ でセットアップしてください。"
-          }
-        }
-      }
+    "No runtime is set up yet. Set one up in Runtimes." : {
+      "comment" : "HintText in ToolchainsView"
     },
     "No runtimes — the fleet is idle." : {
       "comment" : "StatusText in FleetDiagramView",
@@ -27936,6 +27907,9 @@
         }
       }
     },
+    "Nothing is chosen in this app — repos describe what they need." : {
+      "comment" : "Card in ToolchainsGuideView"
+    },
     "Nothing to fix so far." : {
       "comment" : "Diagnostics healing card when the journal is empty",
       "localizations" : {
@@ -28499,6 +28473,9 @@
           }
         }
       }
+    },
+    "Open config" : {
+      "comment" : ".action in AccountsSectionView"
     },
     "Open config file" : {
       "comment" : "Button in AppSectionView",
@@ -35201,52 +35178,8 @@
         }
       }
     },
-    "Server" : {
-      "comment" : "Text in ForgeCard",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "الخادم"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Server"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Servidor"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Serveur"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "שרת"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Server"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "サーバ"
-          }
-        }
-      }
+    "Server address" : {
+      "comment" : "HintText in ForgeCard"
     },
     "Serving the fleet" : {
       "comment" : "statusRow in AppSectionView",
@@ -39213,6 +39146,9 @@
           }
         }
       }
+    },
+    "The add form is hidden until config.yaml loads." : {
+      "comment" : "HintText in MoreAccountsCard"
     },
     "The background daemon is still starting. Reopen kinhin in a minute." : {
       "comment" : "Status line when the daemon hasn't answered after a wait; no in-process engine is started",
@@ -44053,6 +43989,9 @@
         }
       }
     },
+    "What every runner image has installed." : {
+      "comment" : "HintText in ToolchainsView"
+    },
     "What kinhin shows at launch" : {
       "comment" : ".accessibilityLabel in AppSectionView",
       "localizations" : {
@@ -44146,6 +44085,9 @@
           }
         }
       }
+    },
+    "Where kinhin picks up jobs. Tokens live in your Keychain, never in a file." : {
+      "comment" : "HintText in AccountsSectionView"
     },
     "Whole job output" : {
       "comment" : "Pipeline job output row",

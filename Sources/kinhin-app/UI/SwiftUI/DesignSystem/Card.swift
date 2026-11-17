@@ -109,23 +109,29 @@ struct CollapsibleFormCard<Content: View>: View {
     var subtitle: Text?
     /// Already-localized text (e.g. a count), so it is shown verbatim.
     var badge: String?
+    var layout: CardLayout = .form
     @ViewBuilder var content: Content
     @State private var expanded = false
 
     init(
         title: LocalizedStringKey, subtitle: LocalizedStringKey? = nil, badge: String? = nil,
-        @ViewBuilder content: () -> Content
+        layout: CardLayout = .form, @ViewBuilder content: () -> Content
     ) {
         self.title = Text(title)
         self.subtitle = subtitle.map { Text($0) }
         self.badge = badge
+        self.layout = layout
         self.content = content()
     }
 
-    init(title: Text, subtitle: Text? = nil, badge: String? = nil, @ViewBuilder content: () -> Content) {
+    init(
+        title: Text, subtitle: Text? = nil, badge: String? = nil, layout: CardLayout = .form,
+        @ViewBuilder content: () -> Content
+    ) {
         self.title = title
         self.subtitle = subtitle
         self.badge = badge
+        self.layout = layout
         self.content = content()
     }
 
@@ -154,7 +160,8 @@ struct CollapsibleFormCard<Content: View>: View {
             }
         }
         .padding(Spacing.lg)
-        .frame(width: FormMetrics.width, alignment: .leading)
+        .frame(width: layout == .form ? FormMetrics.width : nil, alignment: .leading)
+        .frame(maxWidth: layout == .fill ? .infinity : nil, alignment: .leading)
         .formSurface(cornerRadius: Radius.xl)
     }
 }

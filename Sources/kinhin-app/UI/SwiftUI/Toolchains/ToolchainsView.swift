@@ -1,58 +1,52 @@
 import KinhinKit
 import SwiftUI
 
-/// The Toolchains tab: a read-only view of how each repo resolves its
+/// The Toolchains page: a read-only view of how each repo resolves its
 /// toolchains, a catalog browser, copyable `.kinhin/config.yml` examples, and the
 /// base image status. Nothing here edits toolchains.
 struct ToolchainsView: View {
     let model: ToolchainsModel
-    /// Leading/trailing inset around the cards and footer.
-    var inset: CGFloat = 4
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
-                    ToolchainsGuideView()
-                    reposCard
-                    if !model.repoFileImages.isEmpty { derivedImagesCard }
-                    ToolchainsCatalogCards(model: model)
-                    imagesCard
-                }
-                .padding(.horizontal, inset)
-                .padding(.top, 4)
-                .padding(.bottom, 8)
-                .frame(maxWidth: .infinity, alignment: .leading)
+        ScrollView {
+            VStack(alignment: .leading, spacing: Spacing.lg) {
+                HintText("What every runner image has installed.")
+                ToolchainsGuideCard()
+                reposCard
+                if !model.repoFileImages.isEmpty { derivedImagesCard }
+                imagesCard
+                ToolchainsCatalogCards(model: model)
             }
-            footer
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.bottom, Spacing.md)
         }
     }
 
     // MARK: - Repos
 
     private var reposCard: some View {
-        FormCard(
+        Card(
             title: "Repos",
-            subtitle: "One row per project in config.yaml, then everything else."
+            subtitle: "One row per project in config.yaml, then everything else.", layout: .fill
         ) {
             if model.rows.isEmpty {
-                HintText("config.yaml could not be read; see the message below.")
+                StatusText(text: "config.yaml could not be read; see the message below.", style: .error)
             }
             ForEach(model.rows) { row in
                 repoRow(row)
-                if row.id != model.rows.last?.id { Divider() }
             }
         }
     }
 
     private func repoRow(_ row: ProjectToolchainsRow) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            HStack(spacing: Spacing.sm) {
                 Text(row.isDefault ? "Other repos" : row.pattern)
-                    .font(.system(size: 12, weight: .semibold))
+                    .typeStyle(.emphasis)
                     .textSelection(.enabled)
                 Spacer(minLength: 0)
-                Text(ToolchainsModel.sourceTitle(row)).font(.system(size: 10)).foregroundStyle(.secondary)
+                Text(ToolchainsModel.sourceTitle(row)).typeStyle(.caption).foregroundStyle(.secondary)
+                    .multilineTextAlignment(.trailing)
             }
             HintText(verbatim: ToolchainsModel.detail(row))
             if row.hasToolchains {
@@ -73,6 +67,9 @@ struct ToolchainsView: View {
                         comment: "Toolchains tab row; %@ is an image name, size and last use"))
             }
         }
+        .padding(Spacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: Radius.lg).fill(Palette.grouped))
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("repo:\(row.id)")
     }
@@ -80,35 +77,36 @@ struct ToolchainsView: View {
     @ViewBuilder
     private func chipRow(label: LocalizedStringKey, items: [String]) -> some View {
         if !items.isEmpty {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(label).font(.system(size: 11)).foregroundStyle(.secondary).frame(width: 64, alignment: .leading)
-                Text(items.joined(separator: "   "))
-                    .font(.system(size: 11, design: .monospaced))
-                    .textSelection(.enabled)
-                    .fixedSize(horizontal: false, vertical: true)
+            HStack(alignment: .firstTextBaseline, spacing: Spacing.sm) {
+                Text(label).typeStyle(.caption).fontWeight(.semibold).foregroundStyle(.secondary)
+                ForEach(items, id: \.self) { item in Chip(verbatim: item, tone: .neutral) }
             }
         }
     }
 
     private func imageText(_ text: String) -> some View {
         Text(verbatim: text)
-            .font(.system(size: 11))
+            .typeStyle(.caption)
             .foregroundStyle(.secondary)
             .textSelection(.enabled)
             .fixedSize(horizontal: false, vertical: true)
     }
 
     private var derivedImagesCard: some View {
-        FormCard(
+        Card(
             title: "Images from .kinhin/config.yml files",
             subtitle:
-                "Derived images that no fixed toolchain list accounts for. Their versions came from repo files at job time."
+                "Derived images that no fixed toolchain list accounts for. Their versions came from repo files at job time.",
+            layout: .fill
         ) {
             ForEach(model.repoFileImages) { record in
-                VStack(alignment: .leading, spacing: 1) {
-                    imageText(model.imageLine(record))
+                VStack(alignment: .leading, spacing: Spacing.xxs) {
+                    Text(verbatim: model.imageLine(record)).typeStyle(.emphasis).textSelection(.enabled)
                     HintText(verbatim: record.summary)
                 }
+                .padding(Spacing.md)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: Radius.lg).fill(Palette.grouped))
             }
         }
     }
@@ -118,23 +116,25 @@ struct ToolchainsView: View {
     /// One row per runtime that is set up: its base image (read-only) and a
     /// rebuild of the base image. Rebuilding does not change any toolchain.
     private var imagesCard: some View {
-        FormCard(
+        Card(
             title: "Base images",
-            subtitle: "The image every job starts from. Per-repo images with toolchains are cloned from it."
+            subtitle: "The image every job starts from. Per-repo images with toolchains are cloned from it.",
+            layout: .fill
         ) {
             if model.imageRuntimes.isEmpty {
-                HintText("No runtime is set up yet. Set one up in Advanced → Capacity.")
+                HintText("No runtime is set up yet. Set one up in Runtimes.")
             }
             ForEach(model.imageRuntimes, id: \.runtime) { item in
                 imageRow(item)
             }
+            progress
         }
     }
 
     private func imageRow(_ item: ToolchainsModel.ImageRuntime) -> some View {
-        HStack(alignment: .top, spacing: 8) {
-            VStack(alignment: .leading, spacing: 1) {
-                Text(ToolchainsModel.runtimeTitle(item.runtime)).font(.system(size: 12, weight: .semibold))
+        HStack(alignment: .center, spacing: Spacing.sm) {
+            VStack(alignment: .leading, spacing: Spacing.xxs) {
+                Text(ToolchainsModel.runtimeTitle(item.runtime)).typeStyle(.emphasis)
                 if item.runtime != .tart {
                     HintText(
                         verbatim: String(
@@ -144,17 +144,19 @@ struct ToolchainsView: View {
                 }
             }
             Spacer(minLength: 0)
-            Button("Rebuild base image…") { model.startRebuild(item.runtime) }
+            Button("Rebuild base image…") { _ = model.startRebuild(item.runtime) }
                 .controlSize(.small)
                 .disabled(!model.rebuildEnabled)
                 .accessibilityIdentifier("rebuild:\(item.runtime.rawValue)")
         }
+        .padding(Spacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: Radius.lg).fill(Palette.grouped))
     }
 
-    // MARK: - Footer
-
-    private var footer: some View {
-        HStack(spacing: 8) {
+    /// The progress line: spinner and Cancel while a rebuild runs, then the result.
+    private var progress: some View {
+        HStack(spacing: Spacing.sm) {
             if model.busy { ProgressView().controlSize(.small).accessibilityLabel("Working") }
             StatusText(verbatim: model.status.text, style: model.status.style)
                 .lineLimit(3)
@@ -166,7 +168,5 @@ struct ToolchainsView: View {
                     .accessibilityIdentifier("toolchains-busy-cancel")
             }
         }
-        .padding(.leading, inset)
-        .frame(width: FormMetrics.width, alignment: .leading)
     }
 }
