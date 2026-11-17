@@ -22,7 +22,7 @@
   [Install](docs/install.md#keeping-container-data-on-an-external-volume).
 - Storage paths: `tart_home`, `container_app_root`, `registry_cache_path` and `toolchain_cache_path` move Tart's home,
   Apple container's app root, the Docker Hub cache and the toolchain cache to another volume. kinhin exports
-  `TART_HOME` (and keeps it in the LaunchAgent across reinstalls), passes `--app-root` to every
+  `TART_HOME` (and sets or removes it in the LaunchAgent on each install), passes `--app-root` to every
   `container system start`, and checks before any start that the volume is mounted with ownership enabled, never
   falling back to the internal disk. `kinhin doctor` reports each path. See
   [Storage on another volume](website/guide/config.md#storage-on-another-volume).

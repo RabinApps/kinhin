@@ -24,9 +24,45 @@ extension AppleContainerRuntime {
             guard result.succeeded else {
                 throw ContainerManagerError.commandFailed(what: "starting the container system", stderr: result.stderr)
             }
+        } else if let appRoot {
+            try await requireRunningAppRoot(appRoot, shell: shell)
         }
         try await ensureKernel(
             shell: shell, binary: resolvedBinaryPath, directory: kernels(underAppRoot: appRoot))
+    }
+
+    /// A service that is already running keeps the app root it was started with: `container system start` does not
+    /// move it, and the kernel install writes under it. When that root is not `container_app_root:`, every image,
+    /// container and kernel would land in the old root, so stop here. kinhin does not stop the service itself, since
+    /// that stops every container (busy runners and the Docker Hub cache with them). A status kinhin cannot read, or
+    /// one without the root (an older CLI), is accepted as it was before.
+    static func requireRunningAppRoot(_ appRoot: String, shell: ShellRunning) async throws {
+        let result: ShellResult
+        do {
+            result = try await shell.run(
+                [resolvedBinaryPath, "system", "status", "--format", "json"], cwd: nil, timeout: 30)
+        } catch {
+            Log.warn("container", "could not read the container system's app root: \(error.localizedDescription)")
+            return
+        }
+        guard result.succeeded, let running = runningAppRoot(statusJSON: result.stdout) else { return }
+        guard !StoragePreflight.sameDirectory(running, appRoot) else { return }
+        let problem = StorageProblem(
+            location: .containerAppRoot, path: appRoot,
+            problem: "the container system is running with the app root \(running)",
+            fix: "run `container system stop` once no runner is busy (it stops every container); kinhin then starts "
+                + "it on \(appRoot)")
+        Log.error("container", problem.localizedDescription)
+        throw problem
+    }
+
+    /// `paths.appRoot` from `container system status --format json`; nil when it is not there.
+    static func runningAppRoot(statusJSON: String) -> String? {
+        // Output that is not the expected JSON has no root to compare; the start goes on as before.
+        guard let object = try? JSONSerialization.jsonObject(with: Data(statusJSON.utf8)) as? [String: Any],
+            let paths = object["paths"] as? [String: Any], let root = paths["appRoot"] as? String, !root.isEmpty
+        else { return nil }
+        return root
     }
 
     /// The `container system start` argv. `--enable-kernel-install`: without it

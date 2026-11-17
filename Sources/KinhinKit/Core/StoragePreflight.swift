@@ -26,6 +26,8 @@ public struct StoragePreflight: Sendable {
         case missing
         case directory
         case notDirectory
+        /// Missing, and the nearest existing ancestor (the associated path) is a file, so it can never be created.
+        case blockedByFile(String)
     }
 
     /// The volume holding `path`, read from the nearest existing ancestor; nil when it cannot be read.
@@ -50,9 +52,16 @@ public struct StoragePreflight: Sendable {
         func failure(_ what: String, fix: String) -> StorageProblem {
             StorageProblem(location: location, path: path, problem: what, fix: fix)
         }
-        if entry(path) == .notDirectory {
+        switch entry(path) {
+        case .notDirectory:
             return failure(
                 "\(path) exists but is not a directory", fix: "point \(location.configKey) at a directory")
+        case .blockedByFile(let blocker):
+            return failure(
+                "\(blocker) is a file, so \(path) cannot be created",
+                fix: "move \(blocker) aside, or point \(location.configKey) somewhere else")
+        case .missing, .directory:
+            break
         }
         let expected = Self.expectedMountPoint(for: path)
         guard let volume = volume(path) else {
@@ -116,17 +125,32 @@ public struct StoragePreflight: Sendable {
     // MARK: - Mount rules
 
     /// `/Volumes/<name>` for a path on a mounted volume; nil for any other path, which lives on whatever volume
-    /// holds it (the boot volume, usually) and has no separate mount to wait for.
+    /// holds it (the boot volume, usually) and has no separate mount to wait for. `Volumes` matches in any case, as
+    /// the case-insensitive boot volume resolves `/volumes/...` to the same place.
     static func expectedMountPoint(for path: String) -> String? {
         let components = path.split(separator: "/", omittingEmptySubsequences: true)
-        guard components.count >= 2, components[0] == "Volumes" else { return nil }
+        guard components.count >= 2, components[0].lowercased() == "volumes" else { return nil }
         return "/Volumes/\(components[1])"
     }
 
-    /// True when `volume` is the one mounted at `mountPoint`, or one mounted inside it. An unmounted
-    /// `/Volumes/Storage` resolves to `/` (or to a stray folder of that name on the boot volume), which is not.
+    /// True when `volume` is the one mounted at `mountPoint`, or one mounted inside it, ignoring case (a configured
+    /// `/Volumes/storage` names the volume mounted at `/Volumes/Storage`). An unmounted `/Volumes/Storage` resolves
+    /// to `/` (or to a stray folder of that name on the boot volume), which is not.
     static func isMounted(_ mountPoint: String, holding volume: Volume) -> Bool {
-        volume.mountPoint == mountPoint || volume.mountPoint.hasPrefix(mountPoint + "/")
+        let mounted = volume.mountPoint.lowercased()
+        let expected = mountPoint.lowercased()
+        return mounted == expected || mounted.hasPrefix(expected + "/")
+    }
+
+    /// Whether two paths name the same directory once symlinks are resolved and a trailing slash is dropped (a
+    /// directory moved to another disk and left as a symlink is the same place).
+    public static func sameDirectory(_ first: String, _ second: String) -> Bool {
+        func resolved(_ path: String) -> String {
+            guard let real = realpath(path, nil) else { return (path as NSString).standardizingPath }
+            defer { free(real) }
+            return String(cString: real)
+        }
+        return resolved(first) == resolved(second)
     }
 
     // MARK: - Live probes
@@ -152,8 +176,19 @@ public struct StoragePreflight: Sendable {
 
     public static func liveEntry(_ path: String) -> Entry {
         var isDirectory: ObjCBool = false
-        guard FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory) else { return .missing }
-        return isDirectory.boolValue ? .directory : .notDirectory
+        if FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory) {
+            return isDirectory.boolValue ? .directory : .notDirectory
+        }
+        // Missing: it can be created only when its nearest existing ancestor is a directory.
+        var ancestor = path
+        while true {
+            let parent = (ancestor as NSString).deletingLastPathComponent
+            guard parent != ancestor, !parent.isEmpty else { return .missing }
+            ancestor = parent
+            if FileManager.default.fileExists(atPath: ancestor, isDirectory: &isDirectory) {
+                return isDirectory.boolValue ? .missing : .blockedByFile(ancestor)
+            }
+        }
     }
 }
 

@@ -62,6 +62,36 @@ final class StoragePreflightTests: XCTestCase {
         XCTAssertEqual(problem.problem, "/Volumes/Storage/cache exists but is not a directory")
     }
 
+    func testALowercaseVolumesPathIsStillCheckedForItsMount() throws {
+        XCTAssertEqual(StoragePreflight.expectedMountPoint(for: "/volumes/Storage/tart"), "/Volumes/Storage")
+        let unmounted = preflight(mountPoint: "/", entry: .missing)
+        let problem = try XCTUnwrap(unmounted.problem(.tartHome, path: "/volumes/Storage/tart"))
+        XCTAssertEqual(problem.problem, "the volume /Volumes/Storage is not mounted")
+        let mounted = preflight(mountPoint: "/Volumes/Storage", entry: .missing)
+        XCTAssertNil(mounted.problem(.tartHome, path: "/volumes/storage/tart"))
+    }
+
+    func testAFileInThePathBlocksAMissingDirectory() throws {
+        let check = preflight(mountPoint: "/Volumes/Storage", entry: .blockedByFile("/Volumes/Storage/blocker"))
+        let problem = try XCTUnwrap(check.problem(.toolchainCache, path: "/Volumes/Storage/blocker/cache"))
+        XCTAssertEqual(
+            problem.problem, "/Volumes/Storage/blocker is a file, so /Volumes/Storage/blocker/cache cannot be created")
+    }
+
+    func testLiveEntryFindsAFileAmongTheAncestors() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("kinhin-preflight-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let blocker = root.appendingPathComponent("blocker")
+        try Data().write(to: blocker)
+        XCTAssertEqual(
+            StoragePreflight.liveEntry(blocker.appendingPathComponent("a/b").path), .blockedByFile(blocker.path))
+        XCTAssertEqual(StoragePreflight.liveEntry(root.appendingPathComponent("new/dir").path), .missing)
+        XCTAssertEqual(StoragePreflight.liveEntry(root.path), .directory)
+        XCTAssertEqual(StoragePreflight.liveEntry(blocker.path), .notDirectory)
+    }
+
     func testAPathOutsideVolumesHasNoMountToWaitFor() {
         let check = preflight(mountPoint: "/", entry: .missing)
         XCTAssertNil(check.problem(.tartHome, path: "/Users/ci/tart"))

@@ -116,15 +116,37 @@ extension Daemon {
 
     /// Write the LaunchAgent plist pointing at the given kinhin binary. `environment` lands in its
     /// `EnvironmentVariables` on top of whatever the plist already carried there, so a reinstall (an upgrade, a new
-    /// binary path) keeps a `TART_HOME` or other variable the agent had.
-    public static func installAgent(binaryPath: String, environment: [String: String] = [:]) throws {
+    /// binary path) keeps the variables the agent had. The `managed` variables are the config's to decide: one the
+    /// plist had but `environment` no longer sets is removed (a `TART_HOME` left after `tart_home:` was deleted).
+    /// Pass no `managed` variables when the config could not be read, so the plist keeps them.
+    public static func installAgent(
+        binaryPath: String, environment: [String: String] = [:], managed: Set<String> = []
+    ) throws {
         let url = agentPlistPath()
-        let merged = existingAgentEnvironment(at: url).merging(environment) { _, new in new }
+        let merged = mergedAgentEnvironment(
+            existing: existingAgentEnvironment(at: url), environment: environment, managed: managed)
         let plist = agentPlist(binaryPath: binaryPath, logs: Paths.logsDirectory, environment: merged)
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         try plist.write(to: url, atomically: true, encoding: .utf8)
         Log.info("daemon", "launchagent written to \(url.path)")
     }
+
+    /// The plist's variables after an install: `existing` with every `managed` variable `environment` does not set
+    /// removed, then `environment` on top.
+    static func mergedAgentEnvironment(
+        existing: [String: String], environment: [String: String], managed: Set<String>
+    ) -> [String: String] {
+        var kept = existing
+        for key in managed where environment[key] == nil {
+            if let old = kept.removeValue(forKey: key) {
+                Log.info("daemon", "removing \(key)=\(old) from the LaunchAgent: the config no longer sets it")
+            }
+        }
+        return kept.merging(environment) { _, new in new }
+    }
+
+    /// The variables the config decides in the daemon's LaunchAgent (`TART_HOME`, from `tart_home:`).
+    public static let configManagedAgentVariables: Set<String> = [StorageLocations.tartHomeVariable]
 
     /// The variables the daemon's LaunchAgent sets for `storage`: `TART_HOME` when `tart_home:` is configured.
     public static func agentEnvironment(for storage: KinhinConfig.StorageConfig) -> [String: String] {

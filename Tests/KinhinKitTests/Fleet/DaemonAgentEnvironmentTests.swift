@@ -55,4 +55,22 @@ final class DaemonAgentEnvironmentTests: XCTestCase {
         try "not a plist".write(to: broken, atomically: true, encoding: .utf8)
         XCTAssertEqual(Daemon.existingAgentEnvironment(at: broken), [:])
     }
+
+    func testARemovedTartHomeLeavesTheAgentButOtherVariablesStay() {
+        let existing = ["TART_HOME": "/Volumes/Old/tart", "LANG": "en_US.UTF-8"]
+        XCTAssertEqual(
+            Daemon.mergedAgentEnvironment(
+                existing: existing, environment: [:], managed: Daemon.configManagedAgentVariables),
+            ["LANG": "en_US.UTF-8"])
+        XCTAssertEqual(
+            Daemon.mergedAgentEnvironment(
+                existing: existing, environment: ["TART_HOME": "/Volumes/New/tart"],
+                managed: Daemon.configManagedAgentVariables),
+            ["TART_HOME": "/Volumes/New/tart", "LANG": "en_US.UTF-8"])
+    }
+
+    func testAConfigThatDidNotLoadKeepsEveryVariable() {
+        let existing = ["TART_HOME": "/Volumes/Old/tart", "LANG": "en_US.UTF-8"]
+        XCTAssertEqual(Daemon.mergedAgentEnvironment(existing: existing, environment: [:], managed: []), existing)
+    }
 }

@@ -55,7 +55,7 @@ toolchain_cache_path: /Volumes/Storage/kinhin/toolchain-cache
 ```
 
 - **Every start path uses them.** kinhin exports `TART_HOME` for every `tart` it runs and writes it into the daemon's
-  LaunchAgent (`kinhin daemon install`), and a reinstall keeps the variables the LaunchAgent already had. Every
+  LaunchAgent (`kinhin daemon install`); a reinstall keeps the LaunchAgent's other variables. Every
   `container system start` (setup, healing, image builds) passes `--app-root`, and kinhin looks for the container
   kernel under that root. No symlinks or hand-edited LaunchAgents are needed.
 - **The volume is checked first.** Before the daemon starts, and before Tart, the container system or either cache
@@ -72,11 +72,16 @@ toolchain_cache_path: /Volumes/Storage/kinhin/toolchain-cache
   (`container system stop`), enable ownership on the volume, then copy each tree to its new path (for example
   `ditto ~/.tart /Volumes/Storage/tart`). Set the keys, then start again. Remove a leftover symlink or a hand-added
   `TART_HOME` first, so only the config decides.
+- **Already running elsewhere.** A container system that is already running keeps the app root it started with, so
+  kinhin starts no container while that root is not `container_app_root:`; run `container system stop` once no
+  runner is busy (it stops every container). A running Docker Hub cache keeps its old directory until it stops; a
+  stopped one is recreated on `registry_cache_path:`.
 - `kinhin config validate` rejects an empty, relative (`~/…` included), or nested path, and a path that names a file.
   `kinhin doctor` lists each configured path, its volume and the preflight result; a path that fails makes the report
   not ready.
-- Removing `tart_home:` later does not remove a `TART_HOME` the LaunchAgent already carries; edit
-  `~/Library/LaunchAgents/com.kinhin.daemon.plist` or reinstall after deleting it.
+- The config decides `TART_HOME` in the LaunchAgent: after you remove `tart_home:`, the next `kinhin daemon install`
+  removes it too (also one added by hand). If the config does not load, the install keeps the LaunchAgent's
+  variables as they are.
 
 ## Validation and defaults
 

@@ -27,6 +27,57 @@ final class AppleContainerAppRootTests: XCTestCase {
                 "Application Support/com.apple.container/kernels"))
     }
 
+    private static func status(appRoot: String) -> ShellResult {
+        ShellResult(
+            exitCode: 0, stdout: #"{"paths":{"appRoot":"\#(appRoot)","installRoot":"/x/"},"status":"running"}"#,
+            stderr: "")
+    }
+
+    func testTheRunningAppRootIsReadFromTheStatus() {
+        XCTAssertEqual(
+            AppleContainerRuntime.runningAppRoot(statusJSON: #"{"paths":{"appRoot":"/Volumes/S/container/"}}"#),
+            "/Volumes/S/container/")
+        XCTAssertNil(AppleContainerRuntime.runningAppRoot(statusJSON: #"{"status":"running"}"#))
+        XCTAssertNil(AppleContainerRuntime.runningAppRoot(statusJSON: "status running"))
+    }
+
+    func testAServiceRunningOnAnotherAppRootStopsTheStart() async {
+        let shell = FakeShell()
+        shell.responses = [Self.status(appRoot: "/Users/ci/Library/Application Support/com.apple.container/")]
+        do {
+            try await AppleContainerRuntime.requireRunningAppRoot("/Volumes/Storage/container", shell: shell)
+            XCTFail("expected the running app root to stop the start")
+        } catch let problem as StorageProblem {
+            XCTAssertEqual(problem.location, .containerAppRoot)
+            XCTAssertTrue(problem.problem.contains("com.apple.container"), problem.problem)
+            XCTAssertTrue(problem.fix.contains("container system stop"), problem.fix)
+        } catch {
+            XCTFail("expected a StorageProblem, got \(error)")
+        }
+        XCTAssertEqual(shell.calls.first?.suffix(4), ["system", "status", "--format", "json"])
+    }
+
+    func testAServiceRunningOnTheConfiguredAppRootGoesOn() async throws {
+        let shell = FakeShell()
+        shell.responses = [Self.status(appRoot: "/Volumes/Storage/container/")]
+        try await AppleContainerRuntime.requireRunningAppRoot("/Volumes/Storage/container", shell: shell)
+        let unreadable = FakeShell()
+        unreadable.responses = [ShellResult(exitCode: 0, stdout: "FIELD VALUE", stderr: "")]
+        try await AppleContainerRuntime.requireRunningAppRoot("/Volumes/Storage/container", shell: unreadable)
+    }
+
+    func testSameDirectoryIgnoresATrailingSlashAndFollowsSymlinks() throws {
+        XCTAssertTrue(StoragePreflight.sameDirectory("/Volumes/X/container/", "/Volumes/X/container"))
+        XCTAssertFalse(StoragePreflight.sameDirectory("/Volumes/X/container", "/Volumes/Y/container"))
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("kinhin-same-\(UUID().uuidString)")
+        let real = root.appendingPathComponent("real")
+        try FileManager.default.createDirectory(at: real, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let link = root.appendingPathComponent("link")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: real)
+        XCTAssertTrue(StoragePreflight.sameDirectory(link.path, real.path))
+    }
+
     func testAnAppRootOnAnUnmountedVolumeStartsNothing() async {
         let shell = FakeShell()
         let unmounted = StoragePreflight(
