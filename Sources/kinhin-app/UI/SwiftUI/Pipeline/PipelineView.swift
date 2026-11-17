@@ -10,24 +10,27 @@ struct PipelineView: View {
     let onClose: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            header
-            if let message = model.emptyMessage {
-                StatusText(verbatim: message, style: model.error == nil ? .secondary : .error)
-                Spacer(minLength: 0)
-            } else if model.logTarget != nil {
-                outputPane
-            } else if let job = model.selectedJob {
-                jobDetail(job)
-            } else {
-                jobList
-            }
-            footer
-        }
-        .padding(.horizontal, 20)
-        .padding(.top, 16)
-        .padding(.bottom, 14)
-        .frame(width: Self.size.width, height: Self.size.height, alignment: .topLeading)
+        SheetScaffold(
+            verbatimTitle: titleText, width: Self.size.width,
+            content: {
+                VStack(alignment: .leading, spacing: Spacing.md) {
+                    header
+                    if let message = model.emptyMessage {
+                        StatusText(verbatim: message, style: model.error == nil ? .secondary : .error)
+                        Spacer(minLength: 0)
+                    } else if model.logTarget != nil {
+                        outputPane
+                    } else if let job = model.selectedJob {
+                        jobDetail(job)
+                    } else {
+                        jobList
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            },
+            footer: { footer }
+        )
+        .frame(height: Self.size.height)
         .task {
             while !Task.isCancelled {
                 do {
@@ -42,38 +45,39 @@ struct PipelineView: View {
 
     // MARK: - Header and footer
 
+    /// The sheet title: the forge's mark was part of the old heading; the scaffold's title stays plain text.
+    private var titleText: String { model.title }
+
     private var header: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 8) {
-                if let detail = model.detail { ForgeIconView(forge: detail.forge, size: 16) }
-                Text(model.title).font(.system(size: 18, weight: .bold)).lineLimit(1)
+        VStack(alignment: .leading, spacing: Spacing.xs) {
+            HStack(spacing: Spacing.sm) {
+                if let detail = model.detail { ForgeIconView(forge: detail.forge, size: 14) }
+                Chip(verbatim: model.vmID, tone: .neutral)
+                if let subtitle = model.subtitle { HintText(verbatim: subtitle) }
             }
-            Text(model.vmID).font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary)
-            if let subtitle = model.subtitle { HintText(verbatim: subtitle) }
             if let notice = model.notice { HintText(verbatim: notice) }
             if model.detail != nil, let error = model.error { StatusText(verbatim: error, style: .error) }
         }
     }
 
     private var footer: some View {
-        HStack {
+        SheetCloseFooter(close: onClose) {
             if model.selectedJob != nil {
                 Button {
                     model.back()
                 } label: {
-                    model.logTarget != nil ? Text("‹ Steps") : Text("‹ All jobs")
+                    HStack(spacing: Spacing.xs) {
+                        Image(systemName: "chevron.backward")
+                        model.logTarget != nil ? Text("Steps") : Text("All jobs")
+                    }
                 }
                 .accessibilityLabel(
                     model.logTarget != nil ? Text("Back to the job's steps") : Text("Back to all jobs"))
             }
             if let url = (model.selectedJob?.url ?? model.detail?.url).flatMap(URL.init(string:)) {
                 Link("Open in browser", destination: url)
-                    .font(.system(size: 12))
+                    .typeStyle(.caption)
             }
-            Spacer()
-            Button("Close", action: onClose)
-                .keyboardShortcut(.defaultAction)
-                .accessibilityLabel("Close pipeline")
         }
     }
 
@@ -100,7 +104,7 @@ struct PipelineView: View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
             StateGlyph(state: job.state)
             VStack(alignment: .leading, spacing: 2) {
-                Text(job.name).font(.system(size: 13, weight: .semibold)).lineLimit(2)
+                Text(job.name).typeStyle(.emphasis).lineLimit(2)
                 // Ticks every second between polls, so elapsed time and "ago" stay live.
                 TimelineView(.periodic(from: .now, by: 1)) { context in
                     Text(
@@ -112,12 +116,12 @@ struct PipelineView: View {
                                     comment: "Pipeline job row tag: this job runs on the VM being inspected") : nil,
                         ].compactMap { $0 }.joined(separator: " · ")
                     )
-                    .font(.system(size: 11))
+                    .typeStyle(.caption)
                     .foregroundStyle(.secondary)
                 }
             }
             Spacer(minLength: 0)
-            Text("›").foregroundStyle(.tertiary)
+            Image(systemName: "chevron.forward").foregroundStyle(.tertiary).accessibilityHidden(true)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
@@ -132,7 +136,7 @@ struct PipelineView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
                 StateGlyph(state: job.state)
-                Text(job.name).font(.system(size: 14, weight: .semibold)).lineLimit(2)
+                Text(job.name).typeStyle(.emphasis).lineLimit(2)
             }
             if let hint = model.stepsHint(for: job) {
                 HintText(verbatim: hint)
@@ -164,10 +168,10 @@ struct PipelineView: View {
 
     private func outputRow(_ title: String) -> some View {
         HStack(spacing: 10) {
-            Text("≡").font(.system(size: 14, weight: .bold)).foregroundStyle(.secondary).frame(width: 16)
-            Text(verbatim: title).font(.system(size: 12))
+            Image(systemName: "list.bullet").accessibilityHidden(true).foregroundStyle(.secondary).frame(width: 16)
+            Text(verbatim: title).typeStyle(.caption)
             Spacer(minLength: 8)
-            Text("›").foregroundStyle(.tertiary)
+            Image(systemName: "chevron.forward").foregroundStyle(.tertiary).accessibilityHidden(true)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
@@ -179,14 +183,14 @@ struct PipelineView: View {
     private func stepRow(_ step: PipelineStep) -> some View {
         HStack(spacing: 10) {
             StateGlyph(state: step.state)
-            Text(step.name).font(.system(size: 12)).lineLimit(2)
+            Text(step.name).typeStyle(.caption).lineLimit(2)
             Spacer(minLength: 8)
             TimelineView(.periodic(from: .now, by: 1)) { context in
                 if let timing = model.timing(of: step, now: context.date) {
-                    Text(timing).font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary)
+                    Text(timing).font(.system(.callout, design: .monospaced)).foregroundStyle(.secondary)
                 }
             }
-            Text("›").foregroundStyle(.tertiary)
+            Image(systemName: "chevron.forward").foregroundStyle(.tertiary).accessibilityHidden(true)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
@@ -201,10 +205,10 @@ struct PipelineView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
                 if let state = model.logState { StateGlyph(state: state) }
-                Text(model.logTitle).font(.system(size: 14, weight: .semibold)).lineLimit(2)
+                Text(model.logTitle).typeStyle(.emphasis).lineLimit(2)
                 Spacer(minLength: 8)
                 if model.logState == .running {
-                    Text("● live").font(.system(size: 11, weight: .semibold)).foregroundStyle(StatusStyle.ok.color)
+                    Chip("live", tone: .ok, symbol: "circle.fill")
                 }
             }
             if let step = model.openStep {
@@ -220,7 +224,7 @@ struct PipelineView: View {
                 ScrollViewReader { proxy in
                     ScrollView {
                         Text(text)
-                            .font(.system(size: 11, design: .monospaced))
+                            .font(.system(.callout, design: .monospaced))
                             .textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(8)
@@ -241,11 +245,21 @@ private struct StateGlyph: View {
     let state: PipelineStepState
 
     var body: some View {
-        Text(PipelineModel.symbol(for: state))
-            .font(.system(size: 14, weight: .bold))
+        Image(systemName: symbol)
             .foregroundStyle(color)
             .frame(width: 16)
             .accessibilityHidden(true)
+    }
+
+    private var symbol: String {
+        switch state {
+        case .succeeded: return "checkmark.circle.fill"
+        case .failed: return "xmark.circle.fill"
+        case .running: return "arrow.triangle.2.circlepath"
+        case .pending: return "circle"
+        case .skipped: return "minus.circle"
+        case .cancelled: return "slash.circle"
+        }
     }
 
     private var color: Color {

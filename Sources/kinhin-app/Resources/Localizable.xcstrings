@@ -424,100 +424,6 @@
         }
       }
     },
-    "‹ All jobs" : {
-      "comment" : "Text in PipelineView",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "‹ كل المهام"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "‹ Alle Jobs"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "‹ Todos los trabajos"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "‹ Tous les jobs"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "‹ כל המשימות"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "‹ Tutti i job"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "‹ すべてのジョブ"
-          }
-        }
-      }
-    },
-    "‹ Steps" : {
-      "comment" : "Text in PipelineView",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "‹ الخطوات"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "‹ Schritte"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "‹ Pasos"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "‹ Étapes"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "‹ שלבים"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "‹ Passaggi"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "‹ ステップ"
-          }
-        }
-      }
-    },
     "“%@” will be permanently removed. It is running and will be stopped first. This can’t be undone." : {
       "comment" : "Delete-container confirmation body for a running container; %@ is the container name",
       "localizations" : {
@@ -940,6 +846,12 @@
           }
         }
       }
+    },
+    "%@ · %@ job slots" : {
+      "comment" : "Fleet status headline; the base counters, then the concurrent job slots"
+    },
+    "%@ · unisolated" : {
+      "comment" : "Host runtime card subtitle: the summary, then that jobs run without isolation"
     },
     "%@ (default)" : {
       "comment" : "Base-image popup entry; first is the image's title",
@@ -1457,6 +1369,9 @@
           }
         }
       }
+    },
+    "%@ queued" : {
+      "comment" : "Queued work count: number of jobs waiting"
     },
     "%@ ready ✓" : {
       "comment" : "This Mac form: Base image row status; %@ is an image name",
@@ -2118,283 +2033,6 @@
                 "stringUnit" : {
                   "state" : "translated",
                   "value" : "%lld インスタンス"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "%lld instances · %lld busy" : {
-      "comment" : "Runtime card summary; plural by instance count, then how many hold a job",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%#@instances@ · %2$lld مشغولة"
-          },
-          "substitutions" : {
-            "instances" : {
-              "argNum" : 1,
-              "formatSpecifier" : "lld",
-              "variations" : {
-                "plural" : {
-                  "few" : {
-                    "stringUnit" : {
-                      "state" : "translated",
-                      "value" : "%arg نسخ"
-                    }
-                  },
-                  "many" : {
-                    "stringUnit" : {
-                      "state" : "translated",
-                      "value" : "%arg نسخة"
-                    }
-                  },
-                  "one" : {
-                    "stringUnit" : {
-                      "state" : "translated",
-                      "value" : "نسخة واحدة"
-                    }
-                  },
-                  "other" : {
-                    "stringUnit" : {
-                      "state" : "translated",
-                      "value" : "%arg نسخة"
-                    }
-                  },
-                  "two" : {
-                    "stringUnit" : {
-                      "state" : "translated",
-                      "value" : "نسختان"
-                    }
-                  },
-                  "zero" : {
-                    "stringUnit" : {
-                      "state" : "translated",
-                      "value" : "%arg نسخة"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%#@instances@ · %2$lld ausgelastet"
-          },
-          "substitutions" : {
-            "instances" : {
-              "argNum" : 1,
-              "formatSpecifier" : "lld",
-              "variations" : {
-                "plural" : {
-                  "one" : {
-                    "stringUnit" : {
-                      "state" : "translated",
-                      "value" : "%arg Instanz"
-                    }
-                  },
-                  "other" : {
-                    "stringUnit" : {
-                      "state" : "translated",
-                      "value" : "%arg Instanzen"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%#@instances@ · %2$lld busy"
-          },
-          "substitutions" : {
-            "instances" : {
-              "argNum" : 1,
-              "formatSpecifier" : "lld",
-              "variations" : {
-                "plural" : {
-                  "one" : {
-                    "stringUnit" : {
-                      "state" : "translated",
-                      "value" : "%arg instance"
-                    }
-                  },
-                  "other" : {
-                    "stringUnit" : {
-                      "state" : "translated",
-                      "value" : "%arg instances"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%#@instances@ · %2$lld ocupadas"
-          },
-          "substitutions" : {
-            "instances" : {
-              "argNum" : 1,
-              "formatSpecifier" : "lld",
-              "variations" : {
-                "plural" : {
-                  "many" : {
-                    "stringUnit" : {
-                      "state" : "translated",
-                      "value" : "%arg instancias"
-                    }
-                  },
-                  "one" : {
-                    "stringUnit" : {
-                      "state" : "translated",
-                      "value" : "%arg instancia"
-                    }
-                  },
-                  "other" : {
-                    "stringUnit" : {
-                      "state" : "translated",
-                      "value" : "%arg instancias"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%#@instances@ · %2$lld occupées"
-          },
-          "substitutions" : {
-            "instances" : {
-              "argNum" : 1,
-              "formatSpecifier" : "lld",
-              "variations" : {
-                "plural" : {
-                  "many" : {
-                    "stringUnit" : {
-                      "state" : "translated",
-                      "value" : "%arg instances"
-                    }
-                  },
-                  "one" : {
-                    "stringUnit" : {
-                      "state" : "translated",
-                      "value" : "%arg instance"
-                    }
-                  },
-                  "other" : {
-                    "stringUnit" : {
-                      "state" : "translated",
-                      "value" : "%arg instances"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%#@instances@ · %2$lld עסוקים"
-          },
-          "substitutions" : {
-            "instances" : {
-              "argNum" : 1,
-              "formatSpecifier" : "lld",
-              "variations" : {
-                "plural" : {
-                  "many" : {
-                    "stringUnit" : {
-                      "state" : "translated",
-                      "value" : "%arg מופעים"
-                    }
-                  },
-                  "one" : {
-                    "stringUnit" : {
-                      "state" : "translated",
-                      "value" : "%arg מופע"
-                    }
-                  },
-                  "other" : {
-                    "stringUnit" : {
-                      "state" : "translated",
-                      "value" : "%arg מופעים"
-                    }
-                  },
-                  "two" : {
-                    "stringUnit" : {
-                      "state" : "translated",
-                      "value" : "%arg מופעים"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%#@instances@ · %2$lld occupate"
-          },
-          "substitutions" : {
-            "instances" : {
-              "argNum" : 1,
-              "formatSpecifier" : "lld",
-              "variations" : {
-                "plural" : {
-                  "many" : {
-                    "stringUnit" : {
-                      "state" : "translated",
-                      "value" : "%arg istanze"
-                    }
-                  },
-                  "one" : {
-                    "stringUnit" : {
-                      "state" : "translated",
-                      "value" : "%arg istanza"
-                    }
-                  },
-                  "other" : {
-                    "stringUnit" : {
-                      "state" : "translated",
-                      "value" : "%arg istanze"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%#@instances@ · %2$lld 使用中"
-          },
-          "substitutions" : {
-            "instances" : {
-              "argNum" : 1,
-              "formatSpecifier" : "lld",
-              "variations" : {
-                "plural" : {
-                  "other" : {
-                    "stringUnit" : {
-                      "state" : "translated",
-                      "value" : "%arg インスタンス"
-                    }
-                  }
                 }
               }
             }
@@ -3749,53 +3387,6 @@
         }
       }
     },
-    "○  kinhin" : {
-      "comment" : "Text in FleetView",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "○  kinhin"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "○  kinhin"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "○  kinhin"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "○  kinhin"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "○  kinhin"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "○  kinhin"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "○  kinhin"
-          }
-        }
-      }
-    },
     "● %@ missing" : {
       "comment" : "Runtime health chip; %@ is the missing tool",
       "localizations" : {
@@ -3980,53 +3571,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "● エラー"
-          }
-        }
-      }
-    },
-    "● live" : {
-      "comment" : "Text in PipelineView",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "● مباشر"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "● live"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "● en vivo"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "● en direct"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "● חי"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "● attivo"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "● ライブ"
           }
         }
       }
@@ -9660,53 +9204,6 @@
         }
       }
     },
-    "Close pipeline" : {
-      "comment" : ".accessibilityLabel in PipelineView",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "إغلاق خط المعالجة"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pipeline schließen"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Cerrar pipeline"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Fermer le pipeline"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "סגירת pipeline"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Chiudi pipeline"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "パイプラインを閉じる"
-          }
-        }
-      }
-    },
     "Collapse" : {
       "comment" : "Button in ToolchainsGuideView"
     },
@@ -11749,6 +11246,9 @@
         }
       }
     },
+    "Counts per forge; actions apply to every queued job on that forge" : {
+      "comment" : "Card in FleetView"
+    },
     "CPU cores" : {
       "comment" : "row in CapacityView",
       "localizations" : {
@@ -13261,53 +12761,6 @@
     },
     "Diagnostics sections" : {
       "comment" : "VoiceOver label of the segmented control that switches Diagnostics between Health, Logs, Benchmarks, Containers and Tools"
-    },
-    "Diagnostics…" : {
-      "comment" : "Button in FleetView",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "التشخيص…"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Diagnose…"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Diagnóstico…"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Diagnostic…"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "אבחון…"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Diagnostica…"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "診断…"
-          }
-        }
-      }
     },
     "Disable Auto-Resume" : {
       "comment" : "AppShortcut in KinhinShortcuts",
@@ -16520,6 +15973,9 @@
         }
       }
     },
+    "Fleet is stopped. Start it to pick up queued jobs." : {
+      "comment" : "Fleet page note while the fleet is stopped"
+    },
     "Fleet not responding — %@" : {
       "comment" : "Status line when the fleet can't be reached; %@ is the reason",
       "localizations" : {
@@ -16566,6 +16022,9 @@
           }
         }
       }
+    },
+    "Fleet not responding — check the daemon in Settings → Daemon." : {
+      "comment" : "Runtimes card text when the fleet cannot be reached"
     },
     "Fleet scope: %@ — routed fleet" : {
       "comment" : "Routing tab headline; %@ is the repository or org",
@@ -16798,53 +16257,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "追従"
-          }
-        }
-      }
-    },
-    "Forge: %@" : {
-      "comment" : ".accessibilityLabel in FleetView",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Forge: %@"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Forge: %@"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Forja: %@"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Forge : %@"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "פורג': %@"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Forge: %@"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "フォージ: %@"
           }
         }
       }
@@ -23418,6 +22830,9 @@
         }
       }
     },
+    "live" : {
+      "comment" : "Chip in PipelineView"
+    },
     "Loading output…" : {
       "comment" : "Pipeline output placeholder",
       "localizations" : {
@@ -23655,53 +23070,6 @@
     },
     "Logs" : {
       "comment" : "Diagnostics sub-section title"
-    },
-    "Logs…" : {
-      "comment" : "Button in FleetView",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "السجلات…"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Logs…"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Registros…"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Journaux…"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "יומנים…"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Log…"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ログ…"
-          }
-        }
-      }
     },
     "Look for new jobs every (seconds)" : {
       "comment" : "row in CapacityView",
@@ -24501,53 +23869,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "最大ランナー数は 1 以上の整数で指定してください。"
-          }
-        }
-      }
-    },
-    "Measure boot, workload and toolchain speed on this Mac." : {
-      "comment" : "Fleet tab benchmark card hint, shown before any benchmark has run",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "قِس سرعة الإقلاع وأحمال العمل وtoolchains على هذا الـ Mac."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Boot-, Workload- und Toolchain-Geschwindigkeit auf diesem Mac messen."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mide la velocidad de arranque, de carga de trabajo y de toolchains en este Mac."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mesurer la vitesse de démarrage, de charge et de toolchains sur ce Mac."
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "מדידת מהירות האתחול, עומסי העבודה והתקנת toolchains ב-Mac הזה."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Misura la velocità di avvio, carico di lavoro e toolchain su questo Mac."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "この Mac での起動、ワークロード、ツールチェーンの速度を測定します。"
           }
         }
       }
@@ -25591,6 +24912,9 @@
     },
     "Needs setup" : {
       "comment" : "Fleet state chip"
+    },
+    "Needs setup — finish the first-run wizard to connect a forge and choose where jobs run." : {
+      "comment" : "Fleet page note while first-run setup is unfinished"
     },
     "needs tart first" : {
       "comment" : "This Mac form: Base image row status",
@@ -28427,53 +27751,6 @@
         }
       }
     },
-    "Open Benchmarks…" : {
-      "comment" : "Button on the Fleet tab's benchmark card; opens Advanced → Benchmarks",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "فتح اختبارات الأداء…"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Benchmarks öffnen…"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Abrir Benchmarks…"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ouvrir les benchmarks…"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "פתיחת בדיקות ביצועים…"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Apri benchmark…"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ベンチマークを開く…"
-          }
-        }
-      }
-    },
     "Open config" : {
       "comment" : ".action in AccountsSectionView"
     },
@@ -29761,53 +29038,6 @@
         }
       }
     },
-    "Pipeline…" : {
-      "comment" : "Button in FleetDiagramView",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "خط المعالجة…"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pipeline…"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pipeline…"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pipeline…"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pipeline…"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pipeline…"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "パイプライン…"
-          }
-        }
-      }
-    },
     "pnpm and Playwright need Node, so node is listed too." : {
       "comment" : "Toolchain example note; names like node, pnpm and java stay verbatim",
       "localizations" : {
@@ -30794,6 +30024,12 @@
           }
         }
       }
+    },
+    "Queue %lld · Desired %@ · Cap %lld" : {
+      "comment" : "Fleet status headline: queued jobs, desired and maximum VMs"
+    },
+    "Queue actions need forge access — not available in daemon mode. Use kinhin CLI or switch to in-process engine." : {
+      "comment" : "StatusText in FleetView"
     },
     "Queued work" : {
       "comment" : "FormCard in FleetView",
@@ -35416,6 +34652,9 @@
         }
       }
     },
+    "Set up…" : {
+      "comment" : "Fleet button that opens first-run setup"
+    },
     "Settings" : {
       "comment" : "Advanced section title",
       "localizations" : {
@@ -37299,6 +36538,9 @@
         }
       }
     },
+    "Starting the fleet… (controls disabled)" : {
+      "comment" : "Fleet page note while a start command runs"
+    },
     "starting up (%@)" : {
       "comment" : "VoiceOver phase description; %@ is the phase name",
       "localizations" : {
@@ -37533,6 +36775,9 @@
           }
         }
       }
+    },
+    "Steps" : {
+      "comment" : "Text in PipelineView"
     },
     "Still needed:" : {
       "comment" : "Setup wizard summary heading",
@@ -37959,6 +37204,9 @@
           }
         }
       }
+    },
+    "Stopping the fleet… (controls disabled)" : {
+      "comment" : "Fleet page note while a stop command runs"
     },
     "Stopping…" : {
       "comment" : "Status line while a stop command runs",
