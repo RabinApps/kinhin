@@ -207,6 +207,9 @@ The "Video image" workflow runs the same smoke test on a pull request, so a mism
 
 ## The site
 
+**Rule: a video change ships with its site copy.** Any change to the launch video's script, adapter, clips or music, or to the
+app UI it records, is not done until the rebuilt files are in `website/public/` in the same pull request.
+
 Copy the built `<project>.mp4`, `<project>.webm` and `<project>-poster.png` from `video/out/<project>/` into `website/public/` as
 `launch.mp4`, `launch.webm` and `launch-poster.png`. The home page shows the player only when `launch.mp4` exists, so
 the site never renders a broken video. Keep the files small (under about 10 MB) or host them elsewhere. The player
