@@ -54,6 +54,16 @@ final class ConnectModelTests: XCTestCase {
         XCTAssertFalse(model.isConnected)
     }
 
+    func testTheGridOffersAllSevenForgesAndEachCanBeSelected() {
+        let model = makeModel()
+        XCTAssertEqual(Set(ConnectModel.allForges), Set(ForgeID.allCases))
+        XCTAssertEqual(ConnectModel.allForges.count, 7)
+        for forge in ConnectModel.allForges {
+            model.setSelected(true, for: forge)
+            XCTAssertNotNil(model.card(for: forge), "\(forge)")
+        }
+    }
+
     func testExistingInstallPreselectsConfiguredForges() async throws {
         try AccountsConfigEditor.add(
             AccountConfig(name: "gitlab", forge: .gitlab, scope: "acme/platform/api"), to: url)

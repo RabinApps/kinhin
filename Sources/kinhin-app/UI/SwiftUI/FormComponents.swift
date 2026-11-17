@@ -32,7 +32,7 @@ struct TokenRequirementsView: View {
                     Image(systemName: expanded ? "chevron.down" : "chevron.forward")
                         .font(.system(size: 9, weight: .semibold))
                         .frame(width: 10)
-                    Text("Token permissions needed").font(.system(size: 11, weight: .semibold))
+                    Text("Token permissions needed").typeStyle(.caption).fontWeight(.semibold)
                 }
                 .contentShape(Rectangle())
             }
@@ -45,9 +45,9 @@ struct TokenRequirementsView: View {
                     ForEach(requirements.options, id: \.kind) { option in
                         VStack(alignment: .leading, spacing: 2) {
                             HStack(spacing: 6) {
-                                Text(verbatim: option.kind).font(.system(size: 11, weight: .semibold))
+                                Text(verbatim: option.kind).typeStyle(.caption).fontWeight(.semibold)
                                 if let url = URL(string: option.url), option.url.hasPrefix("http") {
-                                    Link("Create…", destination: url).font(.system(size: 11))
+                                    Link("Create…", destination: url).typeStyle(.caption)
                                 }
                             }
                             ForEach(option.permissions, id: \.self) { line in
@@ -61,6 +61,9 @@ struct TokenRequirementsView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
+        .padding(Spacing.md - 2)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: Radius.md).fill(Palette.grouped))
         .onChange(of: expandOnError) { _, isError in if isError { expanded = true } }
     }
 }

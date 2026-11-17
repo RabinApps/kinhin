@@ -176,6 +176,8 @@ final class AccountsModelTests: XCTestCase {
         let error = try XCTUnwrap(model.loadError)
         XCTAssertEqual(error.style, .error)
         XCTAssertTrue(error.text.contains("config.yaml"), error.text)
+        XCTAssertTrue(error.text.contains("Runtimes → Edit YAML"), "points at a path that exists: \(error.text)")
+        XCTAssertFalse(error.text.contains("Advanced"), error.text)
         XCTAssertTrue(model.rows.isEmpty, "no stale rows next to the error")
 
         try "labels: [a]\n".write(to: url, atomically: true, encoding: .utf8)
