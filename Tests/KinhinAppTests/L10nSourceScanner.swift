@@ -50,6 +50,8 @@ struct L10nSourceScanner {
         "statusRow", "chipRow", "row", "runtimeRow",
         // the design system's components (UI/SwiftUI/DesignSystem)
         "Chip", "Banner", "StepperRow", "SheetConfirmFooter", ".action",
+        // the Diagnostics and Settings pages' row helpers
+        "RowLabel", "toggleRow", "labeled", "fieldLabel",
     ]
 
     /// `callee` → labels whose argument is localized.
@@ -58,7 +60,7 @@ struct L10nSourceScanner {
         "Card": ["title", "subtitle"], "SheetScaffold": ["title"], ".action": ["label"],
         "StatusText": ["text"], "Parameter": ["title"], "row": ["help"],
         "AppShortcut": ["shortTitle"], "TypeDisplayRepresentation": ["name"],
-        "statusRow": ["title", "text"], "chipRow": ["label"],
+        "statusRow": ["title", "text"], "chipRow": ["label"], "RowLabel": ["detail"],
     ]
 
     /// Callees whose string arguments are logs, identifiers or other non-UI text.

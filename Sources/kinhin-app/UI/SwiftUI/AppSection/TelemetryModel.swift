@@ -2,7 +2,7 @@ import Foundation
 import KinhinKit
 import Observation
 
-/// State and actions behind the Telemetry card (Advanced → App): whether OpenTelemetry export is on, where each
+/// State and actions behind the Telemetry card (Settings): whether OpenTelemetry export is on, where each
 /// signal goes, the Prometheus address and the last export problem, plus the on/off switch and the Prometheus
 /// address. The numbers come from whoever owns the exporters (`FleetController.readTelemetry`): this app when it runs
 /// the engine itself, otherwise the daemon. The card never starts exporters and never shows header values or

@@ -2,7 +2,7 @@ import Foundation
 import KinhinKit
 import Observation
 
-/// State and actions behind Advanced → App: launch behavior, update check and
+/// State and actions behind Settings: launch behavior, update check and
 /// the config/log files. Preferences persist through `AppPreferences`; the
 /// update card reads `UpdateController`; the window controller wires the
 /// callbacks to its delegate.

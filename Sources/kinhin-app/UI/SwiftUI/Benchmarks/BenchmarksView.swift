@@ -1,7 +1,7 @@
 import KinhinKit
 import SwiftUI
 
-/// Advanced → Benchmarks: what to measure, a Run button, live progress, the
+/// Diagnostics → Benchmarks: what to measure, a Run button, live progress, the
 /// cross-runtime boot comparison, each suite's steps, the toolchains table and
 /// the history of earlier runs. State and actions live in `BenchmarksModel`.
 struct BenchmarksView: View {

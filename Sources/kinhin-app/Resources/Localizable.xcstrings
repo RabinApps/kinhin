@@ -4172,6 +4172,9 @@
         }
       }
     },
+    "10 cores" : {
+      "comment" : "RowLabel in InsetRow"
+    },
     "20 to 60 minutes" : {
       "comment" : "Estimated time to prepare the macOS image, shown inside a sentence",
       "localizations" : {
@@ -4972,6 +4975,9 @@
       }
     },
     "Add webhook" : {
+      "comment" : "Button in AlertsCard"
+    },
+    "Add webhook…" : {
       "comment" : "Button in AlertsCard"
     },
     "Added '%@' — paste its token below." : {
@@ -12069,53 +12075,6 @@
         }
       }
     },
-    "Daemon" : {
-      "comment" : "FormCard in AppSectionView",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Daemon"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Daemon"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Daemon"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Daemon"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Daemon"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Daemon"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "デーモン"
-          }
-        }
-      }
-    },
     "Daemon mode" : {
       "comment" : "FormCard in AppSectionView",
       "localizations" : {
@@ -14907,52 +14866,8 @@
         }
       }
     },
-    "Erase kinhin's local state — you choose how much: credentials only, the daemon, or everything. This cannot be undone." : {
-      "comment" : "FormCard in AppSectionView",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "امحُ الحالة المحلية لـ kinhin — أنت تختار الكمية: بيانات الاعتماد فقط أو daemon أو كل شيء. لا يمكن التراجع عن هذا."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Lokalen Zustand von kinhin löschen – du wählst, wie viel: nur Zugangsdaten, den Daemon oder alles. Das kann nicht rückgängig gemacht werden."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Borra el estado local de kinhin; tú eliges cuánto: solo las credenciales, el daemon o todo. Esta acción no se puede deshacer."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Efface l’état local de kinhin — vous choisissez l’étendue : identifiants seulement, le daemon, ou tout. Cette action est irréversible."
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "מחיקת המצב המקומי של kinhin — אתם בוחרים כמה: אישורים בלבד, ה-daemon, או הכול. אי אפשר לבטל פעולה זו."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Cancella lo stato locale di kinhin: si sceglie quanto — solo le credenziali, il daemon o tutto. Questa azione non può essere annullata."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "kinhin のローカル状態を消去します。範囲は選択できます: 認証情報のみ、デーモン、またはすべて。この操作は取り消せません。"
-          }
-        }
-      }
+    "Erase credentials, the daemon, or everything. Three confirmations." : {
+      "comment" : "RowLabel in AppSectionView"
     },
     "Errors" : {
       "comment" : "Log level filter option: errors only",
@@ -15048,52 +14963,8 @@
         }
       }
     },
-    "Everything above is saved in config.yaml — open it for settings that have no control here." : {
-      "comment" : "FormCard in AppSectionView",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "كل ما سبق محفوظ في config.yaml — افتحه للإعدادات التي لا يوجد لها عنصر تحكم هنا."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Alles oben Genannte wird in config.yaml gespeichert – öffne sie für Einstellungen, die hier keine Bedienelemente haben."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Todo lo anterior se guarda en config.yaml; ábrelo para ver los ajustes que no tienen control aquí."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tout ce qui précède est enregistré dans config.yaml — ouvrez-le pour les réglages sans contrôle ici."
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "כל מה שלמעלה נשמר ב-config.yaml — פתחו אותו להגדרות שאין להן בקרה כאן."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tutto quanto sopra è salvato in config.yaml: aprirlo per le impostazioni senza un controllo qui."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "上記の内容は config.yaml に保存されています。ここに操作がない設定は、ファイルを開いて編集してください。"
-          }
-        }
-      }
+    "Everything here is saved in config.yaml — open it for settings that have no control." : {
+      "comment" : "Card in AppSectionView"
     },
     "Everything looks good." : {
       "comment" : "Spoken diagnostics result",
@@ -16792,53 +16663,6 @@
     },
     "Format" : {
       "comment" : "Picker in AlertsCard"
-    },
-    "Found a bug or want something added? Open an issue on GitHub." : {
-      "comment" : "FormCard in AppSectionView",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "وجدت خطأً أو تريد إضافة شيء؟ افتح issue على GitHub."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Fehler gefunden oder Wunsch? Eröffne ein Issue auf GitHub."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "¿Encontraste un error o quieres que se agregue algo? Abre un issue en GitHub."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Un bug à signaler ou une idée à proposer ? Ouvrez un ticket sur GitHub."
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "מצאתם באג או רוצים שנוסיף משהו? פתחו issue ב-GitHub."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Trovato un bug o serve una funzione in più? Aprire una issue su GitHub."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "バグを見つけた、または追加してほしい機能がありますか? GitHub で issue を作成してください。"
-          }
-        }
-      }
     },
     "Fresh VM for every job (recommended)" : {
       "comment" : "Toggle in CapacityView",
@@ -20327,6 +20151,9 @@
         }
       }
     },
+    "Jobs" : {
+      "comment" : "RowLabel in WorkflowTestView"
+    },
     "Jobs per VM" : {
       "comment" : "row in CapacityView",
       "localizations" : {
@@ -21219,6 +21046,9 @@
           }
         }
       }
+    },
+    "kinhin is free and built by one developer." : {
+      "comment" : "Card in AppSectionView"
     },
     "kinhin is free and built by one developer. Donations and sponsors keep it going." : {
       "comment" : "Text in SponsorSheet",
@@ -22790,51 +22620,7 @@
       }
     },
     "Launch kinhin at login" : {
-      "comment" : "Toggle in AppSectionView",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "تشغيل kinhin عند تسجيل الدخول"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "kinhin bei der Anmeldung öffnen"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Abrir kinhin al iniciar sesión"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ouvrir kinhin à la connexion"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "הפעלת kinhin בהתחברות"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Avvia kinhin al login"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ログイン時に kinhin を起動"
-          }
-        }
-      }
+      "comment" : "toggleRow in AppSectionView"
     },
     "Launch videos built in a container" : {
       "comment" : "Diagnostics → Tools: subtitle of the Make a video card; the product name kinhin stays verbatim"
@@ -24020,100 +23806,6 @@
         }
       }
     },
-    "Main window + menu bar" : {
-      "comment" : "Launch-mode picker option in Settings → App",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "النافذة الرئيسية + شريط القوائم"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Hauptfenster + Menüleiste"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ventana principal + barra de menús"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Fenêtre principale + barre des menus"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "חלון ראשי + שורת תפריטים"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Finestra principale + barra dei menu"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "メインウインドウ + メニューバー"
-          }
-        }
-      }
-    },
-    "Main window only" : {
-      "comment" : "Launch-mode picker option in Settings → App",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "النافذة الرئيسية فقط"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nur Hauptfenster"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Solo ventana principal"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Fenêtre principale uniquement"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "חלון ראשי בלבד"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Solo finestra principale"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "メインウインドウのみ"
-          }
-        }
-      }
-    },
     "Make a video" : {
       "comment" : "Diagnostics → Tools: title of the card that opens the Make a Video sheet"
     },
@@ -24966,53 +24658,6 @@
         }
       }
     },
-    "More from Rabin Apps:" : {
-      "comment" : "HintText in AppSectionView",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "المزيد من Rabin Apps:"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mehr von Rabin Apps:"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Más de Rabin Apps:"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Plus de Rabin Apps :"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "עוד מ-Rabin Apps:"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Altro da Rabin Apps:"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Rabin Apps のその他のアプリ:"
-          }
-        }
-      }
-    },
     "More images" : {
       "comment" : "Text in MacToolsView",
       "localizations" : {
@@ -25153,6 +24798,9 @@
           }
         }
       }
+    },
+    "Music" : {
+      "comment" : "fieldLabel in VideosView"
     },
     "Name" : {
       "comment" : "Container pool sheet field label: the pool's name",
@@ -25767,6 +25415,9 @@
           }
         }
       }
+    },
+    "No" : {
+      "comment" : "Text in DaemonCard"
     },
     "no @version" : {
       "comment" : "Toolchain catalog: this entry takes no @version suffix; keep @version verbatim",
@@ -27174,53 +26825,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "non installato"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "未インストール"
-          }
-        }
-      }
-    },
-    "Not installed" : {
-      "comment" : "statusRow in AppSectionView",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "غير مثبّت"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nicht installiert"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No instalado"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Non installé"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "לא מותקן"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Non installato"
           }
         },
         "ja" : {
@@ -28643,6 +28247,12 @@
           }
         }
       }
+    },
+    "Opens a GitHub issue in your browser." : {
+      "comment" : "HintText in AppSectionView"
+    },
+    "Opens the same sheet as the sidebar star." : {
+      "comment" : "HintText in AppSectionView"
     },
     "Optional bearer token, stored in the Keychain" : {
       "comment" : "Text in AlertsCard"
@@ -30448,53 +30058,6 @@
         }
       }
     },
-    "Prometheus" : {
-      "comment" : "Settings → App → Telemetry label of the scrape URL row; product name, stays verbatim",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Prometheus"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Prometheus"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Prometheus"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Prometheus"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Prometheus"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Prometheus"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Prometheus"
-          }
-        }
-      }
-    },
     "Prometheus address" : {
       "comment" : "Settings → App → Telemetry text field label; Prometheus is a product name",
       "localizations" : {
@@ -30635,6 +30198,9 @@
           }
         }
       }
+    },
+    "Prometheus URL" : {
+      "comment" : "Text in TelemetryCard"
     },
     "Queued work" : {
       "comment" : "FormCard in FleetView",
@@ -33841,6 +33407,9 @@
         }
       }
     },
+    "Run the fleet inside this app, or in a background LaunchAgent that survives restarts." : {
+      "comment" : "Card in DaemonCard"
+    },
     "Run Workflow" : {
       "comment" : "Button in WorkflowTestView",
       "localizations" : {
@@ -34828,9 +34397,6 @@
         }
       }
     },
-    "Send a message to your own webhooks (Slack, Discord, ntfy or any JSON endpoint) when the fleet raises a problem and when it clears, even with this app closed. Off by default." : {
-      "comment" : "FormCard in AlertsCard"
-    },
     "Send a repository, or one workflow, to a runtime. Use owner/repo for a whole repo, or owner/repo@Workflow Name for one workflow." : {
       "comment" : "Text in AddRouteSheet",
       "localizations" : {
@@ -34881,52 +34447,8 @@
     "Send alerts" : {
       "comment" : "Toggle in AlertsCard"
     },
-    "Send metrics, traces and logs about the fleet to your own OpenTelemetry collector, and optionally serve a local Prometheus endpoint. Off by default." : {
-      "comment" : "Settings → App → Telemetry card subtitle; OpenTelemetry and Prometheus are product names",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "أرسل مقاييس وآثارًا وسجلات الأسطول إلى مُجمِّع OpenTelemetry الخاص بك، واختياريًا قدّم نقطة Prometheus محلية. معطّل افتراضيًا."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sendet Metriken, Traces und Logs der Flotte an deinen eigenen OpenTelemetry-Collector und stellt optional einen lokalen Prometheus-Endpunkt bereit. Standardmäßig aus."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Envía métricas, trazas y registros de la flota a tu propio colector de OpenTelemetry y, opcionalmente, sirve un endpoint local de Prometheus. Desactivado por defecto."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Envoie les métriques, traces et journaux de la flotte à votre propre collecteur OpenTelemetry et, en option, expose un point de terminaison Prometheus local. Désactivé par défaut."
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "שליחת מדדים, עקבות ויומנים על הצי לאספן OpenTelemetry שלכם, ואפשר גם להפעיל נקודת קצה מקומית של Prometheus. כבוי כברירת מחדל."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Invia metriche, tracce e log della flotta al tuo collector OpenTelemetry e, facoltativamente, espone un endpoint Prometheus locale. Disattivato per impostazione predefinita."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "フリートに関するメトリクス、トレース、ログを自分の OpenTelemetry コレクターに送信し、必要に応じてローカルの Prometheus エンドポイントを公開します。初期設定ではオフです。"
-          }
-        }
-      }
+    "Send metrics and traces to your own collector" : {
+      "comment" : "Card in TelemetryCard"
     },
     "Send telemetry" : {
       "comment" : "Settings → App → Telemetry switch",
@@ -36529,53 +36051,6 @@
         }
       }
     },
-    "Sponsored by" : {
-      "comment" : "HintText in AppSectionView",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "برعاية"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Gesponsert von"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Patrocinado por"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sponsorisé par"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "בחסות"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sponsorizzato da"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "スポンサー"
-          }
-        }
-      }
-    },
     "Stacks" : {
       "comment" : "chipRow in ToolchainsView",
       "localizations" : {
@@ -37000,51 +36475,7 @@
       }
     },
     "Start the fleet when kinhin opens" : {
-      "comment" : "Toggle in AppSectionView",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "بدء الأسطول عند فتح kinhin"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Flotte starten, wenn kinhin geöffnet wird"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Iniciar la flota al abrir kinhin"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Démarrer la flotte à l’ouverture de kinhin"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "הפעלת הצי כש-kinhin נפתח"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Avvia la flotta all'apertura di kinhin"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "kinhin を開いたときにフリートを開始"
-          }
-        }
-      }
+      "comment" : "toggleRow in AppSectionView"
     },
     "Started. Queued jobs can begin." : {
       "comment" : "Spoken reply to a start request",
@@ -39319,53 +38750,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "expo スタックには Node が必要なため、specs に node が含まれています。"
-          }
-        }
-      }
-    },
-    "The fleet can run inside this app (in-process) or in a background LaunchAgent that survives app restarts and reboots." : {
-      "comment" : "FormCard in AppSectionView",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "يمكن للأسطول أن يعمل داخل هذا التطبيق (in-process) أو في LaunchAgent خلفي يبقى بعد إعادة تشغيل التطبيق والجهاز."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Die Flotte kann in dieser App (In-Process) oder in einem Hintergrund-LaunchAgent laufen, der App-Neustarts und Neustarts des Macs übersteht."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "La flota puede ejecutarse dentro de esta app (en proceso) o en un LaunchAgent en segundo plano que sobrevive a los reinicios de la app y del sistema."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "La flotte peut s’exécuter dans cette app (intégrée) ou dans un LaunchAgent en arrière-plan qui survit aux redémarrages de l’app et du Mac."
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "הצי יכול לרוץ בתוך האפליקציה הזו (in-process) או ב-LaunchAgent ברקע ששורד הפעלות מחדש של האפליקציה ושל המחשב."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "La flotta può funzionare dentro questa app (in-process) o in un LaunchAgent in background che sopravvive a riavvii dell'app e del Mac."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "フリートは、このアプリ内 (インプロセス) またはバックグラウンドの LaunchAgent で実行できます。LaunchAgent はアプリの再起動や再起動後も維持されます。"
           }
         }
       }
@@ -43780,6 +43164,9 @@
     "Webhook URLs are kept in config.yaml and shown here without their path. Tokens go in the Keychain, never in the file." : {
       "comment" : "HintText in AlertsCard"
     },
+    "Webhooks for failures and healing events" : {
+      "comment" : "Card in AlertsCard"
+    },
     "Went away" : {
       "comment" : "Healing event outcome: the problem cleared before anyone acted",
       "localizations" : {
@@ -44014,6 +43401,15 @@
           }
         }
       }
+    },
+    "Window + menu bar" : {
+      "comment" : "Launch-mode picker option in Settings → App"
+    },
+    "Window only" : {
+      "comment" : "Launch-mode picker option in Settings → App"
+    },
+    "Workflow" : {
+      "comment" : "RowLabel in WorkflowTestView"
     },
     "Workflow job" : {
       "comment" : ".accessibilityLabel in WorkflowTestView",
@@ -44296,6 +43692,9 @@
           }
         }
       }
+    },
+    "Yes" : {
+      "comment" : "Text in DaemonCard"
     },
     "Your config change was saved but couldn't be applied: %@. The fleet is still using the previous config." : {
       "comment" : "Alert and status line when a config edit can't reach the fleet; %@ is the reason",

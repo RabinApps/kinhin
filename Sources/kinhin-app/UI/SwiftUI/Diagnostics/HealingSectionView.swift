@@ -109,10 +109,14 @@ private struct HealingItemRow<Actions: View>: View {
         .background(RoundedRectangle(cornerRadius: Radius.md).fill(Palette.grouped))
     }
 
+    private var tone: Chip.Tone { item.chipTone }
+}
+
+extension HealingPresentation.Item {
     /// The outcome chip's tone: amber while it waits on approval, red when only the user can act or it failed, blue
     /// while running, green when fixed, grey when closed without a fix.
-    var tone: Chip.Tone {
-        switch item.outcome {
+    var chipTone: Chip.Tone {
+        switch outcome {
         case .succeeded, .resolved: return .ok
         case .failed, .surfaced: return .error
         case .pending: return .warn

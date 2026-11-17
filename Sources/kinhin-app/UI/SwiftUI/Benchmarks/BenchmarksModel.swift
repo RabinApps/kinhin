@@ -74,7 +74,7 @@ struct LocalBenchmarkRunner: BenchmarkRunning {
 
 // MARK: - Model
 
-/// State and actions behind Advanced → Benchmarks: pick suites and intensity,
+/// State and actions behind Diagnostics → Benchmarks: pick suites and intensity,
 /// run (after a confirmation that names the fleet pause), watch the poll, read
 /// the results and the history of earlier runs. The measuring is
 /// `BenchmarkRunner`'s; this only starts it, polls it and renders its report.
