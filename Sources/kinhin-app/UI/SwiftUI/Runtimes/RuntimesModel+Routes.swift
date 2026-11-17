@@ -2,7 +2,7 @@ import Foundation
 import KinhinKit
 
 // Add Route as a SwiftUI sheet (replacing RuntimesSheets' NSAlert). The state
-// lives on `RuntimesModel`; `RuntimesView` presents `AddRouteSheet` while
+// lives on `RuntimesModel`; `RuntimesPage` presents `AddRouteSheet` while
 // `routeOffer` is non-nil.
 
 extension RuntimesModel {
@@ -77,7 +77,7 @@ extension RuntimesModel {
                 String(localized: "Routes are still loading", bundle: .l10n, comment: "Alert title"),
                 String(
                     localized:
-                        "The runtime list hasn't loaded yet. If this keeps happening, check that config.yaml exists and is valid (Settings → Open config file).",
+                        "The runtime list hasn't loaded yet. If this keeps happening, check that config.yaml exists and is valid (Settings → Files → Open config file).",
                     bundle: .l10n, comment: "Alert body")
 
             )

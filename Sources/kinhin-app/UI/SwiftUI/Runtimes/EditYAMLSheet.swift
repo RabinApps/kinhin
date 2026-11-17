@@ -10,35 +10,25 @@ struct EditYAMLSheet: View {
     @State private var text = ""
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Edit config.yaml")
-                .font(.system(size: 13, weight: .semibold))
-            if !model.sheetProblem.isEmpty {
-                // The editor's message is the config error's own description
-                // (same words the alert used to show after closing).
-                StatusText(verbatim: model.sheetProblem, style: .error)
+        SheetScaffold(title: "Edit config.yaml", width: 560) {
+            VStack(alignment: .leading, spacing: Spacing.sm) {
+                TextEditor(text: $text)
+                    .font(.system(.callout, design: .monospaced))
+                    .scrollContentBackground(.hidden)
+                    .padding(Spacing.sm)
+                    .background(RoundedRectangle(cornerRadius: Radius.md).fill(Palette.grouped))
+                    .overlay(RoundedRectangle(cornerRadius: Radius.md).strokeBorder(Palette.separator, lineWidth: 1))
+                    .frame(minHeight: 320)
+                    .accessibilityLabel("config.yaml editor")
+                HintText("Saved only if the whole file still passes the engine's config validation.")
+                if !model.sheetProblem.isEmpty {
+                    // The editor's message is the config error's own description.
+                    StatusText(verbatim: model.sheetProblem, style: .error)
+                }
             }
-            TextEditor(text: $text)
-                .font(.system(size: 12, design: .monospaced))
-                .scrollContentBackground(.hidden)
-                .background(Color(nsColor: .textBackgroundColor))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6)
-                        .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 1)
-                )
-                .frame(minHeight: 320)
-                .accessibilityLabel("config.yaml editor")
-            HintText("Saved only if the whole file still passes the engine's config validation.")
-            HStack {
-                Spacer()
-                Button("Cancel", action: model.cancelYAML)
-                    .keyboardShortcut(.cancelAction)
-                Button("Save") { model.saveYAML(text) }
-                    .keyboardShortcut(.defaultAction)
-            }
+        } footer: {
+            SheetConfirmFooter("Save", confirm: { model.saveYAML(text) }, cancel: model.cancelYAML)
         }
-        .padding(16)
-        .frame(width: 560, height: 480)
         .onAppear { text = model.yamlAtOpen }
     }
 }

@@ -2,7 +2,7 @@ import Foundation
 import KinhinKit
 
 // Edit YAML as a SwiftUI sheet (replacing RuntimesSheets' NSAlert). The state
-// lives on `RuntimesModel`; `RuntimesView` presents `EditYAMLSheet` while
+// lives on `RuntimesModel`; `RuntimesPage` presents `EditYAMLSheet` while
 // `isYAMLEditorOpen` is true.
 
 extension RuntimesModel {

@@ -189,100 +189,6 @@
         }
       }
     },
-    "  No named pools — every container job runs in the one pool container: describes." : {
-      "comment" : "Routing tab, Container pools group without pools:; keep container: verbatim",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "  لا توجد مجمّعات مسمّاة — كل مهمة حاوية تعمل في المجمّع الوحيد الذي يصفه container:."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "  Keine benannten Pools – jeder Container-Job läuft im einen Pool, den container: beschreibt."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "  Sin pools con nombre: cada trabajo de contenedor se ejecuta en el único pool que describe container:."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "  Aucun pool nommé : chaque tâche conteneur s’exécute dans l’unique pool décrit par container:."
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "  אין מאגרים בעלי שם — כל משימת קונטיינר רצה במאגר היחיד ש-container: מתאר."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "  Nessun pool con nome: ogni job container gira nell'unico pool descritto da container:."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "  名前付きプールはありません。コンテナのジョブはすべて container: が定義する 1 つのプールで実行されます。"
-          }
-        }
-      }
-    },
-    "  No routes — every job uses the default pool." : {
-      "comment" : "StatusText in RuntimesView",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "  لا توجد مسارات — كل مهمة تستخدم المجموعة الافتراضية."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "  Keine Routen – jeder Job nutzt den Standard-Pool."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "  Sin rutas: todos los trabajos usan el pool predeterminado."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "  Aucune route — chaque job utilise le pool par défaut."
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "  אין ניתובים — כל משימה משתמשת ב-pool ברירת המחדל."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "  Nessun instradamento — ogni job usa il pool predefinito."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "  ルートがありません — すべてのジョブがデフォルトのプールを使用します。"
-          }
-        }
-      }
-    },
     " (experimental)" : {
       "comment" : "Suffix appended to a forge/runtime name in a menu picker when it has run real jobs for a user but is not in kinhin's own end-to-end tests",
       "localizations" : {
@@ -615,193 +521,8 @@
     "(click a VM to delete it — confirms first)" : {
       "comment" : "Disabled hint row under the VM list in the status-bar menu"
     },
-    "%@  →  %@  (workflow)" : {
-      "comment" : "Routing tab route row for one workflow: the pattern, then the runtime",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@  ←  %@  (سير عمل)"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@  →  %@  (Workflow)"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@  →  %@  (workflow)"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@  →  %@  (workflow)"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@  →  %@  (workflow)"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@  →  %@  (workflow)"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@  →  %@  (ワークフロー)"
-          }
-        }
-      }
-    },
-    "%@  →  %@  (workflow)  ⚠︎ unisolated" : {
-      "comment" : "Routing tab route row for a host route of one workflow: the pattern, then the runtime",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@  ←  %@  (سير عمل)  ⚠︎ غير معزول"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@  →  %@  (Workflow)  ⚠︎ nicht isoliert"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@  →  %@  (workflow)  ⚠︎ sin aislar"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@  →  %@  (workflow)  ⚠︎ non isolé"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@  →  %@  (workflow)  ⚠︎ ללא בידוד"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@  →  %@  (workflow)  ⚠︎ non isolato"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@  →  %@  (ワークフロー)  ⚠︎ 分離なし"
-          }
-        }
-      }
-    },
-    "%@  →  %@  ⚠︎ unisolated" : {
-      "comment" : "Routing tab route row for a host route: the pattern, then the runtime",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@  ←  %@  ⚠︎ غير معزول"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@  →  %@  ⚠︎ nicht isoliert"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@  →  %@  ⚠︎ sin aislar"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@  →  %@  ⚠︎ non isolé"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@  →  %@  ⚠︎ ללא בידוד"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@  →  %@  ⚠︎ non isolato"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@  →  %@  ⚠︎ 分離なし"
-          }
-        }
-      }
-    },
-    "%@ — %lld · default" : {
-      "comment" : "Routing tab pool title for the default pool; the pool name, then its instance cap",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ — %lld · افتراضية"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ — %lld · Standard"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ — %lld · predeterminado"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ — %lld · par défaut"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ — %lld · ברירת מחדל"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ — %lld · predefinito"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ — %lld · デフォルト"
-          }
-        }
-      }
+    "(workflow)" : {
+      "comment" : "Text in RoutesCard"
     },
     "%@ — whole job" : {
       "comment" : "Pipeline output title for a whole job; %@ is the job name",
@@ -1326,6 +1047,9 @@
         }
       }
     },
+    "%@ missing" : {
+      "comment" : "Runtime health chip; %@ is the missing tool"
+    },
     "%@ not prepared yet — takes a while, once" : {
       "comment" : "This Mac form: Base image row status; %@ is an image name",
       "localizations" : {
@@ -1795,53 +1519,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld 件失敗"
-          }
-        }
-      }
-    },
-    "%lld inst" : {
-      "comment" : "Capacity table cell: instance cap; inst abbreviates instances",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld inst"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld Inst."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld inst."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld inst."
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld מופעים"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld ist."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld インスタンス"
           }
         }
       }
@@ -3390,335 +3067,6 @@
         }
       }
     },
-    "● %@ missing" : {
-      "comment" : "Runtime health chip; %@ is the missing tool",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "● %@ مفقود"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "● %@ fehlt"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "● falta %@"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "● %@ manquant"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "● חסר %@"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "● %@ mancante"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "● %@ なし"
-          }
-        }
-      }
-    },
-    "● built" : {
-      "comment" : "Container pool chip: the pool's image is built",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "● مبنية"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "● gebaut"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "● construida"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "● construite"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "● נבנה"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "● creata"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "● ビルド済み"
-          }
-        }
-      }
-    },
-    "● checking…" : {
-      "comment" : "Runtime health chip",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "● جارٍ الفحص…"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "● Prüfung läuft…"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "● comprobando…"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "● vérification…"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "● בודק…"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "● verifica in corso…"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "● 確認中…"
-          }
-        }
-      }
-    },
-    "● error" : {
-      "comment" : "Runtime health chip",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "● خطأ"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "● Fehler"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "● error"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "● erreur"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "● שגיאה"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "● errore"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "● エラー"
-          }
-        }
-      }
-    },
-    "● not built" : {
-      "comment" : "Container pool chip: the pool's image is not built yet",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "● غير مبنية"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "● nicht gebaut"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "● sin construir"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "● non construite"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "● לא נבנה"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "● non creata"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "● 未ビルド"
-          }
-        }
-      }
-    },
-    "● ready" : {
-      "comment" : "Runtime health chip",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "● جاهز"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "● bereit"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "● listo"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "● prêt"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "● מוכן"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "● pronto"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "● 準備完了"
-          }
-        }
-      }
-    },
-    "0 means VMs only start when a job is waiting." : {
-      "comment" : "row in CapacityView",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "القيمة 0 تعني أن VMs تبدأ فقط عند انتظار مهمة."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bei 0 starten VMs erst, wenn ein Job wartet."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "0 significa que las VMs solo se inician cuando hay un trabajo en espera."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "0 signifie que les VM ne démarrent que lorsqu’un job est en attente."
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "0 פירושו ש-VM מופעלים רק כשמשימה ממתינה."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Con 0 le VM si avviano solo quando un job è in attesa."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "0 にすると、ジョブが待機しているときだけ VM が起動します。"
-          }
-        }
-      }
-    },
     "10 cores" : {
       "comment" : "RowLabel in InsetRow"
     },
@@ -4383,52 +3731,8 @@
         }
       }
     },
-    "Add route" : {
-      "comment" : ".accessibilityLabel in AddRouteSheet",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "إضافة مسار"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Route hinzufügen"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Agregar ruta"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ajouter la route"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "הוספת ניתוב"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Aggiungi regola"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ルートを追加"
-          }
-        }
-      }
+    "Add Route" : {
+      "comment" : "SheetScaffold in AddRouteSheet"
     },
     "Add Route…" : {
       "comment" : "Button in RuntimesView",
@@ -4921,6 +4225,9 @@
         }
       }
     },
+    "Also serve Linux jobs with tart (Linux VM)" : {
+      "comment" : "Toggle in TartRuntimeCard"
+    },
     "amd64 (emulated)" : {
       "comment" : "Text in MacToolsView",
       "localizations" : {
@@ -5347,6 +4654,9 @@
         }
       }
     },
+    "Applies to every runtime. Changes stage until you press Apply." : {
+      "comment" : "Card in FleetCapacityCard"
+    },
     "Applies to the installed kinhin.app — no effect while running unbundled from `swift run`." : {
       "comment" : "Text in AppSectionView",
       "localizations" : {
@@ -5393,6 +4703,9 @@
           }
         }
       }
+    },
+    "Applies without restart" : {
+      "comment" : "Text in DockerRuntimeCard"
     },
     "Apply" : {
       "comment" : "Button in CapacityView",
@@ -7180,52 +6493,8 @@
         }
       }
     },
-    "Booted VMs that wait for a job, so it skips the clone and boot. 0 is off." : {
-      "comment" : "row in CapacityView",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "VMs مشغّلة تنتظر مهمة، فتتخطى الاستنساخ والإقلاع. القيمة 0 تعني الإيقاف."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Gebootete VMs, die auf einen Job warten, sodass Klonen und Booten entfallen. 0 ist aus."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "VMs iniciadas que esperan un trabajo, para omitir la clonación y el arranque. 0 es desactivado."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "VM démarrées qui attendent un job, ce qui évite le clonage et le démarrage. 0 désactive."
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "VM מאותחלים שממתינים למשימה, כך שדילוג על השכפול והאתחול. 0 – כבוי."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "VM avviate che attendono un job, così saltano clonazione e avvio. 0 = disattivato."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ジョブを待機する起動済みの VM。クローンと起動を省略できます。0 でオフ。"
-          }
-        }
-      }
+    "Booted but unregistered; ≤ most VMs at once" : {
+      "comment" : "Text in TartRuntimeCard"
     },
     "Build" : {
       "comment" : "Text in VideosView",
@@ -7511,6 +6780,9 @@
           }
         }
       }
+    },
+    "built" : {
+      "comment" : "Container pool chip"
     },
     "Bundled recipes: several tools installed together." : {
       "comment" : "CollapsibleFormCard in ToolchainsCatalogCards",
@@ -7888,249 +7160,8 @@
         }
       }
     },
-    "cap %lld instances" : {
-      "comment" : "Routing tab pool title fragment; plural by the instance cap",
-      "localizations" : {
-        "ar" : {
-          "variations" : {
-            "plural" : {
-              "few" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "الحد: %lld نسخ"
-                }
-              },
-              "many" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "الحد: %lld نسخة"
-                }
-              },
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "الحد: نسخة واحدة"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "الحد: %lld نسخة"
-                }
-              },
-              "two" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "الحد: نسختان"
-                }
-              },
-              "zero" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "الحد: %lld نسخة"
-                }
-              }
-            }
-          }
-        },
-        "de" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Limit %lld Instanz"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Limit %lld Instanzen"
-                }
-              }
-            }
-          }
-        },
-        "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "cap %lld instance"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "cap %lld instances"
-                }
-              }
-            }
-          }
-        },
-        "es" : {
-          "variations" : {
-            "plural" : {
-              "many" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "límite de %lld instancias"
-                }
-              },
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "límite de %lld instancia"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "límite de %lld instancias"
-                }
-              }
-            }
-          }
-        },
-        "fr" : {
-          "variations" : {
-            "plural" : {
-              "many" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "cap %lld instances"
-                }
-              },
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "cap %lld instance"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "cap %lld instances"
-                }
-              }
-            }
-          }
-        },
-        "he" : {
-          "variations" : {
-            "plural" : {
-              "many" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "תקרה: %lld מופעים"
-                }
-              },
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "תקרה: %lld מופע"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "תקרה: %lld מופעים"
-                }
-              },
-              "two" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "תקרה: %lld מופעים"
-                }
-              }
-            }
-          }
-        },
-        "it" : {
-          "variations" : {
-            "plural" : {
-              "many" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "limite %lld istanze"
-                }
-              },
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "limite %lld istanza"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "limite %lld istanze"
-                }
-              }
-            }
-          }
-        },
-        "ja" : {
-          "variations" : {
-            "plural" : {
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "上限 %lld インスタンス"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "cap n/a" : {
-      "comment" : "Routing tab pool title fragment: no instance cap (not applicable)",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "cap n/a"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Limit n/v"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "límite n/d"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "cap n/d"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ללא תקרה"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "limite n/d"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "上限なし"
-          }
-        }
-      }
+    "cap %lld" : {
+      "comment" : "Capacity table cell: the pool's instance cap"
     },
     "Capacity" : {
       "comment" : "Advanced section title",
@@ -8178,6 +7209,9 @@
           }
         }
       }
+    },
+    "Capacity and routing are read-only until config.yaml loads." : {
+      "comment" : "Text in RuntimesPage"
     },
     "Capacity split: %@" : {
       "comment" : "VoiceOver summary of the capacity split bar; %@ lists each runtime with its percentage",
@@ -8746,6 +7780,9 @@
         }
       }
     },
+    "checking…" : {
+      "comment" : "Runtime health chip"
+    },
     "Checking…" : {
       "comment" : "This Mac form: tart status before the first probe",
       "localizations" : {
@@ -9125,53 +8162,6 @@
         }
       }
     },
-    "Comma-separated. Jobs must request a subset of these via runs-on:." : {
-      "comment" : "HintText in RuntimesView",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "مفصولة بفواصل. يجب أن تطلب المهام مجموعة فرعية منها عبر runs-on:."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kommagetrennt. Jobs müssen über runs-on: eine Teilmenge davon anfordern."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Separados por comas. Los trabajos deben solicitar un subconjunto de estos mediante runs-on:."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Séparés par des virgules. Les jobs doivent demander un sous-ensemble de ces valeurs via runs-on:."
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "מופרדים בפסיקים. משימות חייבות לבקש תת-קבוצה מאלה דרך runs-on:."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Separati da virgole. I job devono richiedere un sottoinsieme di questi tramite runs-on:."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "カンマ区切り。ジョブは runs-on: でこれらのサブセットを指定する必要があります。"
-          }
-        }
-      }
-    },
     "Command Line Tools" : {
       "comment" : "Diagnostics row title",
       "localizations" : {
@@ -9312,6 +8302,9 @@
           }
         }
       }
+    },
+    "Config problem" : {
+      "comment" : "Text in RuntimesPage"
     },
     "config.yaml can't be read — %@. Fix it in Runtimes → Edit YAML." : {
       "comment" : "Form status line; %@ is the YAML parse error"
@@ -9459,9 +8452,6 @@
           }
         }
       }
-    },
-    "config.yaml has a problem — %@. Use Settings → Open config file." : {
-      "comment" : "Capacity form status; %@ is the config error"
     },
     "Connect" : {
       "comment" : "Forge card button that saves the token",
@@ -9852,145 +8842,10 @@
       }
     },
     "Container extra labels" : {
-      "comment" : ".accessibilityLabel in RuntimesView",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "تسميات إضافية للحاوية"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Zusätzliche Container-Labels"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Etiquetas adicionales del contenedor"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Libellés supplémentaires du conteneur"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "תוויות נוספות לקונטיינר"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Etichette extra container"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "コンテナの追加ラベル"
-          }
-        }
-      }
+      "comment" : "LabeledControl in RoutesCard"
     },
-    "Container extra labels (appleContainer pool):" : {
-      "comment" : "Text in RuntimesView",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "تسميات إضافية للحاوية (مجموعة appleContainer):"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Zusätzliche Container-Labels (appleContainer-Pool):"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Etiquetas adicionales del contenedor (pool appleContainer):"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Libellés supplémentaires du conteneur (pool appleContainer) :"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "תוויות נוספות לקונטיינר (pool של appleContainer):"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Etichette extra container (pool appleContainer):"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "コンテナの追加ラベル (appleContainer プール):"
-          }
-        }
-      }
-    },
-    "Container pools" : {
-      "comment" : "Routing tab section header above the named Apple container pools",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "مجمّعات الحاويات"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Container-Pools"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pools de contenedores"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pools de conteneurs"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "מאגרי קונטיינרים"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pool di container"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "コンテナプール"
-          }
-        }
-      }
+    "Container service" : {
+      "comment" : "Text in ContainerRuntimeCard"
     },
     "Container tool" : {
       "comment" : "Picker in ContainersView",
@@ -11123,6 +9978,9 @@
     "Counts per forge; actions apply to every queued job on that forge" : {
       "comment" : "Card in FleetView"
     },
+    "CPU" : {
+      "comment" : "capacityStepper in FleetCapacityCard"
+    },
     "CPU cores" : {
       "comment" : "row in CapacityView",
       "localizations" : {
@@ -11171,51 +10029,7 @@
       }
     },
     "CPUs" : {
-      "comment" : "Container pool sheet field label: CPUs per runner",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "المعالجات"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "CPUs"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "CPU"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "CPU"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "מעבדים"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "CPU"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "CPU"
-          }
-        }
-      }
+      "comment" : "poolField in ContainerPoolSheet"
     },
     "CPUs must be a whole number, 1 or more." : {
       "comment" : "Container pool sheet validation",
@@ -11265,51 +10079,7 @@
       }
     },
     "CPUs per runner" : {
-      "comment" : "VoiceOver label of the container pool CPUs field",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "المعالجات لكل مشغّل"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "CPUs pro Runner"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "CPU por runner"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "CPU par runner"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "מעבדים לכל runner"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "CPU per runner"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ランナーあたりの CPU"
-          }
-        }
-      }
+      "comment" : "Text in ContainerPoolSheet"
     },
     "Create…" : {
       "comment" : "Link in FormComponents",
@@ -12636,8 +11406,8 @@
         }
       }
     },
-    "disabled" : {
-      "comment" : "Routing tab pool title suffix for a switched-off pool"
+    "Disk (GB)" : {
+      "comment" : "capacityStepper in FleetCapacityCard"
     },
     "Disk pressure" : {
       "comment" : "Diagnostics row title",
@@ -13108,6 +11878,9 @@
           }
         }
       }
+    },
+    "Docker isn't installed — optional." : {
+      "comment" : "Text in DockerRuntimeCard"
     },
     "Docker off" : {
       "comment" : "Container pool card: docker: false; keep Docker",
@@ -13627,51 +12400,7 @@
       }
     },
     "Each VM" : {
-      "comment" : "FormCard in CapacityView",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "كل VM"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Jede VM"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Cada VM"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Chaque VM"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "כל VM"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Per ogni VM"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "各 VM"
-          }
-        }
-      }
+      "comment" : "capacityGroup in FleetCapacityCard"
     },
     "Edit" : {
       "comment" : "Title of the Edit menu in the menu bar",
@@ -14246,6 +12975,9 @@
     "Erase credentials, the daemon, or everything. Three confirmations." : {
       "comment" : "RowLabel in AppSectionView"
     },
+    "error" : {
+      "comment" : "Runtime health chip"
+    },
     "Errors" : {
       "comment" : "Log level filter option: errors only",
       "localizations" : {
@@ -14339,6 +13071,9 @@
           }
         }
       }
+    },
+    "Every setting without a control lives in config.yaml." : {
+      "comment" : "HintText in RoutesCard"
     },
     "Everything here is saved in config.yaml — open it for settings that have no control." : {
       "comment" : "Card in AppSectionView"
@@ -15145,52 +13880,8 @@
         }
       }
     },
-    "Fewest VMs kept ready" : {
-      "comment" : "row in CapacityView",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "أقل عدد من VMs جاهزة"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mindestens bereitgehaltene VMs"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mínimo de VMs listas"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nombre minimal de VM prêtes"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "מספר מינימלי של VM מוכנים"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Minimo di VM tenute pronte"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "最低限確保しておく VM 数"
-          }
-        }
-      }
+    "Fewest kept ready" : {
+      "comment" : "capacityStepper in FleetCapacityCard"
     },
     "File I/O, git and a Swift build in one guest" : {
       "comment" : "Benchmark suite description; Swift and git stay verbatim",
@@ -15616,98 +14307,13 @@
       }
     },
     "Fleet base labels" : {
-      "comment" : ".accessibilityLabel in RuntimesView",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "وسوم الأسطول الأساسية"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Basis-Labels der Flotte"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Etiquetas base de la flota"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Labels de base de la flotte"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "תוויות בסיס של הצי"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Etichette base della flotta"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "フリートのベースラベル"
-          }
-        }
-      }
+      "comment" : "Text in RoutesCard"
     },
-    "Fleet base labels (every runner):" : {
-      "comment" : "Text in RuntimesView",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "وسوم الأسطول الأساسية (كل المشغّلات):"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Basis-Labels der Flotte (jeder Runner):"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Etiquetas base de la flota (todos los runners):"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Labels de base de la flotte (chaque runner) :"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "תוויות בסיס של הצי (כל runner):"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Etichette base della flotta (ogni runner):"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "フリートのベースラベル (すべてのランナー):"
-          }
-        }
-      }
+    "Fleet base labels (every runner)" : {
+      "comment" : "LabeledControl in RoutesCard"
+    },
+    "Fleet capacity" : {
+      "comment" : "Card in FleetCapacityCard"
     },
     "Fleet is stopped. Start it to pick up queued jobs." : {
       "comment" : "Fleet page note while the fleet is stopped"
@@ -15761,100 +14367,6 @@
     },
     "Fleet not responding — check the daemon in Settings → Daemon." : {
       "comment" : "Runtimes card text when the fleet cannot be reached"
-    },
-    "Fleet scope: %@ — routed fleet" : {
-      "comment" : "Routing tab headline; %@ is the repository or org",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "نطاق الأسطول: %@ — أسطول موجَّه"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Flottenbereich: %@ — geroutete Flotte"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ámbito de la flota: %@ — flota enrutada"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Périmètre de la flotte : %@ — flotte routée"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "היקף הצי: %@ — צי עם ניתוב"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ambito della flotta: %@ — flotta con instradamento"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "フリートの範囲: %@ — ルーティングあり"
-          }
-        }
-      }
-    },
-    "Fleet scope: %@ — single-pool fleet" : {
-      "comment" : "Routing tab headline; %@ is the repository or org",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "نطاق الأسطول: %@ — أسطول بمجموعة واحدة"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Flottenbereich: %@ — Flotte mit einem Pool"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ámbito de la flota: %@ — flota de un solo pool"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Périmètre de la flotte : %@ — flotte à pool unique"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "היקף הצי: %@ — צי עם pool יחיד"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ambito della flotta: %@ — flotta a pool singolo"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "フリートの範囲: %@ — 単一プール"
-          }
-        }
-      }
     },
     "Fleet Status" : {
       "comment" : "AppShortcut in KinhinShortcuts",
@@ -17322,53 +15834,6 @@
         }
       }
     },
-    "How much runs at once" : {
-      "comment" : "FormCard in CapacityView",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "كم يعمل في وقت واحد"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Wie viel gleichzeitig läuft"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Cuánto se ejecuta a la vez"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Combien tourne en même temps"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "כמה רץ בו-זמנית"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Quanto viene eseguito in parallelo"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "同時に実行する量"
-          }
-        }
-      }
-    },
     "How toolchains work" : {
       "comment" : "Card in ToolchainsGuideView"
     },
@@ -17517,98 +15982,10 @@
       }
     },
     "Idle runners" : {
-      "comment" : "Container pool sheet field label: min_idle",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "المشغّلات الخاملة"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Leerlauf-Runner"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Runners inactivos"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Runners inactifs"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "runners פנויים"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Runner inattivi"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "待機ランナー"
-          }
-        }
-      }
+      "comment" : "poolField in ContainerPoolSheet"
     },
     "Idle runners kept" : {
-      "comment" : "VoiceOver label of the container pool Idle runners field",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "المشغّلات الخاملة المحتفَظ بها"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Vorgehaltene Leerlauf-Runner"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Runners inactivos que se mantienen"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Runners inactifs conservés"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "runners פנויים שנשמרים"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Runner inattivi mantenuti"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "維持する待機ランナー"
-          }
-        }
-      }
+      "comment" : "Text in ContainerPoolSheet"
     },
     "Idle runners must be a whole number, 0 or more." : {
       "comment" : "Container pool sheet validation",
@@ -18503,6 +16880,9 @@
         }
       }
     },
+    "Install Apple container to turn this on." : {
+      "comment" : "Text in ContainerRuntimeCard"
+    },
     "Install daemon…" : {
       "comment" : "Settings → App button",
       "localizations" : {
@@ -19117,52 +17497,8 @@
         }
       }
     },
-    "Instance counts update once you Apply the changes below." : {
-      "comment" : "HintText in CapacityView",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "تتحدث أعداد الـ instance بعد تطبيق التغييرات أدناه."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Die Instanzanzahl wird aktualisiert, sobald du die Änderungen unten anwendest."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "El número de instancias se actualiza al aplicar los cambios de abajo."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Le nombre d’instances se met à jour une fois les modifications ci-dessous appliquées."
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "מספר המופעים מתעדכן לאחר שתחילו את השינויים שלמטה."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "I conteggi delle istanze si aggiornano dopo aver applicato le modifiche qui sotto."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "インスタンス数は、下の変更を適用すると更新されます。"
-          }
-        }
-      }
+    "Instance counts update once you Apply" : {
+      "comment" : "HintText in BudgetCard"
     },
     "INSTANCES" : {
       "comment" : "Text in BudgetCard",
@@ -19449,6 +17785,9 @@
     "Jobs" : {
       "comment" : "RowLabel in WorkflowTestView"
     },
+    "Jobs must request a subset of these via runs-on." : {
+      "comment" : "HintText in RoutesCard"
+    },
     "Jobs per VM" : {
       "comment" : "row in CapacityView",
       "localizations" : {
@@ -19496,52 +17835,8 @@
         }
       }
     },
-    "Jobs with no route run on:" : {
-      "comment" : "Picker in RuntimesView",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "المهام التي لا مسار لها تعمل على:"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Jobs ohne Route laufen auf:"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Los trabajos sin ruta se ejecutan en:"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Les jobs sans route s’exécutent sur :"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "משימות ללא ניתוב רצות על:"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "I job senza regola vengono eseguiti su:"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ルートのないジョブの実行先:"
-          }
-        }
-      }
+    "Jobs with no route run on" : {
+      "comment" : "Picker in RoutesCard"
     },
     "JVM with Gradle" : {
       "comment" : "Toolchain example title",
@@ -19591,51 +17886,10 @@
       }
     },
     "Keep free for your Mac" : {
-      "comment" : "FormCard in CapacityView",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "أبقِ مساحة فارغة لـ Mac"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Für deinen Mac freihalten"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Reservar libre para tu Mac"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Garder libre pour votre Mac"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "להשאיר פנוי עבור ה-Mac שלכם"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Riserva per il Mac"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mac 用に空けておく容量"
-          }
-        }
-      }
+      "comment" : "capacityGroup in FleetCapacityCard"
+    },
+    "Keep idle" : {
+      "comment" : "StepperRow in DockerRuntimeCard"
     },
     "Keychain error — %@" : {
       "comment" : "Forge card status; %@ is the Keychain error",
@@ -21304,51 +19558,7 @@
       }
     },
     "Labels" : {
-      "comment" : "SectionHeader in RuntimesView",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "الوسوم"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Labels"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Etiquetas"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Labels"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "תוויות"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Etichette"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ラベル"
-          }
-        }
-      }
+      "comment" : "poolField in ContainerPoolSheet"
     },
     "Labels not loaded — %@" : {
       "comment" : "Capacity form status; %@ is the reason",
@@ -22111,6 +20321,12 @@
         }
       }
     },
+    "Linux (Apple container)" : {
+      "comment" : "Runtime card title and split row"
+    },
+    "Linux base image" : {
+      "comment" : "LabeledControl in TartRuntimeCard"
+    },
     "Linux image (Apple container)" : {
       "comment" : "Name of the Apple container runtime image",
       "localizations" : {
@@ -22443,6 +20659,9 @@
         }
       }
     },
+    "Lock" : {
+      "comment" : "Text in BudgetCard"
+    },
     "Lock %@ share" : {
       "comment" : ".accessibilityLabel in BudgetCard",
       "localizations" : {
@@ -22587,52 +20806,8 @@
     "Logs" : {
       "comment" : "Diagnostics sub-section title"
     },
-    "Look for new jobs every (seconds)" : {
-      "comment" : "row in CapacityView",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ابحث عن مهام جديدة كل (ثوانٍ)"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Neue Jobs suchen alle (Sekunden)"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Buscar trabajos nuevos cada (segundos)"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Chercher de nouveaux jobs toutes les (secondes)"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "חיפוש משימות חדשות כל (שניות)"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Cerca nuovi job ogni (secondi)"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "新しいジョブを確認する間隔 (秒)"
-          }
-        }
-      }
+    "Look for jobs every (s)" : {
+      "comment" : "capacityStepper in FleetCapacityCard"
     },
     "macOS · Linux" : {
       "comment" : "Toolchain catalog: platforms an entry supports",
@@ -22680,6 +20855,12 @@
           }
         }
       }
+    },
+    "macOS (Tart)" : {
+      "comment" : "Runtime card title and split row"
+    },
+    "macOS allows %@ VMs per Mac across all images" : {
+      "comment" : "Text in TartRuntimeCard"
     },
     "macOS and Linux. The version after @ is the Flutter SDK version." : {
       "comment" : "Toolchain example note; names like node, pnpm and java stay verbatim",
@@ -23108,98 +21289,10 @@
       }
     },
     "Max runners" : {
-      "comment" : "Container pool sheet field label: the pool's max:",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "الحد الأقصى للمشغّلات"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Max. Runner"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Máximo de runners"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Runners max."
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "מקסימום runners"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Runner massimi"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "最大ランナー数"
-          }
-        }
-      }
+      "comment" : "poolField in ContainerPoolSheet"
     },
     "Max runners at once" : {
-      "comment" : "VoiceOver label of the container pool Max runners field",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "الحد الأقصى للمشغّلات في وقت واحد"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Max. gleichzeitige Runner"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Máximo de runners a la vez"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Runners max. simultanés"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "מקסימום runners בו-זמנית"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Runner massimi contemporanei"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "同時に動かす最大ランナー数"
-          }
-        }
-      }
+      "comment" : "Text in ContainerPoolSheet"
     },
     "Max runners must be a whole number, 1 or more." : {
       "comment" : "Container pool sheet validation",
@@ -23437,51 +21530,7 @@
       }
     },
     "Memory per runner in GB" : {
-      "comment" : "VoiceOver label of the container pool Memory field",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "الذاكرة لكل مشغّل بالغيغابايت"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Arbeitsspeicher pro Runner in GB"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Memoria por runner en GB"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mémoire par runner en Go"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "זיכרון לכל runner ב-GB"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Memoria per runner in GB"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ランナーあたりのメモリ（GB）"
-          }
-        }
-      }
+      "comment" : "Text in ContainerPoolSheet"
     },
     "Menu bar only" : {
       "comment" : "Launch-mode picker option in Settings → App",
@@ -23526,53 +21575,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "メニューバーのみ"
-          }
-        }
-      }
-    },
-    "Merged with the kinhin-container marker (always present) at pool build." : {
-      "comment" : "HintText in RuntimesView",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "يُدمج مع علامة kinhin-container (موجودة دائمًا) عند بناء المجموعة."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Wird beim Aufbau des Pools mit der Markierung kinhin-container (immer vorhanden) zusammengeführt."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Se combina con el marcador kinhin-container (siempre presente) al crear el pool."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Fusionné avec le marqueur kinhin-container (toujours présent) à la création du pool."
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ממוזג עם הסמן kinhin-container (תמיד קיים) בבניית ה-pool."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Unito al marcatore kinhin-container (sempre presente) alla creazione del pool."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "プールのビルド時に、kinhin-container マーカー (常に付与) と統合されます。"
           }
         }
       }
@@ -23814,6 +21816,9 @@
           }
         }
       }
+    },
+    "Most at once" : {
+      "comment" : "StepperRow in DockerRuntimeCard"
     },
     "Most VMs at once" : {
       "comment" : "row in CapacityView",
@@ -24676,6 +22681,9 @@
         }
       }
     },
+    "No enable switch — add a route to a repo you trust. Each Host route needs explicit consent." : {
+      "comment" : "Text in HostRuntimeCard"
+    },
     "No export problems reported." : {
       "comment" : "Settings → App → Telemetry status",
       "localizations" : {
@@ -25052,6 +23060,9 @@
         }
       }
     },
+    "No named pools — every container job runs in the one pool container: describes." : {
+      "comment" : "HintText in ContainerRuntimeCard"
+    },
     "No output yet." : {
       "comment" : "Pipeline output placeholder",
       "localizations" : {
@@ -25145,6 +23156,9 @@
           }
         }
       }
+    },
+    "No routes — every job uses the default pool." : {
+      "comment" : "HintText in RoutesCard"
     },
     "No runtime is set up yet. Set one up in Runtimes." : {
       "comment" : "HintText in ToolchainsView"
@@ -25762,6 +23776,9 @@
           }
         }
       }
+    },
+    "not built" : {
+      "comment" : "Container pool chip"
     },
     "Not built yet, so its jobs wait. Build it: kinhin image prepare --container --pool %@" : {
       "comment" : "Container pool card; %@ is the pool name, inside a command that stays verbatim",
@@ -26944,6 +24961,9 @@
         }
       }
     },
+    "Only one runtime is enabled, so there's nothing to split. Enable another to share capacity." : {
+      "comment" : "Text in BudgetCard"
+    },
     "Open config" : {
       "comment" : ".action in AccountsSectionView"
     },
@@ -27040,6 +25060,9 @@
           }
         }
       }
+    },
+    "Open Docker" : {
+      "comment" : ".action in RuntimeCard"
     },
     "Open in browser" : {
       "comment" : "Link in PipelineView",
@@ -28385,192 +26408,16 @@
       }
     },
     "Pool base image" : {
-      "comment" : "VoiceOver label of the container pool Base image field",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "الصورة الأساسية للمجمّع"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Basis-Image des Pools"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Imagen base del pool"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Image de base du pool"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "אימג׳ הבסיס של המאגר"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Immagine di base del pool"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "プールのベースイメージ"
-          }
-        }
-      }
+      "comment" : "Text in ContainerPoolSheet"
     },
     "Pool image" : {
-      "comment" : "VoiceOver label of the container pool Image field",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "صورة المجمّع"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Image des Pools"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Imagen del pool"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Image du pool"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "האימג׳ של המאגר"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Immagine del pool"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "プールのイメージ"
-          }
-        }
-      }
+      "comment" : "Text in ContainerPoolSheet"
     },
     "Pool labels" : {
-      "comment" : "VoiceOver label of the container pool Labels field",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "وسوم المجمّع"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Labels des Pools"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Etiquetas del pool"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Labels du pool"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "תוויות המאגר"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Etichette del pool"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "プールのラベル"
-          }
-        }
-      }
+      "comment" : "Text in ContainerPoolSheet"
     },
     "Pool name" : {
-      "comment" : "VoiceOver label of the container pool Name field",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "اسم المجمّع"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pool-Name"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nombre del pool"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nom du pool"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "שם המאגר"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nome del pool"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "プール名"
-          }
-        }
-      }
+      "comment" : "Text in ContainerPoolSheet"
     },
     "Pools" : {
       "comment" : "SectionHeader in RuntimesView",
@@ -29430,6 +27277,9 @@
         }
       }
     },
+    "ready" : {
+      "comment" : "Runtime health chip"
+    },
     "ready — image %@" : {
       "comment" : "Diagnostics Apple container row; %@ is an image name",
       "localizations" : {
@@ -29852,6 +27702,9 @@
           }
         }
       }
+    },
+    "Rebuild the Docker image after changing architecture." : {
+      "comment" : "HintText in DockerRuntimeCard"
     },
     "Rebuild the Docker image after changing this." : {
       "comment" : "Appended to the amd64 emulation notice",
@@ -30887,6 +28740,9 @@
         }
       }
     },
+    "Repository or workflow pattern" : {
+      "comment" : "LabeledControl in AddRouteSheet"
+    },
     "Requeue" : {
       "comment" : "Button in FleetView",
       "localizations" : {
@@ -31400,53 +29256,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "解決中…"
-          }
-        }
-      }
-    },
-    "Resources kinhin will not hand to VMs, so your Mac stays responsive." : {
-      "comment" : "FormCard in CapacityView",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "موارد لن يمنحها kinhin لـ VMs، ليبقى Mac سريع الاستجابة."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ressourcen, die kinhin nicht an VMs vergibt, damit dein Mac reaktionsfähig bleibt."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Recursos que kinhin no cederá a las VMs, para que tu Mac siga respondiendo con fluidez."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ressources que kinhin ne donnera pas aux VM, pour que votre Mac reste réactif."
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "משאבים ש-kinhin לא ימסור ל-VM, כדי שה-Mac שלכם יישאר מגיב."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Risorse che kinhin non assegnerà alle VM, per mantenere reattivo il Mac."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mac の応答性を保つため、kinhin が VM に割り当てないリソースです。"
           }
         }
       }
@@ -31974,53 +29783,6 @@
         }
       }
     },
-    "Routing" : {
-      "comment" : "Advanced section title",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "التوجيه"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Routing"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Enrutamiento"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Routage"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ניתוב"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Instradamento"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ルーティング"
-          }
-        }
-      }
-    },
     "Rules only — no advisor available." : {
       "comment" : "Diagnostics healing advisor line when no on-device model advises",
       "localizations" : {
@@ -32212,52 +29974,8 @@
         }
       }
     },
-    "Run flags" : {
-      "comment" : "Container pool sheet field label: extra container run arguments (flags:)",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "خيارات التشغيل"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Run-Flags"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Opciones de ejecución"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Options d’exécution"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "דגלי הרצה"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Flag di esecuzione"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "実行フラグ"
-          }
-        }
-      }
+    "Run flags (one per line)" : {
+      "comment" : "LabeledControl in ContainerPoolSheet"
     },
     "Run jobs with labels" : {
       "comment" : "Text in MacToolsView",
@@ -32544,53 +30262,6 @@
         }
       }
     },
-    "Runners sharing one VM. 1 is safest; more share its CPU and RAM." : {
-      "comment" : "row in CapacityView",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "مشغّلات تتشارك VM واحدة. 1 هو الأكثر أمانًا؛ المزيد يتشارك CPU وRAM الخاصين بها."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Runner, die sich eine VM teilen. 1 ist am sichersten; mehr teilen sich deren CPU und RAM."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Runners que comparten una VM. 1 es lo más seguro; más comparten su CPU y RAM."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Runners partageant une VM. 1 est le plus sûr ; plus de runners se partagent son CPU et sa RAM."
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Runners שחולקים VM אחד. 1 הוא הבטוח ביותר; יותר חולקים את ה-CPU וה-RAM שלו."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Runner che condividono una VM. 1 è la scelta più sicura; di più condividono CPU e RAM."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "1 つの VM を共有するランナー数。1 が最も安全で、増やすと CPU と RAM を共有します。"
-          }
-        }
-      }
-    },
     "running" : {
       "comment" : "VoiceOver state of a busy runtime lane",
       "localizations" : {
@@ -32685,6 +30356,9 @@
         }
       }
     },
+    "Runs jobs directly on your Mac, no isolation. Used only by routes you add." : {
+      "comment" : "Text in HostRuntimeCard"
+    },
     "Runs on:  %@" : {
       "comment" : "Setup wizard summary line; %@ describes the chosen runtimes",
       "localizations" : {
@@ -32731,6 +30405,9 @@
           }
         }
       }
+    },
+    "Runtime" : {
+      "comment" : "LabeledControl in AddRouteSheet"
     },
     "Runtime to use" : {
       "comment" : "Picker in AddRouteSheet",
@@ -32963,53 +30640,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "保存"
-          }
-        }
-      }
-    },
-    "Save container pool" : {
-      "comment" : "VoiceOver label of the container pool sheet's Save button",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "حفظ مجمّع الحاويات"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Container-Pool sichern"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Guardar pool de contenedores"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Enregistrer le pool de conteneurs"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "שמירת מאגר הקונטיינרים"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Salva pool di container"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "コンテナプールを保存"
           }
         }
       }
@@ -33390,52 +31020,11 @@
         }
       }
     },
-    "Send a repository, or one workflow, to a runtime. Use owner/repo for a whole repo, or owner/repo@Workflow Name for one workflow." : {
-      "comment" : "Text in AddRouteSheet",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "أرسل مستودعًا أو سير عمل واحدًا إلى بيئة تشغيل. استخدم owner/repo لمستودع كامل، أو owner/repo@Workflow Name لسير عمل واحد."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sende ein Repository oder einen Workflow an eine Runtime. Nutze owner/repo für ein ganzes Repo oder owner/repo@Workflow Name für einen Workflow."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Envía un repositorio, o un workflow, a un entorno de ejecución. Usa owner/repo para un repositorio completo, u owner/repo@Workflow Name para un workflow."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Envoyez un dépôt, ou un seul workflow, vers un runtime. Utilisez owner/repo pour un dépôt entier, ou owner/repo@Workflow Name pour un seul workflow."
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "שלחו מאגר, או workflow אחד, אל סביבה. השתמשו ב-owner/repo למאגר שלם, או ב-owner/repo@Workflow Name ל-workflow אחד."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Inviare un repository, o un singolo workflow, a un runtime. Usare owner/repo per un intero repo, oppure owner/repo@Workflow Name per un singolo workflow."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "リポジトリ、または 1 つのワークフローをランタイムに振り分けます。リポジトリ全体は owner/repo、1 つのワークフローは owner/repo@Workflow Name を使用します。"
-          }
-        }
-      }
+    "Send a repository, or one workflow, to a runtime." : {
+      "comment" : "Card in RoutesCard"
+    },
+    "Send a repository, or one workflow, to a runtime. Use owner/repo or owner/repo@Workflow Name." : {
+      "comment" : "HintText in AddRouteSheet"
     },
     "Send alerts" : {
       "comment" : "Toggle in AlertsCard"
@@ -34012,6 +31601,9 @@
           }
         }
       }
+    },
+    "Shares always total 100%%. Drag or type a number; lock a pool to keep its share." : {
+      "comment" : "Card in BudgetCard"
     },
     "Show All" : {
       "comment" : "App menu item",
@@ -36757,6 +34349,9 @@
         }
       }
     },
+    "tart is serving Linux jobs — its base image is chosen below. Add a macOS image under More images so macOS jobs still have somewhere to run." : {
+      "comment" : "HintText in TartRuntimeCard"
+    },
     "tart is serving Linux jobs — its base image is chosen under Linux jobs below. Add a macOS image under More images so macOS jobs still have somewhere to run." : {
       "comment" : "HintText in MacToolsView",
       "localizations" : {
@@ -36850,6 +34445,9 @@
           }
         }
       }
+    },
+    "Tart Linux serves jobs with the macos label removed." : {
+      "comment" : "HintText in TartRuntimeCard"
     },
     "Tart VMs (macOS)" : {
       "comment" : "Runtime lane name; Tart runs macOS VMs",
@@ -37571,8 +35169,8 @@
         }
       }
     },
-    "The default pool also keeps whatever share the others leave (Runtimes → Capacity)." : {
-      "comment" : "Hint under the default-pool card; Runtimes → Capacity names the sidebar section and its capacity cards"
+    "The default pool also keeps whatever share the others leave." : {
+      "comment" : "HintText in RoutesCard"
     },
     "The default pool, or a pool a route uses, stays on." : {
       "comment" : "Routing tab: tooltip on a pool switch that cannot be turned off"
@@ -38482,53 +36080,6 @@
         }
       }
     },
-    "The hard ceiling on VMs running together." : {
-      "comment" : "row in CapacityView",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "الحد الأقصى الصارم لـ VMs العاملة معًا."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Die harte Obergrenze für gleichzeitig laufende VMs."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "El límite máximo de VMs en ejecución simultánea."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Le plafond strict de VM simultanées."
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "התקרה הקשיחה ל-VM שרצים יחד."
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Il limite massimo di VM in esecuzione contemporanea."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "同時に実行できる VM の上限です。"
-          }
-        }
-      }
-    },
     "The image every job starts from. Per-repo images with toolchains are cloned from it." : {
       "comment" : "FormCard in ToolchainsView",
       "localizations" : {
@@ -38670,7 +36221,7 @@
         }
       }
     },
-    "The runtime list hasn't loaded yet. If this keeps happening, check that config.yaml exists and is valid (Settings → Open config file)." : {
+    "The runtime list hasn't loaded yet. If this keeps happening, check that config.yaml exists and is valid (Settings → Files → Open config file)." : {
       "comment" : "Alert body"
     },
     "The start is in progress — check the fleet status in a moment." : {
@@ -38998,53 +36549,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "kinhin の CI ランナーのようです — 停止すると、実行中のジョブはキャンセルされます。"
-          }
-        }
-      }
-    },
-    "This Mac" : {
-      "comment" : "SectionHeader in CapacityView",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "هذا الـ Mac"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dieser Mac"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Este Mac"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ce Mac"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ה-Mac הזה"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Questo Mac"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "この Mac"
           }
         }
       }
@@ -40086,6 +37590,12 @@
         }
       }
     },
+    "unisolated" : {
+      "comment" : "Chip in RoutesCard"
+    },
+    "Unlock" : {
+      "comment" : "Text in BudgetCard"
+    },
     "Unlock %@" : {
       "comment" : ".help in BudgetCard",
       "localizations" : {
@@ -40799,6 +38309,9 @@
           }
         }
       }
+    },
+    "Used by the default pool" : {
+      "comment" : "Text in ContainerRuntimeCard"
     },
     "Verify" : {
       "comment" : "Toolchains benchmark column",
@@ -41787,52 +39300,8 @@
         }
       }
     },
-    "Warm VMs kept ready (base image)" : {
-      "comment" : "row in CapacityView",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "VMs مهيّأة جاهزة (الصورة الأساسية)"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bereitgehaltene vorgewärmte VMs (Basis-Image)"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "VMs precalentadas listas (imagen base)"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "VM chaudes gardées prêtes (image de base)"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "VM חמים מוכנים (אימג' בסיס)"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "VM warm tenute pronte (immagine di base)"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ウォーム VM の準備数 (ベースイメージ)"
-          }
-        }
-      }
+    "Warm VMs" : {
+      "comment" : "StepperRow in TartRuntimeCard"
     },
     "warm, waiting to be claimed" : {
       "comment" : "VoiceOver phase description",
@@ -41877,53 +39346,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ウォーム、割り当て待ち"
-          }
-        }
-      }
-    },
-    "Warning" : {
-      "comment" : ".accessibilityLabel in BudgetCard",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "تحذير"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Warnung"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Advertencia"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Avertissement"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "אזהרה"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Avviso"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "警告"
           }
         }
       }
@@ -42180,6 +39602,9 @@
           }
         }
       }
+    },
+    "Where jobs run, how many, and how they're routed." : {
+      "comment" : "Text in RuntimesPage"
     },
     "Where kinhin picks up jobs. Tokens live in your Keychain, never in a file." : {
       "comment" : "HintText in AccountsSectionView"

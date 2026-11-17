@@ -52,6 +52,8 @@ struct L10nSourceScanner {
         "Chip", "Banner", "StepperRow", "SheetConfirmFooter", ".action",
         // the Diagnostics and Settings pages' row helpers
         "RowLabel", "toggleRow", "labeled", "fieldLabel",
+        // the Runtimes page's labelled-control helpers
+        "LabeledControl", "capacityStepper", "capacityGroup", "poolField",
     ]
 
     /// `callee` → labels whose argument is localized.

@@ -36,29 +36,3 @@ extension PageHeaderStack where Trailing == EmptyView {
         self.init(title: title, trailing: { EmptyView() }, content: content)
     }
 }
-
-// MARK: - Runtimes
-
-/// Runtimes: capacity (This Mac, reserve, the split between runtimes, VM size) then routing (pools, routes, labels),
-/// stacked in one scroll.
-struct RuntimesPage: View {
-    let capacity: CapacityModel
-    let mac: MacToolsModel
-    let runtimes: RuntimesModel
-
-    var body: some View {
-        PageHeaderStack(title: MainSection.runtimes.label) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: Spacing.xxl) {
-                    CapacityView(model: capacity, mac: mac, runtimes: runtimes, embedded: true)
-                    VStack(alignment: .leading, spacing: Spacing.md) {
-                        SectionHeader("Routing")
-                        RuntimesView(model: runtimes, embedded: true)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.bottom, Spacing.md)
-            }
-        }
-    }
-}

@@ -14,6 +14,9 @@
 
 **Added**
 
+- The Runtimes page is rebuilt: fleet capacity, the split, a card per runtime and the routes in one place, with a pinned
+  Apply bar. Every runtime has a **Keep idle** floor (`min_idle`) that is checked before Apply and takes effect without
+  restarting the fleet. See [the app](docs/app.md).
 - Pools have an on/off switch. `enabled: false` on `container:`, a `container.pools` entry or `docker:`, and
   `runtimes.tart.enabled: false`, keep a pool's settings but take it out of routing, scheduling and the Fleet page;
   running instances drain. In Advanced → Routing each pool card has the switch. See
