@@ -27,7 +27,8 @@ final class WizardModelTests: XCTestCase {
     }
 
     func testStepTitlesAndSubtitlesFollowTheDesign() {
-        XCTAssertEqual(WizardModel.Step.allCases.map(\.title), ["Connect your code", "Get this Mac ready", "Review & Start"])
+        XCTAssertEqual(
+            WizardModel.Step.allCases.map(\.title), ["Connect your code", "Get this Mac ready", "Review & Start"])
         XCTAssertEqual(
             WizardModel.Step.connect.subtitle,
             "Pick every forge kinhin should serve and paste a token. It stays in your Keychain.")
