@@ -69,6 +69,8 @@ final class UICaptureTests: MainWindowTestCase {
             }
         }
         for variant in variants.prefix(2) { await captureWizard(variant) }
+        for variant in variants.prefix(2) { await captureSheets(variant) }
+        captureMenus()
     }
 
     // MARK: - Pages
@@ -108,6 +110,90 @@ final class UICaptureTests: MainWindowTestCase {
             await snap(
                 host, window: wizardWindow, size: NSSize(width: 820, height: height),
                 name: "wizard\(index + 1)-\(variant.tag)", variant: variant)
+        }
+    }
+
+    /// Every sheet, rendered on its own (a sheet is a separate window, which an offscreen render of the main window
+    /// does not include). Each is sized to its content.
+    private func captureSheets(_ variant: Variant) async {
+        let models = window.models
+        // Created when the Runtimes page rendered above (not when only some pages were asked for).
+        window.tabs.select(.runtimes)
+        layout(
+            window.window!.contentView!, window: window.window!, size: NSSize(width: 1000, height: 900),
+            variant: variant)
+        await waitForLoads()
+        guard let runtimes = models.runtimesModel else { return }
+        let tool = InstallableTool.docker
+        let options = RuntimeInstaller.options(for: tool)
+        var sheets: [(String, AnyView)] = [
+            ("sponsor", AnyView(SponsorSheet(close: {}))),
+            ("workflow-test", AnyView(WorkflowTestView(model: WorkflowTestModel(), onClose: {}))),
+            ("videos", AnyView(VideosView(model: models.ensureVideosModel(), onClose: {}))),
+            ("pipeline", AnyView(PipelineView(model: models.makePipelineModel(vmID: "kinhin-vm-a1"), onClose: {}))),
+            ("add-route", AnyView(AddRouteSheet(model: runtimes, runtimes: [.tart, .appleContainer, .docker]))),
+            (
+                "install",
+                AnyView(
+                    InstallConfirmationSheet(
+                        offer: InstallOffer(tool: tool, options: options), onConfirm: { _ in }, onCopy: { _ in },
+                        onCancel: {}))
+            ),
+            (
+                "missing-brew",
+                AnyView(
+                    MissingBrewSheet(
+                        offer: MissingBrewOffer(tool: tool, options: options), onGetBrew: {}, onDownload: {},
+                        onCancel: {}))
+            ),
+        ]
+        runtimes.editYAMLClicked()
+        sheets.append(("edit-yaml", AnyView(EditYAMLSheet(model: runtimes))))
+        runtimes.addContainerPoolClicked()
+        if let offer = runtimes.containerPoolOffer {
+            sheets.append(("container-pool", AnyView(ContainerPoolSheet(model: runtimes, offer: offer))))
+        }
+        models.alertsModel.beginAdd()
+        sheets.append(("webhook", AnyView(AlertWebhookSheet(model: models.alertsModel))))
+        for (name, view) in sheets {
+            guard onlyPages?.contains("sheet-\(name)") ?? true else { continue }
+            let host = NSHostingView(rootView: view)
+            let sheetWindow = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 800, height: 900), styleMask: [.titled], backing: .buffered,
+                defer: false)
+            sheetWindow.contentView = host
+            layout(host, window: sheetWindow, size: NSSize(width: 800, height: 900), variant: variant)
+            await settle(0.8)
+            let fit = host.fittingSize
+            await snap(
+                host, window: sheetWindow, size: NSSize(width: max(fit.width, 300), height: max(fit.height, 200)),
+                name: "sheet-\(name)-\(variant.tag)", variant: variant)
+        }
+    }
+
+    /// The menu bar menu as text (an NSMenu has no offscreen render): one `menu-<state>.txt` per fleet state, hidden
+    /// items marked, so it can be read against the design's menu frame.
+    private func captureMenus() {
+        guard onlyPages?.contains("menu") ?? true else { return }
+        func dump(_ menu: NSMenu, indent: String = "") -> String {
+            menu.items.map { item in
+                let line =
+                    item.isSeparatorItem
+                    ? "\(indent)----"
+                    : "\(indent)\(item.isHidden ? "(hidden) " : "")\(item.title)"
+                        + (item.isEnabled ? "" : "  [disabled]")
+                return item.submenu.map { line + "\n" + dump($0, indent: indent + "    ") } ?? line
+            }.joined(separator: "\n")
+        }
+        let states: [(String, FleetStatus?)] = [("running", Self.demoStatus()), ("stopped", FleetStatus())]
+        for (name, status) in states {
+            let delegate = AppDelegate()
+            let menu = delegate.buildMenu()
+            delegate.menu = menu
+            delegate.applyFleetControlVisibility(to: menu, status: status)
+            let url = URL(fileURLWithPath: outputFolder).appendingPathComponent("menu-\(name).txt")
+            try? dump(menu).write(to: url, atomically: true, encoding: .utf8)
+            print("wrote \(url.path)")
         }
     }
 
