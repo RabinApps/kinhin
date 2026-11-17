@@ -137,6 +137,10 @@ extension DoctorReport {
                 )
             }
             if let cache = container.registryCache { row("cont cache", Self.registryCacheLine(cache)) }
+            if let install = container.install {
+                row("cont from", install.summaryLine)
+                if let warning = install.warning ?? install.note { more("⚠ \(warning)") }
+            }
         }
         if let docker {
             row("docker", docker.ok ? "ready ✓ (\(docker.platform))" : docker.fix ?? "✗")

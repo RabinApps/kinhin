@@ -120,7 +120,7 @@ final class DiagnosticsModel {
                 Row(
                     title: String(
                         localized: "Apple container (Linux)", bundle: .l10n, comment: "Diagnostics row title"),
-                    detail: detail, ok: container.ok))
+                    detail: detail, ok: container.ok, warning: container.install?.warning))
         }
         if let docker = report.docker {
             var detail =

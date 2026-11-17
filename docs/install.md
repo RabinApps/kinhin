@@ -82,6 +82,29 @@ container system start --enable-kernel-install
 question, and every `container run` then fails with "default kernel not configured". Then bake the image with
 `kinhin image prepare --container`.
 
+#### Keeping container data on an external volume
+
+If you move the container app root (images, containers, kernels) to an external drive, install Apple's **signed
+installer** package from the [apple/container releases](https://github.com/apple/container/releases) instead of the
+Homebrew formula. It puts the CLI at `/usr/local/bin/container`.
+
+macOS asks for **Full Disk Access** or **Removable Volumes** access before a process reads an external drive. kinhin
+can't pass its own grant to the container daemons: `container system start` registers the API server with launchd,
+and the API server registers each container's runtime helper and the network plugin with launchd too. launchd starts
+them, not kinhin, so each binary needs its own grant. macOS ties a grant to the binary's code signature. The Homebrew
+build is ad-hoc signed, so its signature changes with every build, and **`brew upgrade container` drops the grants**.
+The next `container system start` or `container run` then fails, which looks like a random start failure after an
+upgrade. The signed installer has a stable Developer ID signature, so grants survive its upgrades.
+
+On the Homebrew build, re-grant after every `brew upgrade container`: in **System Settings → Privacy & Security → Full
+Disk Access**, remove the old `container` entries and add the binaries again (`container`, `container-apiserver`,
+`container-runtime-linux`, `container-core-images` and the network plugin, under the formula's `libexec`). Don't edit
+the privacy database by hand.
+
+`kinhin doctor` shows where `container` came from, how it is signed and whether its data is on an external volume
+(the `cont from:` row, and `container.install` in `--json`). It warns when an ad-hoc build keeps its data on an
+external volume. The warning does not make doctor fail, because the grants may be in place.
+
 ### Docker
 
 `kinhin setup repair docker` installs Docker Desktop by default. Pick another provider with

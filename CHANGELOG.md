@@ -15,6 +15,11 @@
   single `webhook:` still works and is read as one webhook named `default`. `kinhin alerts test --webhook NAME` tests one,
   `kinhin doctor` reports each webhook's token, and **Advanced → App → Alerts** in the app adds, edits, tests and removes
   them. See [Alerts](docs/alerts.md).
+- `kinhin doctor` reports where Apple's `container` came from (Homebrew or the signed installer), how it is signed and
+  whether its data is on an external volume, and warns when an ad-hoc Homebrew build keeps its data there: launchd, not
+  kinhin, starts its daemons, so each needs its own Full Disk Access grant, and `brew upgrade container` drops it. The
+  install docs recommend Apple's signed installer for external storage. See
+  [Install](docs/install.md#keeping-container-data-on-an-external-volume).
 
 ## v0.0.1-beta-6
 
