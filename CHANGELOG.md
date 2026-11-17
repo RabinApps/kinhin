@@ -23,6 +23,13 @@
   `kinhin doctor` reports each webhook's token, and **Advanced → App → Alerts** in the app adds, edits, tests and removes
   them. See [Alerts](docs/alerts.md).
 
+**Changed**
+
+- Every `min_idle` floor (`image_min_idle`, `images[].min_idle`, `container.min_idle`, each container pool's and
+  `docker.min_idle`) now applies on a config reload without restarting the engine. Before, only `images[].min_idle`
+  did. Adding or removing a pool, switching a pool or runtime on or off, or changing a pool's `max` still rebuilds the
+  engine.
+
 ## v0.0.1-beta-6
 
 **Added**

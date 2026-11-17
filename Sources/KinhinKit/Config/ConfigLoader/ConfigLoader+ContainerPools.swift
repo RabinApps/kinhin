@@ -99,8 +99,8 @@ extension ConfigLoader {
         if minIdle < 0 { throw ConfigError.invalid("\(key).min_idle must be >= 0") }
         if let max = entry.max {
             guard max >= 1 else { throw ConfigError.invalid("\(key).max must be >= 1") }
-            guard minIdle <= max else {
-                throw ConfigError.invalid("\(key).min_idle (\(minIdle)) must be <= \(key).max (\(max))")
+            if let message = MinIdleValidation.poolMaxMessage(key: key, minIdle: minIdle, max: max) {
+                throw ConfigError.invalid(message)
             }
         }
         let base =
