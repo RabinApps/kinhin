@@ -150,8 +150,15 @@ public struct AppleContainerInstall: Codable, Equatable, Sendable {
 // MARK: - Probe
 
 extension AppleContainerInstall {
-    /// The default app root: where `container` keeps images, containers and kernels.
-    public static var defaultAppRoot: URL { AppleContainerRuntime.kernelDirectory.deletingLastPathComponent() }
+    /// The app root the probe checks: `container_app_root:` when it is set (the root kinhin passes to
+    /// `container system start --app-root`), else the CLI's default. Where `container` keeps images, containers and
+    /// kernels.
+    public static var defaultAppRoot: URL { appRoot(configured: StorageLocations.current.containerAppRoot) }
+
+    /// The app root for a configured `container_app_root:` (nil: the CLI's default).
+    static func appRoot(configured: String?) -> URL {
+        AppleContainerRuntime.kernels(underAppRoot: configured).deletingLastPathComponent()
+    }
 
     /// Reads the live install: resolves the binary, asks `codesign` for its signature, and checks the app root's
     /// volume. Read-only; never touches the TCC database. nil when the CLI is not installed.
