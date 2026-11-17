@@ -27,6 +27,11 @@ final class StorageLocationsTests: XCTestCase {
         XCTAssertEqual(DockerRegistryCache.defaultDataDirectory.lastPathComponent, "registry-cache")
     }
 
+    func testApplyMarksTheStorageAsKnown() {
+        StorageLocations.apply(KinhinConfig.StorageConfig(toolchainCachePath: "/Volumes/S/toolchains"))
+        XCTAssertTrue(StorageLocations.isApplied, "ensureSupportDirectories may create the toolchain cache from now on")
+    }
+
     func testAConfigWithoutTartHomeLeavesAnInheritedTartHomeAlone() {
         let inherited = ProcessInfo.processInfo.environment["TART_HOME"]
         StorageLocations.apply(KinhinConfig.StorageConfig(toolchainCachePath: "/Volumes/S/toolchains"))

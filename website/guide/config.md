@@ -72,6 +72,12 @@ toolchain_cache_path: /Volumes/Storage/kinhin/toolchain-cache
   (`container system stop`), enable ownership on the volume, then copy each tree to its new path (for example
   `ditto ~/.tart /Volumes/Storage/tart`). Set the keys, then start again. Remove a leftover symlink or a hand-added
   `TART_HOME` first, so only the config decides.
+- **Keep a link at Apple container's old app root.** Apple container records absolute paths under the app root it
+  unpacked an image in, so a copied image still points at `~/Library/Application Support/com.apple.container/…`.
+  Without that path, every container start fails with `Code=260 … "snapshot" … no such file`. After copying the
+  app root, leave a symlink at the old path pointing at the new root (for example
+  `~/Library/Application Support/com.apple.container` → `/Volumes/Storage/container`) until every image has been
+  pulled or baked again on the new root.
 - **Already running elsewhere.** A container system that is already running keeps the app root it started with, so
   kinhin starts no container while that root is not `container_app_root:`; run `container system stop` once no
   runner is busy (it stops every container). A running Docker Hub cache keeps its old directory until it stops; a

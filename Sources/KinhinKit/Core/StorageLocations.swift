@@ -8,6 +8,8 @@ import Foundation
 public enum StorageLocations {
     private struct State: Sendable {
         var storage = KinhinConfig.StorageConfig()
+        /// Whether the Mac's config has been applied yet (until then, `storage` is only the default).
+        var applied = false
         /// `TART_HOME` as the process inherited it, recorded the first time kinhin overrides it, so a config that
         /// drops `tart_home:` hands the inherited value back instead of keeping a stale one.
         var inheritedTartHome: String??
@@ -18,12 +20,16 @@ public enum StorageLocations {
     /// The storage settings in effect.
     public static var current: KinhinConfig.StorageConfig { state.withLock { $0.storage } }
 
+    /// Whether `apply` has run in this process. Before that, a default path is not known to be the one in use.
+    public static var isApplied: Bool { state.withLock { $0.applied } }
+
     /// Makes `storage` the process's storage settings and exports `TART_HOME` to match, so every `tart` child
     /// (clone, run, list, usage sampling) uses the configured home. Called on every load of the Mac's config, which
     /// is also how a config reload takes effect.
     public static func apply(_ storage: KinhinConfig.StorageConfig) {
         state.withLock { state in
             state.storage = storage
+            state.applied = true
             if let home = storage.tartHome {
                 if state.inheritedTartHome == nil {
                     state.inheritedTartHome = .some(ProcessInfo.processInfo.environment[tartHomeVariable])

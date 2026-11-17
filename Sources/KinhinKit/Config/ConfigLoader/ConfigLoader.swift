@@ -70,6 +70,7 @@ public struct ConfigLoader {
         // (daemon, app and CLI alike); a config read from anywhere else (an import, a `config validate FILE`) does not.
         if url.standardizedFileURL.path == Paths.config.standardizedFileURL.path {
             StorageLocations.apply(config.storage)
+            Paths.ensureToolchainCache()
         }
         return config
     }

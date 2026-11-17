@@ -74,6 +74,10 @@ fixes waiting for your approval, and says what only you can do.
   path](/guide/config#storage-on-another-volume) is on a volume that is not mounted. Mount it (`diskutil mount
   Storage`); launchd restarts the daemon and it starts once the volume is there. kinhin never falls back to the
   internal disk, so nothing is written there in the meantime.
+- **`failed to bootstrap container … Code=260 … "snapshot" … no such file`** after moving `container_app_root:`: an
+  image unpacked before the move still points at the old app root. Put a symlink at
+  `~/Library/Application Support/com.apple.container` to the new root, or pull or bake the image again. See
+  [Storage on another volume](/guide/config#storage-on-another-volume).
 - **`… is not ready: ownership is disabled on /Volumes/Storage`**, or Apple container says
   `apiserver is not running and not registered with launchd` with an app root on an external volume — the volume
   ignores file owners, and launchd rejects the container service plists under the app root
