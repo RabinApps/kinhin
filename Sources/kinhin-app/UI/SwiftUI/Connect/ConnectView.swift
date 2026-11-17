@@ -79,7 +79,9 @@ struct ConnectView: View {
             .padding(.horizontal, Spacing.md)
             .padding(.vertical, Spacing.sm)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: Radius.lg).fill(on ? Palette.accent.opacity(0.12) : Palette.surface))
+            .background(
+                RoundedRectangle(cornerRadius: Radius.lg).fill(on ? Palette.accent.opacity(0.12) : Palette.surface)
+            )
             .overlay(
                 RoundedRectangle(cornerRadius: Radius.lg)
                     .strokeBorder(on ? Palette.accent : Palette.separator, lineWidth: 1)
