@@ -7,7 +7,7 @@
 #   --vnc        `tart run --no-graphics --vnc`: the same guest desktop, no window; connect with
 #                Screen Sharing to the printed vnc:// URL to watch or click.
 #   --headless   `tart run --no-graphics`: no desktop. Cannot screen-record; instead it builds, runs
-#                the DemoTimeline unit tests and renders the offscreen UI captures (shots/capture),
+#                the DemoTimeline unit tests and renders the offscreen UI captures (scripts/capture-ui.sh),
 #                copying shots/out/ back.
 #
 # Usage: video/adapters/kinhin/record-app-in-tart.sh [--gui|--vnc|--headless] [options]
@@ -119,7 +119,7 @@ ${WRAP[@]+"${WRAP[@]}"} rsync -a --delete \
 if [ "$MODE" = headless ]; then
   echo "==> headless: unit tests for the demo timeline, then the offscreen UI captures"
   guest "cd kinhin-src && swift test --filter DemoTimelineTests"
-  guest "cd kinhin-src && shots/capture/build-captures.sh"
+  guest "cd kinhin-src && scripts/capture-ui.sh"
   ${WRAP[@]+"${WRAP[@]}"} rsync -a -e "ssh ${SSH_OPTS[*]}" "$GUEST_USER@$IP:kinhin-src/shots/out/" shots/out/
   echo "==> captures in shots/out/"
   exit 0

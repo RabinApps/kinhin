@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Drive the RUNNING kinhin app and capture its live window.
 
-The offline harness (shots/capture/) is preferred for layout audits; use
+scripts/capture-ui.sh (offline) is preferred for layout audits; use
 this when you need the app exactly as launched (menu bar, real state).
 
 Usage: python3 shots/tools/drive.py <action> <name>
