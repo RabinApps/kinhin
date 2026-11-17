@@ -14,7 +14,12 @@ struct FleetDiagramModel {
         let phase: VMPhase
         /// SF Symbol name drawn in the row's leading icon.
         let symbol: String
-        let style: StatusStyle
+        /// The phase's color: busy/ready green, warm orange, starting up blue, failed red, deleting gray.
+        let tone: Chip.Tone
+        /// The instance's id ("vm-a1"), the row's name.
+        let name: String
+        /// The phase as the row says it ("busy", "warm", "booting").
+        let phaseWord: String
         /// Row title: "• kinhin-x — busy" (monospaced in the row).
         let title: String
         /// Row detail line — container pool · repos · job · usage · ⚠ error; "" when none.
@@ -67,6 +72,16 @@ struct FleetDiagramModel {
 
         var isIdle: Bool { instances.isEmpty }
         var busyCount: Int { instances.count { $0.phase == .busy } }
+        /// The card subtitle: "3 instances · cap 4", or "idle" for an empty lane; a Host lane adds "unisolated".
+        var subtitle: String {
+            let base =
+                countText
+                ?? String(localized: "idle", bundle: .l10n, comment: "Runtime card subtitle when nothing is running")
+            guard id == .host else { return base }
+            return String(
+                localized: "\(base) · unisolated", bundle: .l10n,
+                comment: "Host runtime card subtitle: the summary, then that jobs run without isolation")
+        }
         /// "3 instances · cap 4"; nil on an idle lane (it says "idle" instead).
         var countText: String? {
             guard !instances.isEmpty else { return nil }
@@ -144,30 +159,30 @@ struct FleetDiagramModel {
     /// the old VM list row showed.
     private static func instance(_ record: VMRecord) -> Instance {
         let symbol: String
-        let style: StatusStyle
+        let tone: Chip.Tone
         if record.error != nil {
             symbol = "exclamationmark.triangle.fill"
-            style = .error
+            tone = .error
         } else {
             switch record.phase {
             case .busy:
                 symbol = "bolt.fill"
-                style = .ok
+                tone = .ok
             case .warm:
-                symbol = "flame"
-                style = .secondary
+                symbol = "flame.fill"
+                tone = .warn
             case .ready:
-                symbol = "checkmark.circle"
-                style = .secondary
+                symbol = "checkmark.circle.fill"
+                tone = .ok
             case .cloning, .booting, .registering:
                 symbol = "arrow.triangle.2.circlepath"
-                style = .secondary
+                tone = .accent
             case .deleting:
                 symbol = "xmark.circle"
-                style = .secondary
+                tone = .neutral
             case .failed:
                 symbol = "exclamationmark.triangle.fill"
-                style = .error
+                tone = .error
             }
         }
         var parts: [String] = []
@@ -185,7 +200,9 @@ struct FleetDiagramModel {
             id: record.id,
             phase: record.phase,
             symbol: symbol,
-            style: style,
+            tone: tone,
+            name: record.id,
+            phaseWord: record.phase.rawValue,
             title: "• \(record.id) — \(record.phase.rawValue)",
             detail: parts.joined(separator: " · "),
             hasError: record.error != nil,
