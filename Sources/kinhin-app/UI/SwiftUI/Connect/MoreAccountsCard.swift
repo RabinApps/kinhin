@@ -6,6 +6,7 @@ import SwiftUI
 /// (where applicable) server.
 struct MoreAccountsCard: View {
     @Bindable var model: AccountsModel
+    var layout: CardLayout = .form
     /// Collapsed until asked for; opens by itself when extra accounts exist.
     @State private var expanded: Bool?
 
@@ -15,36 +16,36 @@ struct MoreAccountsCard: View {
                 get: { expanded ?? (!model.rows.isEmpty || model.loadError != nil) },
                 set: { expanded = $0 })
         ) {
-            FormCard(
+            Card(
                 title: "More accounts",
                 subtitle:
-                    "Serve additional accounts (another org, a second server, a GitLab group) with their own tokens."
+                    "Serve additional accounts (another org, a second server, a GitLab group) with their own tokens.",
+                layout: layout
             ) {
                 if let loadError = model.loadError {
-                    // An unreadable config is not "no accounts": say why, and offer
-                    // no add form that would only fail on the same file.
-                    StatusText(verbatim: loadError.text, style: loadError.style)
-                        .accessibilityIdentifier("accounts-load-error")
+                    // An unreadable config is not "no accounts": say why (the page banner carries the
+                    // message), and offer no add form that would only fail on the same file.
+                    HintText("The add form is hidden until config.yaml loads.")
+                        .accessibilityLabel(Text(verbatim: loadError.text))
                 } else {
                     ForEach(model.rows) { row in
                         accountRow(row)
-                        Divider()
                     }
                     addForm
                 }
             }
             .padding(.top, 6)
         } label: {
-            Text("More accounts…").font(.system(size: 12, weight: .semibold))
+            Text("More accounts…").typeStyle(.emphasis)
         }
     }
 
     private func accountRow(_ row: AccountsModel.Row) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
             HStack {
                 ForgeIconView(forge: row.account.forge, size: 12)
-                Text(row.account.name).font(.system(size: 12, weight: .semibold))
-                Text(verbatim: describe(row.account)).font(.system(size: 11)).foregroundStyle(.secondary)
+                Text(row.account.name).typeStyle(.emphasis)
+                Text(verbatim: describe(row.account)).typeStyle(.caption).foregroundStyle(.secondary)
                 Spacer()
                 Button("Remove") { model.removeAccount(row.account.name) }
                     .controlSize(.small)
@@ -66,15 +67,19 @@ struct MoreAccountsCard: View {
                 .accessibilityIdentifier("account-token-\(row.account.name)")
                 .accessibilityLabel("\(row.account.name) access token")
                 Button(row.tokenStored ? "Replace" : "Connect") { model.connect(row.account.name) }
+                    .buttonStyle(.borderedProminent)
                     .disabled(row.checking)
                     .accessibilityIdentifier("account-connect-\(row.account.name)")
             }
         }
+        .padding(Spacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: Radius.lg).fill(Palette.grouped))
     }
 
     private var addForm: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Add an account").font(.system(size: 12, weight: .semibold))
+            Text("Add an account").typeStyle(.emphasis)
             ViewThatFits(in: .horizontal) {
                 newAccountFields(layout: HStackLayout(spacing: 8))
                 newAccountFields(layout: VStackLayout(alignment: .leading, spacing: 6))

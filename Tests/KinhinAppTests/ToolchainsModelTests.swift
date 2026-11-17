@@ -218,6 +218,22 @@ import XCTest
         XCTAssertEqual(node?.copyText, ToolchainCatalog.tool(id: "node")?.defaultSpec)
     }
 
+    func testTheGuideShowsThreeExamplesAndCopiesTheYAML() {
+        XCTAssertEqual(ToolchainsGuide.examples.count, 3)
+        var copied: [String] = []
+        let guide = ToolchainsGuideCard(copy: { copied.append($0) })
+        guide.copy(ToolchainsGuide.examples[0].yaml)
+        XCTAssertEqual(copied, [ToolchainsGuide.examples[0].yaml])
+    }
+
+    func testNoDeadPathsInPageStrings() throws {
+        let model = ToolchainsModel()
+        model.configURL = URL(fileURLWithPath: "/nonexistent/config.yaml")
+        model.reload()
+        XCTAssertFalse(model.statusTextForTesting.contains("Advanced"))
+        XCTAssertFalse(model.statusTextForTesting.contains("Open config file"))
+    }
+
     /// Each `.kinhin/config.yml` example parses through the real repo-file loader and
     /// satisfies the no-implicit-installs rule.
     func testExamplesAreValidRepoFiles() throws {

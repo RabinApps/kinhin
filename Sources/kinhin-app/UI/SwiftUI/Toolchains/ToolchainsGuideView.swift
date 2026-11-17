@@ -2,8 +2,8 @@ import AppKit
 import SwiftUI
 
 /// The "every repo needs its own toolchains" explainer, shared by the setup
-/// wizard's Toolchains step and the top of Advanced → Toolchains. It holds no
-/// state that matters and never writes config.
+/// wizard's Toolchains step (the Toolchains page uses `ToolchainsGuideCard`). It
+/// holds no state that matters and never writes config.
 struct ToolchainsGuideView: View {
     /// Puts text on the clipboard. Injectable for previews.
     var copy: (String) -> Void = ToolchainsGuide.copyToPasteboard
@@ -41,6 +41,69 @@ struct ToolchainsGuideView: View {
             }
         }
         .frame(width: FormMetrics.width, alignment: .leading)
+    }
+}
+
+/// The Toolchains page's version of the guide: a collapsible card with the three examples side by side.
+struct ToolchainsGuideCard: View {
+    var copy: (String) -> Void = ToolchainsGuide.copyToPasteboard
+    @State private var expanded = true
+    @State private var copiedID: String?
+
+    var body: some View {
+        Card(
+            title: "How toolchains work",
+            subtitle: "Nothing is chosen in this app — repos describe what they need.", layout: .fill,
+            trailing: {
+                Button(expanded ? "Collapse" : "Expand") { expanded.toggle() }
+                    .controlSize(.small)
+                    .accessibilityIdentifier("toolchains-guide-toggle")
+            }
+        ) {
+            if expanded {
+                Text(ToolchainsGuide.intro).typeStyle(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .top, spacing: Spacing.md) { examples }
+                    VStack(alignment: .leading, spacing: Spacing.md) { examples }
+                }
+                HintText(verbatim: ToolchainsGuide.noToolchainsNote)
+                if let url = ToolchainsGuide.docsURL {
+                    Link("Read the docs: per-project toolchains", destination: url).typeStyle(.caption)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder private var examples: some View {
+        ForEach(ToolchainsGuide.examples) { example in
+            VStack(alignment: .leading, spacing: Spacing.xs) {
+                Text(example.title).typeStyle(.caption).fontWeight(.semibold)
+                HintText(verbatim: example.note)
+                YAMLSnippet(yaml: example.yaml)
+                Button(copiedID == example.id ? "Copied" : "Copy") {
+                    copy(example.yaml)
+                    copiedID = example.id
+                }
+                .controlSize(.small)
+                .accessibilityLabel("Copy \(example.title)")
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
+
+/// A selectable monospaced YAML block on the grouped background.
+struct YAMLSnippet: View {
+    let yaml: String
+
+    var body: some View {
+        Text(yaml)
+            .font(.system(.callout, design: .monospaced))
+            .textSelection(.enabled)
+            .padding(Spacing.sm)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: Radius.md).fill(Palette.grouped))
     }
 }
 
