@@ -94,4 +94,61 @@ final class DiagnosticsHealthPaneTests: MainWindowTestCase {
         XCTAssertEqual(probes, 2, "a later re-check probes again")
         XCTAssertTrue(model.status.hasPrefix("Checked"), "the header shows when it was checked")
     }
+
+    // MARK: - Storage and Docker Hub cache rows
+
+    /// The fixture report with a storage section (one good path, one failing) and the Docker Hub cache's health.
+    private func storageFixture(brokenEntries: Int) -> Data {
+        var json = String(decoding: doctorFixture(), as: UTF8.self)
+        json = json.replacingOccurrences(
+            of: "\"imageFound\": true}",
+            with:
+                "\"imageFound\": true, \"registryCache\": {\"running\": true, \"address\": \"127.0.0.1:5000\", "
+                + "\"dataBytes\": 1288490188, \"dataDirectory\": \"/cache/registry\", \"problem\": null, "
+                + "\"ttl\": \"168h\", \"wantedTTL\": \"168h\", \"brokenEntries\": \(brokenEntries), "
+                + "\"brokenExamples\": [\"blobs/ab\", \"blobs/cd\"]}}")
+        json = json.replacingOccurrences(
+            of: "\"checks\": [],",
+            with:
+                "\"checks\": [], \"storage\": {\"paths\": [{\"key\": \"tart_home\", \"path\": \"/Volumes/Fast/tart\", "
+                + "\"mountPoint\": \"/Volumes/Fast\", \"ok\": true, \"problem\": null, \"fix\": null}, "
+                + "{\"key\": \"container_app_root\", \"path\": \"/Volumes/Slow/container\", "
+                + "\"mountPoint\": \"/Volumes/Slow\", \"ok\": false, "
+                + "\"problem\": \"the volume does not have ownership enabled\", "
+                + "\"fix\": \"run `sudo diskutil enableOwnership /Volumes/Slow`\"}], \"ok\": false},")
+        return Data(json.utf8)
+    }
+
+    func testStorageRowsShowEachConfiguredPathAndTheFixForAFailingOne() async throws {
+        let (model, _) = try await openDiagnostics(withFixture: storageFixture(brokenEntries: 0))
+        let byTitle = Dictionary(uniqueKeysWithValues: model.rows.map { ($0.title, $0) })
+
+        let good = try XCTUnwrap(byTitle["Storage · tart_home"])
+        XCTAssertTrue(good.ok)
+        XCTAssertTrue(good.detail.contains("/Volumes/Fast/tart"), good.detail)
+        XCTAssertTrue(good.detail.contains("/Volumes/Fast"), good.detail)
+
+        let bad = try XCTUnwrap(byTitle["Storage · container_app_root"])
+        XCTAssertFalse(bad.ok)
+        XCTAssertTrue(bad.detail.contains("does not have ownership enabled"), bad.detail)
+        XCTAssertTrue(bad.detail.contains("sudo diskutil enableOwnership /Volumes/Slow"), bad.detail)
+    }
+
+    func testDockerHubCacheRowReportsBrokenEntriesAndIsUnhealthyThen() async throws {
+        let (model, _) = try await openDiagnostics(withFixture: storageFixture(brokenEntries: 3))
+        let row = try XCTUnwrap(model.rows.first { $0.title == "Docker Hub cache" })
+        XCTAssertFalse(row.ok)
+        XCTAssertTrue(row.detail.contains("127.0.0.1:5000"), row.detail)
+        XCTAssertTrue(row.detail.contains("/cache/registry"), row.detail)
+        XCTAssertTrue(row.detail.contains("168h"), row.detail)
+        XCTAssertTrue(row.detail.contains("broken entries: 3"), row.detail)
+        XCTAssertTrue(row.detail.contains("blobs/ab, blobs/cd"), row.detail)
+    }
+
+    func testDockerHubCacheRowIsHealthyWhenEntriesAreIntact() async throws {
+        let (model, _) = try await openDiagnostics(withFixture: storageFixture(brokenEntries: 0))
+        let row = try XCTUnwrap(model.rows.first { $0.title == "Docker Hub cache" })
+        XCTAssertTrue(row.ok)
+        XCTAssertFalse(row.detail.contains("UNHEALTHY"), row.detail)
+    }
 }

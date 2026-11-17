@@ -155,11 +155,11 @@ final class DiagnosticsModel {
                     comment: "Diagnostics Docker row; %@ is the reason")
             } else if availability.installed {
                 detail = String(
-                    localized: "installed — not enabled for Linux jobs (turn it on in This Mac)", bundle: .l10n,
+                    localized: "installed — not enabled for Linux jobs (turn it on in Runtimes)", bundle: .l10n,
                     comment: "Diagnostics Docker row")
             } else {
                 detail = String(
-                    localized: "not installed — optional, runs Linux jobs (install it from This Mac)", bundle: .l10n,
+                    localized: "not installed — optional, runs Linux jobs (install it from Runtimes)", bundle: .l10n,
                     comment: "Diagnostics Docker row")
             }
             rows.append(
@@ -251,6 +251,9 @@ final class DiagnosticsModel {
             Row(
                 title: String(localized: "Toolchain cache", bundle: .l10n, comment: "Diagnostics row title"),
                 detail: cacheDetail, ok: cache.usable))
+
+        if let storage = report.storage { rows += Self.storageRows(storage) }
+        if let registryCache = report.container?.registryCache { rows.append(Self.registryCacheRow(registryCache)) }
 
         if let notice = fleetImageNotice(), !notice.isEmpty {
             rows.append(

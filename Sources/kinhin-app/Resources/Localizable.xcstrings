@@ -524,6 +524,12 @@
     "(workflow)" : {
       "comment" : "Text in RoutesCard"
     },
+    "%@ — %@\nFix: %@" : {
+      "comment" : "Diagnostics storage row; folder path, what is wrong, then the fix"
+    },
+    "%@ — not usable" : {
+      "comment" : "Diagnostics storage row; %@ is a folder path"
+    },
     "%@ — whole job" : {
       "comment" : "Pipeline output title for a whole job; %@ is the job name",
       "localizations" : {
@@ -573,6 +579,9 @@
     },
     "%@ · %@ job slots" : {
       "comment" : "Fleet status headline; the base counters, then the concurrent job slots"
+    },
+    "%@ · on %@ ✓" : {
+      "comment" : "Diagnostics storage row; first %@ is a folder path, second is the volume's mount point"
     },
     "%@ · unisolated" : {
       "comment" : "Host runtime card subtitle: the summary, then that jobs run without isolation"
@@ -858,6 +867,9 @@
           }
         }
       }
+    },
+    "%@ cached in %@" : {
+      "comment" : "Diagnostics Docker Hub cache row; a formatted byte count, then a folder path"
     },
     "%@ can't run on this Mac" : {
       "comment" : "Alert title; %@ is a tool name such as Docker",
@@ -8453,6 +8465,9 @@
         }
       }
     },
+    "config.yaml says %@; it applies at the cache's next start" : {
+      "comment" : "Diagnostics Docker Hub cache row; %@ is a duration such as 168h"
+    },
     "Connect" : {
       "comment" : "Forge card button that saves the token",
       "localizations" : {
@@ -11879,6 +11894,9 @@
         }
       }
     },
+    "Docker Hub cache" : {
+      "comment" : "Diagnostics row title"
+    },
     "Docker isn't installed — optional." : {
       "comment" : "Text in DockerRuntimeCard"
     },
@@ -12924,6 +12942,9 @@
           }
         }
       }
+    },
+    "entries intact ✓" : {
+      "comment" : "Diagnostics Docker Hub cache row"
     },
     "Erase" : {
       "comment" : "Final reset alert destructive button",
@@ -17168,52 +17189,8 @@
         }
       }
     },
-    "installed — not enabled for Linux jobs (turn it on in This Mac)" : {
-      "comment" : "Diagnostics Docker row",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "مثبّت — غير مفعّل لمهام Linux (فعّله في هذا الـ Mac)"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "installiert – nicht für Linux-Jobs aktiviert (unter „Dieser Mac“ einschalten)"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "instalado: no activado para trabajos de Linux (actívalo en Este Mac)"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "installé — non activé pour les jobs Linux (activez-le dans Ce Mac)"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "מותקן — לא מופעל למשימות Linux (הפעילו ב-This Mac)"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "installato — non abilitato per i job Linux (attivarlo in Questo Mac)"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "インストール済み — Linux ジョブでは無効です (「この Mac」で有効にできます)"
-          }
-        }
-      }
+    "installed — not enabled for Linux jobs (turn it on in Runtimes)" : {
+      "comment" : "Diagnostics Docker row"
     },
     "installed ✓" : {
       "comment" : "This Mac form: runtime row status",
@@ -23921,52 +23898,8 @@
         }
       }
     },
-    "not installed — optional, runs Linux jobs (install it from This Mac)" : {
-      "comment" : "Diagnostics Docker row",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "غير مثبّت — اختياري، يشغّل مهام Linux (ثبّته من هذا الـ Mac)"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "nicht installiert – optional, führt Linux-Jobs aus (unter „Dieser Mac“ installieren)"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "no instalado: opcional, ejecuta trabajos de Linux (instálalo desde Este Mac)"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "non installé — facultatif, exécute des jobs Linux (installez-le depuis Ce Mac)"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "לא מותקן — אופציונלי, מריץ משימות Linux (התקינו מ-This Mac)"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "non installato — facoltativo, esegue job Linux (installarlo da Questo Mac)"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "未インストール — 省略可、Linux ジョブを実行します (「この Mac」からインストールできます)"
-          }
-        }
-      }
+    "not installed — optional, runs Linux jobs (install it from Runtimes)" : {
+      "comment" : "Diagnostics Docker row"
     },
     "not installed — tart_path: %@ does not exist" : {
       "comment" : "This Mac form: tart row status; %@ is the tart_path from config.yaml (keep tart_path verbatim)",
@@ -24158,6 +24091,12 @@
     },
     "Not responding" : {
       "comment" : "Fleet state chip"
+    },
+    "not running — %@" : {
+      "comment" : "Diagnostics Docker Hub cache row; %@ is the reason"
+    },
+    "not running — it starts with the first Docker runner" : {
+      "comment" : "Diagnostics Docker Hub cache row"
     },
     "Not saved — %@" : {
       "comment" : "Form status line; %@ is the error's description",
@@ -24440,6 +24379,9 @@
           }
         }
       }
+    },
+    "nothing cached in %@" : {
+      "comment" : "Diagnostics Docker Hub cache row; %@ is a folder path"
     },
     "Nothing is chosen in this app — repos describe what they need." : {
       "comment" : "Card in ToolchainsGuideView"
@@ -30356,6 +30298,12 @@
         }
       }
     },
+    "running ✓" : {
+      "comment" : "Diagnostics Docker Hub cache row"
+    },
+    "running at %@ ✓" : {
+      "comment" : "Diagnostics Docker Hub cache row; %@ is the cache's host:port address"
+    },
     "Runs jobs directly on your Mac, no isolation. Used only by routes you add." : {
       "comment" : "Text in HostRuntimeCard"
     },
@@ -33926,6 +33874,9 @@
         }
       }
     },
+    "Storage · %@" : {
+      "comment" : "Diagnostics row title; %@ is a config key such as tart_home that stays verbatim"
+    },
     "Support kinhin" : {
       "comment" : "Text in SponsorSheet",
       "localizations" : {
@@ -37167,6 +37118,12 @@
         }
       }
     },
+    "TTL %@" : {
+      "comment" : "Diagnostics Docker Hub cache row; %@ is a duration such as 168h"
+    },
+    "TTL off — nothing expires" : {
+      "comment" : "Diagnostics Docker Hub cache row"
+    },
     "Tune it (optional)" : {
       "comment" : "Text in WizardView",
       "localizations" : {
@@ -37448,6 +37405,9 @@
           }
         }
       }
+    },
+    "UNHEALTHY — broken entries: %lld. Pulls of them fail with unexpected EOF; the next Docker runner deletes them so they are fetched again." : {
+      "comment" : "Diagnostics Docker Hub cache row; %@ is a count written as digits; EOF stays verbatim"
     },
     "Uninstall daemon…" : {
       "comment" : "Settings → App button",

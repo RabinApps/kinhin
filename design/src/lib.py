@@ -87,9 +87,14 @@ def _call(args,tries=4):
             time.sleep(4); continue
         return r
     return r
+def _pages():
+    for _ in range(12):
+        r=_call(["list_pages","--json"])
+        try: return json.loads(r.stdout)["pages"]
+        except Exception: time.sleep(5)
+    raise RuntimeError("OpenPencil is not answering: open design/kinhin-app.fig and bring the app to the front")
 def _pid(name):
-    r=_call(["list_pages","--json"])
-    for p in json.loads(r.stdout)["pages"]:
+    for p in _pages():
         if p["name"]==name: return p["id"]
 def page(name):
     pid=_pid(name)
