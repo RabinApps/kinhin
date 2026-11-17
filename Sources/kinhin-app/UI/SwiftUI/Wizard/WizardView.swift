@@ -7,25 +7,41 @@ struct WizardView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(model.header).font(.system(size: 22, weight: .bold))
-                Text(model.step.subtitle)
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: Spacing.sm) {
+                progress
+                Text(verbatim: model.step.title)
+                    .typeStyle(.display)
+                    .accessibilityAddTraits(.isHeader)
+                HintText(verbatim: model.step.subtitle)
                     .lineLimit(3)
-                    .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(.top, 20)
+            .padding(.top, Spacing.xl)
 
             content
-                .padding(.top, 14)
+                .padding(.top, Spacing.md + 2)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
             footer
-                .padding(.top, 12)
-                .padding(.bottom, 16)
+                .padding(.top, Spacing.md)
+                .padding(.bottom, Spacing.lg)
         }
-        .padding(.horizontal, 24)
+        .padding(.horizontal, Spacing.xxl)
+    }
+
+    /// Three numbered chips (the current one filled) and "Step N of 3 — title".
+    private var progress: some View {
+        HStack(spacing: Spacing.sm) {
+            ForEach(WizardModel.Step.allCases, id: \.rawValue) { step in
+                Chip(
+                    verbatim: "\(step.rawValue + 1)", tone: step == model.step ? .accent : .neutral,
+                    solid: step == model.step
+                )
+                .accessibilityHidden(true)
+            }
+            Text(verbatim: model.header).typeStyle(.emphasis)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("wizard-progress")
     }
 
     /// Skip / Open config / Back / Continue, with what blocks Continue said
@@ -39,6 +55,7 @@ struct WizardView: View {
             if model.showsOpenConfigButton {
                 Button("Open config.yaml") { model.openConfig?() }
                     .controlSize(.small)
+                    .accessibilityIdentifier("wizard-open-config")
             }
             Spacer()
             if !model.canContinue {
@@ -57,7 +74,7 @@ struct WizardView: View {
         return StatusText(verbatim: blockers.joined(separator: " "), style: .warn)
             .lineLimit(3)
             .multilineTextAlignment(.trailing)
-            .frame(maxWidth: 340, alignment: .trailing)
+            .frame(maxWidth: 420, alignment: .trailing)
             .accessibilityIdentifier("wizard-blockers")
             .accessibilityLabel(
                 String(
@@ -75,17 +92,26 @@ struct WizardView: View {
         case .review:
             @Bindable var model = model
             ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    Text(verbatim: model.summaryText)
-                        .font(.system(size: 13))
-                        .textSelection(.enabled)
-                        .fixedSize(horizontal: false, vertical: true)
+                VStack(alignment: .leading, spacing: Spacing.lg) {
+                    Card(title: "Review", layout: .fill) {
+                        Text(verbatim: model.summaryText)
+                            .typeStyle(.caption)
+                            .textSelection(.enabled)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(Spacing.md)
+                            .background(Palette.grouped, in: RoundedRectangle(cornerRadius: Radius.lg))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: Radius.lg)
+                                    .strokeBorder(Palette.separator, lineWidth: 1))
+                    }
                     Toggle("Start the fleet automatically whenever kinhin opens", isOn: $model.autoStartFleet)
-                        .accessibilityLabel("Start the fleet automatically whenever kinhin opens")
+                        .toggleStyle(.switch)
+                        .padding(.horizontal, Spacing.md)
                     tuneIt(model: model)
                 }
-                .frame(width: FormMetrics.width, alignment: .topLeading)
-                .padding(.bottom, 8)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+                .padding(.bottom, Spacing.sm)
             }
         }
     }
@@ -93,24 +119,28 @@ struct WizardView: View {
     /// Optional knobs, closed by default: the defaults are fine.
     private func tuneIt(model: WizardModel) -> some View {
         @Bindable var model = model
-        return DisclosureGroup(isExpanded: $model.tuneItExpanded) {
-            VStack(alignment: .leading, spacing: 14) {
-                Text("Split your capacity").font(.system(size: 12, weight: .semibold))
-                if model.runtimes.showsBudget {
-                    BudgetCard(model: model.runtimes)
-                } else {
-                    StatusText(
-                        text:
-                            "Only one runtime is enabled, so there's nothing to split. Enable another on the previous step (Docker, Apple container or tart) to divide this Mac's capacity.",
-                        style: .secondary
-                    )
+        return Card(layout: .fill) {
+            DisclosureGroup(isExpanded: $model.tuneItExpanded) {
+                VStack(alignment: .leading, spacing: Spacing.md) {
+                    if model.runtimes.showsBudget {
+                        BudgetCard(model: model.runtimes)
+                    } else {
+                        StatusText(
+                            text:
+                                "Only one runtime is enabled, so there's nothing to split. Enable another on the previous step (Docker, Apple container or tart) to divide this Mac's capacity.",
+                            style: .secondary
+                        )
+                    }
+                    Text("Toolchains").typeStyle(.emphasis)
+                    ToolchainsGuideView()
                 }
-                Text("Toolchains").font(.system(size: 12, weight: .semibold))
-                ToolchainsGuideView()
+                .padding(.top, Spacing.sm)
+            } label: {
+                VStack(alignment: .leading, spacing: Spacing.xxs) {
+                    Text("Tune it (optional)").typeStyle(.emphasis)
+                    HintText("Split your capacity and see how toolchains work.")
+                }
             }
-            .padding(.top, 8)
-        } label: {
-            Text("Tune it (optional)").font(.system(size: 13, weight: .semibold))
         }
         .accessibilityIdentifier("wizard-tune-it")
     }

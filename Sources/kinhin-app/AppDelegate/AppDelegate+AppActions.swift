@@ -10,12 +10,10 @@ extension AppDelegate {
         NSWorkspace.shared.open(url)
     }
 
+    /// "Support kinhin…": the Sponsor sheet in the main window (never a bare URL).
     @objc func openSupportPage() {
-        NSWorkspace.shared.open(SupportLinks.githubSponsors.url)
-    }
-
-    @objc func openBecomeSponsor() {
-        NSWorkspace.shared.open(SupportLinks.becomeASponsor.url)
+        openMainWindow()
+        mainController?.tabs.present(.sponsor)
     }
 
     @objc func quit() {

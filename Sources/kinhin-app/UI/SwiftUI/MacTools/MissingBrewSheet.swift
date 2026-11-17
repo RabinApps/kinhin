@@ -11,28 +11,21 @@ struct MissingBrewSheet: View {
     let onCancel: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Label("Homebrew isn't installed", systemImage: "exclamationmark.triangle.fill")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(StatusStyle.warn.color)
-            Text(
+        SheetScaffold(title: "Homebrew isn't installed", width: 420) {
+            HintText(
                 "kinhin installs \(offer.tool.title) with Homebrew. Install Homebrew first, or download \(offer.tool.title) yourself."
             )
-            .font(.system(size: 11))
-            .foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
+        } footer: {
             HStack {
                 Spacer()
                 if offer.manualURL != nil {
                     Button("Download \(offer.tool.title)", action: onDownload)
                 }
-                Button("Cancel", action: onCancel)
-                    .keyboardShortcut(.cancelAction)
                 Button("Get Homebrew", action: onGetBrew)
                     .keyboardShortcut(.defaultAction)
+                Button("Cancel", action: onCancel)
+                    .keyboardShortcut(.cancelAction)
             }
         }
-        .padding(16)
-        .frame(width: 360, alignment: .leading)
     }
 }
