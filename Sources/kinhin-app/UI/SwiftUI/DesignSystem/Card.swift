@@ -3,7 +3,7 @@ import SwiftUI
 
 /// How wide a `Card` is: the fixed form width of the existing screens, or as wide as its column.
 enum CardLayout {
-    /// `FormMetrics.width` (520). The existing forms are laid out for it.
+    /// `FormMetrics.width` (680). The existing forms are laid out for it.
     case form
     /// Fills the column it sits in (the design's "fill + max width" cards).
     case fill

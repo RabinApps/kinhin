@@ -48,7 +48,7 @@ struct ConnectView: View {
             Text("Where does your code live?").typeStyle(.emphasis)
             HintText("Select every forge kinhin should serve; each gets its own card below.")
             LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: 150), spacing: Spacing.sm, alignment: .leading)],
+                columns: [GridItem(.adaptive(minimum: 250), spacing: Spacing.sm, alignment: .leading)],
                 alignment: .leading, spacing: Spacing.sm
             ) {
                 ForEach(ConnectModel.allForges, id: \.self) { forge in
@@ -70,7 +70,7 @@ struct ConnectView: View {
                     .foregroundStyle(on ? Palette.accentText : Palette.secondaryText)
                     .frame(width: 14)
                 ForgeIconView(forge: forge, size: 14)
-                Text(forge.displayName).typeStyle(.body).fontWeight(.medium).lineLimit(1)
+                Text(forge.displayName).typeStyle(.body).fontWeight(.medium).lineLimit(1).layoutPriority(1)
                 if maturity != .liveTested {
                     Chip(maturity.isExperimental ? "Experimental" : "Untested", tone: .warn)
                 }

@@ -3,7 +3,7 @@ from lib import *
 def forgechip(n,sel,mat=""):
     ic=T("✓" if sel else "○",13,700,ACC if sel else TX2)
     return f'<Frame flex="row" px={{12}} py={{8}} gap={{8}} items="center" rounded={{8}} bg="{ACC+"1F" if sel else SURF}" stroke="{ACC if sel else BOR}">{ic}{T(n,13,500)}{maturity(mat) if mat else ""}</Frame>'
-chips=vcol(T("Where does your code live?",13,600),T("Select every forge kinhin should serve; each gets its own card below.",11,400,TX2),hrow(forgechip("GitHub",True),forgechip("GitLab",True),forgechip("Gitea",True),forgechip("Forgejo",False),gap=8),hrow(forgechip("Buildkite",False,"Untested"),forgechip("Azure DevOps",False,"Experimental"),forgechip("Bitbucket",False,"Untested"),gap=8),gap=8)
+chips=vcol(T("Where does your code live?",13,600),T("Select every forge kinhin should serve; each gets its own card below.",11,400,TX2),hrow(forgechip("GitHub",True),forgechip("GitLab",True),gap=8),hrow(forgechip("Gitea",True),forgechip("Forgejo",False),gap=8),hrow(forgechip("Buildkite",False,"Untested"),forgechip("Azure DevOps",False,"Experimental"),gap=8),hrow(forgechip("Bitbucket",False,"Untested"),gap=8),gap=8)
 perm=lambda n,lines: f'<Frame flex="col" w="fill" p={{10}} gap={{4}} rounded={{6}} bg="{BG}">{T("Token permissions needed ⌄",12,600)}{T(n,11,600,TX2)}{"".join(T("• "+l,11,400,TX2) for l in lines)}{sbtn("Create token…")}</Frame>'
 def forge(name,st,stk,instance,inst_dis,scope,scope_dis,btn_t,extra=""):
     return card(name,"",

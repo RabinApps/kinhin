@@ -4,8 +4,8 @@ import SwiftUI
 /// SwiftUI counterparts of the `FormKit` builders, so hosted forms look the
 /// same as the AppKit ones still around them.
 enum FormMetrics {
-    /// Width of a form card (matches `FormKit.formWidth`).
-    static let width: CGFloat = 520
+    /// Width of a form card; about the design's content column (window 1000pt less the sidebar and page padding).
+    static let width: CGFloat = 680
 }
 
 /// A settings form backed by config.yaml: where it reads and writes, and who

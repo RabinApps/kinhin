@@ -7,25 +7,24 @@ struct DiagnosticsPage: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.lg) {
-            HStack(alignment: .top, spacing: Spacing.md) {
-                VStack(alignment: .leading, spacing: Spacing.xs) {
-                    Text(verbatim: MainSection.diagnostics.label)
-                        .typeStyle(.display)
-                        .accessibilityAddTraits(.isHeader)
-                    HintText("Health, logs, benchmarks and tools in one place.")
-                }
-                Spacer(minLength: Spacing.md)
-                Picker(
-                    "Diagnostics sections",
-                    selection: Binding(get: { model.diagnosticsPane }, set: { model.selectDiagnosticsPane($0) })
-                ) {
-                    ForEach(DiagnosticsPane.allCases, id: \.self) { Text(verbatim: $0.label).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .fixedSize()
-                .accessibilityLabel("Diagnostics sections")
+            // The title and subtitle get the whole row; the pane tabs sit on their own row below them. Beside the
+            // title the tabs' ideal width left the title a sliver of the page, so it broke into "Diag-nos-tics".
+            VStack(alignment: .leading, spacing: Spacing.xs) {
+                Text(verbatim: MainSection.diagnostics.label)
+                    .typeStyle(.display)
+                    .lineLimit(1)
+                    .accessibilityAddTraits(.isHeader)
+                HintText("Health, logs, benchmarks and tools in one place.")
             }
+            Picker(
+                "Diagnostics sections",
+                selection: Binding(get: { model.diagnosticsPane }, set: { model.selectDiagnosticsPane($0) })
+            ) {
+                ForEach(DiagnosticsPane.allCases, id: \.self) { Text(verbatim: $0.label).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .accessibilityLabel("Diagnostics sections")
             pane
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
