@@ -6,7 +6,6 @@ import { onMounted, ref } from "vue";
 // renders a broken player. The probe runs in the browser only; failures (offline, 404, a non-video response) hide that video.
 // The paths are bound (not literal) so the template compiler leaves them as runtime URLs instead of bundling them.
 const VIDEOS = [
-  { name: "beta-4", label: "What is new in beta 4" },
   { name: "launch", label: "What kinhin is" },
 ];
 const available = ref<typeof VIDEOS>([]);
