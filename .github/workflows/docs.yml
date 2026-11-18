@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
     paths: ["website/**", "docs/**"]
+  # Pull requests build and smoke-test the site but never deploy it.
+  pull_request:
+    paths: ["website/**", "docs/**", ".github/workflows/docs.yml"]
   # A release (tag push) deploys the site after it is published, so the signed
   # appcast the release made is on the site. Deploying on the tag push itself
   # would race the release and replace the site without it.
@@ -12,82 +15,59 @@ on:
     types: [completed]
   workflow_dispatch:
 
-# One-time manual step (required before the first deploy):
-#   Repo Settings → Pages → Build and deployment → Source = "GitHub Actions"
+# The site is a Next.js app served by a Cloudflare Worker (OpenNext). One-time setup, outside this repo:
+#   * Repository secrets CLOUDFLARE_API_TOKEN (Workers Scripts: Edit; Workers Routes: Edit; Zone: Read) and CLOUDFLARE_ACCOUNT_ID
+#   * The kinhin.dev zone on Cloudflare; the Worker takes the custom domain on its first deploy (website/wrangler.jsonc)
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
-  group: pages
-  cancel-in-progress: false
+  group: site-${{ github.event_name == 'pull_request' && github.ref || 'deploy' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  build:
+  site:
     if: >-
       (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success')
       && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-    # kinhin's own Apple-container pool (`kinhin-container` is its exclusive
-    # marker). This workflow triggers on push, a finished Release, or dispatch — PRs never run it — so
-    # no fork guard is needed; the Pages deploy job stays on ubuntu-latest.
-    runs-on: kinhin-container
+    # Deploys run on kinhin's own Apple-container pool (`kinhin-container` is its exclusive marker). Pull requests
+    # build on a GitHub-hosted runner instead, so no PR code ever reaches that pool or the Cloudflare secrets.
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || 'kinhin-container' }}
     steps:
       - name: Check toolchain
-        # fetch-depth: 0, the per-tag worktrees and the jq loop below need git
-        # and jq baked into the image (Node comes from setup-node below). Fail
-        # with the fix instead of "command not found" after a long build.
-        run: |
-          git --version || { echo "::error::git is missing in the container image — re-bake: kinhin image prepare --container"; exit 1; }
-          jq --version || { echo "::error::jq is missing in the container image — re-bake: kinhin image prepare --container"; exit 1; }
+        # The per-tag worktrees need git (Node comes from setup-node below). Fail with the fix instead of
+        # "command not found" after a long build.
+        run: git --version || { echo "::error::git is missing in the container image — re-bake: kinhin image prepare --container"; exit 1; }
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0 # release tags are built into per-version snapshots below
+          fetch-depth: 0 # release tags are built into per-version snapshots
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: website/.nvmrc
           cache: npm
-          cache-dependency-path: website/package.json
+          cache-dependency-path: website/package-lock.json
 
       - name: Install dependencies
         working-directory: website
         run: npm ci
 
-      - name: Typecheck config
+      - name: Typecheck and unit tests
         working-directory: website
-        run: npm run typecheck
-
-      - name: Build site
-        working-directory: website
-        run: npm run build
-
-      # Each version listed in website/versions.json is built from its own tag (its own docs/ and
-      # website/), then served under /<tag>/ next to the latest docs at /. website/snapshot.config.ts
-      # wraps the tag's config: repository links point at the tag, and a dead link frozen in an old
-      # release does not fail the deploy. The tag itself is never modified.
-      - name: Build version snapshots
         run: |
-          for v in $(jq -r '.[]' website/versions.json); do
-            git worktree add "$RUNNER_TEMP/docs-$v" "refs/tags/$v"
-            snap="$RUNNER_TEMP/docs-$v/website/.vitepress"
-            mv "$snap/config.ts" "$snap/config.base.ts"
-            cp website/snapshot.config.ts "$snap/config.ts"
-            versions="$(jq -c . website/versions.json)"
-            (cd "$RUNNER_TEMP/docs-$v/website" && npm ci && DOCS_VERSION="$v" DOCS_VERSIONS="$versions" npm run build)
-            mkdir -p "website/.vitepress/dist/$v"
-            cp -R "$RUNNER_TEMP/docs-$v/website/.vitepress/dist/." "website/.vitepress/dist/$v/"
-          done
+          npm run typecheck
+          npm test
 
       # The updater's feed (SUFeedURL points at https://kinhin.dev/appcast.xml). The release workflow signs it
       # into the latest release, so every site build copies that copy in. Before the first signed release there
       # is none, and the site simply goes out without one.
       - name: Fetch the update feed
+        if: github.event_name != 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          out=website/.vitepress/dist/appcast.xml
+          out=website/public/appcast.xml
           # A failed query is not "no appcast": deploying then would drop the live feed on a transient API error.
           # The kinhin-container image has no gh, so query the REST API with curl.
           if ! release=$(curl -fsSL --retry 3 -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
@@ -103,16 +83,50 @@ jobs:
             exit 1
           fi
 
-      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
-        with:
-          path: website/.vitepress/dist
+      # Every version in website/versions.json is rendered from its own tag's docs/ and website/ by the current
+      # site (a static export under /<tag>/), then the latest docs are built as the Worker. A snapshot that fails
+      # to build fails the job (SNAPSHOT_STRICT), so it is caught on the pull request; a listed tag that does not exist yet is
+      # skipped with a warning. The tag itself is never modified.
+      - name: Build the site
+        working-directory: website
+        env:
+          SNAPSHOT_STRICT: "1"
+        run: scripts/build-site.sh
 
-  deploy:
-    needs: build
-    runs-on: kinhin-container
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+      - name: Check the Worker size
+        working-directory: website
+        run: scripts/check-worker-size.sh
+
+      - name: Smoke test the Worker
+        working-directory: website
+        run: scripts/smoke.sh
+
+      # The browser suite (website/e2e): runs on pull requests, on a GitHub-hosted runner that can install Chromium; the
+      # deploy image does not carry one. It serves the same Worker the smoke test just checked.
+      - name: Install Chromium for the end-to-end tests
+        if: github.event_name == 'pull_request'
+        working-directory: website
+        run: npx playwright install --with-deps chromium
+
+      - name: End-to-end tests (Playwright)
+        if: github.event_name == 'pull_request'
+        working-directory: website
+        run: npm run e2e
+
+      - name: Upload the Playwright report
+        if: failure() && github.event_name == 'pull_request'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-report
+          path: |
+            website/playwright-report
+            website/.e2e-results
+          retention-days: 7
+
+      - name: Deploy to Cloudflare
+        if: github.event_name != 'pull_request'
+        working-directory: website
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx opennextjs-cloudflare deploy

@@ -16,7 +16,7 @@ fixes waiting for your approval, and says what only you can do.
   (`Default`), so no scale set is ever created and the listener retries forever. Set
   `runner_group: "Default"` under `scale_set:` in `config.yaml`, spelled exactly as GitHub
   spells it, then restart the app — account-level config is not live-reloaded. Walkthrough:
-  [Troubleshooting scale sets](/guide/forges/github#troubleshooting-scale-sets).
+  [Troubleshooting scale sets](/guide/forges/github#scale-set-troubleshooting-kinhin-side).
 - **VM boots but the runner never registers** — the base image may predate the injected agent.
   Re-run `kinhin image prepare`. Full logs: `kinhin logs -n 200` or
   `~/Library/Application Support/Kinhin/logs/kinhin.log`.

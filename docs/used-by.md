@@ -7,7 +7,7 @@ A short, hand-picked list of companies and projects that run their CI on kinhin.
 ## Add your project
 
 Open a pull request against `main` that adds one line to the `contributors` list in
-[`website/.vitepress/sponsors.ts`](https://github.com/RabinApps/kinhin/blob/main/website/.vitepress/sponsors.ts):
+[`website/src/data/sponsors.ts`](https://github.com/RabinApps/kinhin/blob/main/website/src/data/sponsors.ts):
 
 ```ts
 { sponsor: null, project: { name: "Your Project", url: "https://your-project.example", blurb: "What you build with kinhin." } },

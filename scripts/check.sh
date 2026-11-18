@@ -26,7 +26,8 @@
 #
 # Not included, because they only apply to some changes:
 #   scripts/tsan.sh                        shared state / actors / nonisolated(unsafe)
-#   cd website && npx vitepress build      after editing docs/ or website/ (dead-link check)
+#   scripts/website-check.sh --opennext    also build the Cloudflare Worker (slower; CI does it on every docs/website PR)
+#   scripts/website-check.sh --e2e         build the Worker and run the Playwright suite (website/e2e; CI runs it on every docs/website PR)
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -81,6 +82,9 @@ bash scripts/docs-lint.sh
 
 stage "docs sync (code-derived blocks)"
 bash scripts/docs-sync.sh --check
+
+stage "website (content pipeline + dead links, typecheck, tests, next build)"
+bash scripts/website-check.sh
 
 stage "skills lint"
 bash scripts/skills-lint.sh

@@ -10,7 +10,7 @@ exactly; do not duplicate its rules here.
   skills lint, all CI-parity and failing fast (tests run with `--parallel`; `--fast` skips the ~5 min test run while
   iterating; `--serial` runs them one at a time). Run
   `scripts/tsan.sh` when touching shared state, actors, locks or anything `nonisolated(unsafe)`.
-- After editing `docs/` or `website/`, also run `cd website && npx vitepress build` (fails on dead links). Don't
+- After editing `docs/` or `website/`, also run `scripts/website-check.sh` (content pipeline, typecheck, tests and a Next.js build; fails on dead links). Don't
   hand-edit between `docs-sync` markers: `scripts/docs-sync.sh` regenerates those blocks from Swift source.
 - The test suite takes about 5 minutes with `--parallel` and needs no VMs or network. Never run `swift test --parallel` under TSan.
 - Build the release app with `swift build -c release --product kinhin-app`; `KinhinTestSupport` is testable-only.

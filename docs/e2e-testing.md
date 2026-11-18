@@ -270,3 +270,5 @@ What has actually been run, so the table does not claim more than it checked (20
 | Healing, live on-device advisor (`KINHIN_E2E_AI=1`)       | Run, passing on macOS 27 with Apple Intelligence (2026-10-14)              |
 | Healing on Tart Linux (warm VM deleted out of band)       | Written, **not run**: needs the Tart Linux lane                            |
 | App UI, App Intents, upgrade/migration                    | **Not started** (out of scope of this pass)                                |
+
+The website has its own browser suite, `website/e2e` (Playwright): see "Website tests" in [CONTRIBUTING.md](../CONTRIBUTING.md). It is separate from the forge tiers above and needs no credentials.

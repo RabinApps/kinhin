@@ -63,7 +63,7 @@ notes are that version's section, so they come from the bullets written during d
 scripts/changelog.sh promote <version>   # renames "## Unreleased" to "## v<version>", starts a fresh Unreleased
 #    Sources/KinhinKit/Core/Version.swift   current = "<version>"
 scripts/docs-sync.sh                     # rewrites the README, roadmap and home banners from Version.swift
-#    git add CHANGELOG.md Sources/KinhinKit/Core/Version.swift README.md docs/beta-roadmap.md website/.vitepress/theme/HomeBanners.vue
+#    git add CHANGELOG.md Sources/KinhinKit/Core/Version.swift README.md docs/beta-roadmap.md website/src/data/release.ts
 #    git commit -m "Release v<version>"
 
 # 2. Everything CI runs must be green
