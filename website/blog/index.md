@@ -11,6 +11,9 @@ News and notes from kinhin, the mindful CI.
 
 ## Posts
 
+- **November 18, 2026: [Beta 7: a redesigned app, storage on any volume, and several alert webhooks](/blog/beta-7)**
+  The seventh public beta. What is new in beta 7, what changes when you upgrade, what has been run, what has not, and where I need your help.
+
 - **November 13, 2026: [Beta 6: alerts that reach you, a Tart panic fix, and one engine per Mac](/blog/beta-6)**
   The sixth public beta. What is new in beta 6, what changes when you upgrade, what has been run, what has not, and where I need your help.
 
@@ -19,6 +22,7 @@ News and notes from kinhin, the mindful CI.
 
 - **October 30, 2026: [Beta 4: telemetry you opt into, macOS 27 images, and fixes from your installs](/blog/beta-4)**
   The fourth public beta. What is new in beta 4, what changes when you upgrade, what has been run, what has not, and where I need your help.
+
 - **October 24, 2026: [Beta 3: updates that install themselves, restarts that leave your jobs alone, and seven new languages](/blog/beta-3)**
   The third public beta. What is new in beta 3, what has been run, what has not, and where I need your help.
 
