@@ -1,4 +1,4 @@
-import { desktopOnly, expect, mobileOnly, test } from './support/fixtures'
+import { desktopOnly, expect, hydrated, mobileOnly, test } from './support/fixtures'
 import { docRoutes, pageOf, sidebar, sidebarLinks } from './support/site'
 
 const published = new Set(docRoutes)
@@ -105,12 +105,16 @@ test.describe('docs navigation (phone)', () => {
 
   test('the sidebar sits behind the docs bar', async ({ page }) => {
     await page.goto('/guide/quick-start')
-    const bar = page.locator('details.docs-bar')
-    await expect(bar.locator(':scope > summary')).toContainText(pageOf('guide/quick-start').title)
-    await expect(bar.locator('aside.sidebar')).toBeHidden()
-    await bar.locator(':scope > summary').click()
-    await expect(bar.locator('aside.sidebar')).toBeVisible()
-    await bar.getByRole('link', { name: 'Install & updates' }).click()
+    await hydrated(page)
+    const bar = page.locator('button.docs-bar')
+    const side = page.locator('aside.sidebar')
+    await expect(bar).toContainText(pageOf('guide/quick-start').title)
+    await expect(bar).toHaveAttribute('aria-expanded', 'false')
+    await expect(side).toBeHidden()
+    await bar.click()
+    await expect(bar).toHaveAttribute('aria-expanded', 'true')
+    await expect(side).toBeVisible()
+    await side.getByRole('link', { name: 'Install & updates' }).click()
     await expect(page).toHaveURL(/\/guide\/install$/)
   })
 })

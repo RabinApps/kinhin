@@ -102,16 +102,21 @@ test.describe('Mermaid diagrams', () => {
 
   test('render lazily to an SVG', async ({ page }) => {
     await page.goto('/' + mermaidRoute)
+    // Until a diagram is near the viewport it is just its source text; scrolling to it loads Mermaid.
+    await expect(page.locator('figure.mermaid-source pre').first()).toBeAttached()
+    await page.evaluate(() => document.querySelector('figure.mermaid')?.scrollIntoView({ block: 'center' }))
     await expect(page.locator('figure.mermaid svg').first()).toBeVisible({ timeout: 20_000 })
-    await expect(page.locator('figure.mermaid pre')).toHaveCount(0)
+    // Only diagrams near the viewport are rendered; the rest are still source text.
+    expect(await page.locator('figure.mermaid-source').count()).toBeLessThan(await page.locator('figure.mermaid').count())
   })
 
   test('expand opens a viewer that zooms, pans and closes with Escape', async ({ page }) => {
     await page.goto('/' + mermaidRoute)
     await hydrated(page)
     const fig = page.locator('figure.mermaid').first()
+    await page.evaluate(() => document.querySelector('figure.mermaid')?.scrollIntoView({ block: 'center' }))
     await expect(fig.locator('svg')).toBeVisible({ timeout: 20_000 })
-    await fig.scrollIntoViewIfNeeded()
+    await page.evaluate(() => document.querySelector('figure.mermaid')?.scrollIntoView({ block: 'center' }))
     await fig.getByRole('button', { name: 'Expand' }).click()
     const view = page.getByRole('dialog').filter({ has: page.locator('.mermaid-stage') })
     await expect(view).toBeVisible()
@@ -136,6 +141,7 @@ test.describe('Mermaid diagrams', () => {
     await page.goto('/' + mermaidRoute)
     await hydrated(page)
     const fig = page.locator('figure.mermaid').first()
+    await page.evaluate(() => document.querySelector('figure.mermaid')?.scrollIntoView({ block: 'center' }))
     await expect(fig.locator('svg')).toBeVisible({ timeout: 20_000 })
     const expand = fig.getByRole('button', { name: 'Expand' })
     await expand.click()
@@ -164,6 +170,7 @@ test.describe('Mermaid diagrams', () => {
     await page.goto('/' + mermaidRoute)
     await hydrated(page)
     const fig = page.locator('figure.mermaid').first()
+    await page.evaluate(() => document.querySelector('figure.mermaid')?.scrollIntoView({ block: 'center' }))
     await expect(fig.locator('svg')).toBeVisible({ timeout: 20_000 })
     await fig.getByRole('button', { name: 'Expand' }).click()
     await page.getByRole('button', { name: 'Close' }).click()
@@ -174,6 +181,7 @@ test.describe('Mermaid diagrams', () => {
     await page.emulateMedia({ colorScheme: 'dark' })
     await page.goto('/' + mermaidRoute)
     await hydrated(page)
+    await page.evaluate(() => document.querySelector('figure.mermaid')?.scrollIntoView({ block: 'center' }))
     const svg = page.locator('figure.mermaid svg').first()
     await expect(svg).toBeVisible({ timeout: 20_000 })
     const before = await svg.getAttribute('id')

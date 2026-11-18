@@ -195,8 +195,8 @@ code, kbd, pre { font-family: var(--mono); }
 @media (max-width: 900px) {
   .site-header-in { padding: 0 20px; gap: 12px; } .site-nav { display: none; position: absolute; top: var(--header); left: 0; right: 0; background: var(--bg2); border-bottom: 1px solid var(--line); flex-direction: column; gap: 4px; padding: 12px 20px; margin: 0; } .site-nav.open { display: flex; }
   .menu-btn { display: inline-flex; } .site-actions { margin-left: auto; } .site-actions .btn, .site-actions .version { display: none; } .site-actions > a.chip-btn { display: none; }
-  .docs-shell { display: block; } .docs-shell > .sidebar { display: none; } .docs-bar { display: block; border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: var(--header); z-index: 20; }
-  .docs-bar summary { padding: 14px 20px; font: 12.5px var(--mono); color: var(--mut); cursor: pointer; } .docs-bar .sidebar { display: block; position: static; height: auto; max-height: 60vh; border: 0; background: var(--bg2); padding: 8px 20px 24px; }
+  .docs-shell { display: flex; flex-direction: column; } .docs-shell > .sidebar { display: none; order: 1; } .docs-shell > .article { order: 2; } .docs-bar { order: 0; display: block; width: 100%; text-align: left; border: 0; border-bottom: 1px solid var(--line); background: var(--panel); color: var(--mut); position: sticky; top: var(--header); z-index: 20; }
+  .docs-bar { padding: 14px 20px; font: 12.5px var(--mono); cursor: pointer; } .docs-shell > .sidebar[data-open] { display: block; position: static; height: auto; max-height: 60vh; max-height: 60dvh; border: 0; background: var(--bg2); padding: 8px 20px 24px; }
   .article { padding: 32px 20px 72px; } .hero { padding-top: 48px; } .hero h1 { letter-spacing: -0.05em; } .orbits { top: 640px; }
   .features, .faq, .agents { grid-template-columns: 1fr; } .agents { padding: 24px; gap: 24px; } .section { padding-top: 56px; }
   .fleet { grid-template-columns: 1fr; gap: 20px; padding: 24px; } .wire { display: none; } .fleet-node { width: 100%; }
@@ -214,8 +214,6 @@ code, kbd, pre { font-family: var(--mono); }
 
 /* The fleet diagram's nodes are always dark, so their labels use fixed light colours (theme variables flip in light mode). */
 .fleet-node h3 { color: #8b93a7; } .fleet-node.core h3 { color: #5fa0ff; }
-/* github-dark's comment grey (#6a737d) is under 4.5:1 on the code background: lift it. */
-.shiki span[style*="--shiki-dark:#6A737D"] { --shiki-dark: #9aa4b8 !important; }
 
 .kicker a { color: inherit; text-decoration: none; } .kicker a:hover { text-decoration: underline; }
 
@@ -258,3 +256,5 @@ body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-ins
   .code pre { background: #f6f6f6; color: #000; white-space: pre-wrap; border: 1px solid #bbb; } .shiki span { color: #000 !important; }
   .callout { background: #f3f3f3; border-color: #888; } h2, h3 { break-after: avoid; } pre, table, figure { break-inside: avoid; }
 }
+
+.mermaid-source pre { margin: 0; text-align: left; font-size: 12.5px; line-height: 1.5; color: var(--mut); overflow-x: auto; max-height: 220px; }

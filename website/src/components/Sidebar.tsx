@@ -29,10 +29,15 @@ function Item({ item, path }: { item: SidebarItem; path: string }) {
   )
 }
 
+/**
+ * The docs navigation, rendered once (on phones MobileDocsToggle shows it). It is a client component on purpose: it takes the
+ * links from site.config in the bundle, so no markup for it travels in each page's RSC payload (a server component's output
+ * would be sent again with every client-side navigation).
+ */
 export function Sidebar() {
   const path = usePathname()
   return (
-    <aside className="sidebar" aria-label="Documentation">
+    <aside className="sidebar" id="docs-sidebar" aria-label="Documentation">
       {sidebar.map((g) => (
         <section key={g.text}>
           {g.collapsed ? (
@@ -49,15 +54,5 @@ export function Sidebar() {
         </section>
       ))}
     </aside>
-  )
-}
-
-/** Mobile: the sidebar tucked behind a bar under the header. */
-export function MobileDocsBar({ title }: { title: string }) {
-  return (
-    <details className="docs-bar">
-      <summary>☰ {title}</summary>
-      <Sidebar />
-    </details>
   )
 }

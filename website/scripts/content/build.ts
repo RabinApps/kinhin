@@ -15,7 +15,7 @@ import { sidebar, siteDescription, siteURL, searchNextSteps, type SidebarItem } 
 import { outsideFences, stripVue } from './fences.ts'
 import { cleanSitePath, internalLinks, mapLinks, rawGithub, rewriteHref, type LinkContext } from './links.ts'
 import { collect } from './routes.ts'
-import { hastJSON, toHast } from './render.ts'
+import { hastJSON, shikiCss, toHast } from './render.ts'
 import { extractHeadings, firstParagraph, parseFrontmatter, plainText, type Heading2 } from './text.ts'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
@@ -270,6 +270,8 @@ writeFileSync(path.join(out, 'llms.txt'), lines.join('\n').trimEnd() + '\n')
 const full = ['# kinhin', '', `> ${siteDescription}`, '']
 for (const p of ordered) full.push('---', '', `Source: ${abs(p.meta.route)}`, '', p.md, '')
 writeFileSync(path.join(out, 'llms-full.txt'), full.join('\n').trimEnd() + '\n')
+
+writeFileSync(path.join(out, 'shiki.css'), shikiCss())
 
 // --- search index --------------------------------------------------------------------------------
 const mini = new MiniSearch({ fields: ['title', 'headings', 'description', 'text'], storeFields: ['title', 'description'], searchOptions: { boost: { title: 4, headings: 2 }, prefix: true, fuzzy: 0.15 } })

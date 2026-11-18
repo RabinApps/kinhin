@@ -6,7 +6,7 @@ import type { Root } from 'hast'
 import { searchNextSteps } from '../../site.config.ts'
 import { AudienceTabs } from '../components/AudienceTabs'
 import { CodeBlock } from '../components/CodeBlock'
-import { Mermaid } from '../components/Mermaid'
+import { MermaidLazy } from '../components/MermaidLazy'
 import { withBase } from './base'
 
 /** The stored hast tree (built by scripts/content/render.ts) → React, with the site's components. */
@@ -40,9 +40,12 @@ const components = {
     </aside>
   ),
   'audience-tabs': ({ children }: any) => <AudienceTabs>{children}</AudienceTabs>,
-  // Server components are resolved before they reach the client tabs, so the panel carries its audience as a data attribute.
-  'audience-panel': ({ which, children }: any) => <div data-which={which}>{children}</div>,
-  'mermaid-chart': ({ chart }: any) => <Mermaid chart={chart} />,
+  'audience-panel': ({ which, children }: any) => (
+    <div data-which={which} id={`panel-${which}`} role="tabpanel" aria-labelledby={which === 'agent' ? 'with-an-ai-agent' : 'tab-human'} hidden={which !== 'human'}>
+      {children}
+    </div>
+  ),
+  'mermaid-chart': ({ chart }: any) => <MermaidLazy chart={chart} />,
   'search-next-steps': () => (
     <section className="next-steps">
       <h2>Next steps</h2>

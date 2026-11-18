@@ -2,7 +2,8 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { siteURL } from '../../../site.config.ts'
-import { MobileDocsBar, Sidebar } from '../../components/Sidebar'
+import { MobileDocsToggle } from '../../components/MobileDocsToggle'
+import { Sidebar } from '../../components/Sidebar'
 import { PageActions } from '../../components/PageActions'
 import { Toc } from '../../components/Toc'
 import { getManifest, getPage, sidebarContext } from '../../lib/content'
@@ -55,8 +56,8 @@ export default async function Page({ params }: Props) {
   const kicker = [route.split('/')[0].toUpperCase(), ctx.group?.toUpperCase()].filter(Boolean).join(' / ')
   return (
     <div className={docs ? 'docs-shell' : 'plain-shell'}>
+      {docs && <MobileDocsToggle title={meta.title} />}
       {docs && <Sidebar />}
-      {docs && <MobileDocsBar title={meta.title} />}
       <JsonLd data={[articleLd(meta, pageTitle(meta), metaDescription(meta.description)), breadcrumbs(meta, pageTitle(meta))]} />
       <article className="article">
         <nav className="kicker" aria-label="Breadcrumb">

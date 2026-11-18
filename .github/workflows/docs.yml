@@ -93,9 +93,11 @@ jobs:
           SNAPSHOT_STRICT: "1"
         run: scripts/build-site.sh
 
-      - name: Check the Worker size
+      - name: Check the Worker size and the JavaScript budgets
         working-directory: website
-        run: scripts/check-worker-size.sh
+        run: |
+          scripts/check-worker-size.sh
+          node scripts/check-bundle.mjs
 
       - name: Smoke test the Worker
         working-directory: website

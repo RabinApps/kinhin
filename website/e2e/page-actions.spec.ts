@@ -44,9 +44,11 @@ test.describe('page actions and code blocks', () => {
 
   test('code is highlighted for light and dark', async ({ page }) => {
     await page.goto('/guide/quick-start')
-    const span = page.locator('pre.shiki span[style*="--shiki-dark"]').first()
+    // Tokens carry a short class (the colour pairs live in one generated stylesheet), not an inline style each.
+    const span = page.locator('pre.shiki span[class^="t"]').first()
     await expect(span).toBeAttached()
-    await expect(span).toHaveAttribute('style', /--shiki-light/)
+    expect(await span.getAttribute('style')).toBeNull()
+    expect(await span.evaluate((e) => getComputedStyle(e).color)).not.toBe(await page.locator('pre.shiki').first().evaluate((e) => getComputedStyle(e).backgroundColor))
   })
 
   test('the markdown actions exist on every doc kind', async ({ page }) => {

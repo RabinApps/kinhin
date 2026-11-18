@@ -25,9 +25,10 @@ test.describe('touch', () => {
 
   test('docs bar, sidebar links, pager and page actions are comfortable targets', async ({ page }) => {
     await page.goto('/guide/quick-start')
-    await page.locator('details.docs-bar > summary').click()
-    for (const link of (await page.locator('details.docs-bar .sidebar li a').all()).slice(0, 5)) expect((await link.boundingBox())!.height).toBeGreaterThanOrEqual(40)
-    await page.locator('details.docs-bar > summary').click()
+    await hydrated(page)
+    await page.locator('button.docs-bar').click()
+    for (const link of (await page.locator('aside.sidebar li a').all()).slice(0, 5)) expect((await link.boundingBox())!.height).toBeGreaterThanOrEqual(40)
+    await page.locator('button.docs-bar').click()
     for (const b of await page.locator('.page-actions .chip-btn').all()) expect((await b.boundingBox())!.height).toBeGreaterThanOrEqual(44)
   })
 

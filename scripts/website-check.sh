@@ -11,6 +11,7 @@ cd "$(dirname "$0")/../website"
 npm run typecheck
 npm test
 npm run build
+node scripts/check-bundle.mjs
 
 case "${1:-}" in
     --opennext) npx opennextjs-cloudflare build ;;

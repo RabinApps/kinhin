@@ -8,6 +8,7 @@ import { Search } from '../components/Search'
 import { VersionBanner } from '../components/VersionBanner'
 import { getManifest } from '../lib/content'
 import './globals.css'
+import '../../.generated/shiki.css'
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteURL),

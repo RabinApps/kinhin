@@ -95,6 +95,23 @@ export const sanitizeSchema: SanitizeOptions = {
   },
 }
 
+// Shiki writes `style="--shiki-light:#…;--shiki-dark:#…"` on every token, which repeats in the HTML and again in the RSC payload.
+// Tokens get a short class instead; the few distinct colour pairs become rules in .generated/shiki.css (see shikiCss).
+const tokenClasses = new Map<string, string>()
+function tokenClass(style: string): string {
+  let c = tokenClasses.get(style)
+  if (!c) {
+    c = `t${tokenClasses.size}`
+    tokenClasses.set(style, c)
+  }
+  return c
+}
+
+/** The stylesheet for every token class handed out so far. github-dark's comment grey (#6a737d) is under 4.5:1 on the code background, so it is lifted. */
+export function shikiCss(): string {
+  return [...tokenClasses].map(([style, c]) => `.shiki .${c}{${style.replace(/--shiki-dark:#6a737d/i, '--shiki-dark:#9aa4b8')}}`).join('\n') + '\n'
+}
+
 const processor = unified()
   .use(remarkParse)
   .use(remarkGfm)
@@ -111,6 +128,18 @@ const processor = unified()
     defaultColor: false,
     fallbackLanguage: 'text',
     lazy: false,
+    transformers: [
+      {
+        name: 'kinhin-token-classes',
+        span(node: any) {
+          const style = node.properties?.style
+          if (typeof style === 'string' && style.startsWith('--shiki-')) {
+            node.properties.class = tokenClass(style)
+            delete node.properties.style
+          }
+        },
+      },
+    ],
   } as never)
 
 export async function toHast(md: string): Promise<HastRoot> {
