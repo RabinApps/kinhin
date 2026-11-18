@@ -33,7 +33,7 @@ only, never `scripts/e2e.sh` locally.
 4. Install beta 6 on the test Mac with real state, then run T1, T4, T6 and T21, then T19 to T22 as time allows (T8 only as a
    local appcast rehearsal). Update "What has been run" in `website/blog/beta-7.md` to match the evidence, line by line.
 5. `cd website && npx vitepress build`, `bash scripts/docs-lint.sh`, `scripts/docs-sync.sh --check`, `scripts/skills-lint.sh`.
-6. After the last edit to the post, run T1 and T4 again on the exact commit you will tag, and record the results in "What has been run".
+6. After the last edit to the post, run T1 and T4 again on the exact commit you will tag. Record the results and that commit's SHA in the release notes or the release PR, not in the post: editing the post makes a new commit, so the tagged commit would no longer be the tested one. Move the post's "What has been run" lines after tagging.
 7. Start notarization as early as possible; Apple's queue can take hours.
 
 ## Launch day
