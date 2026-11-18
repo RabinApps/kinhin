@@ -114,9 +114,12 @@ test.describe('home page', () => {
     }
   })
 
-  test('the star count is shown from the (mocked) GitHub API', async ({ page }, info) => {
+  test('the star chip shows the count read at build time, or a plain GitHub label', async ({ page }, info) => {
     test.skip(info.project.name === 'mobile', 'the star chip is not in the phone header')
     await page.goto('/')
-    await expect(page.getByRole('link', { name: /stars on GitHub/ })).toContainText('1.2k')
+    const chip = page.getByRole('link', { name: /stars on GitHub/ })
+    const { stars } = manifest
+    await expect(chip).toContainText(stars === null ? 'GitHub' : stars >= 1000 ? `${(stars / 1000).toFixed(1)}k` : String(stars))
+    await expect(chip).toHaveAttribute('href', 'https://github.com/RabinApps/kinhin')
   })
 })

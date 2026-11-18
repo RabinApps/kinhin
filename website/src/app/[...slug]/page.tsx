@@ -30,7 +30,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     description,
     // A release snapshot is old documentation for an old version: keep it out of the index and point at the latest page.
     ...(DOCS_VERSION ? { robots: { index: false, follow: true } } : {}), // an explicit `robots: undefined` would erase the layout's
-    alternates: { canonical: canonical(route), types: { 'text/markdown': `/${route}.md` } },
+    alternates: { canonical: canonical(route), types: { 'text/markdown': `/${route}.md`, 'application/atom+xml': '/blog/feed.xml' } },
     openGraph: {
       type: post ? 'article' : 'website',
       siteName: 'kinhin',
@@ -59,7 +59,18 @@ export default async function Page({ params }: Props) {
       {docs && <MobileDocsBar title={meta.title} />}
       <JsonLd data={[articleLd(meta, pageTitle(meta), metaDescription(meta.description)), breadcrumbs(meta, pageTitle(meta))]} />
       <article className="article">
-        <p className="kicker">{docs ? kicker : route.startsWith('blog') ? '// BLOG' : '// GUIDE'}</p>
+        <nav className="kicker" aria-label="Breadcrumb">
+          {docs ? (
+            <>
+              <Link href={route.startsWith('cli/') ? '/cli/commands' : '/guide/quick-start'}>{route.split('/')[0].toUpperCase()}</Link>
+              {ctx.group ? ` / ${ctx.group.toUpperCase()}` : ''}
+            </>
+          ) : route.startsWith('blog') ? (
+            <Link href="/blog">{'// BLOG'}</Link>
+          ) : (
+            '// GUIDE'
+          )}
+        </nav>
         <h1>{meta.title}</h1>
         <PageActions route={route} src={meta.src} />
         <div className="prose">{renderHast(tree)}</div>

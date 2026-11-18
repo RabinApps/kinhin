@@ -78,7 +78,7 @@ test.describe('docs navigation (desktop)', () => {
 
   test('the page header has a breadcrumb, markdown actions and an edit link', async ({ page }) => {
     await page.goto('/guide/quick-start')
-    await expect(page.locator('p.kicker')).toHaveText('GUIDE / GET STARTED')
+    await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toHaveText('GUIDE / GET STARTED')
     await expect(page.getByRole('link', { name: 'Edit on GitHub' })).toHaveAttribute('href', `https://github.com/RabinApps/kinhin/blob/main/${pageOf('guide/quick-start').src}`)
     await expect(page.getByRole('link', { name: 'View .md' })).toHaveAttribute('href', '/guide/quick-start.md')
   })

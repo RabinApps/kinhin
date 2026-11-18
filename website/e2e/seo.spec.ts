@@ -168,6 +168,40 @@ test.describe('crawler signals', () => {
     expect(buf.readUInt32BE(20)).toBe(630)
   })
 
+  test('favicon.ico exists (crawlers and browsers always ask for it)', async ({ request }) => {
+    const res = await request.get('/favicon.ico')
+    expect(res.status()).toBe(200)
+    expect(res.headers()['content-type']).toMatch(/icon/)
+    expect((await res.body()).readUInt16LE(2)).toBe(1) // an ICO file: type 1
+  })
+
+  test('the Atom feed lists every dated post and is advertised on every page', async ({ page, request }) => {
+    const res = await request.get('/blog/feed.xml')
+    expect(res.status()).toBe(200)
+    expect(res.headers()['content-type']).toContain('application/atom+xml')
+    const xml = await res.text()
+    expect(xml.startsWith('<?xml')).toBe(true)
+    const dated = pages.filter((p) => /^blog\/.+/.test(p.route) && (p as { date?: string }).date)
+    expect(dated.length).toBeGreaterThan(3)
+    expect((xml.match(/<entry>/g) ?? []).length).toBe(dated.length)
+    for (const p of dated) expect(xml).toContain(`<id>${ORIGIN}/${p.route}</id>`)
+    await page.goto('/guide/quick-start')
+    await expect(page.locator('link[rel=alternate][type="application/atom+xml"]')).toHaveAttribute('href', `${ORIGIN}/blog/feed.xml`)
+  })
+
+  test('theme-color follows the colour scheme', async ({ page }) => {
+    await page.goto('/')
+    const metas = await page.locator('meta[name=theme-color]').evaluateAll((ms) => ms.map((m) => [m.getAttribute('media'), m.getAttribute('content')]))
+    expect(metas).toEqual(expect.arrayContaining([['(prefers-color-scheme: dark)', '#05060A'], ['(prefers-color-scheme: light)', '#F6F7FB']]))
+  })
+
+  test('the breadcrumb is made of real links that match the structured data', async ({ page }) => {
+    await page.goto('/guide/quick-start')
+    const crumb = page.getByRole('navigation', { name: 'Breadcrumb' })
+    await expect(crumb.getByRole('link', { name: 'GUIDE' })).toHaveAttribute('href', '/guide/quick-start')
+    await expect(crumb).toContainText('GET STARTED')
+  })
+
   test('manifest.version matches the build under test', async () => {
     expect(manifest.snapshot).toBe(false)
   })
@@ -177,10 +211,10 @@ test.describe('release snapshots stay out of the index', () => {
   const built = versions.filter(hasSnapshot)
   test.skip(built.length === 0, 'no snapshots in this build')
   for (const tag of built) {
-    test(`${tag} is noindex and canonical to the latest page`, async ({ page }) => {
+    test(`${tag} is noindex and canonical to itself (an old-only page has no latest equivalent)`, async ({ page }) => {
       await page.goto(`/${tag}/guide/quick-start`)
       await expect(page.locator('meta[name=robots]').first()).toHaveAttribute('content', /noindex/)
-      await expect(page.locator('link[rel=canonical]')).toHaveAttribute('href', `${ORIGIN}/guide/quick-start`)
+      await expect(page.locator('link[rel=canonical]')).toHaveAttribute('href', `${ORIGIN}/${tag}/guide/quick-start`)
     })
   }
 })

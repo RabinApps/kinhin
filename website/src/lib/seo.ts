@@ -4,7 +4,8 @@ import type { PageMeta } from './content'
 /** SEO helpers shared by the home page and the doc pages: titles, descriptions, canonical URLs, structured data. */
 
 export const DOCS_VERSION = process.env.NEXT_PUBLIC_DOCS_VERSION ?? ''
-export const canonical = (route: string): string => `${siteURL}/${route}`
+/** A release snapshot is canonical to itself (it is noindex, and a page that only exists in an old tag has no latest equivalent). */
+export const canonical = (route: string): string => `${siteURL}${DOCS_VERSION ? `/${DOCS_VERSION}` : ''}/${route}`
 
 /** Search results show about 155 to 160 characters: cut at a word boundary and end on an ellipsis. */
 export function metaDescription(text: string, max = 160): string {
@@ -36,7 +37,7 @@ export const ogImage = { url: '/og.png', width: 1200, height: 630, alt: 'kinhin:
 const section = (route: string): { name: string; path: string } | undefined =>
   route.startsWith('guide/') ? { name: 'Guide', path: '/guide/quick-start' } : route.startsWith('cli/') ? { name: 'CLI', path: '/cli/commands' } : route.startsWith('blog/') ? { name: 'Blog', path: '/blog' } : undefined
 
-const publisher = { '@type': 'Organization', name: 'Rabin Apps, LLC', url: 'https://supdesk.app/en', logo: { '@type': 'ImageObject', url: `${siteURL}/logo.png` } }
+const publisher = { '@type': 'Organization', name: 'Rabin Apps, LLC', url: 'https://supdesk.app/en', sameAs: [repoURL, 'https://supdesk.app/en'], logo: { '@type': 'ImageObject', url: `${siteURL}/logo.png` } }
 
 export function breadcrumbs(p: PageMeta, title: string): object {
   const trail = [{ name: 'kinhin', url: `${siteURL}/` }]

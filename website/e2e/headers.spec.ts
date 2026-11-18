@@ -6,9 +6,12 @@ const expectSecure = (h: Record<string, string>, where: string) => {
   expect(h['referrer-policy'], where).toBe('strict-origin-when-cross-origin')
   expect(h['permissions-policy'], where).toContain('camera=()')
   expect(h['x-frame-options'], where).toBe('DENY')
+  expect(h['cross-origin-opener-policy'], where).toBe('same-origin')
+  expect(h['x-permitted-cross-domain-policies'], where).toBe('none')
   const csp = h['content-security-policy'] ?? ''
   for (const d of ["default-src 'self'", "object-src 'none'", "frame-ancestors 'none'", "base-uri 'self'"]) expect(csp, `${where}: ${d}`).toContain(d)
-  expect(csp, where).toContain('connect-src \'self\' https://api.github.com')
+  expect(csp, `${where}: the page makes no third-party calls`).toMatch(/connect-src 'self'(;|$)/)
+  expect(csp, where).not.toContain('github.com')
 }
 
 test.describe('security headers', () => {
@@ -38,5 +41,20 @@ test.describe('security headers', () => {
     await page.getByRole('button', { name: 'Search', exact: true }).click()
     await page.waitForTimeout(500)
     expect(violations).toEqual([])
+  })
+})
+
+test.describe('privacy', () => {
+  test('a page load makes no request to any other origin', async ({ page, baseURL }) => {
+    const foreign: string[] = []
+    page.on('request', (r) => {
+      const u = new URL(r.url())
+      if (!r.url().startsWith(baseURL!) && u.protocol.startsWith('http')) foreign.push(r.url())
+    })
+    for (const path of ['/', '/guide/quick-start', '/guide/architecture']) {
+      await page.goto(path)
+      await page.waitForLoadState('networkidle')
+    }
+    expect(foreign).toEqual([])
   })
 })

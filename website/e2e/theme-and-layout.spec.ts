@@ -42,19 +42,56 @@ test.describe('theme', () => {
   })
 })
 
+const BASE_WIDTHS = [390, 768, 1440]
+// The breakpoints (900 and 901 for the menu, 1000 for the header, 1180 and 1181 for the table of contents) and the extremes.
+const EDGE_WIDTHS = [320, 900, 901, 1000, 1024, 1180, 1181, 1920, 2560]
+const EDGE_ROUTES = ['', 'guide/quick-start', 'cli/commands']
+
 test.describe('responsive layout', () => {
-  for (const width of [390, 768, 1440]) {
-    for (const route of SAMPLE) {
-      test(`no horizontal overflow at ${width}px on ${route || 'home'}`, async ({ page }, info) => {
-        test.skip(info.project.name === 'mobile' && width !== 390, 'the phone project covers 390px')
-        await page.setViewportSize({ width, height: 900 })
-        await page.goto('/' + route)
-        await page.waitForLoadState('networkidle')
-        const [scroll, inner] = await page.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth])
-        expect(scroll).toBeLessThanOrEqual(inner)
-      })
-    }
+  const cases = [...BASE_WIDTHS.flatMap((w) => SAMPLE.map((r) => [w, r] as const)), ...EDGE_WIDTHS.flatMap((w) => EDGE_ROUTES.map((r) => [w, r] as const))]
+  for (const [width, route] of cases) {
+    test(`no overflow and a one-line header at ${width}px on ${route || 'home'}`, async ({ page }, info) => {
+      test.skip(info.project.name === 'mobile' && width !== 390, 'the phone project covers 390px; the desktop project covers the rest')
+      await page.setViewportSize({ width, height: 900 })
+      await page.goto('/' + route)
+      await page.waitForLoadState('networkidle')
+      const [scroll, inner] = await page.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth])
+      expect(scroll, 'horizontal overflow').toBeLessThanOrEqual(inner)
+      const header = (await page.locator('header.site-header').boundingBox())!
+      expect(header.height, 'the header stays on one line').toBeLessThanOrEqual(70)
+      // Nothing in the header sticks out of the viewport.
+      const out = await page.evaluate(() => [...document.querySelectorAll('header.site-header *')].filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.right > window.innerWidth + 1 }).map((e) => e.className || e.tagName))
+      expect(out).toEqual([])
+    })
   }
+
+  test('long unbreakable strings wrap instead of widening the page', async ({ page }) => {
+    await page.goto('/guide/quick-start')
+    await page.evaluate(() => {
+      const p = document.createElement('p')
+      p.textContent = 'https://example.com/' + 'a-very-long-path-segment-without-any-break/'.repeat(12)
+      document.querySelector('.prose')!.prepend(p)
+    })
+    const [scroll, inner] = await page.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth])
+    expect(scroll).toBeLessThanOrEqual(inner)
+  })
+
+  test('the print stylesheet keeps the article and drops the chrome', async ({ page }) => {
+    await page.goto('/guide/quick-start')
+    await page.emulateMedia({ media: 'print' })
+    await expect(page.locator('header.site-header')).toBeHidden()
+    await expect(page.locator('aside.sidebar').first()).toBeHidden()
+    await expect(page.locator('nav.toc')).toBeHidden()
+    await expect(page.locator('h1')).toBeVisible()
+    await expect(page.locator('.prose')).toBeVisible()
+  })
+
+  test('forced colours keep controls outlined', async ({ page }) => {
+    await page.emulateMedia({ forcedColors: 'active' })
+    await page.goto('/')
+    const border = await page.locator('header .chip-btn').first().evaluate((e) => getComputedStyle(e).borderTopWidth)
+    expect(border).not.toBe('0px')
+  })
 })
 
 test.describe('phone menu', () => {

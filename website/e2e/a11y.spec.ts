@@ -1,11 +1,13 @@
 import AxeBuilder from '@axe-core/playwright'
 import { desktopOnly, expect, hydrated, openSearch, test } from './support/fixtures'
+import { pages } from './support/site'
 
 /**
  * Automated accessibility checks (axe): no serious or critical violations on the pages people land on, in both
  * colour schemes. Exceptions are listed here with the reason, never silently skipped.
  */
 const EXCEPTIONS: Record<string, string> = {}
+const latestPost = pages.map((p) => p.route).filter((r) => /^blog\/beta-\d+$/.test(r)).sort().at(-1) ?? 'blog'
 
 async function audit(page: import('@playwright/test').Page, label: string) {
   const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()
@@ -19,7 +21,18 @@ for (const scheme of ['dark', 'light'] as const) {
   test.describe(`axe, ${scheme}`, () => {
     test.beforeEach(async ({ page }) => page.emulateMedia({ colorScheme: scheme }))
 
-    for (const [name, url] of [['home', '/'], ['a docs page', '/guide/quick-start'], ['the CLI page', '/cli/commands'], ['the blog index', '/blog'], ['a search-intent page', '/how-many-macos-vms-can-run-at-once']] as const) {
+    for (const [name, url] of [
+      ['home', '/'],
+      ['a docs page', '/guide/quick-start'],
+      ['the CLI page', '/cli/commands'],
+      ['the blog index', '/blog'],
+      ['a blog post', `/${latestPost}`],
+      ['a search-intent page', '/how-many-macos-vms-can-run-at-once'],
+      ['a page with tables and callouts', '/guide/runtimes'],
+      ['a page with a diagram', '/guide/architecture'],
+      ['a forge page with long code', '/guide/forges/github'],
+      ['a long reference page', '/guide/config'],
+    ] as const) {
       test(name, async ({ page }) => {
         await page.goto(url)
         await hydrated(page)
@@ -32,10 +45,25 @@ for (const scheme of ['dark', 'light'] as const) {
       await audit(page, `404 (${scheme})`)
     })
 
+    test('the version picker, open', async ({ page }) => {
+      await page.goto('/')
+      await hydrated(page)
+      await page.locator('details.version summary').click()
+      await audit(page, `version picker (${scheme})`)
+    })
+
+    test('a phone-width docs page with its menu open', async ({ page }) => {
+      await page.setViewportSize({ width: 360, height: 740 })
+      await page.goto('/guide/quick-start')
+      await hydrated(page)
+      await page.getByRole('button', { name: 'Menu' }).click()
+      await audit(page, `phone menu (${scheme})`)
+    })
+
     test('the search palette', async ({ page }) => {
       await page.goto('/')
       await openSearch(page)
-      await page.getByRole('textbox').fill('runtimes')
+      await page.getByRole('combobox').fill('runtimes')
       await expect(page.locator('.palette-list li button').first()).toBeVisible()
       await audit(page, `search (${scheme})`)
     })

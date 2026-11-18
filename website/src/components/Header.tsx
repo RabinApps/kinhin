@@ -6,25 +6,8 @@ import { nav, repoURL, siteURL } from '../../site.config.ts'
 import { DOCS_VERSION } from '../lib/base'
 import { Logo } from './Logo'
 
-function Stars() {
-  const [n, setN] = useState<number | null>(null)
-  useEffect(() => {
-    try {
-      const c = JSON.parse(localStorage.getItem('kinhin:stars') ?? 'null')
-      if (c && Date.now() - c.at < 3600_000) return setN(c.n)
-    } catch {}
-    fetch('https://api.github.com/repos/RabinApps/kinhin')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => {
-        if (!j || typeof j.stargazers_count !== 'number') return
-        setN(j.stargazers_count)
-        try {
-          localStorage.setItem('kinhin:stars', JSON.stringify({ n: j.stargazers_count, at: Date.now() }))
-        } catch {}
-      })
-      .catch(() => {})
-  }, [])
-  const label = n === null ? 'GitHub' : n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n)
+function Stars({ stars }: { stars: number | null }) {
+  const label = stars === null ? 'GitHub' : stars >= 1000 ? `${(stars / 1000).toFixed(1)}k` : String(stars)
   return (
     <a className="chip-btn" href={repoURL}>
       <span aria-hidden="true">★</span>&nbsp;{label}
@@ -66,7 +49,7 @@ export function VersionPicker({ versions }: { versions: string[] }) {
   )
 }
 
-export function Header({ versions, onSearch }: { versions: string[]; onSearch?: () => void }) {
+export function Header({ versions, stars }: { versions: string[]; stars: number | null }) {
   const path = usePathname()
   const [open, setOpen] = useState(false)
   // Guide and Docs share /guide/…: only the first entry for the current section is marked.
@@ -92,7 +75,7 @@ export function Header({ versions, onSearch }: { versions: string[]; onSearch?: 
           </Link>
         </nav>
         <div className="site-actions">
-          <Stars />
+          <Stars stars={stars} />
           <button type="button" className="chip-btn" onClick={openSearch}>
             <span aria-hidden="true">⌘ K</span>
             <span className="sr-only-text">Search</span>

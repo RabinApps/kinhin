@@ -7,8 +7,8 @@ function sheet(themeName) {
   mono(f, "DARK", 80, 190, { size: 12, color: K.a1, weight: 500, ls: 8 });
   [["bg", "#05060A"], ["bg-2", "#090B12"], ["surface", "#0D1019"], ["code", "#070910"], ["text", "#EAEEF6"], ["muted", "#8B93A7"], ["dim", "#7A8399"], ["accent", "#3D8BFF"]].forEach(([n, h], i) => sw(80 + i * 168, 216, n, h));
   mono(f, "LIGHT", 80, 350, { size: 12, color: K.a1, weight: 500, ls: 8 });
-  [["bg", "#F6F7FB"], ["bg-2", "#EEF0F7"], ["surface", "#FFFFFF"], ["code", "#0F1320"], ["text", "#0B0E14"], ["muted", "#4B5366"], ["dim", "#5F6880"], ["accent", "#1D5FE0"]].forEach(([n, h], i) => sw(80 + i * 168, 376, n, h));
-  mono(f, "Text on tinted surfaces uses a deeper accent in light mode: accent-text #1850C8 (the fill stays #1D5FE0). Dim text: #7A8399 dark, #5F6880 light.", 80, 490, { size: 12, color: K.mut });
+  [["bg", "#F6F7FB"], ["bg-2", "#EEF0F7"], ["surface", "#FFFFFF"], ["code", "#0F1320"], ["text", "#0B0E14"], ["muted", "#4B5366"], ["dim", "#586179"], ["accent", "#1D5FE0"]].forEach(([n, h], i) => sw(80 + i * 168, 376, n, h));
+  mono(f, "Text on tinted surfaces uses a deeper accent in light mode: accent-text #1850C8 (the fill stays #1D5FE0). Dim text: #7A8399 dark, #586179 light.", 80, 490, { size: 12, color: K.mut });
   mono(f, "TYPE", 80, 530, { size: 12, color: K.a1, weight: 500, ls: 8 });
   [["display", 84, 700, "Commit it."], ["h1", 52, 700, "Quick start"], ["h2", 28, 700, "Requirements"], ["lead", 18, 400, "Ephemeral runners that scale to your queue."], ["body", 15.5, 400, "Every job gets a fresh VM or container."], ["label", 12.5, 500, "// WHAT YOU GET"]].forEach(([n, s, w, t], i) => { mono(f, n + " · " + s, 80, 580 + i * 70 + 10, { size: 12, color: K.dim }); text(f, t, 260, 570 + i * 70, { size: Math.min(s, 64), weight: w, ls: s > 40 ? -3 : 0, mono: n === "label", color: n === "label" ? K.a1 : K.tx }); });
   mono(f, "RADIUS / BORDER", 780, 530, { size: 12, color: K.a1, weight: 500, ls: 8 });

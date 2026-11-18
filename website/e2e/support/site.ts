@@ -19,6 +19,7 @@ export interface Manifest {
   version: string
   snapshot: boolean
   versions: string[]
+  stars: number | null
   pages: PageMeta[]
   home: {
     hero: { text: string; tagline: string; actions: { theme: string; text: string; link: string }[] }

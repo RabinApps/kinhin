@@ -13,7 +13,7 @@ export const test = base.extend<{ problems: string[]; page: Page }>({
     page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`))
     page.on('console', (m) => m.type() === 'error' && problems.push(`console: ${m.text()}`))
     page.on('response', (r) => {
-      if (r.url().startsWith(baseURL ?? 'http://localhost') && r.status() >= 400 && !r.url().endsWith('/favicon.ico')) problems.push(`${r.status()} ${r.url()}`)
+      if (r.url().startsWith(baseURL ?? 'http://localhost') && r.status() >= 400) problems.push(`${r.status()} ${r.url()}`)
     })
     await use(page)
   },

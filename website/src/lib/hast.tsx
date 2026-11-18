@@ -27,7 +27,8 @@ const components = {
     ),
   img: ({ src = '', alt = '', ...rest }: any) => <img src={withBase(src)} alt={alt} loading="lazy" {...rest} />,
   table: ({ children, ...rest }: any) => (
-    <div className="table-wrap">
+    // A scrollable region must be reachable by keyboard (axe: scrollable-region-focusable).
+    <div className="table-wrap" tabIndex={0} role="region" aria-label="Table">
       <table {...rest}>{children}</table>
     </div>
   ),

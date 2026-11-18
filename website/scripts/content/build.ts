@@ -278,11 +278,41 @@ writeFileSync(path.join(out, 'search-index.json'), JSON.stringify(mini))
 
 // --- manifest ------------------------------------------------------------------------------------
 const versions = JSON.parse(readFileSync(path.join(siteDir, 'versions.json'), 'utf8')) as string[]
-writeFileSync(path.join(out, 'manifest.json'), JSON.stringify({ version, snapshot, versions, pages, home }, null, 1))
+
+// The GitHub star count is read once per build, so visitors' browsers never call GitHub. A failed lookup (offline, rate limited)
+// shows a plain "GitHub" chip. Set GITHUB_TOKEN in CI to avoid the anonymous rate limit.
+async function stargazers(): Promise<number | null> {
+  if (snapshot) return null
+  try {
+    const res = await fetch('https://api.github.com/repos/RabinApps/kinhin', {
+      headers: { accept: 'application/vnd.github+json', 'user-agent': 'kinhin-site-build', ...(process.env.GITHUB_TOKEN ? { authorization: `Bearer ${process.env.GITHUB_TOKEN}` } : {}) },
+      signal: AbortSignal.timeout(8000),
+    })
+    const n = res.ok ? ((await res.json()) as { stargazers_count?: number }).stargazers_count : undefined
+    return typeof n === 'number' ? n : null
+  } catch {
+    return null
+  }
+}
+const stars = await stargazers()
+writeFileSync(path.join(out, 'manifest.json'), JSON.stringify({ version, snapshot, versions, stars, pages, home }, null, 1))
 
 for (const [from, to] of assetsCopied) {
   mkdirSync(path.dirname(to), { recursive: true })
   cpSync(from, to)
+}
+
+// Quality hints for search results (warnings, not failures): descriptions that are too short or shared, and long titles.
+{
+  const seen = new Map<string, string>()
+  for (const p of pages) {
+    if (p.route === '') continue
+    if (p.description.length < 40) console.warn(`content: ${p.src}: description is short (${p.description.length} chars); search results show it`)
+    if (p.title.length > 70) console.warn(`content: ${p.src}: title is ${p.title.length} chars; <title> is cut near 60`)
+    const dup = seen.get(p.description)
+    if (dup) console.warn(`content: ${p.src} and ${dup} share a description`)
+    seen.set(p.description, p.src)
+  }
 }
 
 if (errors.length) {

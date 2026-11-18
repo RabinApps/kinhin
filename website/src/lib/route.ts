@@ -20,3 +20,6 @@ export function markdownUrl(pathname: string, versions: readonly string[]): stri
 /** True for `/<tag>` and `/<tag>/…` of a release snapshot. */
 export const isSnapshotPath = (pathname: string, versions: readonly string[]): boolean =>
   versions.some((v) => pathname === `/${v}` || pathname.startsWith(`/${v}/`))
+
+/** A URL path made of ordinary characters only: safe to put in a header or a rewrite target. */
+export const isSafePath = (pathname: string): boolean => /^\/[A-Za-z0-9/_.~%+-]*$/.test(pathname) && !pathname.includes('..')

@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import versions from '../versions.json'
 import { prefersMarkdown } from './lib/accept'
-import { markdownRewrite, markdownUrl } from './lib/route'
+import { isSafePath, markdownRewrite, markdownUrl } from './lib/route'
 
 /**
  * Markdown for agents. A page URL asked for with `Accept: text/markdown` returns the page's markdown copy
@@ -12,8 +12,8 @@ import { markdownRewrite, markdownUrl } from './lib/route'
  * The same pass adds the security headers every HTML response should carry.
  */
 
-// Scripts: the theme bootstrap and Next's own payload are inline, hence 'unsafe-inline'. Everything else is same-origin;
-// the one external call is the GitHub star count.
+// Scripts: the theme bootstrap and Next's own payload are inline, hence 'unsafe-inline' (pages are prerendered, so there is no
+// per-request nonce); markdown is sanitised at build time. Everything else is same-origin: the page makes no third-party calls.
 const CSP = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline'",
@@ -21,7 +21,7 @@ const CSP = [
   "img-src 'self' data: https:",
   "media-src 'self'",
   "font-src 'self' data:",
-  "connect-src 'self' https://api.github.com",
+  "connect-src 'self'",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",
@@ -34,6 +34,8 @@ export const securityHeaders: Record<string, string> = {
   'referrer-policy': 'strict-origin-when-cross-origin',
   'permissions-policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=()',
   'x-frame-options': 'DENY',
+  'cross-origin-opener-policy': 'same-origin',
+  'x-permitted-cross-domain-policies': 'none',
 }
 
 export function middleware(req: NextRequest) {
@@ -47,7 +49,8 @@ export function middleware(req: NextRequest) {
   }
   const res = NextResponse.next()
   res.headers.append('vary', 'Accept')
-  res.headers.set('link', `<${markdownUrl(pathname, versions)}>; rel="alternate"; type="text/markdown"`)
+  // The path comes from the request: only advertise it when it is plainly a path (no `>`, quotes or control characters).
+  if (isSafePath(pathname)) res.headers.set('link', `<${markdownUrl(pathname, versions)}>; rel="alternate"; type="text/markdown"`)
   for (const [k, v] of Object.entries(securityHeaders)) res.headers.set(k, v)
   return res
 }

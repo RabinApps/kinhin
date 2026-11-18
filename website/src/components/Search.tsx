@@ -17,6 +17,8 @@ export function Search() {
   const [ready, setReady] = useState(false)
   const index = useRef<MiniSearch | null>(null)
   const input = useRef<HTMLInputElement>(null)
+  const opener = useRef<HTMLElement | null>(null)
+  const navigated = useRef(false)
 
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
@@ -31,8 +33,15 @@ export function Search() {
 
   useEffect(() => {
     if (!open) return
+    opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
     input.current?.focus()
+    // Escape or a click outside returns focus to the opener; opening a result moves on to the page instead.
+    const restore = (): void => {
+      if (navigated.current) navigated.current = false
+      else opener.current?.focus()
+    }
     if (!index.current) fetch(withBase('/search-index.json')).then((r) => r.text()).then((t) => { index.current = MiniSearch.loadJSON(t, options); setReady(true) }).catch(() => {})
+    return restore
   }, [open])
 
   useEffect(() => {
@@ -43,6 +52,7 @@ export function Search() {
 
   const go = (h?: Hit) => {
     if (!h) return
+    navigated.current = true
     setOpen(false)
     router.push(h.id)
   }
@@ -57,11 +67,26 @@ export function Search() {
   if (!open) return null
   return (
     <div className="palette-scrim" onMouseDown={(e) => e.target === e.currentTarget && setOpen(false)}>
-      <div className="palette" role="dialog" aria-modal="true" aria-label="Search">
+      <div
+        className="palette"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Search"
+        onKeyDown={(e) => {
+          // The palette is the only thing the keyboard can reach while it is open.
+          if (e.key === 'Tab') (e.preventDefault(), input.current?.focus())
+        }}
+      >
         <div className="palette-input">
           <span aria-hidden>⌕</span>
           <input
             ref={input}
+            role="combobox"
+            aria-expanded={hits.length > 0}
+            aria-controls="palette-list"
+            aria-autocomplete="list"
+            aria-activedescendant={hits.length > 0 ? `palette-opt-${sel}` : undefined}
+            aria-label="Search the docs"
             value={q}
             placeholder="Search the docs"
             onChange={(e) => setQ(e.target.value)}
@@ -73,16 +98,20 @@ export function Search() {
           />
           <kbd>esc</kbd>
         </div>
-        <ul className="palette-list">
+        <ul className="palette-list" id="palette-list" role="listbox" aria-label="Results">
           {hits.map((h, i) => (
-            <li key={h.id}>
-              <button type="button" className={i === sel ? 'on' : ''} onMouseEnter={() => setSel(i)} onClick={() => go(h)}>
+            <li key={h.id} role="presentation">
+              <button type="button" role="option" id={`palette-opt-${i}`} aria-selected={i === sel} tabIndex={-1} className={i === sel ? 'on' : ''} onMouseEnter={() => setSel(i)} onClick={() => go(h)}>
                 <strong>{h.title}</strong>
                 <span>{h.description}</span>
               </button>
             </li>
           ))}
-          {q.trim() && hits.length === 0 && <li className="palette-empty">No results for “{q}”</li>}
+          {q.trim() && hits.length === 0 && (
+            <li className="palette-empty" role="status">
+              No results for “{q}”
+            </li>
+          )}
         </ul>
         <div className="palette-foot">↑↓ navigate · ↵ open · ⌘↵ copy as markdown</div>
       </div>

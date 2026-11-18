@@ -13,13 +13,18 @@ export const metadata: Metadata = {
   metadataBase: new URL(siteURL),
   title: { default: 'kinhin: Your Mac is your CI', template: '%s · kinhin' },
   description: siteDescription,
-  icons: { icon: [{ url: '/favicon.svg', type: 'image/svg+xml' }, { url: '/favicon-32.png', sizes: '32x32', type: 'image/png' }], apple: '/apple-touch-icon.png' },
+  icons: { icon: [{ url: '/favicon.ico', sizes: 'any' }, { url: '/favicon.svg', type: 'image/svg+xml' }, { url: '/favicon-32.png', sizes: '32x32', type: 'image/png' }], apple: '/apple-touch-icon.png' },
+  alternates: { types: { 'application/atom+xml': '/blog/feed.xml' } },
   applicationName: 'kinhin',
   authors: [{ name: 'Rabin Apps, LLC' }],
   creator: 'Rabin Apps, LLC',
   robots: { index: true, follow: true, googleBot: { index: true, follow: true, 'max-image-preview': 'large', 'max-snippet': -1, 'max-video-preview': -1 } },
 }
-export const viewport: Viewport = { themeColor: '#05060A', colorScheme: 'dark light' }
+export const viewport: Viewport = {
+  themeColor: [{ media: '(prefers-color-scheme: dark)', color: '#05060A' }, { media: '(prefers-color-scheme: light)', color: '#F6F7FB' }],
+  colorScheme: 'dark light',
+  viewportFit: 'cover',
+}
 
 const themeScript = `try{var t=localStorage.getItem('kinhin:theme');if(t)document.documentElement.dataset.theme=t}catch(e){}`
 
@@ -33,7 +38,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <a href="#main" className="skip">Skip to content</a>
         <VersionBanner version={m.version} />
-        <Header versions={m.versions} />
+        <Header versions={m.versions} stars={m.stars} />
         <main id="main">{children}</main>
         <Footer />
         <Search />

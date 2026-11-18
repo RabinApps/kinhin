@@ -29,7 +29,7 @@ for (const scheme of ['dark', 'light'] as const) {
     test('search palette', async ({ page }) => {
       await page.goto('/guide/quick-start')
       await openSearch(page)
-      await page.getByRole('textbox').fill('runtimes')
+      await page.getByRole('combobox').fill('runtimes')
       await expect(page.locator('.palette-list li button').first()).toBeVisible()
       await shot(page, 'palette')
     })

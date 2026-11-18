@@ -20,9 +20,32 @@ export function AudienceTabs({ children }: { children: ReactNode }) {
   }
   return (
     <div className="tabs">
-      <div className="tabs-list" role="tablist">
+      <div
+        className="tabs-list"
+        role="tablist"
+        aria-label="How to do this"
+        onKeyDown={(e) => {
+          // ARIA tabs: arrows (and Home/End) move between tabs and select them.
+          const order = ['human', 'agent']
+          const i = order.indexOf(which)
+          const next = e.key === 'ArrowRight' ? order[(i + 1) % 2] : e.key === 'ArrowLeft' ? order[(i + 1) % 2] : e.key === 'Home' ? order[0] : e.key === 'End' ? order[1] : null
+          if (!next) return
+          e.preventDefault()
+          pick(next)
+          requestAnimationFrame(() => document.getElementById(next === 'agent' ? 'with-an-ai-agent' : 'tab-human')?.focus())
+        }}
+      >
         {[['human', 'From the terminal'], ['agent', 'With an AI agent']].map(([w, label]) => (
-          <button key={w} role="tab" aria-selected={which === w} className={which === w ? 'on' : ''} onClick={() => pick(w)} id={w === 'agent' ? 'with-an-ai-agent' : undefined}>
+          <button
+            key={w}
+            type="button"
+            role="tab"
+            aria-selected={which === w}
+            tabIndex={which === w ? 0 : -1}
+            className={which === w ? 'on' : ''}
+            onClick={() => pick(w)}
+            id={w === 'agent' ? 'with-an-ai-agent' : 'tab-human'}
+          >
             {label}
           </button>
         ))}

@@ -24,6 +24,8 @@ export interface Manifest {
   version: string
   snapshot: boolean
   versions: string[]
+  /** GitHub stars when the build could read them, otherwise null. */
+  stars: number | null
   pages: PageMeta[]
   home: HomeData
 }

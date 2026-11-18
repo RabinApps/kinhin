@@ -4,6 +4,7 @@ import remarkGfm from 'remark-gfm'
 import remarkDirective from 'remark-directive'
 import remarkRehype from 'remark-rehype'
 import rehypeRaw from 'rehype-raw'
+import rehypeSanitize, { defaultSchema, type Options as SanitizeOptions } from 'rehype-sanitize'
 import rehypeSlug from 'rehype-slug'
 import rehypeShiki from '@shikijs/rehype'
 import { visit } from 'unist-util-visit'
@@ -77,6 +78,23 @@ function rehypeAnchors() {
   }
 }
 
+/**
+ * Markdown may contain raw HTML (docs are written for GitHub), and an old tag's docs are rendered too, so nothing from it is
+ * trusted: GitHub's allowlist (no script, iframe, object, form, style, event handlers or javascript: URLs) plus the few
+ * custom elements the directives above produce. Ids are kept as written (the default would prefix them with `user-content-`).
+ */
+export const sanitizeSchema: SanitizeOptions = {
+  ...defaultSchema,
+  clobberPrefix: '',
+  tagNames: [...(defaultSchema.tagNames ?? []), 'callout', 'audience-tabs', 'audience-panel', 'mermaid-chart', 'search-next-steps'],
+  attributes: {
+    ...defaultSchema.attributes,
+    callout: ['kind', 'title'],
+    'audience-panel': ['which'],
+    'mermaid-chart': ['chart'],
+  },
+}
+
 const processor = unified()
   .use(remarkParse)
   .use(remarkGfm)
@@ -84,6 +102,7 @@ const processor = unified()
   .use(remarkSiteDirectives)
   .use(remarkRehype, { allowDangerousHtml: true })
   .use(rehypeRaw, { passThrough: [] })
+  .use(rehypeSanitize, sanitizeSchema)
   .use(rehypeMermaid)
   .use(rehypeSlug)
   .use(rehypeAnchors)

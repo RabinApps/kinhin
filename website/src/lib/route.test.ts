@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { isSnapshotPath, markdownRewrite, markdownUrl } from './route.ts'
+import { isSafePath, isSnapshotPath, markdownRewrite, markdownUrl } from './route.ts'
 
 const versions = ['v0.0.1-beta-7', 'v0.0.1-beta-6']
 
@@ -31,4 +31,9 @@ test('which paths belong to a snapshot', () => {
   assert.equal(isSnapshotPath('/v0.0.1-beta-6/guide/x', versions), true)
   assert.equal(isSnapshotPath('/guide/quick-start', versions), false)
   assert.equal(isSnapshotPath('/v0.0.1-beta-66/x', versions), false)
+})
+
+test('only plain paths are advertised in headers', () => {
+  for (const ok of ['/', '/guide/quick-start', '/v0.0.1-beta-6/guide/x', '/how-to-run-github-actions-on-a-self-hosted-mac']) assert.equal(isSafePath(ok), true, ok)
+  for (const bad of ['/a>; rel="x"', '/a b', '/a"b', '/../etc/passwd', '/a\r\nSet-Cookie: x=1', '/a<b', '/a;b', 'guide/x']) assert.equal(isSafePath(bad), false, JSON.stringify(bad))
 })

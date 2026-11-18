@@ -3,7 +3,7 @@
 const THEMES = {
   dark: { bg: "#05060A", bg2: "#090B12", surf: "#0D1019", border: "#FFFFFF", ba: 0.09, tx: "#EAEEF6", mut: "#8B93A7", dim: "#7A8399",
           a1: "#3D8BFF", a2: "#3D8BFF", ok: "#7DB2FF", warn: "#7DB2FF", err: "#7DB2FF", grid: "#FFFFFF", ga: 0.035, glow: 0.22, panel: "#FFFFFF", pa: 0.04, code: "#070910" },
-  light: { bg: "#F6F7FB", bg2: "#EEF0F7", surf: "#FFFFFF", border: "#0B0E14", ba: 0.1, tx: "#0B0E14", mut: "#4B5366", dim: "#5F6880", a1: "#1D5FE0", a2: "#1D5FE0",
+  light: { bg: "#F6F7FB", bg2: "#EEF0F7", surf: "#FFFFFF", border: "#0B0E14", ba: 0.1, tx: "#0B0E14", mut: "#4B5366", dim: "#586179", a1: "#1D5FE0", a2: "#1D5FE0",
            ok: "#1D5FE0", warn: "#1D5FE0", err: "#1D5FE0", grid: "#0B0E14", ga: 0.05, glow: 0.14, panel: "#0B0E14", pa: 0.035, code: "#0F1320" },
 };
 let K = THEMES.dark;

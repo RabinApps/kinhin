@@ -26,7 +26,7 @@ test.describe('search palette', () => {
   test('finds a page by title, with the page first', async ({ page }) => {
     await page.goto('/')
     await openSearch(page)
-    await palette(page).getByRole('textbox').fill(pageOf('guide/runtimes').title)
+    await palette(page).getByRole('combobox').fill(pageOf('guide/runtimes').title)
     const first = palette(page).locator('.palette-list li button').first()
     await expect(first.locator('strong')).toHaveText(pageOf('guide/runtimes').title)
   })
@@ -36,21 +36,21 @@ test.describe('search palette', () => {
     await openSearch(page)
     const target = pages.find((p) => p.route === 'guide/scaling')!
     const heading = target.headings.find((h) => h.depth === 2 && h.text.length > 8)!
-    await palette(page).getByRole('textbox').fill(heading.text)
+    await palette(page).getByRole('combobox').fill(heading.text)
     await expect(palette(page).locator('.palette-list strong', { hasText: target.title })).toBeVisible()
   })
 
   test('forgives a typo', async ({ page }) => {
     await page.goto('/')
     await openSearch(page)
-    await palette(page).getByRole('textbox').fill('runtims')
+    await palette(page).getByRole('combobox').fill('runtims')
     await expect(palette(page).locator('.palette-list strong', { hasText: pageOf('guide/runtimes').title })).toBeVisible()
   })
 
   test('shows at most eight hits and says when there are none', async ({ page }) => {
     await page.goto('/')
     await openSearch(page)
-    const box = palette(page).getByRole('textbox')
+    const box = palette(page).getByRole('combobox')
     await box.fill('runner')
     await expect(palette(page).locator('.palette-list li button').first()).toBeVisible()
     expect(await palette(page).locator('.palette-list li button').count()).toBeLessThanOrEqual(8)
@@ -62,7 +62,7 @@ test.describe('search palette', () => {
     test.skip(info.project.name === 'mobile', 'keyboard navigation')
     await page.goto('/')
     await openSearch(page)
-    await palette(page).getByRole('textbox').fill('install')
+    await palette(page).getByRole('combobox').fill('install')
     const hits = palette(page).locator('.palette-list li button')
     await expect(hits.first()).toHaveClass(/on/)
     await page.keyboard.press('ArrowDown')
@@ -78,7 +78,7 @@ test.describe('search palette', () => {
   test('clicking a hit opens it', async ({ page }) => {
     await page.goto('/')
     await openSearch(page)
-    await palette(page).getByRole('textbox').fill('quick start')
+    await palette(page).getByRole('combobox').fill('quick start')
     const hit = palette(page).locator('.palette-list li button', { hasText: pageOf('guide/quick-start').title }).first()
     await hit.click()
     await expect(page).toHaveURL(/\/guide\/quick-start$/)
@@ -88,7 +88,7 @@ test.describe('search palette', () => {
     test.skip(info.project.name === 'mobile', 'keyboard shortcut')
     await page.goto('/')
     await openSearch(page)
-    await palette(page).getByRole('textbox').fill(pageOf('guide/quick-start').title)
+    await palette(page).getByRole('combobox').fill(pageOf('guide/quick-start').title)
     await expect(palette(page).locator('.palette-list li button').first().locator('strong')).toHaveText(pageOf('guide/quick-start').title)
     await page.keyboard.press('Control+Enter')
     const expected = await (await request.get('/guide/quick-start.md')).text()
@@ -113,5 +113,30 @@ test.describe('search palette', () => {
     expect(seen).toEqual([])
     await openSearch(page)
     await expect.poll(() => seen.length).toBe(1)
+  })
+
+  test('follows the ARIA combobox pattern and keeps focus inside', async ({ page }, info) => {
+    test.skip(info.project.name === 'mobile', 'keyboard navigation')
+    await page.goto('/')
+    const opener = page.getByRole('button', { name: 'Search', exact: true })
+    await openSearch(page)
+    const box = palette(page).getByRole('combobox')
+    await expect(box).toHaveAttribute('aria-expanded', 'false')
+    await box.fill('runtimes')
+    await expect(box).toHaveAttribute('aria-expanded', 'true')
+    const options = palette(page).getByRole('option')
+    await expect(options.first()).toHaveAttribute('aria-selected', 'true')
+    await expect(box).toHaveAttribute('aria-activedescendant', 'palette-opt-0')
+    await page.keyboard.press('ArrowDown')
+    await expect(box).toHaveAttribute('aria-activedescendant', 'palette-opt-1')
+    await expect(options.nth(1)).toHaveAttribute('aria-selected', 'true')
+    await expect(options.first()).toHaveAttribute('aria-selected', 'false')
+    // Tab does not leave the palette.
+    await page.keyboard.press('Tab')
+    await expect(box).toBeFocused()
+    // Closing returns focus to the button that opened it.
+    await page.keyboard.press('Escape')
+    await expect(palette(page)).toBeHidden()
+    await expect(opener).toBeFocused()
   })
 })
