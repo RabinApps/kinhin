@@ -23,7 +23,7 @@ expect() { # expect <swift> <filter> <path>...
 
 expect false "" docs/guide.md
 expect false "" website/package.json docs/a.md skills/kinhin-x/SKILL.md
-expect false "" video/script/launch.json design/kinhin-app.fig README.md
+expect false "" video/script/launch.json design/kinhin-app.fig README.md CHANGELOG.md CONTRIBUTING.md
 expect false "" Tests/E2E/E2ETests/CLITests.swift
 expect false "" # no files at all
 expect true "KinhinCLITests" Sources/kinhin/Main.swift
@@ -42,6 +42,17 @@ expect true "" templates/mobile/App.swift
 expect true "" Tests/Fixtures/x.json
 expect true "" some-new-top-level-file.txt
 expect true "" docs/a.md Package.swift
+# Markdown below the root is not docs: a bundled resource or a fixture.
+expect true "KinhinAppTests" Sources/kinhin-app/Resources/ForgeIcons/README.md
+expect true "" Tests/Fixtures/notes.md
+# Files Swift tests read from the repository.
+expect true "" video/themes/dark.json
+expect true "" video/music/catalog.json
+expect true "" video/adapters/kinhin/demos/example.json
+expect true "" docs/telemetry/metrics.md
+expect true "" docs/telemetry/metrics.md docs/guide.md
+expect false "" video/adapters/kinhin/launch.json
+expect false "" docs/forges/azuredevops.md
 
 if [[ $failures -ne 0 ]]; then
     echo "ci-changes test: $failures case(s) failed" >&2

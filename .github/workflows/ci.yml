@@ -199,7 +199,7 @@ jobs:
   gate:
     # The one job to mark required in branch protection. The jobs above can be skipped (no Swift changes, fork vs.
     # self-hosted), and a skipped job reports success, so this fails only when something failed or was cancelled,
-    # including `changes` itself. `if: always()` makes it run (and report) even when a dependency failed.
+    # including `changes` itself, or when needed Swift work did not run. `if: always()` makes it run (and report) even when a dependency failed.
     if: always()
     needs: [changes, test, fork, docs]
     runs-on: ubuntu-latest
@@ -207,8 +207,17 @@ jobs:
       - name: Require every job that ran to pass
         env:
           RESULTS: ${{ join(needs.*.result, ' ') }}
+          SWIFT: ${{ needs.changes.outputs.swift }}
+          TEST: ${{ needs.test.result }}
+          FORK: ${{ needs.fork.result }}
         run: |
           echo "job results: $RESULTS"
           case " $RESULTS " in
             *" failure "* | *" cancelled "*) exit 1 ;;
           esac
+          # A skipped job passes above, so also require that Swift work the `changes` job asked for actually ran:
+          # `test` (self-hosted) or `fork` (fork PRs) must have succeeded. This catches an `if:` edit that skips both.
+          if [ "$SWIFT" = "true" ] && [ "$TEST" != "success" ] && [ "$FORK" != "success" ]; then
+            echo "::error::changes selected Swift work but neither test nor fork succeeded (test=$TEST fork=$FORK)"
+            exit 1
+          fi
