@@ -18,7 +18,9 @@ RUN printf '<?xml version="1.0"?><!DOCTYPE fontconfig SYSTEM "fonts.dtd"><fontco
 
 WORKDIR /work
 COPY package.json package-lock.json ./
-RUN npm ci
+# onnxruntime-node's install script downloads a CUDA build on linux/x64 (a 404 from Microsoft's release page failed this step).
+# Kokoro runs on the CPU here (device: "cpu" below), so the CUDA provider is never used; skip it.
+RUN npm ci --onnxruntime-node-install-cuda=skip
 
 # Bake the Kokoro model into the image (about 90 MB; the voices ship in the npm package) so a build needs no network.
 # The warm-up is a real module file (not `node -e`, which hides a missing voice) and must print "warm ok": the ONNX runtime
