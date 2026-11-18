@@ -5,11 +5,11 @@ What is supported today, and the milestones between the current beta and the **v
 [← Back to README](../README.md) · [Forge support](forges.md#what-has-been-tested)
 
 <!-- docs-sync:begin release-line -->
-kinhin is in beta (`v0.0.1-beta-6`).
+kinhin is in beta (`v0.0.1-beta-7`).
 <!-- docs-sync:end release-line -->
 
 The beta supports **GitHub, Gitea, Forgejo and GitLab CE**; Buildkite, Azure Pipelines and Bitbucket Pipelines follow in
-later betas (planned for beta 7). Milestones are ordered by what has to be true, not by date.
+later betas (planned for beta 8). Milestones are ordered by what has to be true, not by date.
 
 ## Where we are
 
@@ -58,7 +58,7 @@ later betas (planned for beta 7). Milestones are ordered by what has to be true,
   every running job shown on multi-runner VMs.
 - Linux runners (Apple container and Docker) no longer carry the `macos` label.
 
-The Buildkite, Azure Pipelines and Bitbucket Pipelines work promised for this beta did not make it, or beta 5, and is now planned for beta 7.
+The Buildkite, Azure Pipelines and Bitbucket Pipelines work promised for this beta did not make it, or beta 5, and is now planned for beta 8.
 
 ### beta-5: Apple container pools, Docker and amd64
 
@@ -68,18 +68,27 @@ The Buildkite, Azure Pipelines and Bitbucket Pipelines work promised for this be
 - `min_idle` keeps idle registered runners per pool and per Tart image.
 - `kinhin image prepare --container` bakes as layers on the base image, so it needs far less disk.
 
-The Buildkite, Azure Pipelines and Bitbucket Pipelines work did not make this beta either and moves to beta 7.
+The Buildkite, Azure Pipelines and Bitbucket Pipelines work did not make this beta either and moves to beta 8.
 
-### beta-6: alerts and reliability (current)
+### beta-6: alerts and reliability
 
 - Opt-in outbound alerts: a webhook (generic JSON, Slack, Discord or ntfy) when a fleet problem is raised or clears.
 - Tart hosts share one `tart list` for 10 seconds, which fixes a kernel panic on a Mac with eight VMs on macOS 27.2.
 - One fleet engine per host, and a replaced engine stops its old listeners.
 - GitHub jobs queued inside an in-progress run count as demand.
 
-The Buildkite, Azure Pipelines and Bitbucket Pipelines work did not make this beta either and moves to beta 7.
+The Buildkite, Azure Pipelines and Bitbucket Pipelines work did not make this beta either and moves to beta 8.
 
-### beta-7: more forges
+### beta-7: the redesigned app and storage control (current)
+
+- The desktop app is one sidebar (Fleet, Runtimes, Accounts, Toolchains, Diagnostics, Settings), rebuilt from the design.
+- Pools have an on/off switch, several alert webhooks with event types, and every `min_idle` floor applies on reload.
+- `tart_home`, `container_app_root` and the cache paths move storage to another volume, with a mount and ownership check.
+- Opt-in Docker build cache for container runners, a configurable Docker Hub cache TTL and repair of broken entries.
+
+The Buildkite, Azure Pipelines and Bitbucket Pipelines work did not make this beta either and moves to beta 8.
+
+### beta-8: more forges
 
 - Buildkite, Azure Pipelines and Bitbucket Pipelines run against real accounts in the end-to-end suite, and become
   supported one by one as they pass.

@@ -15,7 +15,7 @@ registers a one-job runner, lets it run, then deletes it. By default nothing idl
 
 Beta 6 is a reliability release. It adds outbound alerts, fixes a kernel panic that hit a Mac running eight Tart VMs, makes
 sure only one engine scales a host's fleet, and fixes a demand bug on GitHub. It has no breaking change. The
-Buildkite, Azure Pipelines and Bitbucket Pipelines work did not make this beta and moves to beta 7. This post covers what is
+Buildkite, Azure Pipelines and Bitbucket Pipelines work did not make this beta and moves to beta 8. This post covers what is
 new, what to do when you upgrade, what has been run, and what has not.
 
 ## What is new
@@ -96,7 +96,7 @@ There is no breaking change, and no config change is needed. Alerts stay off unt
 - **Run:** ThreadSanitizer (`scripts/tsan.sh`) on `develop` after the release preparation commit: no reports.
 - **Not yet:** an upgrade from beta 5 with real state, or the in-app update from beta 5.
 - **Not yet:** the end-to-end suite on this release. It runs only in CI, and its dedicated Mac is not registered yet.
-- **Not yet:** the Buildkite, Azure Pipelines and Bitbucket Pipelines lanes. They did not make beta 6 and move to beta 7.
+- **Not yet:** the Buildkite, Azure Pipelines and Bitbucket Pipelines lanes. They did not make beta 6 and move to beta 8.
   Azure stays experimental, Buildkite and Bitbucket stay planned, and GitHub, Gitea, Forgejo and GitLab CE remain the
   supported forges.
 - **Not yet:** a long-running soak test.
