@@ -33,13 +33,15 @@ only, never `scripts/e2e.sh` locally.
 4. Install beta 6 on the test Mac with real state, then run T1, T4, T6 and T21, then T19 to T22 as time allows (T8 only as a
    local appcast rehearsal). Update "What has been run" in `website/blog/beta-7.md` to match the evidence, line by line.
 5. `cd website && npx vitepress build`, `bash scripts/docs-lint.sh`, `scripts/docs-sync.sh --check`, `scripts/skills-lint.sh`.
-6. Start notarization as early as possible; Apple's queue can take hours.
+6. After the last edit to the post, run T1 and T4 again on the exact commit you will tag, and record the results in "What has been run".
+7. Start notarization as early as possible; Apple's queue can take hours.
 
 ## Launch day
 
+0. Check out the `develop` commit that passed T1 (the one from step 6 above).
 1. `NOTARY_KEYCHAIN_PROFILE=kinhin SPARKLE_ED_PRIVATE_KEY=… KINHIN_SPARKLE_PUBLIC_KEY=… SPARKLE_TOOLS=~/sparkle scripts/release.sh 0.0.1-beta-7`.
    `[ -s dist/appcast.xml ]` must hold.
-2. Publish with `gh release create` as in `docs/releasing.md` ("Local publish"), **five** files including `appcast.xml`.
+2. Confirm `git rev-parse HEAD` equals the `develop` commit that passed T1, then publish with `gh release create` as in `docs/releasing.md` ("Local publish"), **five** files including `appcast.xml`.
 3. G6 on a clean Mac. `docs.yml` also runs on a successful `Release` run and copies the latest `appcast.xml` to kinhin.dev, so
    the update feed can go live as soon as the release is published. Before step 2, add a required reviewer to the
    `github-pages` environment and approve the deploy only after G6 passes (keep the `workflow_run` trigger). If G6 fails,
@@ -54,5 +56,5 @@ only, never `scripts/e2e.sh` locally.
 
 | Id | What to run | On pass | On fail |
 | -- | ----------- | ------- | ------- |
-| G8 | Beta 5 installed from the published release; update to beta 7 in app (with the fleet idle). | Edit the post and roadmap. | Record it as **Failed** in the post, with what you saw; file the updater log. |
-| Nightly | e2e nightly on the `kinhin-e2e` Mac. | "Running nightly since <date>". | Keep "Not yet". |
+| G8 | Beta 6 installed from the published release; update to beta 7 in app (with the fleet idle). | Edit the post and roadmap. | Record it as **Failed** in the post, with what you saw; file the updater log. |
+| Nightly | e2e nightly on the `kinhin-e2e` Mac. | "Running nightly since <date>". | Keep "Not yet" if it has not run; if it ran and failed, record **Failed** with what you saw. |

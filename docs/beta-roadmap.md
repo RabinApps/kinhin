@@ -68,7 +68,7 @@ The Buildkite, Azure Pipelines and Bitbucket Pipelines work promised for this be
 - `min_idle` keeps idle registered runners per pool and per Tart image.
 - `kinhin image prepare --container` bakes as layers on the base image, so it needs far less disk.
 
-The Buildkite, Azure Pipelines and Bitbucket Pipelines work did not make this beta either and moves to beta 7.
+The Buildkite, Azure Pipelines and Bitbucket Pipelines work did not make this beta either and moves to beta 8.
 
 ### beta-6: alerts and reliability
 

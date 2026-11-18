@@ -63,7 +63,7 @@ behavior until you set them.
 
 - Update from beta 6 in the app, or install over it when no jobs are running. Updating restarts the daemon onto the new build
   and **interrupts its running jobs**, so update when the fleet is idle.
-- The app's tabs are gone: if you looked for Advanced, Logs or Benchmarks, they are now panes of Diagnostics.
+- The app's tabs are gone: if you looked for Logs or Benchmarks, they are now panes of Diagnostics.
 
 ## What has been run
 
