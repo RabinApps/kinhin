@@ -72,6 +72,14 @@ bash scripts/warnings-check.sh     # clean build of Sources/Tests; fails on any 
 bash scripts/rules-lint.sh        # try!, as!, force unwraps, locks, uncommented try?, files over 450 lines (in check.sh too)
 ```
 
+**Which CI jobs a PR runs.** `scripts/ci-changes.sh` (table-tested by `scripts/ci-changes-test.sh`, which `check.sh` runs)
+picks the Swift work from the changed files. A PR that touches only `docs/`, `website/`, `skills/`, `video/`, `design/`,
+`Tests/E2E` or Markdown skips the Swift jobs (except the few files tests read from the repo, such as `video/themes`, `video/music` and `docs/telemetry`, which run everything); one confined to `Sources/kinhin` + `Tests/KinhinCLITests` or `Sources/kinhin-app`
++ `Tests/KinhinAppTests` runs only that test target (`swift test --filter`); anything else (KinhinKit, `KinhinTestSupport`,
+`Package.swift`, `scripts/`, `.github/`, an unrecognized path) runs everything. Pushes to `main`/`develop`, the nightly run and
+manual dispatches always run everything. The `gate` job is the one to require in branch protection: it passes when jobs are
+skipped and fails when any job fails. When you add a test target, a new top-level directory, or a test that reads a file from the repo, update the mapping and its test.
+
 Formatting is configured in `.swift-format` (4 spaces, 120 columns). Run the formatter before committing; CI lints with `--strict`.
 
 ### ThreadSanitizer testing (scripts/tsan.sh)
