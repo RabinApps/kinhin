@@ -4,6 +4,8 @@
 
 <!-- changelog: entries for the next release go here -->
 
+## v0.0.1-beta-7
+
 **Changed**
 
 - The app's window is one sidebar (Fleet, Runtimes, Accounts, Toolchains, Diagnostics, Settings) instead of Fleet and
@@ -11,6 +13,10 @@
   sidebar footer. The menu bar's **Settings…** now opens Settings, and **Open Logs** opens Diagnostics → Logs. See
   [the app](docs/app.md).
 - Diagnostics and Settings follow the new design: Health has a **Re-check** button, and Settings has one **Support kinhin** card.
+- Every `min_idle` floor (`image_min_idle`, `images[].min_idle`, `container.min_idle`, each container pool's and
+  `docker.min_idle`) now applies on a config reload without restarting the engine. Before, only `images[].min_idle`
+  did. Adding or removing a pool, switching a pool or runtime on or off, or changing a pool's `max` still rebuilds the
+  engine.
 
 **Added**
 
@@ -55,12 +61,13 @@
 - A duplicate `images:` name says which key already has it (`image:`, also when it is left out and defaults to
   `tahoe-base`, or which `images:` entry) and how to fix it.
 
-**Changed**
+**Upgrading**
 
-- Every `min_idle` floor (`image_min_idle`, `images[].min_idle`, `container.min_idle`, each container pool's and
-  `docker.min_idle`) now applies on a config reload without restarting the engine. Before, only `images[].min_idle`
-  did. Adding or removing a pool, switching a pool or runtime on or off, or changing a pool's `max` still rebuilds the
-  engine.
+- There is no breaking change, and no config change is needed. Pools stay on, `tart_home`, `container_app_root` and the
+  cache paths keep their defaults, and `docker.build_cache` and `alerts.webhooks` stay off until you set them.
+- The app's window is reorganised: Logs, Diagnostics, Benchmarks and Containers are now panes of Diagnostics.
+- Update from beta 6 in the app, or install over it when no jobs are running. Updating restarts the daemon onto the new
+  build and interrupts its running jobs, so update when the fleet is idle.
 
 ## v0.0.1-beta-6
 
