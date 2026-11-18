@@ -100,7 +100,14 @@ test.describe('on-page SEO, every page', () => {
       await expect(page.locator('html')).toHaveAttribute('lang', 'en')
 
       // Structured data parses and describes this page.
-      const ld = (await page.locator('script[type="application/ld+json"]').allTextContents()).flatMap((t) => [JSON.parse(t)].flat())
+      const scripts = await page.locator('script[type="application/ld+json"]').allTextContents()
+      // One object per script, each with its own string @context (readers do `json['@context'].toLowerCase()`).
+      for (const t of scripts) {
+        const j = JSON.parse(t)
+        expect(Array.isArray(j), 'a JSON-LD script is one object, not an array').toBe(false)
+        expect(typeof j['@context'], 'JSON-LD @context').toBe('string')
+      }
+      const ld = scripts.flatMap((t) => [JSON.parse(t)].flat())
       const types = ld.map((x) => x['@type'])
       if (p.route === '') {
         expect(types).toEqual(expect.arrayContaining(['WebSite', 'SoftwareApplication']))

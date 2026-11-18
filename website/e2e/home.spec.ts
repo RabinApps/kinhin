@@ -103,6 +103,15 @@ test.describe('home page', () => {
     if (page.viewportSize()!.width <= 900) await page.getByRole('button', { name: 'Menu' }).click()
     await expect(page.getByRole('link', { name: 'Download' })).toHaveAttribute('href', '/guide/install')
     await expect(page.locator('.brand .badge')).toHaveText('BETA')
+    // The section links sit next to the logo, and there is no CLI entry.
+    const links = page.getByRole('navigation', { name: 'Main' }).getByRole('link')
+    if (page.viewportSize()!.width > 900) {
+      await expect(links).toHaveText(['Guide', 'Blog', 'Docs'])
+      const brand = (await page.locator('header .brand').boundingBox())!
+      const guide = (await links.first().boundingBox())!
+      expect(guide.x).toBeGreaterThan(brand.x + brand.width)
+      expect(guide.x).toBeLessThan(brand.x + brand.width + 120)
+    }
   })
 
   test('the star count is shown from the (mocked) GitHub API', async ({ page }, info) => {

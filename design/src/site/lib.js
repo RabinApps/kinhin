@@ -118,7 +118,7 @@ function nav(parent, w, o = {}) {
   logoMark(f, px - 6, 18, 32); text(f, "kinhin", px + 30, 21, { size: 19, weight: 700, ls: -2 });
   if (w >= 600) {
     chip(f, "BETA", px + 112, 21, { color: K.a2 });
-    ["Guide", "CLI", "Blog", "Docs"].forEach((s, i) => mono(f, s, w / 2 - 150 + i * 80, 24, { size: 13.5, color: i === (o.active ?? -1) ? K.tx : K.mut, weight: 500 }));
+    ["Guide", "Blog", "Docs"].forEach((s, i) => mono(f, s, px + 196 + i * 72, 24, { size: 13.5, color: i === (o.active ?? -1) ? K.tx : K.mut, weight: 500 }));
     const gh = frame(f, "Stars", w - px - 330, 16, 120, 36, { r: 8, fill: P(K.panel, K.pa), stroke: BORDER() });
     mono(gh, "★ 1.2k", 0, 10, { size: 13, color: K.mut, w: 120, align: "CENTER" });
     const sr = frame(f, "Search", w - px - 200, 16, 90, 36, { r: 8, fill: P(K.panel, K.pa), stroke: BORDER() });

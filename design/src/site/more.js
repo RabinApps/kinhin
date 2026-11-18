@@ -6,7 +6,7 @@ function heading(f, kicker, title, sub, y = 120) {
 }
 function blog(themeName) {
   const W = 1440, H = 1180; const f = pageFrame(`Blog / Desktop / ${themeName}`, W, H, { gridH: H });
-  nav(f, W, { active: 2 });
+  nav(f, W, { active: 1 });
   heading(f, "// BLOG", "Release notes and field notes.", "What shipped in each beta, and what we learned running a Mac fleet.");
   const posts = [["beta-6", "Beta 6", "Faster image prepare, per-project toolchains and a calmer menu bar.", "2026-10-28"], ["beta-5", "Beta 5", "Buildkite groundwork, runner routing by workflow, and a new doctor.", "2026-10-02"], ["beta-4", "Beta 4", "Launch videos from a YAML story, with narration, captions and music.", "2026-09-11"], ["beta-3", "Beta 3", "Store screenshots in every locale from one fastlane lane.", "2026-08-19"], ["beta-2", "Beta 2", "Gitea, Forgejo and GitLab served from the same pool.", "2026-07-30"], ["beta", "Introducing kinhin beta", "Your Mac is your CI. Why we built it and what works today.", "2026-07-01"]];
   posts.forEach(([tag, t, d, date], i) => {
@@ -21,7 +21,7 @@ function blog(themeName) {
 }
 function cli(themeName) {
   const W = 1440, H = 1180; const f = pageFrame(`CLI / Desktop / ${themeName}`, W, H, { gridH: H });
-  nav(f, W, { active: 1 });
+  nav(f, W, { active: -1 });
   heading(f, "// REFERENCE", "CLI commands", "Everything the kinhin command does, generated from the binary's own help.");
   codeBlock(f, 120, 380, 800, [
     ["kinhin — autoscaling CI runners on your Mac.", "#EAEEF6"], ["", ""], ["USAGE:", K.a1],
@@ -57,7 +57,7 @@ function search(themeName) {
   return f;
 }
 function docsBackdrop(name) {
-  const f = pageFrame(name, 1440, 1000, { gridH: 1000 }); nav(f, 1440, { active: 3 });
+  const f = pageFrame(name, 1440, 1000, { gridH: 1000 }); nav(f, 1440, { active: 2 });
   line(f, 300, 68, 1, 932, BORDER(), "edge"); text(f, "Install", 360, 130, { size: 52, weight: 700, ls: -3.5 });
   text(f, "Install kinhin and a Linux runtime, then prepare the base image.", 360, 210, { size: 18, color: K.mut, w: 640 });
   return f;
@@ -76,7 +76,7 @@ function version(themeName) {
   const f = pageFrame(`Version banner / Desktop / ${themeName}`, 1440, 760, { gridH: 760 });
   const b = frame(f, "Version banner", 0, 0, 1440, 40, { fill: P(K.a1, 0.16) }); line(b, 0, 39, 1440, 1, P(K.a1, 0.4), "border");
   mono(b, "You are reading the docs for v0.1.0-beta.3.  Latest (main) →", 0, 12, { size: 13, color: K.a1, weight: 500, w: 1440, align: "CENTER" });
-  const n = nav(f, 1440, { active: 3 }); n.y = 40;
+  const n = nav(f, 1440, { active: 2 }); n.y = 40;
   const pk = frame(f, "Version picker", 1090, 112, 230, 188, { r: 12, fill: P(K.bg2), stroke: BORDER(), fx: [shadow("#000000", 0.5, 40, 12)] });
   [["Latest (main)", false], ["v0.1.0-beta.6", false], ["v0.1.0-beta.5", false], ["v0.1.0-beta.4", false], ["v0.1.0-beta.3", true]].forEach(([s, on], i) => { if (on) rect(pk, 6, 8 + i * 34, 218, 32, { r: 8, fill: P(K.a1, 0.14), name: "on" }); mono(pk, s, 18, 16 + i * 34, { size: 13, color: on ? K.a1 : K.tx, weight: on ? 500 : 400 }); });
   mono(f, "Version", 1090, 90, { size: 11.5, color: K.dim, weight: 500, ls: 8 });

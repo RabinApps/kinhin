@@ -56,7 +56,7 @@ function article(f, x, y, w, mobile) {
 function desktop(themeName) {
   const W = 1440, H = 1260; const f = pageFrame(`Docs / Desktop / ${themeName}`, W, H, { gridH: 1260 });
   glow(f, 1250, 120, 700, K.a2, K.glow * 0.8, "glow"); glow(f, 330, 60, 600, K.a1, K.glow * 0.6, "glow");
-  nav(f, W, { active: 3 });
+  nav(f, W, { active: 2 });
   line(f, 300, 68, 1, H - 68, BORDER(), "sidebar edge");
   sidebar(f, 40, 108, 230, "Quick start");
   article(f, 360, 112, 720, false);

@@ -44,8 +44,8 @@ test.describe('docs navigation (desktop)', () => {
     await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Guide' })).toHaveAttribute('aria-current', 'page')
     await page.goto('/blog')
     await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Blog' })).toHaveAttribute('aria-current', 'page')
-    await page.goto('/cli/commands')
-    await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'CLI' })).toHaveAttribute('aria-current', 'page')
+    // The CLI reference is reached from the sidebar and search, not the header.
+    await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'CLI' })).toHaveCount(0)
   })
 
   test('the pager walks the sidebar in order', async ({ page }) => {

@@ -73,7 +73,7 @@ code, kbd, pre { font-family: var(--mono); }
 .site-header-in { max-width: 1440px; margin: 0 auto; height: 100%; padding: 0 40px; display: flex; align-items: center; gap: 24px; }
 .brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 700; font-size: 19px; letter-spacing: -0.03em; color: var(--tx); } .brand:hover { text-decoration: none; }
 .brand svg { color: var(--accent); }
-.site-nav { display: flex; gap: 28px; margin-left: 40px; flex: 1; justify-content: center; }
+.site-nav { display: flex; gap: 28px; margin-left: 12px; flex: 1; justify-content: flex-start; }
 .site-nav a { font: 500 13.5px var(--mono); color: var(--mut); } .site-nav a[aria-current] { color: var(--tx); } .site-nav a:hover { color: var(--tx); text-decoration: none; }
 .site-actions { display: flex; align-items: center; gap: 10px; }
 .menu-btn { display: none; }

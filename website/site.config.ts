@@ -21,7 +21,6 @@ export const siteDescription =
 
 export const nav = [
   { text: 'Guide', link: '/guide/quick-start' },
-  { text: 'CLI', link: '/cli/commands' },
   { text: 'Blog', link: '/blog' },
   { text: 'Docs', link: '/guide/why-kinhin' },
 ]

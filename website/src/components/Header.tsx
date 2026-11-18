@@ -69,6 +69,8 @@ export function VersionPicker({ versions }: { versions: string[] }) {
 export function Header({ versions, onSearch }: { versions: string[]; onSearch?: () => void }) {
   const path = usePathname()
   const [open, setOpen] = useState(false)
+  // Guide and Docs share /guide/…: only the first entry for the current section is marked.
+  const activeNav = nav.find((n) => path === n.link || path.startsWith('/' + n.link.split('/')[1] + '/'))
   useEffect(() => setOpen(false), [path])
   const openSearch = () => window.dispatchEvent(new Event('kinhin:search'))
   return (
@@ -81,7 +83,7 @@ export function Header({ versions, onSearch }: { versions: string[]; onSearch?: 
         </Link>
         <nav className={`site-nav ${open ? 'open' : ''}`} aria-label="Main">
           {nav.map((n) => (
-            <Link key={n.link} href={n.link} aria-current={path === n.link || (n.link !== '/' && path.startsWith('/' + n.link.split('/')[1] + '/')) ? 'page' : undefined}>
+            <Link key={n.link} href={n.link} aria-current={n === activeNav ? 'page' : undefined}>
               {n.text}
             </Link>
           ))}

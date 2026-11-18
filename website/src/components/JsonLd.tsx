@@ -1,4 +1,13 @@
-/** Structured data. `<` is escaped so a title can never close the script tag. */
+/**
+ * Structured data. One `<script>` per object: each carries its own `@context`, which is what consumers (and some browser
+ * extensions) expect, rather than a single script holding an array. `<` is escaped so a title can never close the tag.
+ */
 export function JsonLd({ data }: { data: object | object[] }) {
-  return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(data).replace(/</g, '\\u003c') }} />
+  return (
+    <>
+      {[data].flat().map((d, i) => (
+        <script key={i} type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(d).replace(/</g, '\\u003c') }} />
+      ))}
+    </>
+  )
 }
