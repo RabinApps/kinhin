@@ -4,13 +4,17 @@
 #   scripts/website-check.sh --opennext   also build the Cloudflare Worker and check its size (what CI deploys)
 #   scripts/website-check.sh --e2e        also build the whole site (release snapshots included), check the Worker's
 #                                         size, smoke-test it and run the browser tests (website/e2e); needs Chromium
-#                                         (`cd website && npx playwright install chromium`, or set CHROMIUM_PATH)
+#                                         (`cd website && npx playwright install chromium`, or set CHROMIUM_PATH).
+#                                         Runs only the specs changed since the previous commit (plus uncommitted work)
+#                                         when nothing else under docs/ or website/ changed, and nothing at all when
+#                                         neither did (scripts/e2e-select.sh)
+#   scripts/website-check.sh --e2e-all    the same, but always the whole Playwright suite
 set -euo pipefail
 
 case "${1:-}" in
-    "" | --opennext | --e2e) ;;
+    "" | --opennext | --e2e | --e2e-all) ;;
     *)
-        echo "usage: $0 [--opennext|--e2e]" >&2
+        echo "usage: $0 [--opennext|--e2e|--e2e-all]" >&2
         exit 2
         ;;
 esac
@@ -36,11 +40,30 @@ case "$mode" in
         npx opennextjs-cloudflare build
         scripts/check-worker-size.sh
         ;;
-    --e2e)
+    --e2e | --e2e-all)
+        # Which specs: only the ones changed since the previous commit (and uncommitted), unless something the site is
+        # built from changed too; --e2e-all always runs everything. See scripts/e2e-select.sh.
+        e2e=all
+        specs=""
+        if [ "$mode" = --e2e ]; then
+            selection=$(../scripts/e2e-select.sh)
+            e2e=$(sed -n 's/^e2e=//p' <<<"$selection")
+            specs=$(sed -n 's/^specs=//p' <<<"$selection")
+        fi
+        if [ "$e2e" = none ]; then
+            echo "e2e: nothing the browser tests cover changed since the previous commit; skipping them (--e2e-all to run them)"
+            exit 0
+        fi
         # The order CI uses: every release snapshot, the latest docs, the Worker build, then the checks against it.
         scripts/build-site.sh
         scripts/check-worker-size.sh
         scripts/smoke.sh
-        npm run e2e
+        if [ "$e2e" = specs ]; then
+            echo "e2e: running only the changed specs: $specs"
+            # shellcheck disable=SC2086 # space-separated spec paths without spaces
+            npx playwright test $specs
+        else
+            npm run e2e
+        fi
         ;;
 esac

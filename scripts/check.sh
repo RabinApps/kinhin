@@ -13,6 +13,7 @@
 #                  bash scripts/rules-lint.sh
 #                  bash scripts/video-check.sh
 #                  bash scripts/ci-changes-test.sh
+#                  bash scripts/e2e-select-test.sh
 # The String Catalog checks (scripts/l10n-lint.sh) are L10nCatalogTests, so CI's `swift test` already runs
 # them; here they get their own stage so a --fast run covers them too.
 # The release-only build (KinhinTestSupport is testable-only) stays CI-only:
@@ -98,6 +99,9 @@ bash scripts/video-check.sh
 
 stage "CI change selection (scripts/ci-changes.sh table test)"
 bash scripts/ci-changes-test.sh
+
+stage "e2e spec selection (scripts/e2e-select.sh table test)"
+bash scripts/e2e-select-test.sh
 
 echo ""
 echo "check: all gates passed"

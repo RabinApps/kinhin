@@ -6,7 +6,7 @@ on:
     paths: ["website/**", "docs/**"]
   # Pull requests build and smoke-test the site but never deploy it.
   pull_request:
-    paths: ["website/**", "docs/**", ".github/workflows/docs.yml"]
+    paths: ["website/**", "docs/**", ".github/workflows/docs.yml", "scripts/website-check.sh", "scripts/e2e-select.sh"]
   # A release (tag push) deploys the site after it is published, so the signed
   # appcast the release made is on the site. Deploying on the tag push itself
   # would race the release and replace the site without it.
@@ -146,22 +146,41 @@ jobs:
       # deploy image does not carry one. It serves the same Worker the smoke test just checked (and reuses it if one is still up).
       # Blacksmith's colocated cache backs actions/cache automatically: this keeps the ~170 MB Chromium build
       # out of the PR path after the first run. Keyed on the lockfile, so a Playwright bump downloads it again.
-      - name: Cache Playwright browsers
+      # A pull request runs only the specs it changes when nothing but specs changed; any other docs/ or website/ change
+      # runs the whole suite (scripts/e2e-select.sh). Pushes to `develop` always run everything (job `e2e` below).
+      - name: Select the end-to-end specs
+        id: e2e_select
         if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: bash scripts/e2e-select.sh "$BASE_SHA" | tee -a "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        if: github.event_name == 'pull_request' && steps.e2e_select.outputs.e2e != 'none'
         uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('website/package-lock.json') }}
 
       - name: Install Chromium for the end-to-end tests
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && steps.e2e_select.outputs.e2e != 'none'
         working-directory: website
         run: npx playwright install --with-deps chromium
 
       - name: End-to-end tests (Playwright)
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && steps.e2e_select.outputs.e2e != 'none'
         working-directory: website
-        run: npm run e2e
+        env:
+          E2E: ${{ steps.e2e_select.outputs.e2e }}
+          SPECS: ${{ steps.e2e_select.outputs.specs }}
+        run: |
+          if [ "$E2E" = specs ]; then
+            echo "running only: $SPECS"
+            # shellcheck disable=SC2086 # the spec paths are space-separated and contain no spaces
+            npx playwright test $SPECS
+          else
+            npm run e2e
+          fi
 
       - name: Upload the Playwright report
         if: failure() && github.event_name == 'pull_request'
