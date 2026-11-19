@@ -1,13 +1,13 @@
 import AxeBuilder from '@axe-core/playwright'
 import { desktopOnly, expect, hydrated, openSearch, test } from './support/fixtures'
-import { pages } from './support/site'
+import { latestPostRoute } from './support/site'
 
 /**
  * Automated accessibility checks (axe): no serious or critical violations on the pages people land on, in both
  * colour schemes. Exceptions are listed here with the reason, never silently skipped.
  */
 const EXCEPTIONS: Record<string, string> = {}
-const latestPost = pages.map((p) => p.route).filter((r) => /^blog\/beta-\d+$/.test(r)).sort().at(-1) ?? 'blog'
+const latestPost = latestPostRoute
 
 async function audit(page: import('@playwright/test').Page, label: string) {
   const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()

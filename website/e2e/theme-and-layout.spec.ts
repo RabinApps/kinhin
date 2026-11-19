@@ -1,7 +1,7 @@
 import { expect, hydrated, mobileOnly, test } from './support/fixtures'
-import { pages } from './support/site'
+import { latestPostRoute } from './support/site'
 
-const latestPost = pages.map((p) => p.route).filter((r) => /^blog\/beta-\d+$/.test(r)).sort().at(-1) ?? 'blog'
+const latestPost = latestPostRoute
 const SAMPLE = ['', 'guide/quick-start', 'cli/commands', latestPost, 'guide/architecture', 'how-to-run-github-actions-on-a-self-hosted-mac']
 
 test.describe('theme', () => {

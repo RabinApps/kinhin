@@ -2,7 +2,7 @@ import openNext from './.open-next/worker.js'
 import versions from './versions.json'
 import { accessToken, fetchAccessKeys, verifyAccessJwt } from './src/lib/access'
 import { prefersMarkdown } from './src/lib/accept'
-import { isSnapshotPath, markdownRewrite } from './src/lib/route'
+import { isSnapshotPath, markdownRewrite, removedSnapshotRedirect } from './src/lib/route'
 
 /**
  * The Worker's entry point: OpenNext's handler, with one addition. Release snapshots (`/<tag>/…`) are static files, and the
@@ -57,6 +57,9 @@ export default {
 async function route(request: Request, env: Env, ctx: unknown): Promise<Response> {
   {
     const url = new URL(request.url)
+    // A snapshot that is no longer in versions.json (old betas after 0.1.0) lands on the same page of the latest site.
+    const moved = removedSnapshotRedirect(url.pathname, versions)
+    if (moved) return new Response(null, { status: 301, headers: { location: moved + url.search, 'cache-control': 'public, max-age=3600' } })
     if (!isSnapshotPath(url.pathname, versions)) return (openNext as { fetch: (r: Request, e: Env, c: unknown) => Promise<Response> }).fetch(request, env, ctx)
     const wantsMarkdown = !/\.[a-z0-9]+$/i.test(url.pathname) && prefersMarkdown(request.headers.get('accept'))
     if (wantsMarkdown) {

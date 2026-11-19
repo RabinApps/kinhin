@@ -3,4 +3,4 @@
 :HL["/v0.0.1-beta-1/_next/static/media/Geist_Variable-s.p.43azbxi7zpibd.woff2","font",{"crossOrigin":"","type":"font/woff2"}]
 2:[["children",{"s":"__PAGE__","h":160}]]
 1:[["children",{"s":{"n":"slug","t":"c","k":"guide/config","s":["blog","llms-full.txt","llms.txt","md","search-index.json"]},"h":65632,"c":"$Q2"}]]
-0:{"b":"262XlJnNkR2VPWMTwvNhx","t":{"t":{"s":"","h":131152,"c":"$Q1"}}}
+0:{"b":"44LWnHTB7DGisEXUGJSAq","t":{"t":{"s":"","h":131152,"c":"$Q1"}}}

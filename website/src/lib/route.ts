@@ -23,3 +23,16 @@ export const isSnapshotPath = (pathname: string, versions: readonly string[]): b
 
 /** A URL path made of ordinary characters only: safe to put in a header or a rewrite target. */
 export const isSafePath = (pathname: string): boolean => /^\/[A-Za-z0-9/_.~%+-]*$/.test(pathname) && !pathname.includes('..')
+
+/**
+ * A release snapshot that was removed from versions.json (old beta tags once 0.1.0 ships): its URL answers with a permanent redirect to
+ * the same page on the latest site instead of a 404. Returns the target path, or null when the path is not an unlisted version.
+ */
+export function removedSnapshotRedirect(pathname: string, versions: readonly string[]): string | null {
+  const m = /^\/v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?=\/|$)/.exec(pathname)
+  if (!m) return null
+  const tag = m[0].slice(1)
+  if (versions.includes(tag)) return null
+  const rest = pathname.slice(m[0].length).replace(/\/+$/, '')
+  return rest === '' ? '/' : rest
+}

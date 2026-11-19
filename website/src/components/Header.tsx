@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { nav, repoURL, siteURL } from '../../site.config.ts'
 import { DOCS_VERSION } from '../lib/base'
+import { stage } from '../lib/release'
 import { Logo } from './Logo'
 
 function Stars({ stars }: { stars: number | null }) {
@@ -62,7 +63,7 @@ export function Header({ versions, stars }: { versions: string[]; stars: number 
         <Link href="/" className="brand">
           <Logo size={30} />
           <span>kinhin</span>
-          <span className="badge">BETA</span>
+          {stage && <span className="badge">{stage}</span>}
         </Link>
         <nav className={`site-nav ${open ? 'open' : ''}`} aria-label="Main">
           {nav.map((n) => (

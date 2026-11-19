@@ -1,7 +1,7 @@
 import Link from 'next/link'
-import { releaseVersion } from '../data/release'
 import { sponsors } from '../data/sponsors'
 import { latestPost } from '../lib/content'
+import { releaseVersion, stage } from '../lib/release'
 
 /** The beta notice and the support/sponsor note under the hero (formerly HomeBanners.vue). */
 export function Banners() {
@@ -9,10 +9,10 @@ export function Banners() {
   return (
     <div className="banners">
       <aside className="callout callout-warning">
-        <div className="callout-title">Beta (v{releaseVersion})</div>
+        <div className="callout-title">{stage ? `${stage[0]}${stage.slice(1).toLowerCase()} (v${releaseVersion})` : `v${releaseVersion}`}</div>
         <p>
           Supports <strong>GitHub, Gitea, Forgejo and GitLab CE</strong>. See <Link href="/guide/forges#what-has-been-tested">what has been tested</Link>, the{' '}
-          <Link href="/guide/beta-roadmap">roadmap to v0.1.0</Link> and the <Link href={latestPost()}>beta announcement</Link>.{' '}
+          <Link href="/guide/beta-roadmap">roadmap</Link> and the <Link href={latestPost()}>{stage ? `${stage.toLowerCase()} announcement` : 'release announcement'}</Link>.{' '}
           <a href="https://github.com/RabinApps/kinhin/issues/new/choose">Report what you find</a>.
         </p>
       </aside>

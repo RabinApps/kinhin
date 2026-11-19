@@ -21,6 +21,33 @@ test.describe('version picker', () => {
   })
 })
 
+test.describe('removed release snapshots', () => {
+  test('an unlisted version redirects permanently to the same page on the latest site', async ({ request }) => {
+    for (const [from, to] of [
+      ['/v0.0.0-gone/guide/quick-start', '/guide/quick-start'],
+      ['/v0.0.0-gone/guide/quick-start/', '/guide/quick-start'],
+      ['/v0.0.0-gone/', '/'],
+      ['/v0.0.0-gone', '/'],
+      ['/v9.9.9/blog/beta-2.md', '/blog/beta-2.md'],
+    ]) {
+      const res = await request.get(from, { maxRedirects: 0 })
+      expect(res.status(), from).toBe(301)
+      expect(res.headers().location, from).toBe(to)
+    }
+    expect((await request.get('/v0.0.0-gone/guide/quick-start?x=1', { maxRedirects: 0 })).headers().location).toBe('/guide/quick-start?x=1')
+  })
+
+  test('the redirect ends on a real page', async ({ request }) => {
+    const res = await request.get('/v0.0.0-gone/guide/quick-start')
+    expect(res.status()).toBe(200)
+    expect(res.url()).toMatch(/\/guide\/quick-start$/)
+  })
+
+  test('ordinary paths that start with a v are not touched', async ({ request }) => {
+    for (const p of ['/vercel.svg', '/videos/none.mp4']) expect([301, 302, 307, 308], p).not.toContain((await request.get(p, { maxRedirects: 0 })).status())
+  })
+})
+
 test.describe('release snapshots (/<tag>/)', () => {
   const built = versions.filter(hasSnapshot)
   test.skip(built.length === 0, 'no snapshots in this build (needs the release tags: git fetch --tags)')

@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { flattenSidebar, sidebar, type SidebarItem } from '../../site.config.ts'
+import { releaseStage } from '../../src/lib/release.ts'
 
 /**
  * What the site is supposed to contain, read from the same sources the build uses, so the tests never carry a
@@ -14,6 +15,7 @@ export interface PageMeta {
   title: string
   description: string
   headings: { depth: number; text: string; id: string }[]
+  date?: string
 }
 export interface Manifest {
   version: string
@@ -53,3 +55,14 @@ export const hasSnapshot = (tag: string): boolean => existsSync(path.join(root, 
 /** Routes that exercise a feature, picked by what the page contains so a rename does not break the tests. */
 export const mermaidRoute = pages.find((p) => /^guide\/architecture$/.test(p.route))?.route
 export const markdownTitle = (p: PageMeta): string => p.title
+
+/** BETA / ALPHA / RC for a prerelease, null once a stable version ships (the header badge and the home banner follow it). */
+export const stage = releaseStage(releaseVersion)
+/** The newest blog post: by date in the blog index, else the highest beta number, else the blog index. */
+export const latestPostRoute: string = (() => {
+  const posts = pages.filter((p) => /^blog\/.+/.test(p.route))
+  const dated = posts.filter((p) => p.date).sort((a, b) => b.date!.localeCompare(a.date!) || b.route.localeCompare(a.route))
+  if (dated.length) return dated[0].route
+  const n = posts.map((p) => /^blog\/beta-(\d+)$/.exec(p.route)).filter(Boolean).map((m) => Number(m![1]))
+  return n.length ? `blog/beta-${Math.max(...n)}` : 'blog'
+})()

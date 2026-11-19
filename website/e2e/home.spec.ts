@@ -1,11 +1,8 @@
 import { desktopOnly, expect, test } from './support/fixtures'
-import { hasPublic, manifest, pages, releaseVersion } from './support/site'
+import { hasPublic, latestPostRoute, manifest, releaseVersion, stage } from './support/site'
 
 const { hero, features, install, questions } = manifest.home
-const latestPost = (() => {
-  const n = pages.map((p) => /^blog\/beta-(\d+)$/.exec(p.route)).filter(Boolean).map((m) => Number(m![1]))
-  return n.length ? `/blog/beta-${Math.max(...n)}` : '/blog'
-})()
+const latestPost = '/' + latestPostRoute
 
 test.describe('home page', () => {
   test('the hero comes from website/index.md', async ({ page }) => {
@@ -37,8 +34,8 @@ test.describe('home page', () => {
   test('the beta banner names the current release and links to the newest post', async ({ page, request }) => {
     await page.goto('/')
     const warn = page.locator('aside.callout-warning')
-    await expect(warn.locator('.callout-title')).toHaveText(`Beta (v${releaseVersion})`)
-    const post = warn.getByRole('link', { name: 'beta announcement' })
+    await expect(warn.locator('.callout-title')).toHaveText(stage ? `${stage[0]}${stage.slice(1).toLowerCase()} (v${releaseVersion})` : `v${releaseVersion}`)
+    const post = warn.getByRole('link', { name: stage ? `${stage.toLowerCase()} announcement` : 'release announcement' })
     await expect(post).toHaveAttribute('href', latestPost)
     expect((await request.get(latestPost)).status()).toBe(200)
     await expect(page.locator('aside.callout-tip')).toContainText('donate or sponsor')
@@ -102,7 +99,9 @@ test.describe('home page', () => {
     // On a phone the link lives in the menu.
     if (page.viewportSize()!.width <= 900) await page.getByRole('button', { name: 'Menu' }).click()
     await expect(page.getByRole('link', { name: 'Download' })).toHaveAttribute('href', '/guide/install')
-    await expect(page.locator('.brand .badge')).toHaveText('BETA')
+    // The badge follows the version: BETA for a prerelease, nothing once a stable release ships.
+    if (stage) await expect(page.locator('header .brand .badge')).toHaveText(stage)
+    else await expect(page.locator('.brand .badge')).toHaveCount(0)
     // The section links sit next to the logo, and there is no CLI entry.
     const links = page.getByRole('navigation', { name: 'Main' }).getByRole('link')
     if (page.viewportSize()!.width > 900) {

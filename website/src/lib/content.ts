@@ -61,11 +61,11 @@ export function sidebarContext(route: string): { group?: string; prev?: { text: 
 }
 const contains = (item: SidebarItem, link: string): boolean => item.link === link || (item.items ?? []).some((c) => contains(c, link))
 
-/** The newest release post, `/blog/beta-N` with the largest N; `/blog` when there is none. Keeps the home banner current without an edit. */
+/** The newest blog post (by its date in the blog index; the highest beta number, then /blog, when none is dated). Keeps the home banner current without an edit. */
 export function latestPost(): string {
-  const n = getManifest()
-    .pages.map((p) => /^blog\/beta-(\d+)$/.exec(p.route))
-    .filter((m): m is RegExpExecArray => m !== null)
-    .map((m) => Number(m[1]))
+  const posts = getManifest().pages.filter((p) => /^blog\/.+/.test(p.route))
+  const dated = posts.filter((p) => p.date).sort((a, b) => b.date!.localeCompare(a.date!) || b.route.localeCompare(a.route))
+  if (dated.length) return '/' + dated[0].route
+  const n = posts.map((p) => /^blog\/beta-(\d+)$/.exec(p.route)).filter((m): m is RegExpExecArray => m !== null).map((m) => Number(m[1]))
   return n.length ? `/blog/beta-${Math.max(...n)}` : '/blog'
 }
