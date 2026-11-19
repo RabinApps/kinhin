@@ -44,9 +44,19 @@ test('a percent-encoded path resolves to the file it names; a malformed escape d
   assert.equal(resolveDocsLink('why%ZZ.md', 'docs/scaling.md', ctx).missing, true)
 })
 
-test('a docs/ link to the README becomes the home page', (t) => {
+test('a docs/ link to the README becomes the home page, suffix kept', (t) => {
   const ctx = fixture(t, ['README.md'])
-  assert.equal(rewriteHref('../README.md#install', 'docs/why.md', ctx), '/')
+  assert.equal(rewriteHref('../README.md', 'docs/why.md', ctx), '/')
+  assert.equal(rewriteHref('../README.md#install', 'docs/why.md', ctx), '/#install')
+  assert.equal(rewriteHref('../README.md?plain=1#install', 'docs/why.md', ctx), '/?plain=1#install')
+})
+
+test('a query-only link stays on the page it is written in', (t) => {
+  const ctx = fixture(t, ['docs/why.md'])
+  assert.deepEqual(resolveDocsLink('?plain=1#why-kinhin', 'docs/why.md', ctx), {
+    href: '?plain=1#why-kinhin',
+    missing: false,
+  })
 })
 
 test('a docs/ link to a file with no page goes to GitHub, anchored to this ref', (t) => {

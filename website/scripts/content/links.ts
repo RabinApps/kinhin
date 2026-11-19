@@ -57,8 +57,10 @@ function decodePathname(pathname: string): string {
 export function resolveDocsLink(href: string, src: string, ctx: LinkContext): ResolvedLink {
   if (!src.startsWith('docs/') || external.test(href) || href.startsWith('/')) return { href, missing: false }
   const { pathname, suffix } = splitLink(href)
+  // A query-only link (`?plain=1#top`) points at this page, not at the directory it lives in.
+  if (pathname === '') return { href, missing: false }
   const target = path.posix.normalize(path.posix.join(path.posix.dirname(src), decodePathname(pathname)))
-  if (target === 'README.md') return { href: '/', missing: false }
+  if (target === 'README.md') return { href: '/' + suffix, missing: false }
   const route = ctx.routes.get(target)
   if (route !== undefined && existsSync(path.join(ctx.root, target))) return { href: '/' + route + suffix, missing: false }
   if (existsSync(path.join(ctx.root, target))) {
