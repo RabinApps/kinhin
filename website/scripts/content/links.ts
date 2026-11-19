@@ -24,17 +24,31 @@ export const rawGithub = 'https://raw.githubusercontent.com/RabinApps/kinhin'
 
 const external = /^([a-z][a-z0-9+.-]*:|#|\/\/)/i
 
-/** Relative link in a docs/ page → site path, GitHub URL, or unchanged. */
-export function rewriteHref(href: string, src: string, ctx: LinkContext): string {
-  if (!src.startsWith('docs/') || external.test(href) || href.startsWith('/')) return href
+export interface ResolvedLink {
+  href: string
+  /** A relative link in a docs/ page whose target file does not exist (a dead link the build must report). */
+  missing: boolean
+}
+
+/**
+ * Resolves a relative link in a docs/ page: site path, GitHub URL, or unchanged. `missing` is true when a relative
+ * link points at a file that is not in the checkout — without it the link would be passed through and 404 on the site.
+ */
+export function resolveDocsLink(href: string, src: string, ctx: LinkContext): ResolvedLink {
+  if (!src.startsWith('docs/') || external.test(href) || href.startsWith('/')) return { href, missing: false }
   const [file, anchor] = href.split('#')
   const target = path.posix.normalize(path.posix.join(path.posix.dirname(src), file))
   const hash = anchor ? `#${anchor}` : ''
-  if (target === 'README.md') return '/'
+  if (target === 'README.md') return { href: '/', missing: false }
   const route = ctx.routes.get(target)
-  if (route !== undefined && existsSync(path.join(ctx.root, target))) return '/' + route + hash
-  if (existsSync(path.join(ctx.root, target))) return `${repo}/blob/${ctx.ref}/${target}${hash}`
-  return href
+  if (route !== undefined && existsSync(path.join(ctx.root, target))) return { href: '/' + route + hash, missing: false }
+  if (existsSync(path.join(ctx.root, target))) return { href: `${repo}/blob/${ctx.ref}/${target}${hash}`, missing: false }
+  return { href, missing: true }
+}
+
+/** Relative link in a docs/ page → site path, GitHub URL, or unchanged. */
+export function rewriteHref(href: string, src: string, ctx: LinkContext): string {
+  return resolveDocsLink(href, src, ctx).href
 }
 
 /** Normalizes an internal site link: drops the `.html` VitePress emitted and trailing slashes. */

@@ -1,0 +1,70 @@
+import assert from 'node:assert/strict'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+import { test } from 'node:test'
+import { cleanSitePath, internalLinks, mapLinks, resolveDocsLink, rewriteHref, type LinkContext } from './links.ts'
+
+/** A throwaway checkout holding `files`, plus the route the build gives docs/why.md. */
+function fixture(t: { after: (fn: () => void) => void }, files: string[]): LinkContext {
+  const root = mkdtempSync(path.join(tmpdir(), 'kinhin-links-'))
+  t.after(() => rmSync(root, { recursive: true, force: true }))
+  for (const file of files) {
+    mkdirSync(path.dirname(path.join(root, file)), { recursive: true })
+    writeFileSync(path.join(root, file), '')
+  }
+  return { root, routes: new Map([['docs/why.md', 'guide/why-kinhin']]), ref: 'main', origin: 'https://kinhin.dev' }
+}
+
+test('a docs/ link to a published page becomes its site route, anchor kept', (t) => {
+  const ctx = fixture(t, ['docs/why.md'])
+  assert.deepEqual(resolveDocsLink('why.md#why-kinhin', 'docs/scaling.md', ctx), { href: '/guide/why-kinhin#why-kinhin', missing: false })
+  assert.equal(rewriteHref('why.md', 'docs/scaling.md', ctx), '/guide/why-kinhin')
+})
+
+test('a docs/ link to the README becomes the home page', (t) => {
+  const ctx = fixture(t, ['README.md'])
+  assert.equal(rewriteHref('../README.md#install', 'docs/why.md', ctx), '/')
+})
+
+test('a docs/ link to a file with no page goes to GitHub, anchored to this ref', (t) => {
+  const ctx = fixture(t, ['docs/adding-a-forge.md'])
+  assert.equal(
+    rewriteHref('adding-a-forge.md#step-1', 'docs/why.md', ctx),
+    'https://github.com/RabinApps/kinhin/blob/main/docs/adding-a-forge.md#step-1',
+  )
+})
+
+test('a docs/ link to a file that is not in the checkout is reported, not passed through silently', (t) => {
+  const ctx = fixture(t, [])
+  assert.deepEqual(resolveDocsLink('../gone.md#x', 'docs/forges/github.md', ctx), { href: '../gone.md#x', missing: true })
+  assert.equal(resolveDocsLink('why.md', 'docs/why.md', ctx).missing, true, 'the page itself is missing from this fixture')
+})
+
+test('links outside docs/ and already-resolved links are left alone', (t) => {
+  const ctx = fixture(t, ['website/index.md'])
+  for (const href of ['https://example.com/x', '#anchor', 'mailto:a@b', '//cdn.example/x', '/guide/why-kinhin']) {
+    assert.deepEqual(resolveDocsLink(href, 'docs/why.md', ctx), { href, missing: false })
+  }
+  assert.deepEqual(resolveDocsLink('./missing.md', 'website/blog/beta-2.md', ctx), { href: './missing.md', missing: false })
+})
+
+test('site paths lose the .html VitePress emitted and trailing slashes', () => {
+  assert.equal(cleanSitePath('/guide/quick-start.html'), '/guide/quick-start')
+  assert.equal(cleanSitePath('/guide/quick-start/'), '/guide/quick-start')
+  assert.equal(cleanSitePath('/guide/index'), '/guide')
+  assert.equal(cleanSitePath('/'), '/')
+  assert.equal(cleanSitePath(''), '/')
+})
+
+test('fenced code keeps its links; images go through the image mapper', () => {
+  const md = ['```md', '[not a link](/keep.html)', '```', '', '[page](/guide/x.html) ![shot](shot.png)'].join('\n')
+  const out = mapLinks(md, cleanSitePath, (href) => `/_docs/${href}`)
+  assert.match(out, /\[not a link\]\(\/keep\.html\)/)
+  assert.match(out, /\[page\]\(\/guide\/x\)/)
+  assert.match(out, /!\[shot\]\(\/_docs\/shot\.png\)/)
+})
+
+test('internalLinks keeps only site-absolute targets', () => {
+  assert.deepEqual(internalLinks('[a](/guide/x) [b](https://example.com) [c](#top) [d](/guide/y#z)'), ['/guide/x', '/guide/y#z'])
+})
