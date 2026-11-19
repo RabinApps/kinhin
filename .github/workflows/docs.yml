@@ -61,7 +61,14 @@ jobs:
           case "$EVENT:$REF" in
             pull_request:*) target=none ;;
             push:develop) target=dev ;;
-            workflow_dispatch:*) target=${INPUT:-dev} ;;
+            workflow_dispatch:*)
+              target=${INPUT:-dev}
+              # Production is built from main only: a manual run from any other branch may deploy to dev, never to kinhin.dev.
+              if [ "$target" = production ] && [ "$REF" != main ]; then
+                echo "::error::deploying to production is only allowed from main (this run is on $REF); choose target=dev"
+                exit 1
+              fi
+              ;;
             *) target=production ;;
           esac
           echo "target=$target" >> "$GITHUB_OUTPUT"

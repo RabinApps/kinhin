@@ -116,5 +116,9 @@ test.describe('docs navigation (phone)', () => {
     await expect(side).toBeVisible()
     await side.getByRole('link', { name: 'Install & updates' }).click()
     await expect(page).toHaveURL(/\/guide\/install$/)
+    // Choosing a page closes the menu again.
+    await expect(bar).toHaveAttribute('aria-expanded', 'false')
+    await expect(side).toBeHidden()
+    await expect(page.locator('aside.sidebar[data-open]')).toHaveCount(0)
   })
 })

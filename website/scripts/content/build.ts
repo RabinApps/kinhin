@@ -62,6 +62,15 @@ function prepare(body: string): string {
   )
 }
 
+/** decodeURIComponent that does not throw on a malformed escape (`#50%`): the raw text is compared instead. */
+function safeDecode(s: string): string {
+  try {
+    return decodeURIComponent(s)
+  } catch {
+    return s
+  }
+}
+
 function htmlBody(src: string, body: string, errors: string[]): string {
   const dir = path.posix.dirname(src)
   return mapLinks(
@@ -75,7 +84,7 @@ function htmlBody(src: string, body: string, errors: string[]): string {
       const known = routeSet.has(clean) || generatedPaths.has(clean) || existsSync(path.join(publicDir, clean)) || /\.md$/.test(clean)
       if (!known) errors.push(`${src}: dead link ${href} → ${clean}`)
       const hash = rest.find((r) => r.startsWith('#'))
-      if (hash && hash.length > 1 && routeSet.has(clean)) anchorLinks.push({ from: src, route: clean.slice(1), id: decodeURIComponent(hash.slice(1)) })
+      if (hash && hash.length > 1 && routeSet.has(clean)) anchorLinks.push({ from: src, route: clean.slice(1), id: safeDecode(hash.slice(1)) })
       return clean + rest.join('')
     },
     (href) => {
@@ -104,7 +113,9 @@ function agentBody(src: string, body: string): string {
       if (/^[a-z][a-z0-9+.-]*:/i.test(h) || h.startsWith('#') || !h.startsWith('/')) return h
       const [p, hash = ''] = h.split(/(?=#)/)
       const clean = cleanSitePath(p)
-      return clean === '/' ? `${origins}/index.md${hash}` : `${origins}${clean}.md${hash}`
+      if (clean === '/') return `${origins}/index.md${hash}`
+      // Only pages have a markdown copy; a link to a file (appcast.xml, launch.mp4, llms.txt) stays what it is.
+      return routeSet.has(clean) ? `${origins}${clean}.md${hash}` : `${siteURL}${clean}${hash}`
     },
     (href) => {
       if (/^([a-z]+:|#)/i.test(href)) return href

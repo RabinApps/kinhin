@@ -12,7 +12,7 @@ repo=$(cd .. && pwd)
 work=$(mktemp -d)
 trap 'git -C "$repo" worktree prune; rm -rf "$work"' EXIT
 
-rm -rf public/v*/ .snapshots
+rm -rf public/v[0-9]*/ .snapshots
 for tag in $(node -e 'for (const v of JSON.parse(require("fs").readFileSync("versions.json","utf8"))) console.log(v)'); do
   if ! git -C "$repo" rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
     echo "::warning::snapshot $tag skipped: no such tag in this checkout"

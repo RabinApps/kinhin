@@ -62,13 +62,26 @@ export function accessToken(headers: Headers): string | null {
 }
 
 let cache: { domain: string; keys: Jwk[]; at: number } | undefined
+let lastRefresh = 0
 
-/** The team's public signing keys, cached for an hour (and refreshed on demand when a key id is unknown). */
-export async function fetchAccessKeys(teamDomain: string, refresh: boolean, fetcher: typeof fetch = fetch): Promise<Jwk[]> {
-  if (!refresh && cache && cache.domain === teamDomain && Date.now() - cache.at < 3_600_000) return cache.keys
+/** Forced refreshes (an unknown key id) are spaced at least this far apart, so bad tokens cannot make the Worker hammer the endpoint. */
+export const REFRESH_INTERVAL_MS = 60_000
+
+/** The team's public signing keys, cached for an hour (and refreshed on demand, at most once a minute, when a key id is unknown). */
+export async function fetchAccessKeys(teamDomain: string, refresh: boolean, fetcher: typeof fetch = fetch, now = Date.now()): Promise<Jwk[]> {
+  const fresh = cache && cache.domain === teamDomain
+  if (fresh && !refresh && now - cache!.at < 3_600_000) return cache!.keys
+  if (fresh && refresh && now - lastRefresh < REFRESH_INTERVAL_MS) return cache!.keys
   const res = await fetcher(`https://${teamDomain}/cdn-cgi/access/certs`)
   if (!res.ok) throw new Error(`Access keys: HTTP ${res.status}`)
   const keys = ((await res.json()) as { keys: Jwk[] }).keys
-  cache = { domain: teamDomain, keys, at: Date.now() }
+  cache = { domain: teamDomain, keys, at: now }
+  lastRefresh = now
   return keys
+}
+
+/** For tests: forget the cached keys. */
+export function resetAccessKeyCache(): void {
+  cache = undefined
+  lastRefresh = 0
 }

@@ -25,5 +25,5 @@ bad.sha256
 video/screens/
 
 # website (Next.js + OpenNext): build output, generated content, release snapshots and the fetched Sparkle feed
-/website/public/v*/
+/website/public/v[0-9]*/
 /website/public/appcast.xml

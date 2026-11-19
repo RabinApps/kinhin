@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import versions from '../versions.json'
 import { prefersMarkdown } from './lib/accept'
+import { securityHeaders } from './lib/headers'
 import { isSafePath, markdownRewrite, markdownUrl } from './lib/route'
 
 /**
@@ -11,32 +12,6 @@ import { isSafePath, markdownRewrite, markdownUrl } from './lib/route'
  *
  * The same pass adds the security headers every HTML response should carry.
  */
-
-// Scripts: the theme bootstrap and Next's own payload are inline, hence 'unsafe-inline' (pages are prerendered, so there is no
-// per-request nonce); markdown is sanitised at build time. Everything else is same-origin: the page makes no third-party calls.
-const CSP = [
-  "default-src 'self'",
-  "script-src 'self' 'unsafe-inline'",
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: https:",
-  "media-src 'self'",
-  "font-src 'self' data:",
-  "connect-src 'self'",
-  "object-src 'none'",
-  "base-uri 'self'",
-  "form-action 'self'",
-  "frame-ancestors 'none'",
-].join('; ')
-
-export const securityHeaders: Record<string, string> = {
-  'content-security-policy': CSP,
-  'x-content-type-options': 'nosniff',
-  'referrer-policy': 'strict-origin-when-cross-origin',
-  'permissions-policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=()',
-  'x-frame-options': 'DENY',
-  'cross-origin-opener-policy': 'same-origin',
-  'x-permitted-cross-domain-policies': 'none',
-}
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl

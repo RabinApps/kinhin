@@ -42,8 +42,14 @@ test('hostile HTML in markdown is stripped', async () => {
 test('what the site needs from raw HTML survives', async () => {
   const { tags, attrs, values } = walk(await toHast('<details><summary>More</summary>\n\n<kbd>Ctrl</kbd> and <code>x</code> <sup>1</sup></details>\n\n<h2 id="mine">Mine</h2>\n\n[link](https://example.com)'))
   for (const t of ['details', 'summary', 'kbd', 'code', 'sup', 'a']) assert.ok(tags.has(t), `<${t}> kept`)
-  assert.ok(values.includes('mine'), 'ids are not prefixed')
+  assert.ok(values.includes('user-content-mine'), 'raw ids are prefixed, so they cannot clobber window or document properties')
   assert.ok(attrs.has('href'))
+})
+
+test('ids and names that would shadow browser globals are neutralised', async () => {
+  const { values } = walk(await toHast('<a id="__next_f"></a>\n\n<img name="getElementById" src="https://example.com/x.png">'))
+  assert.equal(values.includes('__next_f'), false)
+  assert.equal(values.includes('getElementById'), false)
 })
 
 test('the directive elements are allowed through', async () => {

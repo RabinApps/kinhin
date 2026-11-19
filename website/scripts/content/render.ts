@@ -81,11 +81,11 @@ function rehypeAnchors() {
 /**
  * Markdown may contain raw HTML (docs are written for GitHub), and an old tag's docs are rendered too, so nothing from it is
  * trusted: GitHub's allowlist (no script, iframe, object, form, style, event handlers or javascript: URLs) plus the few
- * custom elements the directives above produce. Ids are kept as written (the default would prefix them with `user-content-`).
+ * custom elements the directives above produce. Raw `id` and `name` attributes keep GitHub's `user-content-` prefix, so a page cannot
+ * shadow `window` or `document` properties (DOM clobbering); heading ids added afterwards by rehype-slug are not affected.
  */
 export const sanitizeSchema: SanitizeOptions = {
   ...defaultSchema,
-  clobberPrefix: '',
   tagNames: [...(defaultSchema.tagNames ?? []), 'callout', 'audience-tabs', 'audience-panel', 'mermaid-chart', 'search-next-steps'],
   attributes: {
     ...defaultSchema.attributes,

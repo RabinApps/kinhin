@@ -31,7 +31,13 @@ export function SearchPalette({ startOpen = false }: { startOpen?: boolean }) {
     const evt = () => setOpen(true)
     addEventListener('keydown', key)
     addEventListener('kinhin:search', evt)
-    return () => (removeEventListener('keydown', key), removeEventListener('kinhin:search', evt))
+    // From here on the palette owns the shortcuts (see Search.tsx).
+    ;(window as Window & { __kinhinSearch?: boolean }).__kinhinSearch = true
+    return () => {
+      removeEventListener('keydown', key)
+      removeEventListener('kinhin:search', evt)
+      ;(window as Window & { __kinhinSearch?: boolean }).__kinhinSearch = false
+    }
   }, [])
 
   useEffect(() => {

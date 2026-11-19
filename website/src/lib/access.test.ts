@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { accessToken, verifyAccessJwt, type AccessConfig, type Jwk } from './access.ts'
+import { REFRESH_INTERVAL_MS, accessToken, fetchAccessKeys, resetAccessKeyCache, verifyAccessJwt, type AccessConfig, type Jwk } from './access.ts'
 
 const cfg: AccessConfig = { teamDomain: 'team.cloudflareaccess.com', aud: 'aud-123' }
 const enc = (o: unknown) => Buffer.from(JSON.stringify(o)).toString('base64url')
@@ -57,4 +57,19 @@ test('the token is read from the header, then the cookie', () => {
   assert.equal(accessToken(new Headers({ 'cf-access-jwt-assertion': 'h' })), 'h')
   assert.equal(accessToken(new Headers({ cookie: 'a=1; CF_Authorization=c.d.e; b=2' })), 'c.d.e')
   assert.equal(accessToken(new Headers()), null)
+})
+
+test('forced key refreshes are throttled, so unknown key ids cannot make the Worker hammer the endpoint', async () => {
+  resetAccessKeyCache()
+  let calls = 0
+  const fetcher = (async () => (calls++, new Response(JSON.stringify({ keys: [{ kid: 'k', kty: 'RSA', n: 'n', e: 'AQAB' }] })))) as unknown as typeof fetch
+  const t = 1_000_000
+  await fetchAccessKeys('team.example.com', false, fetcher, t) // first use fetches
+  await fetchAccessKeys('team.example.com', false, fetcher, t + 5_000) // cached
+  assert.equal(calls, 1)
+  await fetchAccessKeys('team.example.com', true, fetcher, t + 10_000) // too soon after the fetch: served from cache
+  await fetchAccessKeys('team.example.com', true, fetcher, t + 20_000)
+  assert.equal(calls, 1)
+  await fetchAccessKeys('team.example.com', true, fetcher, t + REFRESH_INTERVAL_MS + 1) // allowed again
+  assert.equal(calls, 2)
 })

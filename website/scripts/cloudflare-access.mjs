@@ -45,7 +45,13 @@ export function parseArgs(argv) {
   return o
 }
 
-export const appBody = (o) => ({ name: `kinhin ${o.domain}`, domain: o.domain, type: 'self_hosted', session_duration: o.session, app_launcher_visible: false, auto_redirect_to_identity: false, allowed_idps: undefined })
+export const appBody = (o) => ({ name: `kinhin ${o.domain}`, domain: o.domain, type: 'self_hosted', session_duration: o.session, app_launcher_visible: false })
+
+/** The application to PUT: what is there now (identity providers, custom pages and so on, as edited in the dashboard) plus the fields this script manages. */
+export const mergeApp = (existing, managed) => {
+  const { id, uid, aud, created_at, updated_at, policies, ...editable } = existing
+  return { ...editable, ...managed }
+}
 
 export const allowPolicyBody = (o) => ({
   name: 'Team',
@@ -80,7 +86,7 @@ async function main() {
 
   const apps = await cf('GET', '/access/apps?per_page=100')
   let app = apps.find((a) => a.domain === o.domain)
-  app = app ? await cf('PUT', `/access/apps/${app.id}`, appBody(o)) : await cf('POST', '/access/apps', appBody(o))
+  app = app ? await cf('PUT', `/access/apps/${app.id}`, mergeApp(app, appBody(o))) : await cf('POST', '/access/apps', appBody(o))
   console.log(`application ${app.id} for ${o.domain}`)
 
   const upsert = async (body) => {

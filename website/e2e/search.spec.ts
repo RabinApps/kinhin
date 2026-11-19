@@ -1,4 +1,4 @@
-import { expect, openSearch, test } from './support/fixtures'
+import { expect, hydrated, openSearch, test } from './support/fixtures'
 import { pageOf, pages } from './support/site'
 
 const palette = (page: import('@playwright/test').Page) => page.getByRole('dialog', { name: 'Search' })
@@ -138,5 +138,20 @@ test.describe('search palette', () => {
     await page.keyboard.press('Escape')
     await expect(palette(page)).toBeHidden()
     await expect(opener).toBeFocused()
+  })
+
+  test('a shortcut pressed twice while the palette loads never reaches the browser, and ends with the palette open', async ({ page }, info) => {
+    test.skip(info.project.name === 'mobile', 'keyboard shortcut')
+    await page.goto('/')
+    await hydrated(page)
+    const prevented = await page.evaluate(() =>
+      [0, 1].map(() => {
+        const e = new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, cancelable: true, bubbles: true })
+        window.dispatchEvent(e)
+        return e.defaultPrevented
+      }),
+    )
+    expect(prevented).toEqual([true, true])
+    await expect(palette(page)).toBeVisible()
   })
 })
