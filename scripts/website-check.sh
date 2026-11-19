@@ -51,7 +51,7 @@ case "$mode" in
             specs=$(sed -n 's/^specs=//p' <<<"$selection")
         fi
         if [ "$e2e" = none ]; then
-            echo "e2e: no docs/ or website/ changes since the previous commit; skipping the browser tests (--e2e-all to run them)"
+            echo "e2e: nothing the browser tests cover changed since the previous commit; skipping them (--e2e-all to run them)"
             exit 0
         fi
         # The order CI uses: every release snapshot, the latest docs, the Worker build, then the checks against it.

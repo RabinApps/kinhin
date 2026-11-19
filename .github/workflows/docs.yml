@@ -6,7 +6,7 @@ on:
     paths: ["website/**", "docs/**"]
   # Pull requests build and smoke-test the site but never deploy it.
   pull_request:
-    paths: ["website/**", "docs/**", ".github/workflows/docs.yml"]
+    paths: ["website/**", "docs/**", ".github/workflows/docs.yml", "scripts/website-check.sh", "scripts/e2e-select.sh"]
   # A release (tag push) deploys the site after it is published, so the signed
   # appcast the release made is on the site. Deploying on the tag push itself
   # would race the release and replace the site without it.
