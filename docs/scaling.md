@@ -261,7 +261,7 @@ cover the _sum_ of the jobs you expect on one VM.
 
 With a GitHub scale set (`scale_set:`), keep `runners_per_vm: 1`: GitHub does not hand a second job to another idle
 runner in the same VM, and the scaler counts those slots as capacity, so the job waits for the first one to finish
-([details](forges/github.md#a-second-job-stays-queued-while-the-vm-has-idle-runners-runners-per-vm-1)).
+([details](forges/github.md#a-second-job-stays-queued-while-the-vm-has-idle-runners-runners_per_vm--1)).
 
 ## Running on multiple Macs
 

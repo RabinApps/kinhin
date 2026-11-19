@@ -218,7 +218,7 @@ The runner has to be installed (in the base image, or on the host) and started f
 34. `docs/forges/README.md`: add a row to each table and update the audit summary.
 35. `docs/forges.md`: the top table, the "What has been tested" table (a new forge is "untested"), a `### <Name>` setup
     section with a YAML example, and the plain-http and per-project-toolchain paragraphs if they apply.
-36. `website/.vitepress/config.ts`: add the page to the "Forge API notes" sidebar group. `docsLinks.ts` needs no change.
+36. `website/site.config.ts`: add the page to the "Forge API notes" sidebar group. The link rewriting (`website/scripts/content/links.ts`) needs no change.
 37. **Manual:** every other place that lists forges. Compare with `git show 9a0f846 --stat`: `README.md` (about 8 spots),
     `docs/architecture.md`, `docs/app.md`, `docs/why.md`, `docs/beta-roadmap.md`, `docs/toolchains.md`,
     `docs/runtimes.md` (label selection), `docs/security.md` (registration token exposure),
@@ -281,7 +281,7 @@ swift test --filter <Name>                # fast loop while developing
 swift build -c release --product kinhin-app --product kinhin
 scripts/tsan.sh                           # if you added shared state, a Mutex box or a test global
 bash scripts/docs-lint.sh
-cd website && npx vitepress build         # fails on dead links
+scripts/website-check.sh                  # content pipeline (fails on dead links), typecheck, tests, build
 ```
 
 Then smoke-test the CLI and app:

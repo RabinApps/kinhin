@@ -7,7 +7,7 @@
 # the removed top-level gitea:/forgejo:/repo: keys) is a pattern below, with
 # a note on what replaced it — so the next rename only needs one new table
 # row. Scans every git-tracked .md file (README, docs/, website/), which by
-# construction excludes generated output like website/.vitepress/dist.
+# construction excludes generated output like website/.next and website/.open-next.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."

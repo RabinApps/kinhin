@@ -212,7 +212,7 @@ gh secret set KINHIN_E2E_AZURE_POOL --repo RabinApps/kinhin --body "POOL"
 ### Notes
 
 - Each job commits `/e2e/<name>-<nonce>.yml`, creates a pipeline in the `\kinhin-e2e` folder and starts a run. `stop()` cancels the runs, deletes the pipelines and removes the files.
-- **Empty-pool risk.** Azure may fail a job at once when no agent in the pool advertises its demands, so kinhin never sees demand to scale up from. The lane runs **without** a runner floor on purpose, to find out. If the first run fails that way, set `KINHIN_E2E_AZURE_FLOOR=1` (add it to the workflow's `env:` block) so the lane runs with `min_runners: 1`, and record the result in [forges/azuredevops.md](forges/azuredevops.md#before-support-to-verify-against-a-live-service).
+- **Empty-pool risk.** Azure may fail a job at once when no agent in the pool advertises its demands, so kinhin never sees demand to scale up from. The lane runs **without** a runner floor on purpose, to find out. If the first run fails that way, set `KINHIN_E2E_AZURE_FLOOR=1` (add it to the workflow's `env:` block) so the lane runs with `min_runners: 1`, and record the result in [forges/azuredevops.md](forges/azuredevops.md#before-full-support-still-to-verify-against-a-live-service).
 
 ## Token expiry and rotation
 
@@ -253,7 +253,7 @@ These are the unknowns the fixtures were written around. Record each answer in [
 | ----- | ------- |
 | Buildkite | A build's JSON carries the `meta_data` the job set. `skip_checkout: true` is accepted. A job with `kinhin-runtime=docker` in its `agents:` reaches the docker pool. The `kinhin` queue is found. [More](forges/buildkite.md#before-support-to-verify-against-a-live-service) |
 | Bitbucket | A custom pipeline starts from the API against the main branch. The step log contains the `E2E-PROOF-` line. The runner's labels match the step's `runs-on`. A repository token can list runners. [More](forges/bitbucket.md#before-support-to-verify-against-a-live-service) |
-| Azure DevOps | An empty pool with a demanding job queues instead of failing. The pool needs no approval. `kinhin_docker` arrives as a capability demand. The run log contains the `E2E-PROOF-` line. [More](forges/azuredevops.md#before-support-to-verify-against-a-live-service) |
+| Azure DevOps | An empty pool with a demanding job queues instead of failing. The pool needs no approval. `kinhin_docker` arrives as a capability demand. The run log contains the `E2E-PROOF-` line. [More](forges/azuredevops.md#before-full-support-still-to-verify-against-a-live-service) |
 
 A forge is promoted only after its lane passes: see "Later, per forge" in the [beta 3 plan](plans/beta-3-plan.md#1-promote-buildkite-azure-pipelines-and-bitbucket-core).
 

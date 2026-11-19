@@ -1,7 +1,7 @@
 import Foundation
 
 /// Where to donate or sponsor kinhin, and who already does. One source for the
-/// menu bar app and the CLI; the website mirrors it in `website/.vitepress/sponsors.ts`.
+/// menu bar app and the CLI; the website mirrors it in `website/src/data/sponsors.ts`.
 public enum SupportLinks {
     public struct Channel: Equatable, Sendable {
         public let name: String

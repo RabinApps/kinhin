@@ -4,6 +4,10 @@
 
 <!-- changelog: entries for the next release go here -->
 
+**Changed**
+
+- The website is rebuilt: a new design on Next.js, served from Cloudflare Workers. Every page is also available as markdown (`<page>.md`, `Accept: text/markdown`, `llms.txt`), release docs stay under `/<tag>/`, and the old `.html` URLs redirect to the clean ones. See [contributing](CONTRIBUTING.md#website-tests).
+
 ## v0.0.1-beta-7
 
 **Changed**

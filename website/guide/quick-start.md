@@ -76,8 +76,8 @@ Each forge's setup details, token scopes and job-selection rules are in [Forge s
 Do it yourself, or hand the job to an AI agent such as Claude Code: the agent runs the same steps, and you only store
 the token.
 
-<AudienceTabs>
-<template #human>
+::::::audience-tabs
+:::::human
 
 ### From the terminal
 
@@ -132,8 +132,8 @@ Official releases are Developer ID signed and notarized — no right-click → *
 Locally built copies are ad-hoc signed: clear Gatekeeper with `xattr -cr /Applications/kinhin.app`.
 :::
 
-</template>
-<template #agent>
+:::::
+:::::agent
 
 ### 1. Give your agent the kinhin skills
 
@@ -206,5 +206,5 @@ Tell the agent, and point it at [Running kinhin for an open-source project](/gui
 must not reach your Mac.
 :::
 
-</template>
-</AudienceTabs>
+:::::
+::::::

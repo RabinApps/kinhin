@@ -84,7 +84,7 @@ accounts:
 but not in effect: it defaults to the lowercase string `default`, which never matches GitHub's
 built-in group `Default`, because the lookup is an exact, case-sensitive name match — every org
 has that one group already, so the fix is spelling, not creation. Take the name from your org's
-runner-groups page and set it verbatim; [Troubleshooting scale sets](#troubleshooting-scale-sets)
+runner-groups page and set it verbatim; [Troubleshooting scale sets](#scale-set-troubleshooting-kinhin-side)
 walks through the error, the fix, and the restart an account-level edit needs.
 
 **Workflows target a scale set by its name.** GitHub keeps only a scale set's name (plus its own

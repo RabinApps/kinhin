@@ -12,7 +12,6 @@ dist/
 *.dmg
 kinhin-cli-*.zip
 node_modules/
-# Local vitepress runs may point website/node_modules at the main checkout's install (a symlink, so node_modules/ doesn't match it).
 /website/node_modules
 .freebuff/
 bad.sha256
@@ -21,7 +20,10 @@ bad.sha256
 /*.png
 # Local dev tokens for scripts/dev-run.sh --env-tokens
 .env.dev
-**/.vitepress/cache/
 
 # Screenshots copied in for a local video build (CI downloads them into this folder for a `screens` look).
 video/screens/
+
+# website (Next.js + OpenNext): build output, generated content, release snapshots and the fetched Sparkle feed
+/website/public/v[0-9]*/
+/website/public/appcast.xml
