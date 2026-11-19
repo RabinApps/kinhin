@@ -108,7 +108,13 @@ trap 'rm -rf "$tmp"' EXIT
     check specs "visual and enabled spec runs only the enabled one" "e2e/home.spec.ts"
     git reset -q --hard "$base"
     git rm -q website/e2e/visual.spec.ts && git commit -q -m delete-visual
-    check all "deleted spec with a baseline left behind"
+    check all "deleted spec"
+    # A baseline whose spec is already gone (deleted before the base) and then changes.
+    git reset -q --hard "$base"
+    git rm -q website/e2e/visual.spec.ts && git commit -q -m orphaned
+    base=$(git rev-parse HEAD)
+    echo y >website/e2e/__screenshots__/desktop/visual.spec.ts/home.png && git commit -q -am baseline
+    E2E_VISUAL=1 check all "changed baseline of a deleted spec"
 ) || failures=$((failures + 1))
 
 if [[ $failures -ne 0 ]]; then
