@@ -77,7 +77,12 @@ while IFS= read -r path; do
         # website/e2e/__screenshots__/<project>/<spec file>/<name>.png
         website/e2e/__screenshots__/*/*.spec.ts/*)
             snap=${path#website/e2e/__screenshots__/*/}
-            add_spec "e2e/${snap%%/*}"
+            # A baseline left behind by a deleted spec has nothing to run: everything, like the spec's own deletion.
+            if [[ -f website/e2e/${snap%%/*} ]]; then
+                add_spec "e2e/${snap%%/*}"
+            else
+                all=true
+            fi
             ;;
         # What runs the browser tests: a change here is a change to them.
         .github/workflows/docs.yml | scripts/website-check.sh | scripts/e2e-select.sh) all=true ;;

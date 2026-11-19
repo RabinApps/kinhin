@@ -34,6 +34,8 @@ expect none "" website/e2e/__screenshots__/desktop/visual.spec.ts/home-dark.png
 expect none "" website/e2e/__screenshots__/mobile/visual.spec.ts/home-dark.png website/e2e/visual.spec.ts
 E2E_VISUAL=1 expect specs "e2e/visual.spec.ts" website/e2e/__screenshots__/desktop/visual.spec.ts/home-dark.png
 E2E_VISUAL=1 expect specs "e2e/visual.spec.ts" website/e2e/visual.spec.ts
+# A baseline whose spec was deleted.
+expect all "" website/e2e/__screenshots__/desktop/gone.spec.ts/home-dark.png
 # A baseline that is not under a spec's directory is not understood: everything.
 expect all "" website/e2e/__screenshots__/desktop/orphan.png
 # Deleted specs (no file on disk) and quoted paths run everything.
@@ -73,16 +75,20 @@ trap 'rm -rf "$tmp"' EXIT
     git config user.email t@example.com
     git config user.name t
     git config commit.gpgsign false
-    mkdir -p scripts website/e2e website/public
+    mkdir -p scripts website/e2e website/public website/e2e/__screenshots__/desktop/visual.spec.ts
     cp "$OLDPWD/scripts/e2e-select.sh" scripts/
     : >website/e2e/home.spec.ts
     : >website/e2e/seo.spec.ts
+    : >website/e2e/visual.spec.ts
+    : >website/e2e/__screenshots__/desktop/visual.spec.ts/home.png
     git add -A && git commit -q -m base
     base=$(git rev-parse HEAD)
-    check() { # check <e2e> <label>
-        got=$(bash scripts/e2e-select.sh "$base" | sed -n 's/^e2e=//p')
-        if [[ $got != "$1" ]]; then
-            echo "FAIL (git): $2 -> e2e=$got (want $1)"
+    check() { # check <e2e> <label> [specs]: what consumers act on (none skips Playwright, specs runs only those)
+        out=$(bash scripts/e2e-select.sh "$base")
+        got=$(sed -n 's/^e2e=//p' <<<"$out")
+        got_specs=$(sed -n 's/^specs=//p' <<<"$out")
+        if [[ $got != "$1" || $got_specs != "${3:-}" ]]; then
+            echo "FAIL (git): $2 -> e2e=$got specs='$got_specs' (want $1 '${3:-}')"
             exit 1
         fi
     }
@@ -94,7 +100,15 @@ trap 'rm -rf "$tmp"' EXIT
     check all "deleted spec"
     git reset -q --hard "$base"
     echo x >website/e2e/home.spec.ts && git commit -q -am edit
-    check specs "edited spec"
+    check specs "edited spec" "e2e/home.spec.ts"
+    git reset -q --hard "$base"
+    echo x >website/e2e/visual.spec.ts && echo x >website/e2e/__screenshots__/desktop/visual.spec.ts/home.png && git commit -q -am visual
+    check none "visual-only change skips Playwright"
+    echo x >website/e2e/home.spec.ts && git commit -q -am mixed
+    check specs "visual and enabled spec runs only the enabled one" "e2e/home.spec.ts"
+    git reset -q --hard "$base"
+    git rm -q website/e2e/visual.spec.ts && git commit -q -m delete-visual
+    check all "deleted spec with a baseline left behind"
 ) || failures=$((failures + 1))
 
 if [[ $failures -ne 0 ]]; then
