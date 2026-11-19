@@ -40,8 +40,9 @@ jobs:
       (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success')
       && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     # Deploys run on kinhin's own Apple-container pool (`kinhin-container` is its exclusive marker). Pull requests
-    # build on a GitHub-hosted runner instead, so no PR code ever reaches that pool or the Cloudflare secrets.
-    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || 'kinhin-container' }}
+    # build on a pooled Blacksmith runner instead, so no PR code ever reaches that pool or the Cloudflare secrets.
+    # 8 vCPU / 160 GB: a pull request builds the current site and every release snapshot, then serves both to Playwright.
+    runs-on: ${{ github.event_name == 'pull_request' && 'blacksmith-8vcpu-ubuntu-2404' || 'kinhin-container' }}
     steps:
       - name: Check toolchain
         # The per-tag worktrees need git (Node comes from setup-node below). Fail with the fix instead of
@@ -143,6 +144,15 @@ jobs:
 
       # The browser suite (website/e2e): runs on pull requests, on a GitHub-hosted runner that can install Chromium; the
       # deploy image does not carry one. It serves the same Worker the smoke test just checked (and reuses it if one is still up).
+      # Blacksmith's colocated cache backs actions/cache automatically: this keeps the ~170 MB Chromium build
+      # out of the PR path after the first run. Keyed on the lockfile, so a Playwright bump downloads it again.
+      - name: Cache Playwright browsers
+        if: github.event_name == 'pull_request'
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('website/package-lock.json') }}
+
       - name: Install Chromium for the end-to-end tests
         if: github.event_name == 'pull_request'
         working-directory: website
@@ -207,7 +217,7 @@ jobs:
   # requests run it inside the `site` job above, against the Worker that job already built.
   e2e:
     if: github.event_name == 'push' && github.ref_name == 'develop'
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -222,6 +232,14 @@ jobs:
       - name: Install dependencies
         working-directory: website
         run: npm ci
+
+      # Blacksmith's colocated cache backs actions/cache automatically: this keeps the ~170 MB Chromium build
+      # out of the `develop` path after the first run, keyed on the lockfile so a Playwright bump refreshes it.
+      - name: Cache Playwright browsers
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('website/package-lock.json') }}
 
       - name: Install Chromium
         working-directory: website

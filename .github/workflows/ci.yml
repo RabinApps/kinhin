@@ -19,8 +19,8 @@ jobs:
   changes:
     # Decides how much Swift work a pull request needs (scripts/ci-changes.sh): none for docs/website/skills/video/design
     # only, one test target for CLI-only or app-only changes, everything otherwise. Pushes, the nightly run and manual
-    # dispatches always run everything. Plain bash and git on a GitHub-hosted runner, so it is safe for fork PRs too.
-    runs-on: ubuntu-latest
+    # dispatches always run everything. Plain bash and git on a pooled Blacksmith runner, so it is safe for fork PRs too.
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     outputs:
       swift: ${{ steps.select.outputs.swift }}
       filter: ${{ steps.select.outputs.filter }}
@@ -162,12 +162,12 @@ jobs:
 
   docs:
     # Docs lint, docs-sync --check and skills lint are grep/sed/awk scripts with
-    # no Swift or macOS dependency, so they run on a GitHub-hosted runner, never
+    # no Swift or macOS dependency, so they run on a pooled Blacksmith runner, never
     # on the self-hosted fleet. That makes it safe to run for fork PRs too (no
     # fork guard): the job has read-only contents permission, no secrets, and
     # shares no Keychain or Mac with the fleet. Keep this step list in sync with
     # scripts/check.sh.
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -189,6 +189,9 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
+          # video-check.sh installs video/ when node_modules is absent; keep both on the runner's npm cache.
+          cache: npm
+          cache-dependency-path: video/package-lock.json
 
       - name: Video suite (claims, ci.json, unit tests)
         run: bash scripts/video-check.sh
@@ -202,7 +205,7 @@ jobs:
     # including `changes` itself, or when needed Swift work did not run. `if: always()` makes it run (and report) even when a dependency failed.
     if: always()
     needs: [changes, test, fork, docs]
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
       - name: Require every job that ran to pass
         env:

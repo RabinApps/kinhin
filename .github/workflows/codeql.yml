@@ -22,7 +22,7 @@ permissions:
 jobs:
   changes:
     name: Find changed languages
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     outputs:
       any: ${{ steps.detect.outputs.any }}
       matrix: ${{ steps.detect.outputs.matrix }}
@@ -66,12 +66,13 @@ jobs:
               include+=("{\"language\":\"$1\",\"os\":\"$3\",\"build-mode\":\"$4\"}")
             fi
           }
-          add actions '^\.github/workflows/' ubuntu-latest none
-          add javascript-typescript '\.(js|jsx|mjs|cjs|ts|tsx|mts|cts|vue)$' ubuntu-latest none
-          add python '\.py$' ubuntu-latest none
-          add ruby '(\.rb|(^|/)(Gemfile|Rakefile))$' ubuntu-latest none
+          # Linux analysis runs on Blacksmith; 2 vCPU covers CodeQL's none build modes.
+          add actions '^\.github/workflows/' blacksmith-2vcpu-ubuntu-2404 none
+          add javascript-typescript '\.(js|jsx|mjs|cjs|ts|tsx|mts|cts|vue)$' blacksmith-2vcpu-ubuntu-2404 none
+          add python '\.py$' blacksmith-2vcpu-ubuntu-2404 none
+          add ruby '(\.rb|(^|/)(Gemfile|Rakefile))$' blacksmith-2vcpu-ubuntu-2404 none
           # none analyzes Java only; Kotlin needs a build, which none does not run.
-          add java-kotlin '\.(java|kt|kts)$' ubuntu-latest none
+          add java-kotlin '\.(java|kt|kts)$' blacksmith-2vcpu-ubuntu-2404 none
           # Swift needs macOS, and its build mode is autobuild (none is not supported for Swift).
           add swift '\.swift$' "$SWIFT_RUNNER" autobuild
 
