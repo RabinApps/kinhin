@@ -199,6 +199,9 @@ jobs:
       - name: Script tests (CI change selection)
         run: bash scripts/ci-changes-test.sh
 
+      - name: Script tests (e2e spec selection)
+        run: bash scripts/e2e-select-test.sh
+
   gate:
     # The one job to mark required in branch protection. The jobs above can be skipped (no Swift changes, fork vs.
     # self-hosted), and a skipped job reports success, so this fails only when something failed or was cancelled,

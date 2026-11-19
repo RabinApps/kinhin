@@ -287,14 +287,22 @@ scripts/build-site.sh               # builds website/.open-next (every page is p
                                     # (the suite reuses a server already on PORT, default 8788, and starts `wrangler dev` otherwise)
 npm run e2e                         # desktop and phone projects; E2E_BASE_URL=https://… tests a deployed site instead
 npm run e2e -- search               # one spec; add --project=desktop for one project
-scripts/website-check.sh --e2e      # build and run it all
+scripts/website-check.sh --e2e      # build, then run only what changed since the previous commit (see below)
+scripts/website-check.sh --e2e-all  # build and run it all
 ```
+
+**Only changed specs run.** The specs test the built site, so a spec can break without being edited. `scripts/e2e-select.sh`
+therefore narrows the run only when every change under `docs/` or `website/` is a spec file (`website/e2e/*.spec.ts` or its
+visual snapshots): then only those specs run. Any other `docs/` or `website/` change (source, content, config,
+`e2e/support/`, the lockfile) runs the whole suite, and a change outside both skips the browser tests. `--e2e` compares with
+the previous commit plus uncommitted work; a pull request compares with its base. `scripts/e2e-select-test.sh` is the table
+test. Pushes to `develop` always run everything, as a backstop.
 
 Expectations are read from the same sources as the build (`.generated/manifest.json`, `site.config.ts`,
 `src/data/release.ts`, `versions.json`), never copied into a test, so adding a page or a release does not mean editing tests.
 Screenshot comparisons are opt-in (`E2E_VISUAL=1 npm run e2e -- visual`; `npm run e2e:update` rewrites the baselines on the
-CI image, they are not committed from a laptop). CI runs the suite on every `docs/` or `website/` pull request and uploads the
-HTML report on failure. `scripts/smoke.sh` stays as the fast post-build check the deploy job runs.
+CI image, they are not committed from a laptop). CI runs the suite (narrowed as above) on every `docs/` or `website/` pull request and all of it on every `develop`
+push, and uploads the HTML report on failure. `scripts/smoke.sh` stays as the fast post-build check the deploy job runs.
 
 ## Design first (website)
 
