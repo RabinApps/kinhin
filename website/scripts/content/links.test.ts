@@ -104,6 +104,23 @@ test('a link shown in inline code is an example, not a link the page has', () =>
   const md = 'Show `[example](missing.md)` then [page](/guide/x.html).'
   assert.equal(mapLinks(md, cleanSitePath), 'Show `[example](missing.md)` then [page](/guide/x).')
   assert.deepEqual(internalLinks('`[a](/guide/x)` [b](/guide/y)'), ['/guide/y'])
+  // An escaped backtick is literal, so the link between the two stays a link.
+  assert.equal(mapLinks('a \\` b [page](/guide/x.html) c \\`', cleanSitePath), 'a \\` b [page](/guide/x) c \\`')
+})
+
+test('an image whose alt text holds inline code is still one image', () => {
+  const md = '![`cli`](shot.png) and `![x](y.png)`'
+  assert.equal(mapLinks(md, (h) => `link:${h}`, (h) => `img:${h}`), '![`cli`](img:shot.png) and `![x](y.png)`')
+})
+
+test('a target inside a code span is left alone, even when the span starts inside an image alt', () => {
+  const md = '![`x](y.png)`](shot.png)'
+  assert.equal(mapLinks(md, (h) => h, (h) => `img:${h}`), md)
+})
+
+test('a code span in a quote survives its marked continuation lines', () => {
+  const md = '> `example\n> [page](/guide/x.html)`'
+  assert.equal(mapLinks(md, (h) => `fn:${h}`), md)
 })
 
 test('internalLinks keeps only site-absolute targets', () => {

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { outsideCodeSpans, outsideFences, stripVue } from './fences.ts'
+import { codeSpans, outsideFences, stripVue } from './fences.ts'
 
 const upper = (chunk: string): string => chunk.toUpperCase()
 
@@ -36,15 +36,36 @@ test('fences nested in any mix of quotes and list items are respected', () => {
   }
 })
 
-test('inline code spans are left alone; a longer run inside one is text', () => {
-  assert.equal(outsideCodeSpans('before `[x](y.md)` after', upper), 'BEFORE `[x](y.md)` AFTER')
-  assert.equal(outsideCodeSpans('a ``b `c` d`` e', upper), 'A ``b `c` d`` E')
+/** The text each span holds, without its backticks. */
+const spanText = (text: string): string[] => codeSpans(text).map((s) => text.slice(s.from, s.to))
+
+test('a code span runs from a backtick run to the next run of the same length', () => {
+  assert.deepEqual(spanText('before `[x](y.md)` after'), ['`[x](y.md)`'])
+  assert.deepEqual(spanText('a ``b `c` d`` e'), ['``b `c` d``'])
+  assert.deepEqual(spanText('a `b\nc` d'), ['`b\nc`'], 'a span can span lines')
 })
 
-test('an unpaired backtick is literal text, not a span', () => {
-  assert.equal(outsideCodeSpans('a lone ` tick at the end', upper), 'A LONE ` TICK AT THE END')
-  // A span closes in its own paragraph: the stray run above does not swallow the next one.
-  assert.equal(outsideCodeSpans('a ` b\n\nc `d` e', upper), 'A ` B\n\nC `d` E')
+test('an unpaired or escaped backtick opens nothing', () => {
+  assert.deepEqual(spanText('a lone ` tick at the end'), [])
+  assert.deepEqual(spanText('a \\` b `c` d'), ['`c`'])
+  // A span closes in its own block: the stray run above does not swallow the next one.
+  assert.deepEqual(spanText('a ` b\n\nc `d` e'), ['`d`'])
+})
+
+test('backticks in different list items or blocks do not pair', () => {
+  const items = ['- `', '- [page](/guide/x.html)', '- `', '', '# `', '> `'].join('\n')
+  assert.deepEqual(spanText(items), [])
+  assert.deepEqual(spanText('- one `a`\n- two `b`'), ['`a`', '`b`'])
+})
+
+test('a block keeps its paragraph across marked continuation lines', () => {
+  // A quote paragraph continues on the next quoted line, and a list item on its indented continuation.
+  assert.deepEqual(spanText('> `example\n> [page](/guide/x.html)`'), ['`example\n> [page](/guide/x.html)`'])
+  assert.deepEqual(spanText('- `a\n  b`'), ['`a\n  b`'])
+})
+
+test('an ATX heading ends before the paragraph under it, so their backticks do not pair', () => {
+  assert.deepEqual(spanText('# `heading\n[page](/guide/x.html)`'), [])
 })
 
 test('stripVue removes script/style blocks outside fences only', () => {

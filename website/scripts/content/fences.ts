@@ -32,37 +32,90 @@ export function outsideFences(text: string, fn: (chunk: string) => string): stri
   return out.join('\n')
 }
 
-/**
- * Applies `fn` to the text outside inline code spans, leaving the spans untouched. A span opens on a run of
- * backticks and closes on the nearest run of the same length in its paragraph (CommonMark), so a four-backtick run
- * inside a two-backtick span is text. An unpaired run is literal text, so one stray backtick never hides the rest of
- * the page from `fn`.
- */
-export function outsideCodeSpans(text: string, fn: (chunk: string) => string): string {
-  return text
-    .split(/(\n[ \t]*\n)/)
-    .map((part, i) => (i % 2 === 1 ? part : paragraphCodeSpans(part, fn)))
-    .join('')
+/** A range of text held inside an inline code span, from its opening backticks to the end of its closing run. */
+export interface CodeSpan {
+  from: number
+  to: number
 }
 
-/** One paragraph: rewrites what sits between its inline code spans. */
-function paragraphCodeSpans(paragraph: string, fn: (chunk: string) => string): string {
+const LIST_ITEM = /^[ \t]*(?:[-*+]|\d+[.)])[ \t]/
+const HEADING = /^[ \t]*#{1,6}[ \t]/
+const QUOTE = /^[ \t]*>/
+
+/**
+ * Where Markdown starts a new block: a blank line, a list item, a quote block, or either end of a one-line ATX
+ * heading. Code spans cannot cross one (CommonMark), so neither can a pair of backticks in different blocks. A quote
+ * continues in the same paragraph when its next line is quoted too, and a list item continues on an indented line, so
+ * those keep the span open.
+ */
+function blockStarts(text: string): number[] {
+  const starts: number[] = []
+  let at = 0
+  let quoted = false
+  for (const line of text.split('\n')) {
+    const quote = QUOTE.test(line)
+    if (line.trim() === '') {
+      starts.push(at)
+      quoted = false
+    } else if (LIST_ITEM.test(line)) {
+      starts.push(at)
+      quoted = quote
+    } else if (HEADING.test(line)) {
+      // A heading is one line: the paragraph under it starts on the next one.
+      starts.push(at, at + line.length)
+      quoted = quote
+    } else if (quote && !quoted) {
+      starts.push(at)
+      quoted = true
+    } else {
+      quoted = quote
+    }
+    at += line.length + 1
+  }
+  return starts
+}
+
+/** True when the backtick run at `at` is backslash-escaped, and so is a literal character rather than an opener. */
+function escaped(text: string, at: number): boolean {
+  let backslashes = 0
+  while (text[at - backslashes - 1] === '\\') backslashes += 1
+  return backslashes % 2 === 1
+}
+
+/**
+ * The inline code spans of `text`, in document order. A run of backticks closes on the nearest later run of the same
+ * length in the same block, so a four-backtick run inside a two-backtick span is text. An escaped run, or one with
+ * no partner, is literal: a lone backtick never hides the markdown after it.
+ */
+export function codeSpans(text: string): CodeSpan[] {
   const runs: { at: number; len: number }[] = []
-  for (const run of paragraph.matchAll(/`+/g)) runs.push({ at: run.index ?? 0, len: run[0].length })
-  const out: string[] = []
-  let plainFrom = 0
+  for (const run of text.matchAll(/`+/g)) runs.push({ at: run.index ?? 0, len: run[0].length })
+  const starts = blockStarts(text)
+  // The block of each run, as the number of boundaries before it: two runs share a block when this matches, so a
+  // closer search never has to look at, or re-test, anything past the next boundary.
+  const blocks: number[] = []
+  let next = 0
+  for (const run of runs) {
+    while (next < starts.length && starts[next]! < run.at) next += 1
+    blocks.push(next)
+  }
+  const spans: CodeSpan[] = []
   for (let open = 0; open < runs.length; open += 1) {
     const opener = runs[open]
-    if (!opener) continue
-    const closeAt = runs.findIndex((run, i) => i > open && run.len === opener.len)
+    if (!opener || escaped(text, opener.at)) continue
+    let closeAt = -1
+    for (let i = open + 1; i < runs.length && blocks[i] === blocks[open]; i += 1) {
+      if (runs[i]!.len === opener.len) {
+        closeAt = i
+        break
+      }
+    }
     const closer = runs[closeAt]
     if (!closer) continue
-    out.push(fn(paragraph.slice(plainFrom, opener.at)), paragraph.slice(opener.at, closer.at + closer.len))
-    plainFrom = closer.at + closer.len
+    spans.push({ from: opener.at, to: closer.at + closer.len })
     open = closeAt
   }
-  out.push(fn(paragraph.slice(plainFrom)))
-  return out.join('')
+  return spans
 }
 
 export function stripVue(content: string): string {
