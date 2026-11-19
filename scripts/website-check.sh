@@ -7,7 +7,9 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/../website"
-[ -d node_modules ] || npm ci
+# npm ci unless node_modules is present and still satisfies package.json. A stale install (a dependency added
+# since the last install) would otherwise fail later with ERR_MODULE_NOT_FOUND, before any check runs.
+npm ls --depth=0 >/dev/null 2>&1 || npm ci
 npm run typecheck
 npm test
 npm run build
