@@ -45,7 +45,7 @@ export function Sidebar({ available }: { available?: string[] }) {
   const links = available ? new Set(available) : undefined
   return (
     <aside className="sidebar" id="docs-sidebar" aria-label="Documentation">
-      {sidebar.map((g) => (
+      {sidebar.filter((g) => shown(g, links)).map((g) => (
         <section key={g.text}>
           {g.collapsed ? (
             <details open={has(g, path)}>

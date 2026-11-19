@@ -42,6 +42,9 @@ test('a percent-encoded path resolves to the file it names; a malformed escape d
     'https://github.com/RabinApps/kinhin/blob/main/docs/adding-a-forge.md#step-1',
   )
   assert.equal(resolveDocsLink('why%ZZ.md', 'docs/scaling.md', ctx).missing, true)
+  // One malformed segment does not stop the others decoding.
+  const mixed = fixture(t, ['docs/my folder/100%.md'])
+  assert.equal(resolveDocsLink('my%20folder/100%.md', 'docs/why.md', mixed).missing, false)
 })
 
 test('a docs/ link to the README becomes the home page, suffix kept', (t) => {

@@ -31,7 +31,7 @@ export interface ResolvedLink {
 }
 
 /** Splits a relative link into the repo path to look up and the `?query#anchor` to put back on the result. */
-function splitLink(href: string): { pathname: string; suffix: string } {
+export function splitLink(href: string): { pathname: string; suffix: string } {
   const hashAt = href.indexOf('#')
   const beforeAnchor = hashAt === -1 ? href : href.slice(0, hashAt)
   const anchor = hashAt === -1 ? '' : href.slice(hashAt)
@@ -42,11 +42,16 @@ function splitLink(href: string): { pathname: string; suffix: string } {
 
 /** Decodes each percent-encoded path segment the way a browser would; a malformed escape stays literal instead of throwing. */
 function decodePathname(pathname: string): string {
-  try {
-    return pathname.split('/').map(decodeURIComponent).join('/')
-  } catch {
-    return pathname
-  }
+  return pathname
+    .split('/')
+    .map((segment) => {
+      try {
+        return decodeURIComponent(segment)
+      } catch {
+        return segment
+      }
+    })
+    .join('/')
 }
 
 /**
