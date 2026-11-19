@@ -21,21 +21,23 @@ export function Home({ data }: { data: HomeData }) {
         </h1>
         <p className="lead">{data.hero.tagline}</p>
         <div className="cta">
-          {data.hero.actions.map((a) => (
+          {(data.hero.actions ?? []).filter((a) => a.link).map((a) => (
             <Link key={a.link} href={a.link} className={`btn ${a.theme === 'brand' ? 'btn-primary' : ''}`}>
               {a.text}
             </Link>
           ))}
         </div>
-        <div className="terminal">
-          <div className="terminal-bar"><i /><i /><i /><span>up and running in three commands</span></div>
-          <pre>
-            {data.install.map((l, i) => (
-              <span key={i}><b>$</b> {l}{'\n'}</span>
-            ))}
-            <em>✓ fleet online</em>
-          </pre>
-        </div>
+        {(data.install ?? []).length > 0 && (
+          <div className="terminal">
+            <div className="terminal-bar"><i /><i /><i /><span>up and running in three commands</span></div>
+            <pre>
+              {data.install.map((l, i) => (
+                <span key={i}><b>$</b> {l}{'\n'}</span>
+              ))}
+              <em>✓ fleet online</em>
+            </pre>
+          </div>
+        )}
       </section>
 
       <section className="section"><Banners /></section>
@@ -61,14 +63,22 @@ export function Home({ data }: { data: HomeData }) {
         <p className="kicker">{'// WHAT YOU GET'}</p>
         <h2 id="what-h" className="sr-only">What you get</h2>
         <div className="features">
-          {data.features.map((f, i) => (
-            <Link key={f.title} href={f.link} className={`feature ${accents[i % 6]}`}>
-              <span className="icon"><Logo size={30} /></span>
-              <h3>{f.title}</h3>
-              <p>{f.details}</p>
-              <span className="more">{f.linkText} →</span>
-            </Link>
-          ))}
+          {(data.features ?? []).map((f, i) => {
+            const body = (
+              <>
+                <span className="icon"><Logo size={30} /></span>
+                <h3>{f.title}</h3>
+                <p>{f.details}</p>
+                {f.link && <span className="more">{f.linkText ?? 'Read more'} →</span>}
+              </>
+            )
+            // A release snapshot renders that release's own index.md, whose cards may have no link.
+            return f.link ? (
+              <Link key={f.title} href={f.link} className={`feature ${accents[i % 6]}`}>{body}</Link>
+            ) : (
+              <div key={f.title} className={`feature ${accents[i % 6]}`}>{body}</div>
+            )
+          })}
         </div>
       </section>
 
@@ -90,7 +100,8 @@ export function Home({ data }: { data: HomeData }) {
         </div>
       </section>
 
-      <section className="section" aria-labelledby="faq-h">
+      {(data.questions ?? []).length > 0 && (
+        <section className="section" aria-labelledby="faq-h">
         <p className="kicker">{'// COMMON QUESTIONS'}</p>
         <h2 id="faq-h" className="section-h">Answers before you try it.</h2>
         <div className="faq">
@@ -101,7 +112,8 @@ export function Home({ data }: { data: HomeData }) {
             </div>
           ))}
         </div>
-      </section>
+        </section>
+      )}
     </>
   )
 }

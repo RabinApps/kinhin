@@ -9,3 +9,4 @@ tsconfig.tsbuildinfo
 /public/_docs/
 .e2e-results/
 playwright-report/
+.snapshots-out/

@@ -1,0 +1,6 @@
+# LLM-friendly index: https://kinhin.dev/llms.txt (full text: https://kinhin.dev/llms-full.txt)
+# Every page is also available as markdown at <page>.md
+User-agent: *
+Allow: /
+
+Sitemap: https://kinhin.dev/sitemap.xml

@@ -1,0 +1,46 @@
+# kinhin
+
+> Your Mac is your CI, your screenshot studio and your video studio. Ephemeral runners that scale to your queue, store screenshots in every locale, and launch videos that rebuild from your repo. No cloud bill, no watermark.
+
+**Commit it. Screenshot it. Ship it.**
+
+- **Parallel jobs, not a queue**: A fleet of ephemeral runners scales to your queue, so jobs run side by side. [Why kinhin](https://kinhin.dev/v0.0.1-beta-6/guide/why-kinhin.md)
+- **Clean every time**: Every job gets a fresh VM or container, deleted when the job ends. Nothing leaks between jobs. [Security](https://kinhin.dev/v0.0.1-beta-6/guide/security.md)
+- **Multi-forge, multi-runtime**: GitHub, Gitea, Forgejo and GitLab served from one pool, on Tart, apple/container, Docker or host mode. [Runtimes & routing](https://kinhin.dev/v0.0.1-beta-6/guide/runtimes.md)
+- **Store screenshots**: One fastlane lane captures localized App Store and Play screenshots in CI. [Store screenshots](https://kinhin.dev/v0.0.1-beta-6/guide/mobile-screenshots.md)
+- **Launch videos from a config**: Write the story in YAML. Get narration, captions, music and a vertical cut on every release. [Add videos](https://kinhin.dev/v0.0.1-beta-6/guide/videos-for-your-project.md)
+- **Menu bar or headless**: The same engine as a macOS app or a LaunchAgent daemon, with one config and one fleet. [Install](https://kinhin.dev/v0.0.1-beta-6/guide/install.md)
+
+## Up and running in three commands
+
+```bash
+curl -fsSL https://github.com/RabinApps/kinhin/releases/latest/download/install.sh | bash
+kinhin config init && kinhin auth set
+kinhin image prepare && kinhin start
+```
+
+## Common questions
+
+**Mac CI runners**
+
+- [How to run GitHub Actions on a self-hosted Mac](https://kinhin.dev/v0.0.1-beta-6/how-to-run-github-actions-on-a-self-hosted-mac.md)
+- [How to autoscale GitHub Actions runners on a Mac](https://kinhin.dev/v0.0.1-beta-6/how-to-autoscale-github-actions-runners-on-a-mac.md)
+- [How to run GitLab CI jobs on a Mac](https://kinhin.dev/v0.0.1-beta-6/how-to-run-gitlab-ci-jobs-on-a-mac.md)
+- [How to run Gitea or Forgejo Actions on a Mac](https://kinhin.dev/v0.0.1-beta-6/how-to-run-gitea-or-forgejo-actions-on-a-mac.md)
+- [How many macOS VMs can run at once?](https://kinhin.dev/v0.0.1-beta-6/how-many-macos-vms-can-run-at-once.md)
+
+**Store screenshots**
+
+- [How to take App Store screenshots automatically](https://kinhin.dev/v0.0.1-beta-6/how-to-take-app-store-screenshots-automatically.md)
+- [How to run fastlane screenshots in CI on a Mac](https://kinhin.dev/v0.0.1-beta-6/how-to-run-fastlane-screenshots-in-ci-on-a-mac.md)
+- [How to generate localized app store screenshots](https://kinhin.dev/v0.0.1-beta-6/how-to-generate-localized-app-store-screenshots.md)
+
+**Launch videos**
+
+- [How to make a product launch video from code](https://kinhin.dev/v0.0.1-beta-6/how-to-make-a-product-launch-video-from-code.md)
+
+**Alternatives**
+
+- [Self-hosted alternative to GitHub-hosted macOS runners](https://kinhin.dev/v0.0.1-beta-6/self-hosted-alternative-to-github-hosted-macos-runners.md)
+- [Alternatives to Orchard for CI on a Mac](https://kinhin.dev/v0.0.1-beta-6/alternatives-to-orchard-for-ci-on-a-mac.md)
+

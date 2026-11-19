@@ -12,7 +12,7 @@ repo=$(cd .. && pwd)
 work=$(mktemp -d)
 trap 'git -C "$repo" worktree prune; rm -rf "$work"' EXIT
 
-rm -rf public/v[0-9]*/ .snapshots
+rm -rf public/v[0-9]*/ .snapshots .snapshots-out
 for tag in $(node -e 'for (const v of JSON.parse(require("fs").readFileSync("versions.json","utf8"))) console.log(v)'); do
   if ! git -C "$repo" rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
     echo "::warning::snapshot $tag skipped: no such tag in this checkout"
@@ -20,7 +20,7 @@ for tag in $(node -e 'for (const v of JSON.parse(require("fs").readFileSync("ver
   fi
   git -C "$repo" worktree add --detach -f "$work/$tag" "$tag" >/dev/null
   if ! scripts/build-snapshot.sh "$tag" "$work/$tag"; then
-    rm -rf "public/$tag"
+    rm -rf ".snapshots-out/$tag"
     if [ "${SNAPSHOT_STRICT:-0}" = 1 ]; then
       echo "::error::snapshot $tag failed to build"
       exit 1
@@ -28,6 +28,12 @@ for tag in $(node -e 'for (const v of JSON.parse(require("fs").readFileSync("ver
     echo "::warning::snapshot $tag failed to build; it will not be published"
   fi
 done
+
+# Every snapshot is built: publish them with the site (public/ is copied into the Worker's assets).
+if [ -d .snapshots-out ]; then
+  for d in .snapshots-out/*/; do [ -d "$d" ] && cp -R "$d" public/; done
+  rm -rf .snapshots-out
+fi
 
 unset CONTENT_ROOT DOCS_VERSION
 node scripts/content/build.ts

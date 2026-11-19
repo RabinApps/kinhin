@@ -1,0 +1,23 @@
+# kinhin
+
+> Your Mac is your CI, your screenshot studio and your video studio. Ephemeral runners that scale to your queue, store screenshots in every locale, and launch videos that rebuild from your repo. No cloud bill, no watermark.
+
+**Commit it. Screenshot it. Ship it.**
+
+- **Parallel jobs, not a queue**: A fleet of ephemeral runners scales to your queue, so jobs run side by side. [Why kinhin](https://kinhin.dev/v0.0.1-beta-2/guide/why-kinhin.md)
+- **Clean every time**: Every job gets a fresh VM or container, deleted when the job ends. Nothing leaks between jobs. [Security](https://kinhin.dev/v0.0.1-beta-2/guide/security.md)
+- **Multi-forge, multi-runtime**: GitHub, Gitea, Forgejo and GitLab served from one pool, on Tart, apple/container, Docker or host mode. [Runtimes & routing](https://kinhin.dev/v0.0.1-beta-2/guide/runtimes.md)
+- **Store screenshots**: One fastlane lane captures localized App Store and Play screenshots in CI. [Store screenshots](https://kinhin.dev/v0.0.1-beta-2/guide/mobile-screenshots.md)
+- **Launch videos from a config**: Write the story in YAML. Get narration, captions, music and a vertical cut on every release. [Add videos](https://kinhin.dev/v0.0.1-beta-2/guide/videos-for-your-project.md)
+- **Menu bar or headless**: The same engine as a macOS app or a LaunchAgent daemon, with one config and one fleet. [Install](https://kinhin.dev/v0.0.1-beta-2/guide/install.md)
+
+## Up and running in three commands
+
+```bash
+curl -fsSL https://github.com/RabinApps/kinhin/releases/latest/download/install.sh | bash
+kinhin config init && kinhin auth set
+kinhin image prepare && kinhin start
+```
+
+## Common questions
+

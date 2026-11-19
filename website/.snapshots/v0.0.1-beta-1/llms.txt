@@ -1,0 +1,66 @@
+# kinhin
+
+> Your Mac is your CI and your repo is your video studio. Autoscaling ephemeral runners for GitHub, GitLab, Gitea and Forgejo, plus narrated launch videos built from a config.
+
+## Get started
+
+- [Why kinhin](https://kinhin.dev/v0.0.1-beta-1/guide/why-kinhin.md): Self-hosted CI runners do one job at a time. kinhin exists to give your Mac real concurrency.
+- [Compare to other CI](https://kinhin.dev/v0.0.1-beta-1/guide/compare.md): What other tools do, what kinhin does, and what kinhin is missing.
+- [Quick start](https://kinhin.dev/v0.0.1-beta-1/guide/quick-start.md): Kinhin turns your Apple Silicon Mac into an autoscaling fleet of ephemeral self-hosted CI runners. This page gets you from zero to a working fleet. New here? Read why kinhin exists.
+- [Install & updates](https://kinhin.dev/v0.0.1-beta-1/guide/install.md): The install script in detail, and update checks.
+- [Forge support](https://kinhin.dev/v0.0.1-beta-1/guide/forges.md): Which CI platforms kinhin serves, how to connect each one, and how to serve many accounts from one fleet.
+- [Configuration](https://kinhin.dev/v0.0.1-beta-1/guide/config.md): ~/Library/Application Support/Kinhin/config.yaml — write the commented starter file with kinhin config init. Key fields:
+
+## Run your fleet
+
+- [Runtimes & routing](https://kinhin.dev/v0.0.1-beta-1/guide/runtimes.md): Where jobs run (Tart VMs, apple/container microVMs, Docker containers, or directly on your Mac) and how one fleet routes each job between them.
+- [How scaling works](https://kinhin.dev/v0.0.1-beta-1/guide/scaling.md): The capacity cap, the scaling loop, job density, and how kinhin recovers from restarts.
+- [Toolchains & shared cache](https://kinhin.dev/v0.0.1-beta-1/guide/toolchains.md): How to get Go, Node, Xcode, Flutter and friends onto kinhin runners, and how to cache their downloads.
+- [Requeue and skip queued jobs](https://kinhin.dev/v0.0.1-beta-1/guide/requeue-skip.md): The Fleet tab now lets you re-queue or drop the fleet's queued jobs, per forge, from the Requeue / skip queued row (one button per attached forge).
+- [Test workflows locally](https://kinhin.dev/v0.0.1-beta-1/guide/workflow-testing.md): kinhin workflow test runs a repository's GitHub Actions workflow scripts on your Mac before you push. It is a host-only convenience tool: it does not start the fleet, a VM, the daemon, or read kinhin's config or forge credentials. The Fleet tab also has Test Workflow…, which opens the same runner in a sheet after you choose a workflow file in Finder.
+- [Benchmarks](https://kinhin.dev/v0.0.1-beta-1/guide/benchmarks.md): kinhin bench measures, on this Mac, how fast every runtime boots, how fast representative workloads run inside them, and how fast every toolchain in the catalog installs and builds. It writes a machine-readable report and removes everything it created. The same runs are available in the app under Advanced → Benchmarks.
+
+## Hardware & hosting
+
+- [Hardware & sizing](https://kinhin.dev/v0.0.1-beta-1/guide/hardware.md): What your Mac needs to run kinhin, and how to size CPU, memory, and storage for the fleet you want.
+- [Running on a rented Mac](https://kinhin.dev/v0.0.1-beta-1/guide/rented-mac.md): Run a kinhin fleet on a Mac you rent by the month instead of one on your desk: a colocated Mac mini or a bare-metal cloud Mac. This is also how a team or consultancy can run CI for someone else: one dedicated Mac per customer, their own forge token, no shared hardware.
+
+## Security
+
+- [Security](https://kinhin.dev/v0.0.1-beta-1/guide/security.md): What kinhin protects, what it leaves to you, and the settings to turn on if your jobs can include code you don't fully trust (fork PRs, outside contributors).
+- [Open-source projects](https://kinhin.dev/v0.0.1-beta-1/guide/open-source.md): How to use kinhin for a public repository without letting a stranger's pull request run code on your Mac.
+
+## Help
+
+- [Troubleshooting](https://kinhin.dev/v0.0.1-beta-1/guide/troubleshooting.md): window's fix button), then re-run kinhin doctor.
+- [Beta roadmap](https://kinhin.dev/v0.0.1-beta-1/guide/beta-roadmap.md): What is supported today, and the milestones between the current beta and the v0.1.0 release.
+- [Support & sponsors](https://kinhin.dev/v0.0.1-beta-1/guide/support.md): kinhin is free, Apache-2.0, and built by one developer, with no ads and no telemetry. Donations and sponsors pay for CI, code signing, test hardware and development time.
+- [Who uses kinhin](https://kinhin.dev/v0.0.1-beta-1/guide/used-by.md): A short, hand-picked list of companies and projects that run their CI on kinhin. It appears on the website.
+
+## Reference
+
+- [CLI commands](https://kinhin.dev/v0.0.1-beta-1/cli/commands.md): kinhin — autoscaling CI runners on your Mac. Tart VMs run macOS jobs; apple/container, Docker or Tart Linux VMs run Linux jobs. Forges: GitHub Actions, GitLab CI/CD, Gitea, Forgejo (Buildkite, Azure, Bitbucket planned).
+- [AI agents & MCP](https://kinhin.dev/v0.0.1-beta-1/guide/agents.md): Two ways AI agents meet kinhin: operating a fleet on someone's Mac, and contributing to the kinhin repository itself. Both surfaces are deliberate: every read command has a machine-readable document, the CLI speaks MCP, and the skills under skills/ teach an agent the workflows around the commands.
+- [Architecture](https://kinhin.dev/v0.0.1-beta-1/guide/architecture.md): How the Swift package is laid out, what the tests cover, and what CI runs.
+- [Overview](https://kinhin.dev/v0.0.1-beta-1/guide/forges/overview.md): What kinhin assumes about each forge's API, checked against the forge's own documentation.
+- [GitHub](https://kinhin.dev/v0.0.1-beta-1/guide/forges/github.md): How kinhin talks to GitHub Actions, and how that compares with GitHub's current REST API docs.
+- [Gitea & Forgejo](https://kinhin.dev/v0.0.1-beta-1/guide/forges/gitea.md): How kinhin talks to Gitea Actions and Forgejo Actions, and how that compares with their current API specs. Forgejo is served by the same client (GiteaClient); this page notes where the two diverge.
+- [GitLab](https://kinhin.dev/v0.0.1-beta-1/guide/forges/gitlab.md): How kinhin talks to GitLab CI, and how that compares with GitLab's current REST API docs.
+- [Buildkite (planned)](https://kinhin.dev/v0.0.1-beta-1/guide/forges/buildkite.md): How kinhin talks to Buildkite, and how that compares with Buildkite's current REST API docs.
+- [Azure DevOps (experimental)](https://kinhin.dev/v0.0.1-beta-1/guide/forges/azuredevops.md): How kinhin talks to Azure Pipelines agent pools, and how that compares with Microsoft's current REST API docs.
+- [Bitbucket (planned)](https://kinhin.dev/v0.0.1-beta-1/guide/forges/bitbucket.md): How kinhin talks to Bitbucket Pipelines runners, and how that compares with Atlassian's published API spec.
+
+## Contributing
+
+- [Contributing](https://kinhin.dev/v0.0.1-beta-1/guide/contributing.md): kinhin is built by one developer, and bug reports, feature requests and pull requests are welcome on GitHub. Not writing code? You can also add your project to Who uses kinhin or support the project.
+- [End-to-end testing](https://kinhin.dev/v0.0.1-beta-1/guide/e2e-testing.md): swift test runs about 2,900 tests against fakes (FakeTart, FakeSSH, FakeGitea, ...) in a few minutes with no VMs and no network. That keeps the suite fast, but it can only prove kinhin agrees with its own model of a forge or a runner. The end-to-end (e2e) suite in Tests/E2E checks the model against the real thing: a real forge in a container, a real kinhin daemon, a real runner image, and a job that really runs inside a guest.
+- [Debugging races (TSan)](https://kinhin.dev/v0.0.1-beta-1/guide/debugging-races.md): For contributors: how to run kinhin's test suite under ThreadSanitizer (scripts/tsan.sh) and read the result.
+- [Cutting a release](https://kinhin.dev/v0.0.1-beta-1/guide/releasing.md): How a maintainer builds, signs, notarizes and publishes a kinhin release — locally as a rehearsal, then from a tag for real.
+
+## Blog
+
+- [Introducing the kinhin beta](https://kinhin.dev/v0.0.1-beta-1/blog/introducing-kinhin-beta.md): The first public beta of kinhin, the mindful CI for your Mac. What works today, what doesn't, who should try it now, and how it was tested.
+
+## Optional
+
+- [Blog](https://kinhin.dev/v0.0.1-beta-1/blog.md): News, release notes and behind the scenes from kinhin.

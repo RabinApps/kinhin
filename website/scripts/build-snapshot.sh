@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Builds one release snapshot: the docs as they were at <tag>, rendered by the current site, written to
-# public/<tag>/ so the Worker serves them at /<tag>/ (see .github/workflows/docs.yml).
+# .snapshots-out/<tag>/. scripts/build-site.sh moves them all into public/ once every snapshot is built, so the Worker serves them at
+# /<tag>/ (see .github/workflows/docs.yml). They must not sit in public/ while another snapshot builds: Next copies public/ into every
+# static export, and each snapshot would swallow the ones before it (hundreds of MB).
 #
 #   scripts/build-snapshot.sh <tag> [<content-root>]
 #
@@ -16,7 +18,7 @@ node scripts/content/build.ts
 rm -rf ".snapshots/$tag"
 npx next build
 
-dest=public/$tag
+dest=.snapshots-out/$tag
 rm -rf "$dest"
 mkdir -p "$dest"
 cp -R ".snapshots/$tag/." "$dest/"
