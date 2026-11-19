@@ -6,10 +6,33 @@ cd "$(dirname "$0")/.."
 port=${PORT:-8788}
 base=http://localhost:$port
 
-npx opennextjs-cloudflare populateCache local >/dev/null
-npx wrangler dev --local --port "$port" >"${TMPDIR:-/tmp}/kinhin-wrangler.log" 2>&1 &
-pid=$!
-trap 'kill $pid 2>/dev/null || true' EXIT
+# Reuse a server that is already answering on the port (a developer's `wrangler dev`, or a previous step); otherwise start one and
+# stop it, and everything it spawned, when this script ends.
+started=0
+if curl -fsS -o /dev/null "$base/" 2>/dev/null; then
+  echo "smoke: using the server already running at $base"
+else
+  npx opennextjs-cloudflare populateCache local >/dev/null
+  npx wrangler dev --local --port "$port" >"${TMPDIR:-/tmp}/kinhin-wrangler.log" 2>&1 &
+  pid=$!
+  started=1
+fi
+
+# `kill $pid` alone only stops the npx wrapper: wrangler and the workerd that listens on the port are its descendants, and would
+# stay behind holding the port for the next step.
+killtree() {
+  local child
+  for child in $(pgrep -P "$1" 2>/dev/null); do killtree "$child"; done
+  kill "$1" 2>/dev/null || true
+}
+cleanup() {
+  [ "$started" = 1 ] || return 0
+  killtree "$pid"
+  for _ in $(seq 1 20); do curl -fsS -o /dev/null "$base/" 2>/dev/null || return 0; sleep 0.5; done
+  # Something is still listening (a detached workerd): stop whatever holds the port.
+  if command -v lsof >/dev/null 2>&1; then lsof -ti "tcp:$port" 2>/dev/null | xargs kill 2>/dev/null || true; fi
+}
+trap cleanup EXIT
 for _ in $(seq 1 60); do curl -fsS -o /dev/null "$base/" 2>/dev/null && break; sleep 1; done
 
 fail=0

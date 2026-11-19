@@ -284,6 +284,7 @@ internal link, and release snapshots when the build has them.
 cd website && npm ci
 npx playwright install chromium     # once; in the cloud sandbox set CHROMIUM_PATH to the preinstalled Chromium instead
 scripts/build-site.sh               # builds website/.open-next (every page is prerendered)
+                                    # (the suite reuses a server already on PORT, default 8788, and starts `wrangler dev` otherwise)
 npm run e2e                         # desktop and phone projects; E2E_BASE_URL=https://… tests a deployed site instead
 npm run e2e -- search               # one spec; add --project=desktop for one project
 scripts/website-check.sh --e2e      # build and run it all

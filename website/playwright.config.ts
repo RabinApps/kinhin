@@ -54,7 +54,9 @@ export default defineConfig({
     : {
         command: `npx opennextjs-cloudflare populateCache local && npx wrangler dev --local --port ${port}`,
         url: `${baseURL}/`,
-        reuseExistingServer: !process.env.CI,
+        // A server may already be up on the port: scripts/smoke.sh in the same CI job, or `wrangler dev` in another terminal. Reuse it
+        // (Playwright waits for `/`, runs, and leaves it running); otherwise it starts the Worker itself, as above.
+        reuseExistingServer: true,
         timeout: 180_000,
         stdout: 'ignore',
         stderr: 'ignore',

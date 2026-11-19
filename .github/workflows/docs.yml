@@ -142,7 +142,7 @@ jobs:
         run: scripts/smoke.sh
 
       # The browser suite (website/e2e): runs on pull requests, on a GitHub-hosted runner that can install Chromium; the
-      # deploy image does not carry one. It serves the same Worker the smoke test just checked.
+      # deploy image does not carry one. It serves the same Worker the smoke test just checked (and reuses it if one is still up).
       - name: Install Chromium for the end-to-end tests
         if: github.event_name == 'pull_request'
         working-directory: website
