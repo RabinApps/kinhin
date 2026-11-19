@@ -104,6 +104,13 @@ test('a link shown in inline code is an example, not a link the page has', () =>
   const md = 'Show `[example](missing.md)` then [page](/guide/x.html).'
   assert.equal(mapLinks(md, cleanSitePath), 'Show `[example](missing.md)` then [page](/guide/x).')
   assert.deepEqual(internalLinks('`[a](/guide/x)` [b](/guide/y)'), ['/guide/y'])
+  // An escaped backtick is literal, so the link between the two stays a link.
+  assert.equal(mapLinks('a \\` b [page](/guide/x.html) c \\`', cleanSitePath), 'a \\` b [page](/guide/x) c \\`')
+})
+
+test('an image whose alt text holds inline code is still one image', () => {
+  const md = '![`cli`](shot.png) and `![x](y.png)`'
+  assert.equal(mapLinks(md, (h) => `link:${h}`, (h) => `img:${h}`), '![`cli`](img:shot.png) and `![x](y.png)`')
 })
 
 test('internalLinks keeps only site-absolute targets', () => {
