@@ -38,14 +38,41 @@ export interface CodeSpan {
   to: number
 }
 
-const BLOCK_START = /\n[ \t]*\n|\n[ \t]*(?=[-*+][ \t]|\d+[.)][ \t]|#{1,6}[ \t]|>)/g
+const LIST_ITEM = /^[ \t]*(?:[-*+]|\d+[.)])[ \t]/
+const HEADING = /^[ \t]*#{1,6}[ \t]/
+const QUOTE = /^[ \t]*>/
 
 /**
- * Where Markdown starts a new block: a blank line, or a line that opens a list item, heading or quote. Code spans
- * cannot cross one (CommonMark), so neither can a pair of backticks in different blocks.
+ * Where Markdown starts a new block: a blank line, a list item, a quote block, or either end of a one-line ATX
+ * heading. Code spans cannot cross one (CommonMark), so neither can a pair of backticks in different blocks. A quote
+ * continues in the same paragraph when its next line is quoted too, and a list item continues on an indented line, so
+ * those keep the span open.
  */
 function blockStarts(text: string): number[] {
-  return [...text.matchAll(BLOCK_START)].map((m) => m.index ?? 0)
+  const starts: number[] = []
+  let at = 0
+  let quoted = false
+  for (const line of text.split('\n')) {
+    const quote = QUOTE.test(line)
+    if (line.trim() === '') {
+      starts.push(at)
+      quoted = false
+    } else if (LIST_ITEM.test(line)) {
+      starts.push(at)
+      quoted = quote
+    } else if (HEADING.test(line)) {
+      // A heading is one line: the paragraph under it starts on the next one.
+      starts.push(at, at + line.length)
+      quoted = quote
+    } else if (quote && !quoted) {
+      starts.push(at)
+      quoted = true
+    } else {
+      quoted = quote
+    }
+    at += line.length + 1
+  }
+  return starts
 }
 
 /** True when the backtick run at `at` is backslash-escaped, and so is a literal character rather than an opener. */
@@ -63,14 +90,26 @@ function escaped(text: string, at: number): boolean {
 export function codeSpans(text: string): CodeSpan[] {
   const runs: { at: number; len: number }[] = []
   for (const run of text.matchAll(/`+/g)) runs.push({ at: run.index ?? 0, len: run[0].length })
-  const blocks = blockStarts(text)
+  const starts = blockStarts(text)
+  // The block of each run, as the number of boundaries before it: two runs share a block when this matches, so a
+  // closer search never has to look at, or re-test, anything past the next boundary.
+  const blocks: number[] = []
+  let next = 0
+  for (const run of runs) {
+    while (next < starts.length && starts[next]! < run.at) next += 1
+    blocks.push(next)
+  }
   const spans: CodeSpan[] = []
   for (let open = 0; open < runs.length; open += 1) {
     const opener = runs[open]
     if (!opener || escaped(text, opener.at)) continue
-    const closeAt = runs.findIndex(
-      (run, i) => i > open && run.len === opener.len && !blocks.some((b) => b > opener.at && b < run.at),
-    )
+    let closeAt = -1
+    for (let i = open + 1; i < runs.length && blocks[i] === blocks[open]; i += 1) {
+      if (runs[i]!.len === opener.len) {
+        closeAt = i
+        break
+      }
+    }
     const closer = runs[closeAt]
     if (!closer) continue
     spans.push({ from: opener.at, to: closer.at + closer.len })

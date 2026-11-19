@@ -113,6 +113,16 @@ test('an image whose alt text holds inline code is still one image', () => {
   assert.equal(mapLinks(md, (h) => `link:${h}`, (h) => `img:${h}`), '![`cli`](img:shot.png) and `![x](y.png)`')
 })
 
+test('a target inside a code span is left alone, even when the span starts inside an image alt', () => {
+  const md = '![`x](y.png)`](shot.png)'
+  assert.equal(mapLinks(md, (h) => h, (h) => `img:${h}`), md)
+})
+
+test('a code span in a quote survives its marked continuation lines', () => {
+  const md = '> `example\n> [page](/guide/x.html)`'
+  assert.equal(mapLinks(md, (h) => `fn:${h}`), md)
+})
+
 test('internalLinks keeps only site-absolute targets', () => {
   assert.deepEqual(internalLinks('[a](/guide/x) [b](https://example.com) [c](#top) [d](/guide/y#z)'), ['/guide/x', '/guide/y#z'])
 })

@@ -91,8 +91,9 @@ const LINK = /(!\[[^\]]*\]\([^)\s]*\))|(\]\()([^)\s]+)(\))/g
 
 /**
  * Applies `fn` to every markdown link target outside code fences and inline code spans; image targets go through
- * `img`. A link written inside a code span is an example the page shows, not a link the page has, so the match is
- * tested where it starts: `![`cli`](shot.png)` still starts outside its span and stays one image.
+ * `img`. A link written inside a code span is an example the page shows, not a link the page has, so the target is
+ * tested against the spans: `![`cli`](shot.png)` still has its target outside the span and stays one image, while
+ * `![`x](y.png)`](shot.png)` has a target inside one and is left alone.
  */
 export function mapLinks(
   md: string,
@@ -103,12 +104,13 @@ export function mapLinks(
     const spans = codeSpans(chunk)
     return chunk.replace(
       LINK,
-      (_m, image: string | undefined, open: string, href: string, close: string, at: number) =>
-        spans.some((span) => at >= span.from && at < span.to)
-          ? _m
-          : image
-            ? image.replace(/\(([^)\s]*)\)$/, (_x, h: string) => `(${img(h)})`)
-            : open + fn(href) + close,
+      (_m, image: string | undefined, open: string, href: string, close: string, at: number) => {
+        const targetAt = image ? at + image.lastIndexOf('(') + 1 : at + open.length
+        if (spans.some((span) => targetAt >= span.from && targetAt < span.to)) return _m
+        return image
+          ? image.replace(/\(([^)\s]*)\)$/, (_x, h: string) => `(${img(h)})`)
+          : open + fn(href) + close
+      },
     )
   })
 }

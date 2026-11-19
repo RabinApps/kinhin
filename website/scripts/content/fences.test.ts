@@ -58,6 +58,16 @@ test('backticks in different list items or blocks do not pair', () => {
   assert.deepEqual(spanText('- one `a`\n- two `b`'), ['`a`', '`b`'])
 })
 
+test('a block keeps its paragraph across marked continuation lines', () => {
+  // A quote paragraph continues on the next quoted line, and a list item on its indented continuation.
+  assert.deepEqual(spanText('> `example\n> [page](/guide/x.html)`'), ['`example\n> [page](/guide/x.html)`'])
+  assert.deepEqual(spanText('- `a\n  b`'), ['`a\n  b`'])
+})
+
+test('an ATX heading ends before the paragraph under it, so their backticks do not pair', () => {
+  assert.deepEqual(spanText('# `heading\n[page](/guide/x.html)`'), [])
+})
+
 test('stripVue removes script/style blocks outside fences only', () => {
   const md = ['<script setup>\nconst a = 1\n</script>', '', '# T', '', '```html', '<script>x</script>', '```', '<style>a{}</style>', 'end'].join('\n')
   const out = stripVue(md)
