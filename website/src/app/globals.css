@@ -69,7 +69,9 @@ code, kbd, pre { font-family: var(--mono); }
 .kicker { font: 500 12.5px var(--mono); letter-spacing: 0.4em; color: var(--accent-tx); margin: 0 0 12px; text-transform: uppercase; }
 
 /* header */
-.site-header { position: sticky; top: 0; z-index: 40; height: var(--header); background: color-mix(in srgb, var(--bg) 82%, transparent); backdrop-filter: blur(14px); border-bottom: 1px solid var(--line); }
+/* Opaque: a translucent header let the page scroll through it and paint over the bar's own labels (the blur that was meant
+   to hide that does not render inside the page's clipped scroll container). */
+.site-header { position: sticky; top: 0; z-index: 40; height: var(--header); background: var(--bg); border-bottom: 1px solid var(--line); }
 .site-header-in { max-width: var(--wide); margin: 0 auto; height: 100%; padding: 0 40px; display: flex; align-items: center; gap: 24px; }
 .brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 700; font-size: 19px; letter-spacing: -0.03em; color: var(--tx); } .brand:hover { text-decoration: none; }
 .brand svg { color: var(--accent); }
@@ -137,7 +139,7 @@ code, kbd, pre { font-family: var(--mono); }
 .sidebar ul { list-style: none; margin: 0; padding: 0; } .sidebar li a { display: block; padding: 5px 12px; margin: 1px 0; border-radius: 8px; color: var(--mut); font-size: 14.5px; }
 .sidebar li a:hover { color: var(--tx); text-decoration: none; } .sidebar li a[aria-current] { color: var(--accent-tx); background: var(--tint); box-shadow: inset 2px 0 var(--accent); font-weight: 500; }
 .side-sub summary { padding: 5px 12px; color: var(--mut); font-size: 14.5px; cursor: pointer; } .side-sub ul { padding-left: 12px; }
-.docs-bar { display: none; }
+.docs-bar { display: none; } .docs-scrim, .docs-close { display: none; }
 .article { padding: 48px 56px 96px; min-width: 0; }
 .plain-shell .article { padding: 56px 0 96px; }
 .article h1 { font-size: clamp(34px, 5vw, 52px); letter-spacing: -0.06em; line-height: 1.1; margin: 0 0 20px; }
@@ -191,12 +193,29 @@ code, kbd, pre { font-family: var(--mono); }
 .site-footer { margin-top: 96px; border-top: 1px solid var(--line); } .site-footer-in { max-width: var(--wide); margin: 0 auto; padding: 36px 40px 48px; display: grid; gap: 6px; } .site-footer p { margin: 0; font-size: 14px; color: var(--mut); } .site-footer .brand { margin-bottom: 8px; }
 .notfound { position: relative; text-align: center; padding: 96px 24px; } .notfound .orbits { top: 240px; } .notfound .big { font-size: 120px; font-weight: 700; letter-spacing: -0.06em; color: var(--accent-tx); margin: 0; line-height: 1; } .notfound h1 { font-size: 34px; letter-spacing: -0.04em; margin: 24px 0 8px; } .notfound .cta { margin: 32px 0 0; }
 
+@keyframes drawer-in { from { translate: -100% 0; } to { translate: 0 0; } }
+@keyframes drawer-in-rtl { from { translate: 100% 0; } to { translate: 0 0; } }
+/* The drawer opens from the inline start, which is the right edge in a right-to-left locale. */
+:root[dir='rtl'] .docs-shell > .sidebar[data-open] { animation-name: drawer-in-rtl; }
+
 @media (max-width: 1180px) { .docs-shell { grid-template-columns: 280px minmax(0, 1fr); } .toc { display: none; } }
 @media (max-width: 900px) {
+  /* The bar's height, so the drawer and the scrim can start below it and the bar stays on screen while it is open. */
+  :root { --docs-bar: 45px; }
   .site-header-in { padding: 0 20px; gap: 12px; } .site-nav { display: none; position: absolute; top: var(--header); left: 0; right: 0; background: var(--bg2); border-bottom: 1px solid var(--line); flex-direction: column; gap: 4px; padding: 12px 20px; margin: 0; } .site-nav.open { display: flex; }
+  /* The main menu drops out of the header, so the header has to paint above the docs bar and the drawer (44–46). */
+  .site-header { z-index: 47; }
   .menu-btn { display: inline-flex; } .site-actions { margin-left: auto; } .site-actions .btn, .site-actions .version { display: none; } .site-actions > a.chip-btn { display: none; }
-  .docs-shell { display: flex; flex-direction: column; } .docs-shell > .sidebar { display: none; order: 1; } .docs-shell > .article { order: 2; } .docs-bar { order: 0; display: block; width: 100%; text-align: left; border: 0; border-bottom: 1px solid var(--line); background: var(--panel); color: var(--mut); position: sticky; top: var(--header); z-index: 20; }
-  .docs-bar { padding: 14px 20px; font: 12.5px var(--mono); cursor: pointer; } .docs-shell > .sidebar[data-open] { display: block; position: static; height: auto; max-height: 60vh; max-height: 60dvh; border: 0; background: var(--bg2); padding: 8px 20px 24px; }
+  .docs-shell { display: flex; flex-direction: column; } .docs-shell > .sidebar { display: none; order: 1; } .docs-shell > .article { order: 2; }
+  /* Above the scrim and the drawer: the bar keeps naming the page while the drawer is open, and closes it when tapped. */
+  .docs-bar { order: 0; display: flex; align-items: center; gap: 8px; width: 100%; height: var(--docs-bar); padding: 0 20px; text-align: left; border: 0; border-bottom: 1px solid var(--line); background: var(--bg2); color: var(--mut); font: 12.5px var(--mono); cursor: pointer; position: sticky; top: var(--header); z-index: 46; }
+  .docs-bar[aria-expanded='true'] { background: var(--surface); color: var(--accent-tx); }
+  /* Opened, the sidebar leaves the flow and slides in over the page, so it shows wherever the reader has scrolled to. */
+  .docs-shell > .sidebar[data-open] { display: block; position: fixed; top: calc(var(--header) + var(--docs-bar)); inset-inline-start: 0; z-index: 45; width: min(320px, 86vw); height: calc(100vh - var(--header) - var(--docs-bar)); height: calc(100dvh - var(--header) - var(--docs-bar)); max-height: none; padding: 56px 20px calc(24px + env(safe-area-inset-bottom)); border: 0; border-inline-end: 1px solid var(--line); background: var(--bg2); overflow-y: auto; overscroll-behavior: contain; box-shadow: 0 24px 60px rgb(0 0 0 / 0.45); animation: drawer-in 160ms ease-out; }
+  .docs-scrim { display: block; position: fixed; inset: calc(var(--header) + var(--docs-bar)) 0 0; z-index: 44; background: rgb(0 0 0 / 0.5); }
+  /* The close button sits in the drawer's top corner: the inline end, so it is the right one in both reading directions. */
+  .docs-close { display: block; position: fixed; top: calc(var(--header) + var(--docs-bar) + 12px); inset-inline-start: calc(min(320px, 86vw) - 56px); z-index: 46; width: 44px; height: 44px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--mut); font: 15px var(--mono); cursor: pointer; }
+  .docs-close:hover { color: var(--tx); }
   .article { padding: 32px 20px 72px; } .hero { padding-top: 48px; } .hero h1 { letter-spacing: -0.05em; } .orbits { top: 640px; }
   .features, .faq, .agents { grid-template-columns: 1fr; } .agents { padding: 24px; gap: 24px; } .section { padding-top: 56px; }
   .fleet { grid-template-columns: 1fr; gap: 20px; padding: 24px; } .wire { display: none; } .fleet-node { width: 100%; }

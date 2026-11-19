@@ -121,4 +121,26 @@ test.describe('docs navigation (phone)', () => {
     await expect(side).toBeHidden()
     await expect(page.locator('aside.sidebar[data-open]')).toHaveCount(0)
   })
+
+  test('the keyboard stays in the drawer and comes back to the bar', async ({ page }) => {
+    await page.goto('/guide/quick-start')
+    await hydrated(page)
+    const bar = page.locator('button.docs-bar')
+    const close = page.getByRole('button', { name: 'Close documentation navigation' })
+    // Focus is read from the document rather than with the `:focus` selector, which also depends on the tab itself having
+    // the keyboard focus in the browser.
+    const drawerHasFocus = () =>
+      page.evaluate(() => !!document.querySelector('aside.sidebar')?.contains(document.activeElement))
+    await bar.click()
+    // Opening moves the keyboard into the drawer…
+    await expect.poll(drawerHasFocus).toBe(true)
+    // …Tab from the bar cannot reach the page behind the scrim, it lands on the drawer's close button…
+    await bar.focus()
+    await page.keyboard.press('Tab')
+    await expect(close).toBeFocused()
+    // …and Escape closes the drawer and hands the keyboard back to the bar.
+    await page.keyboard.press('Escape')
+    await expect(bar).toHaveAttribute('aria-expanded', 'false')
+    await expect(bar).toBeFocused()
+  })
 })
