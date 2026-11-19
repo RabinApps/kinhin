@@ -10,3 +10,5 @@ tsconfig.tsbuildinfo
 .e2e-results/
 playwright-report/
 .snapshots-out/
+# Static-export staging for release snapshots (scripts/build-snapshot.sh)
+.snapshots/
