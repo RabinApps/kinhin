@@ -6,7 +6,7 @@
 #                  scripts/warnings-check.sh
 #                  swift build -c release --product kinhin-app --product kinhin
 #                  swift test --build-system swiftbuild --parallel
-#   docs job     : bash scripts/changelog.sh check    (GitHub-hosted ubuntu runner)
+#   docs job     : bash scripts/changelog.sh check    (Blacksmith Ubuntu runner)
 #                  bash scripts/docs-lint.sh
 #                  bash scripts/docs-sync.sh --check
 #                  bash scripts/skills-lint.sh

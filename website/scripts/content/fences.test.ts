@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { outsideFences, stripVue } from './fences.ts'
+import { outsideCodeSpans, outsideFences, stripVue } from './fences.ts'
 
 const upper = (chunk: string): string => chunk.toUpperCase()
 
@@ -34,6 +34,17 @@ test('fences nested in any mix of quotes and list items are respected', () => {
     const md = [`${prefix}\`\`\`html`, `${pad}<script>alert(1)</script>`, `${pad}\`\`\``].join('\n')
     assert.equal(stripVue(md), md, prefix)
   }
+})
+
+test('inline code spans are left alone; a longer run inside one is text', () => {
+  assert.equal(outsideCodeSpans('before `[x](y.md)` after', upper), 'BEFORE `[x](y.md)` AFTER')
+  assert.equal(outsideCodeSpans('a ``b `c` d`` e', upper), 'A ``b `c` d`` E')
+})
+
+test('an unpaired backtick is literal text, not a span', () => {
+  assert.equal(outsideCodeSpans('a lone ` tick at the end', upper), 'A LONE ` TICK AT THE END')
+  // A span closes in its own paragraph: the stray run above does not swallow the next one.
+  assert.equal(outsideCodeSpans('a ` b\n\nc `d` e', upper), 'A ` B\n\nC `d` E')
 })
 
 test('stripVue removes script/style blocks outside fences only', () => {

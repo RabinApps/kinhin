@@ -16,7 +16,7 @@ How kinhin talks to GitLab CI, and how that compares with GitLab's current REST 
 
 ## Auth
 
-`PRIVATE-TOKEN: <token>` (`GitLabClient.swift:288`), matching GitLab's docs. `TokenRequirements.gitlab` asks for scopes `create_runner`, `manage_runner`, `read_api` (or `api`), and the Maintainer role on a project or Owner on a group.
+`PRIVATE-TOKEN: <token>` (`ForgeTransport.swift:143`), matching GitLab's docs. `TokenRequirements.gitlab` asks for scopes `create_runner`, `manage_runner`, `read_api` (or `api`), and the Maintainer role on a project or Owner on a group.
 
 GitLab's docs tie scopes to endpoints: `POST /user/runners` needs `create_runner`; runner deletion and updates need `manage_runner`.
 
@@ -24,24 +24,24 @@ GitLab's docs tie scopes to endpoints: `POST /user/runners` needs `create_runner
 
 | | We send | Documented (verified 2026-10-01) |
 |---|---|---|
-| Base | `{instance}/api/v4` (`GitLabClient.swift:275`) | `/api/v4` |
+| Base | `{instance}/api/v4` (`GitLabClient.swift:299`) | `/api/v4` |
 | Versioning | None | REST API v4 is semantically versioned. New features land in v4 without a minor version, and experimental or flag-gated elements can be removed without notice. |
 
-The server release decides what exists. The code requires **GitLab 16.0 or later** for runner creation (`GitLabModels.swift:142`) and reads `GET /version` to check (`GitLabClient.swift:210`). The docs page for `POST /user/runners` does not state which release introduced it, so the 16.0 floor comes from the code and was not re-verified here. The docs now reference GitLab 18.x and 19.x releases, so the API is moving on.
+The server release decides what exists. The code requires **GitLab 16.0 or later** for runner creation (`GitLabModels.swift:173`) and reads `GET /version` to check (`GitLabClient.swift:227`). The docs page for `POST /user/runners` does not state which release introduced it, so the 16.0 floor comes from the code and was not re-verified here. The docs now reference GitLab 18.x and 19.x releases, so the API is moving on.
 
 ## Endpoints used
 
 | Method | Path | Purpose | Code |
 |---|---|---|---|
-| GET | `/projects/{enc}`, then `/groups/{enc}` | Resolve scope, permission probe | `GitLabClient.swift:47,54` |
-| POST | `/user/runners` | Create a runner and receive its authentication token | `GitLabClient.swift:100` |
-| GET | `/projects/{id}/runners?type=project_type`, `/groups/{id}/runners?type=group_type` | List runners | `GitLabClient.swift:109,112` |
-| DELETE | `/runners/{id}` | Remove a runner | `GitLabClient.swift:117` |
-| GET | `/projects/{id}/jobs?scope[]=pending\|running&per_page=100` | Demand and running jobs | `GitLabClient.swift:158` |
-| GET | `/groups/{id}/projects?include_subgroups=true&archived=false&with_shared=false&simple=true&order_by=last_activity_at&last_activity_after=…` | Projects to poll for a group scope | `GitLabClient.swift:185` |
-| GET | `/projects?membership=true&min_access_level=40`, `/groups?min_access_level=50` | Pickers | `GitLabClient.swift:67,76` |
-| GET | `/personal_access_tokens/self` | Token scope check | `GitLabClient.swift:203` |
-| GET | `/version` | Minimum version check | `GitLabClient.swift:211` |
+| GET | `/projects/{enc}`, then `/groups/{enc}` | Resolve scope, permission probe | `GitLabClient.swift:50,57` |
+| POST | `/user/runners` | Create a runner and receive its authentication token | `GitLabClient.swift:103` |
+| GET | `/projects/{id}/runners?type=project_type`, `/groups/{id}/runners?type=group_type` | List runners | `GitLabClient.swift:112,115` |
+| DELETE | `/runners/{id}` | Remove a runner | `GitLabClient.swift:120` |
+| GET | `/projects/{id}/jobs?scope[]=pending\|running&per_page=100` | Demand and running jobs | `GitLabClient.swift:161` |
+| GET | `/groups/{id}/projects?include_subgroups=true&archived=false&with_shared=false&simple=true&order_by=last_activity_at&last_activity_after=…` | Projects to poll for a group scope | `GitLabClient.swift:188` |
+| GET | `/projects?membership=true&min_access_level=40`, `/groups?min_access_level=50` | Pickers | `GitLabClient.swift:70,79` |
+| GET | `/personal_access_tokens/self` | Token scope check | `GitLabClient.swift:208` |
+| GET | `/version` | Minimum version check | `GitLabClient.swift:228` |
 
 The `POST /user/runners` body is `{description, tag_list, run_untagged: false, runner_type: project_type|group_type, project_id|group_id}`. GitLab's docs list the same fields and add `instance_type`.
 
@@ -72,13 +72,13 @@ Output is the job trace, `GET /projects/{id}/jobs/{job}/trace` (live while the j
 
 ## Pagination, rate limits, retries
 
-- Offset pagination, following `X-Next-Page`, `per_page=100`, up to 50 pages (`GitLabClient.swift:245,272`). GitLab documents `per_page` max 100.
+- Offset pagination, following `X-Next-Page`, `per_page=100`, up to 50 pages (`GitLabClient.swift:269,296`). GitLab documents `per_page` max 100.
 - `withTransientRetry` on network errors, 429 and 5xx. `RateLimit-*` and `X-RateLimit-*` headers are parsed and kept as the account's rate-limit state; self-managed instances often send none.
 
 ## Self-hosted notes and minimum versions
 
 - Minimum GitLab 16.0 (enforced).
-- `instance` is the base URL; a path prefix is preserved (`GitLabClient.swift:273`).
+- `instance` is the base URL; a path prefix is preserved (`GitLabClient.swift:297`).
 - Self-managed instances can disable or rate-limit parts of the API; the client treats 403 and 404 on per-project reads as "skip and warn".
 
 ## Version sensitivity

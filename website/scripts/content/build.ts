@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url'
 import MiniSearch from 'minisearch'
 import { sidebar, siteDescription, siteURL, searchNextSteps, type SidebarItem } from '../../site.config.ts'
 import { outsideFences, stripVue } from './fences.ts'
-import { cleanSitePath, internalLinks, mapLinks, rawGithub, rewriteHref, type LinkContext } from './links.ts'
+import { cleanSitePath, internalLinks, mapLinks, rawGithub, resolveDocsLink, rewriteHref, splitLink, type LinkContext } from './links.ts'
 import { collect } from './routes.ts'
 import { hastJSON, shikiCss, toHast } from './render.ts'
 import { extractHeadings, firstParagraph, parseFrontmatter, plainText, type Heading2 } from './text.ts'
@@ -76,7 +76,11 @@ function htmlBody(src: string, body: string, errors: string[]): string {
   return mapLinks(
     prepare(body),
     (href) => {
-      let h = rewriteHref(href, src, ctx)
+      // A relative link in a docs/ page that names a file the checkout does not have: report it here, instead of
+      // rendering a relative URL that 404s (only the browser suite would notice, and only on pull requests).
+      const resolved = resolveDocsLink(href, src, ctx)
+      if (resolved.missing) errors.push(`${src}: dead link ${href} → no such file`)
+      let h = resolved.href
       if (!snapshot && h.startsWith(siteURL + '/')) h = h.slice(siteURL.length)
       if (!h.startsWith('/') || h.startsWith('//')) return h
       const [p, ...rest] = h.split(/(?=[#?])/)
@@ -111,11 +115,11 @@ function agentBody(src: string, body: string): string {
       // docs/ pages link to the site by absolute URL (https://kinhin.dev/<page>); an agent should be sent to the .md copy.
       if (h.startsWith(siteURL + '/')) h = h.slice(siteURL.length)
       if (/^[a-z][a-z0-9+.-]*:/i.test(h) || h.startsWith('#') || !h.startsWith('/')) return h
-      const [p, hash = ''] = h.split(/(?=#)/)
-      const clean = cleanSitePath(p)
-      if (clean === '/') return `${origins}/index.md${hash}`
+      const { pathname, suffix } = splitLink(h)
+      const clean = cleanSitePath(pathname)
+      if (clean === '/') return `${origins}/index.md${suffix}`
       // Only pages have a markdown copy; a link to a file (appcast.xml, launch.mp4, llms.txt) stays what it is.
-      return routeSet.has(clean) ? `${origins}${clean}.md${hash}` : `${siteURL}${clean}${hash}`
+      return routeSet.has(clean) ? `${origins}${clean}.md${suffix}` : `${siteURL}${clean}${suffix}`
     },
     (href) => {
       if (/^([a-z]+:|#)/i.test(href)) return href
@@ -315,15 +319,17 @@ for (const [from, to] of assetsCopied) {
   cpSync(from, to)
 }
 
-// Quality hints for search results (warnings, not failures): descriptions that are too short or shared, and long titles.
+// Content budgets, enforced like a dead link (warnings in a snapshot build): the search index and every result card
+// show the description, so it must be a real sentence and not be shared with another page. Blog post titles name
+// three release features at once and are long on purpose, so the <title> budget covers the guide pages only.
 {
   const seen = new Map<string, string>()
   for (const p of pages) {
     if (p.route === '') continue
-    if (p.description.length < 40) console.warn(`content: ${p.src}: description is short (${p.description.length} chars); search results show it`)
-    if (p.title.length > 70) console.warn(`content: ${p.src}: title is ${p.title.length} chars; <title> is cut near 60`)
+    if (p.description.length < 40) errors.push(`${p.src}: description is short (${p.description.length} chars); search results show it`)
+    if (!p.route.startsWith('blog/') && p.title.length > 70) errors.push(`${p.src}: title is ${p.title.length} chars; <title> is cut near 60`)
     const dup = seen.get(p.description)
-    if (dup) console.warn(`content: ${p.src} and ${dup} share a description`)
+    if (dup) errors.push(`${p.src} and ${dup} share a description`)
     seen.set(p.description, p.src)
   }
 }

@@ -6,7 +6,7 @@ import { MobileDocsToggle } from '../../components/MobileDocsToggle'
 import { Sidebar } from '../../components/Sidebar'
 import { PageActions } from '../../components/PageActions'
 import { Toc } from '../../components/Toc'
-import { getManifest, getPage, sidebarContext } from '../../lib/content'
+import { getManifest, getPage, sidebarContext, sidebarLinksInBuild } from '../../lib/content'
 import { JsonLd } from '../../components/JsonLd'
 import { renderHast } from '../../lib/hast'
 import { DOCS_VERSION, articleLd, breadcrumbs, canonical, metaDescription, metaTitle, ogImage, pageTitle } from '../../lib/seo'
@@ -57,7 +57,7 @@ export default async function Page({ params }: Props) {
   return (
     <div className={docs ? 'docs-shell' : 'plain-shell'}>
       {docs && <MobileDocsToggle title={meta.title} />}
-      {docs && <Sidebar />}
+      {docs && <Sidebar available={DOCS_VERSION ? sidebarLinksInBuild() : undefined} />}
       <JsonLd data={[articleLd(meta, pageTitle(meta), metaDescription(meta.description)), breadcrumbs(meta, pageTitle(meta))]} />
       <article className="article">
         <nav className="kicker" aria-label="Breadcrumb">

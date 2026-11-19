@@ -18,7 +18,7 @@ How kinhin talks to Azure Pipelines agent pools, and how that compares with Micr
 
 ## Auth
 
-HTTP Basic with an empty user name and the PAT as the password: `Authorization: Basic base64(":" + PAT)` (`AzureDevOpsClient.swift:136`). A rejected PAT can come back as a `203`, an HTML sign-in page, or a redirect to the sign-in host (which the session refuses to follow, so the 3xx itself arrives); the client treats all three as unauthorized (`AzureDevOpsClient.rejectSignInPage`). `TokenRequirements.azureDevOps` lists the permission (Agent Pools read and manage).
+HTTP Basic with an empty username and the PAT as the password: `Authorization: Basic base64(":" + PAT)` (`ForgeTransport.swift:146`). A rejected PAT can come back as a `203`, an HTML sign-in page, or a redirect to the sign-in host (which the session refuses to follow, so the 3xx itself arrives); the client treats all three as unauthorized (`AzureDevOpsClient.rejectSignInPage`). `TokenRequirements.azureDevOps` lists the permission (Agent Pools read and manage).
 
 Microsoft's OAuth scopes line up: `vso.agentpools` for reading pools, agents and job state, `vso.agentpools_manage` for deleting agents.
 
@@ -26,7 +26,7 @@ Microsoft's OAuth scopes line up: `vso.agentpools` for reading pools, agents and
 
 | | We send | Documented (verified 2026-10-01) |
 |---|---|---|
-| Version | `api-version=7.0` on every URL (`AzureDevOpsClient.swift:15,112`) | The version **must** be sent on every request. |
+| Version | `api-version=7.0` on every URL (`AzureDevOpsClient.swift:15,119`) | The version **must** be sent on every request. |
 | Current | n/a | 7.1 is the stable reference version in the docs; 7.2 reference pages also exist. |
 
 Which products accept which version (Microsoft's REST API versioning page):

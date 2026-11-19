@@ -40,8 +40,9 @@ jobs:
       (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success')
       && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     # Deploys run on kinhin's own Apple-container pool (`kinhin-container` is its exclusive marker). Pull requests
-    # build on a GitHub-hosted runner instead, so no PR code ever reaches that pool or the Cloudflare secrets.
-    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || 'kinhin-container' }}
+    # build on a pooled Blacksmith runner instead, so no PR code ever reaches that pool or the Cloudflare secrets.
+    # 8 vCPU / 160 GB: a pull request builds the current site and every release snapshot, then serves both to Playwright.
+    runs-on: ${{ github.event_name == 'pull_request' && 'blacksmith-8vcpu-ubuntu-2404' || 'kinhin-container' }}
     steps:
       - name: Check toolchain
         # The per-tag worktrees need git (Node comes from setup-node below). Fail with the fix instead of
@@ -143,6 +144,15 @@ jobs:
 
       # The browser suite (website/e2e): runs on pull requests, on a GitHub-hosted runner that can install Chromium; the
       # deploy image does not carry one. It serves the same Worker the smoke test just checked (and reuses it if one is still up).
+      # Blacksmith's colocated cache backs actions/cache automatically: this keeps the ~170 MB Chromium build
+      # out of the PR path after the first run. Keyed on the lockfile, so a Playwright bump downloads it again.
+      - name: Cache Playwright browsers
+        if: github.event_name == 'pull_request'
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('website/package-lock.json') }}
+
       - name: Install Chromium for the end-to-end tests
         if: github.event_name == 'pull_request'
         working-directory: website
@@ -201,3 +211,57 @@ jobs:
             [ "$authed" = 200 ] || { echo "::error::dev.kinhin.dev answered the service token with $authed"; exit 1; }
             echo "service token: 200"
           fi
+
+  # The browser suite (website/e2e) also runs on every `develop` push, on a GitHub-hosted runner: the deploy pool has no
+  # Chromium, and a link only a component generates should fail here rather than be found on dev.kinhin.dev. Pull
+  # requests run it inside the `site` job above, against the Worker that job already built.
+  e2e:
+    if: github.event_name == 'push' && github.ref_name == 'develop'
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # release snapshots are built from tags
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: website/.nvmrc
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+
+      - name: Install dependencies
+        working-directory: website
+        run: npm ci
+
+      # Blacksmith's colocated cache backs actions/cache automatically: this keeps the ~170 MB Chromium build
+      # out of the `develop` path after the first run, keyed on the lockfile so a Playwright bump refreshes it.
+      - name: Cache Playwright browsers
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('website/package-lock.json') }}
+
+      - name: Install Chromium
+        working-directory: website
+        run: npx playwright install --with-deps chromium
+
+      - name: Build the site
+        working-directory: website
+        env:
+          SNAPSHOT_STRICT: "1"
+          GITHUB_TOKEN: ${{ github.token }} # the star count is read at build time; the anonymous API limit is easy to hit on a shared runner
+        run: scripts/build-site.sh
+
+      - name: End-to-end tests (Playwright)
+        working-directory: website
+        run: npm run e2e
+
+      - name: Upload the Playwright report
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-report-develop
+          path: |
+            website/playwright-report
+            website/.e2e-results
+          retention-days: 7
