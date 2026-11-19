@@ -92,12 +92,12 @@ jobs:
           # Registers the arm64 emulator for buildx. The image is tonistiigi/binfmt (a typo, tonistiiq, made the pull fail);
           # pinned by digest because this container runs --privileged.
           docker run --privileged --rm tonistiigi/binfmt:qemu-v10.2.3@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0 --install arm64
-          # The handler must reach the host kernel; if binfmt_misc is not mounted on the host it only exists inside that
-          # container, and the arm64 RUN steps in video/Dockerfile fail with "exec format error" later.
-          if [ ! -e /proc/sys/fs/binfmt_misc/qemu-aarch64 ]; then
-            echo "qemu-aarch64 binfmt handler is missing on the host" >&2
-            exit 1
-          fi
+          # The handler has to reach the kernel the daemon builds on. --install reports OK either way, and the runner's
+          # job container does not mount /proc/sys/fs/binfmt_misc, so looking for the handler there says nothing (it
+          # reported "installing: arm64 OK" and still failed that check on the 8-core pool). Run an arm64 binary
+          # instead: without the handler every arm64 RUN step in video/Dockerfile dies with "exec format error", much
+          # later and mid-build.
+          docker run --rm --platform linux/arm64 alpine:3 true
           docker buildx create --name kinhin-video --driver docker-container --use
 
       - name: Sign in to ghcr.io
