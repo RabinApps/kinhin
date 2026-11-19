@@ -52,7 +52,7 @@ No output is shown: there is no stable public log endpoint across Gitea and Forg
 
 - Registration mode `sharedLongLived`, exit semantics `idleGrace` (`GiteaForge.swift`).
 - The token is fetched once in `GiteaForge.make` and reused by every runner.
-- Runner start: `gitea-runner register --no-interactive --token --labels`, then `gitea-runner daemon` (`RunnerBootstrap+Linux.swift:179,184`). The binary comes from gitea.com releases (`RunnerBootstrap+Verification.swift:62`).
+- Runner start: `gitea-runner register --no-interactive --token --labels`, then `gitea-runner daemon` (`RunnerBootstrap+Linux.swift:223,228`). The binary comes from gitea.com releases (`RunnerBootstrap+Verification.swift:62`).
 
 ## Demand and label matching
 
