@@ -100,6 +100,12 @@ test('fenced code keeps its links; images go through the image mapper', () => {
   assert.match(out, /!\[shot\]\(\/_docs\/shot\.png\)/)
 })
 
+test('a link shown in inline code is an example, not a link the page has', () => {
+  const md = 'Show `[example](missing.md)` then [page](/guide/x.html).'
+  assert.equal(mapLinks(md, cleanSitePath), 'Show `[example](missing.md)` then [page](/guide/x).')
+  assert.deepEqual(internalLinks('`[a](/guide/x)` [b](/guide/y)'), ['/guide/y'])
+})
+
 test('internalLinks keeps only site-absolute targets', () => {
   assert.deepEqual(internalLinks('[a](/guide/x) [b](https://example.com) [c](#top) [d](/guide/y#z)'), ['/guide/x', '/guide/y#z'])
 })

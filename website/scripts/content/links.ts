@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs'
 import path from 'node:path'
-import { outsideFences } from './fences.ts'
+import { outsideCodeSpans, outsideFences } from './fences.ts'
 
 /**
  * `docs/` pages are written for GitHub: links are relative to the file and point at the README and at
@@ -89,15 +89,20 @@ export function cleanSitePath(pathname: string): string {
 
 const LINK = /(!\[[^\]]*\]\([^)\s]*\))|(\]\()([^)\s]+)(\))/g
 
-/** Applies `fn` to every markdown link target outside code fences; image targets go through `img`. */
+/**
+ * Applies `fn` to every markdown link target outside code fences and inline code spans; image targets go through
+ * `img`. A link written inside a code span is an example the page shows, not a link the page has.
+ */
 export function mapLinks(
   md: string,
   fn: (href: string) => string,
   img: (href: string) => string = (h) => h,
 ): string {
   return outsideFences(md, (chunk) =>
-    chunk.replace(LINK, (_m, image: string | undefined, open: string, href: string, close: string) =>
-      image ? image.replace(/\(([^)\s]*)\)$/, (_x, h: string) => `(${img(h)})`) : open + fn(href) + close,
+    outsideCodeSpans(chunk, (text) =>
+      text.replace(LINK, (_m, image: string | undefined, open: string, href: string, close: string) =>
+        image ? image.replace(/\(([^)\s]*)\)$/, (_x, h: string) => `(${img(h)})`) : open + fn(href) + close,
+      ),
     ),
   )
 }
