@@ -251,6 +251,9 @@ One-time setup (needs a Cloudflare account with Zero Trust enabled and a team do
    Providers and Groups Read**, plus the Workers and zone permissions the deploy needs (**Workers Scripts: Edit**, **Workers Routes: Edit**,
    **Zone: Read**, **Zone: DNS Edit** for the `kinhin.dev` zone). Put it and the account id in the repository secrets
    `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
+   Check them before the first deploy: `CLOUDFLARE_API_TOKEN=… CLOUDFLARE_ACCOUNT_ID=… node website/scripts/check-cloudflare.mjs` (read-only: token valid,
+   account reachable, zone on that account, Workers and DNS permissions, and any DNS record that would block attaching a custom domain), or run
+   the manual **Cloudflare check** workflow, which does the same with the repository secrets.
 2. Create the Access application, the policy for your team and a service token for CI:
    ```sh
    cd website
