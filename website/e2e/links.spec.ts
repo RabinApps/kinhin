@@ -18,7 +18,9 @@ test('every internal link, image and asset on every page resolves', async ({ req
     expect(html, `${from}: no leftover .html links to this site`).not.toMatch(/href="(?:https:\/\/kinhin\.dev)?\/[^"]*\.html[#"]/)
     for (const [, raw] of html.matchAll(/(?:href|src)="([^"#]*)(#[^"]*)?"/g)) {
       let path = raw
-      if (path.startsWith(origin)) path = path.slice(origin.length)
+      // Only our own origin counts: `https://kinhin.dev.evil.example/` must not be treated as ours.
+      if (path === origin) path = '/'
+      else if (path.startsWith(`${origin}/`)) path = path.slice(origin.length)
       if (!path.startsWith('/') || path.startsWith('//')) continue
       // The Sparkle feed is fetched from the latest release by CI at deploy time; a local build may not have it.
       if (path === '/appcast.xml' && !hasPublic('appcast.xml')) continue

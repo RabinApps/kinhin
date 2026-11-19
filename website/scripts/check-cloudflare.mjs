@@ -42,7 +42,7 @@ async function main() {
   }
   if (!token) return say('fail', 'CLOUDFLARE_API_TOKEN is not set (in CI: the repository secret of that exact name)'), process.exit(1)
   if (!account) say('fail', 'CLOUDFLARE_ACCOUNT_ID is not set (in CI: the repository secret of that exact name)')
-  else if (!/^[0-9a-f]{32}$/i.test(account)) say('fail', `CLOUDFLARE_ACCOUNT_ID should be 32 hexadecimal characters; it has ${account.length} (stray spaces or a newline? it is not the account name)`)
+  else if (!/^[0-9a-f]{32}$/i.test(account)) say('fail', 'CLOUDFLARE_ACCOUNT_ID should be 32 hexadecimal characters (stray spaces or a newline? it is the account id, not the account name)')
 
   const call = async (path) => {
     const res = await fetch(`https://api.cloudflare.com/client/v4${path}`, { headers: { authorization: `Bearer ${token}` } })
