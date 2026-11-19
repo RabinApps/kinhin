@@ -29,6 +29,31 @@ export function MobileDocsToggle({ title }: { title: string }) {
   }
   useEffect(() => paint(false), [path])
 
+  // Choosing the page the reader is already on navigates nowhere, so the effect above does not fire: the link itself closes
+  // the drawer. A close the reader asked for puts the keyboard back on the bar.
+  useEffect(() => {
+    if (!open) return
+    const el = document.getElementById('docs-sidebar')
+    const onClick = (e: MouseEvent) => {
+      const link = e.target instanceof Element ? e.target.closest('a[href]') : null
+      if (link?.getAttribute('aria-current') === 'page') close()
+    }
+    el?.addEventListener('click', onClick)
+    return () => el?.removeEventListener('click', onClick)
+  }, [open])
+
+  // The drawer is the phone layout: leaving the breakpoint (a rotation, a resized window) hides its controls in CSS, and an
+  // open flag left behind would keep the page locked with no way out. Closing it also releases the listeners below.
+  useEffect(() => {
+    if (!open) return
+    const phone = matchMedia('(max-width: 900px)')
+    const onChange = () => {
+      if (!phone.matches) paint(false)
+    }
+    phone.addEventListener('change', onChange)
+    return () => phone.removeEventListener('change', onChange)
+  }, [open])
+
   // While the drawer is open the page behind it must not scroll, Escape must close it, and Tab must not reach the page
   // (the article and the header are still in the document under the scrim). Scrolling is stopped at the input rather than
   // with overflow, which would take the sticky header and docs bar out of their place.
@@ -51,6 +76,9 @@ export function MobileDocsToggle({ title }: { title: string }) {
     }
     const scrollKeys = new Set(['PageDown', 'PageUp', 'Home', 'End', 'ArrowDown', 'ArrowUp', ' '])
     const onKey = (e: KeyboardEvent) => {
+      // The search palette opens over the drawer (Cmd/Ctrl+K, or the header's button) and owns the keyboard while it is up:
+      // a space in the query, Home/End in its input and its own Tab are not the drawer's to cancel or redirect.
+      if (e.target instanceof Element && e.target.closest('[role="dialog"][aria-modal="true"]')) return
       if (e.key === 'Escape') {
         e.preventDefault()
         close()
@@ -74,7 +102,8 @@ export function MobileDocsToggle({ title }: { title: string }) {
         }
         return
       }
-      if (scrollKeys.has(e.key) && outside(e.target)) e.preventDefault()
+      // The close button is outside the sidebar but part of the drawer, and Space is how a button is pressed.
+      if (scrollKeys.has(e.key) && outside(e.target) && e.target !== closeButton.current) e.preventDefault()
     }
     // Opening lands on the page the reader is on, so they know where they are; the close button is the fallback.
     const current = el?.querySelector<HTMLElement>('a[aria-current="page"]')
