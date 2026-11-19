@@ -18,7 +18,7 @@ How kinhin talks to Buildkite, and how that compares with Buildkite's current RE
 
 ## Auth
 
-`Authorization: Bearer <token>` (`BuildkiteClient.swift:237`). The token is a REST API access token. `BuildkiteModels.swift:41` requires these scopes and `BuildkiteClient.swift:42` checks them against `GET /v2/access-token`:
+`Authorization: Bearer <token>` (`ForgeTransport.swift:142`). The token is a REST API access token. `BuildkiteModels.swift:41` requires these scopes and `BuildkiteClient.swift:42` checks them against `GET /v2/access-token`:
 
 `read_agents`, `write_agents`, `read_builds`, `read_clusters`, `write_clusters`
 

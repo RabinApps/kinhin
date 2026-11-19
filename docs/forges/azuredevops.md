@@ -18,7 +18,7 @@ How kinhin talks to Azure Pipelines agent pools, and how that compares with Micr
 
 ## Auth
 
-HTTP Basic with an empty user name and the PAT as the password: `Authorization: Basic base64(":" + PAT)` (`AzureDevOpsClient.swift:143`). A rejected PAT can come back as a `203`, an HTML sign-in page, or a redirect to the sign-in host (which the session refuses to follow, so the 3xx itself arrives); the client treats all three as unauthorized (`AzureDevOpsClient.rejectSignInPage`). `TokenRequirements.azureDevOps` lists the permission (Agent Pools read and manage).
+HTTP Basic with an empty username and the PAT as the password: `Authorization: Basic base64(":" + PAT)` (`ForgeTransport.swift:146`). A rejected PAT can come back as a `203`, an HTML sign-in page, or a redirect to the sign-in host (which the session refuses to follow, so the 3xx itself arrives); the client treats all three as unauthorized (`AzureDevOpsClient.rejectSignInPage`). `TokenRequirements.azureDevOps` lists the permission (Agent Pools read and manage).
 
 Microsoft's OAuth scopes line up: `vso.agentpools` for reading pools, agents and job state, `vso.agentpools_manage` for deleting agents.
 

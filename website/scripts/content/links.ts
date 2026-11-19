@@ -30,19 +30,41 @@ export interface ResolvedLink {
   missing: boolean
 }
 
+/** Splits a relative link into the repo path to look up and the `?query#anchor` to put back on the result. */
+function splitLink(href: string): { pathname: string; suffix: string } {
+  const hashAt = href.indexOf('#')
+  const beforeAnchor = hashAt === -1 ? href : href.slice(0, hashAt)
+  const anchor = hashAt === -1 ? '' : href.slice(hashAt)
+  const queryAt = beforeAnchor.indexOf('?')
+  const pathname = queryAt === -1 ? beforeAnchor : beforeAnchor.slice(0, queryAt)
+  return { pathname, suffix: (queryAt === -1 ? '' : beforeAnchor.slice(queryAt)) + anchor }
+}
+
+/** Decodes each percent-encoded path segment the way a browser would; a malformed escape stays literal instead of throwing. */
+function decodePathname(pathname: string): string {
+  try {
+    return pathname.split('/').map(decodeURIComponent).join('/')
+  } catch {
+    return pathname
+  }
+}
+
 /**
  * Resolves a relative link in a docs/ page: site path, GitHub URL, or unchanged. `missing` is true when a relative
  * link points at a file that is not in the checkout — without it the link would be passed through and 404 on the site.
+ * Query strings and fragments are not part of the file being looked up, and are preserved on the resolved href.
  */
 export function resolveDocsLink(href: string, src: string, ctx: LinkContext): ResolvedLink {
   if (!src.startsWith('docs/') || external.test(href) || href.startsWith('/')) return { href, missing: false }
-  const [file, anchor] = href.split('#')
-  const target = path.posix.normalize(path.posix.join(path.posix.dirname(src), file))
-  const hash = anchor ? `#${anchor}` : ''
+  const { pathname, suffix } = splitLink(href)
+  const target = path.posix.normalize(path.posix.join(path.posix.dirname(src), decodePathname(pathname)))
   if (target === 'README.md') return { href: '/', missing: false }
   const route = ctx.routes.get(target)
-  if (route !== undefined && existsSync(path.join(ctx.root, target))) return { href: '/' + route + hash, missing: false }
-  if (existsSync(path.join(ctx.root, target))) return { href: `${repo}/blob/${ctx.ref}/${target}${hash}`, missing: false }
+  if (route !== undefined && existsSync(path.join(ctx.root, target))) return { href: '/' + route + suffix, missing: false }
+  if (existsSync(path.join(ctx.root, target))) {
+    const encoded = target.split('/').map(encodeURIComponent).join('/')
+    return { href: `${repo}/blob/${ctx.ref}/${encoded}${suffix}`, missing: false }
+  }
   return { href, missing: true }
 }
 

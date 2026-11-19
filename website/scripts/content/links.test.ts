@@ -22,6 +22,28 @@ test('a docs/ link to a published page becomes its site route, anchor kept', (t)
   assert.equal(rewriteHref('why.md', 'docs/scaling.md', ctx), '/guide/why-kinhin')
 })
 
+test('a query string is not part of the file lookup and survives the rewrite', (t) => {
+  const ctx = fixture(t, ['docs/why.md'])
+  assert.deepEqual(resolveDocsLink('why.md?plain=1', 'docs/scaling.md', ctx), {
+    href: '/guide/why-kinhin?plain=1',
+    missing: false,
+  })
+  assert.deepEqual(resolveDocsLink('why.md?plain=1#why-kinhin', 'docs/scaling.md', ctx), {
+    href: '/guide/why-kinhin?plain=1#why-kinhin',
+    missing: false,
+  })
+})
+
+test('a percent-encoded path resolves to the file it names; a malformed escape does not throw', (t) => {
+  const ctx = fixture(t, ['docs/why.md', 'docs/adding-a-forge.md'])
+  assert.deepEqual(resolveDocsLink('why%2Emd', 'docs/scaling.md', ctx), { href: '/guide/why-kinhin', missing: false })
+  assert.equal(
+    rewriteHref('adding%2Da-forge.md#step-1', 'docs/why.md', ctx),
+    'https://github.com/RabinApps/kinhin/blob/main/docs/adding-a-forge.md#step-1',
+  )
+  assert.equal(resolveDocsLink('why%ZZ.md', 'docs/scaling.md', ctx).missing, true)
+})
+
 test('a docs/ link to the README becomes the home page', (t) => {
   const ctx = fixture(t, ['README.md'])
   assert.equal(rewriteHref('../README.md#install', 'docs/why.md', ctx), '/')

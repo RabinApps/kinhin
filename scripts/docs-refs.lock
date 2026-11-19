@@ -1,5 +1,4 @@
 docs/forges/azuredevops.mdAzureDevOpsClient.swift119let (data, _) = try await send("GET", "/\(project)/_apis/build/builds/\(buildID)")
-docs/forges/azuredevops.mdAzureDevOpsClient.swift143throw AzureDevOpsError.invalidInstance(credentials.instance)
 docs/forges/azuredevops.mdAzureDevOpsClient.swift15static let apiVersion = "7.0"
 docs/forges/azuredevops.mdAzureDevOpsClient.swift33func resolvePool() async throws -> AzureDevOpsPool {
 docs/forges/azuredevops.mdAzureDevOpsClient.swift40return pool
@@ -9,6 +8,7 @@ docs/forges/azuredevops.mdAzureDevOpsClient.swift70func listAgentsWithCapabil
 docs/forges/azuredevops.mdAzureDevOpsClient.swift82Log.info("azuredevops", "agent \(id) is already gone from pool \(pool.name)")
 docs/forges/azuredevops.mdAzureDevOpsForge.swift32let registration: ForgeRegistration = .sharedLongLived
 docs/forges/azuredevops.mdAzureDevOpsForge.swift33let exitSemantics: ForgeExitSemantics = .deregisters
+docs/forges/azuredevops.mdForgeTransport.swift146return ("Authorization", "Basic \(Data(":\(token)".utf8).base64EncodedString())")
 docs/forges/bitbucket.mdBitbucketClient.swift112/// to their steps (they lead the newest-first list, so one page per repo
 docs/forges/bitbucket.mdBitbucketClient.swift114/// passes; repository scopes poll their one repo.
 docs/forges/bitbucket.mdBitbucketClient.swift122/// "workspace/repo" the pipeline was read from.
@@ -33,7 +33,6 @@ docs/forges/buildkite.mdBuildkiteClient.swift17/// Pages read per list (100 i
 docs/forges/buildkite.mdBuildkiteClient.swift174struct Log: Decodable { let content: String? }
 docs/forges/buildkite.mdBuildkiteClient.swift185static func encodePathSegment(_ segment: String) -> String {
 docs/forges/buildkite.mdBuildkiteClient.swift203// The token rides on every page request: a `next` link is only
-docs/forges/buildkite.mdBuildkiteClient.swift237}
 docs/forges/buildkite.mdBuildkiteClient.swift32/// The scopes of the API access token in use.
 docs/forges/buildkite.mdBuildkiteClient.swift42func verifyScopes() async throws {
 docs/forges/buildkite.mdBuildkiteClient.swift50/// The organization's clusters.
@@ -44,6 +43,7 @@ docs/forges/buildkite.mdBuildkiteForge.swift203id: job.id, name: job.name ?? 
 docs/forges/buildkite.mdBuildkiteForge.swift30let registration: ForgeRegistration = .sharedLongLived
 docs/forges/buildkite.mdBuildkiteForge.swift31let exitSemantics: ForgeExitSemantics = .deregisters
 docs/forges/buildkite.mdBuildkiteModels.swift41static let requiredScopes = ["read_agents", "write_agents", "read_builds", "read_clusters", "write_clusters"]
+docs/forges/buildkite.mdForgeTransport.swift142case .bearer(let token): return ("Authorization", "Bearer \(token)")
 docs/forges/buildkite.mdRunnerBootstrap+Buildkite.swift91(umask 077 && printf '%s' \(shellQuote(token)) > token)
 docs/forges/gitea.mdGiteaClient.swift169// Shape probe: the wrapped decode throws on the bare-array
 docs/forges/gitea.mdGiteaClient.swift184})
@@ -60,15 +60,16 @@ docs/forges/gitea.mdRunnerBootstrap+Verification.swift62let url = "https://gi
 docs/forges/github.mdGitHubClient+Runs.swift152/// `steps[]`, so this costs no request beyond the runs/jobs reads the
 docs/forges/github.mdGitHubClient+Runs.swift154public func pipelineDetail(runnerName: String) async throws -> PipelineDetail? {
 docs/forges/github.mdGitHubClient.swift163let req = try request(method: "POST", path: "\(credentials.actionsBase)/runners/registration-token")
-docs/forges/github.mdGitHubClient.swift166let decoded = try JSONDecoder.registrationDate.decode(RegistrationTokenResponse.self, from: data)
 docs/forges/github.mdGitHubClient.swift249if page >= max(totalPages, 1) || decoded.runners.isEmpty { break }
 docs/forges/github.mdGitHubClient.swift267}
 docs/forges/github.mdGitHubClient.swift280public func queuedJobs(matching labels: Set<String>) async throws -> [QueuedJob] {
 docs/forges/github.mdGitHubClient.swift285let perRun = try await boundedMap(runs, limit: maxConcurrentReads) { run in
 docs/forges/github.mdGitHubClient.swift327}
 docs/forges/github.mdGitHubClient.swift359try await withThrowingTaskGroup(of: Bool.self) { group in
+docs/forges/github.mdGitHubCredentials.swift104request.setValue(version, forHTTPHeaderField: "X-GitHub-Api-Version")
 docs/forges/github.mdRunnerBootstrap+Linux.swift168mkdir -p "\(dir)"
 docs/forges/github.mdRunnerBootstrap+Linux.swift184
+docs/forges/gitlab.mdForgeTransport.swift143case .privateToken(let token): return ("PRIVATE-TOKEN", token)
 docs/forges/gitlab.mdGitLabClient.swift103switch scope {
 docs/forges/gitlab.mdGitLabClient.swift112let (data, _) = try await send("POST", "/user/runners", body: json)
 docs/forges/gitlab.mdGitLabClient.swift115
@@ -82,7 +83,6 @@ docs/forges/gitlab.mdGitLabClient.swift269case .group(let id, _):
 docs/forges/gitlab.mdGitLabClient.swift296let (data, _) = try await send("GET", "/personal_access_tokens/self")
 docs/forges/gitlab.mdGitLabClient.swift297struct Info: Decodable { let scopes: [String] }
 docs/forges/gitlab.mdGitLabClient.swift299return info.scopes
-docs/forges/gitlab.mdGitLabClient.swift312/// `grp/sub/proj` → `grp%2Fsub%2Fproj`, the id form GitLab accepts.
 docs/forges/gitlab.mdGitLabClient.swift50}
 docs/forges/gitlab.mdGitLabClient.swift57let encoded = Self.encodePathSegment(credentials.scope)
 docs/forges/gitlab.mdGitLabClient.swift70} catch ForgeAPIError.notFound {

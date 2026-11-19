@@ -16,7 +16,7 @@ How kinhin talks to GitLab CI, and how that compares with GitLab's current REST 
 
 ## Auth
 
-`PRIVATE-TOKEN: <token>` (`GitLabClient.swift:312`), matching GitLab's docs. `TokenRequirements.gitlab` asks for scopes `create_runner`, `manage_runner`, `read_api` (or `api`), and the Maintainer role on a project or Owner on a group.
+`PRIVATE-TOKEN: <token>` (`ForgeTransport.swift:143`), matching GitLab's docs. `TokenRequirements.gitlab` asks for scopes `create_runner`, `manage_runner`, `read_api` (or `api`), and the Maintainer role on a project or Owner on a group.
 
 GitLab's docs tie scopes to endpoints: `POST /user/runners` needs `create_runner`; runner deletion and updates need `manage_runner`.
 
