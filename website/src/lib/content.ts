@@ -51,10 +51,22 @@ export function getMarkdown(route: string): string | undefined {
 
 export const readGenerated = (name: string): string => fs.readFileSync(path.join(dir, name), 'utf8')
 
+/**
+ * Links in site.config's sidebar that have a page in this build. A release snapshot is built from an old tag, so it lacks
+ * every page added since; the navigation must not offer them (they 404 under the snapshot's base path).
+ */
+export function sidebarLinksInBuild(): string[] {
+  const routes = new Set(getManifest().pages.map((p) => '/' + p.route))
+  return flattenSidebar()
+    .map((l) => l.link)
+    .filter((link) => routes.has(link))
+}
+
 /** Title of the sidebar group holding `link`, and the neighbours in reading order. */
 export function sidebarContext(route: string): { group?: string; prev?: { text: string; link: string }; next?: { text: string; link: string } } {
   const link = '/' + route
-  const flat = flattenSidebar()
+  const routes = new Set(sidebarLinksInBuild())
+  const flat = flattenSidebar().filter((l) => routes.has(l.link))
   const i = flat.findIndex((l) => l.link === link)
   const group = sidebar.find((g) => contains(g, link))?.text
   return { group, prev: i > 0 ? flat[i - 1] : undefined, next: i >= 0 && i < flat.length - 1 ? flat[i + 1] : undefined }
