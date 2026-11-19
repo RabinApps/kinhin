@@ -1,5 +1,6 @@
 import openNext from './.open-next/worker.js'
 import versions from './versions.json'
+import { accessToken, fetchAccessKeys, verifyAccessJwt } from './src/lib/access'
 import { prefersMarkdown } from './src/lib/accept'
 import { isSnapshotPath, markdownRewrite } from './src/lib/route'
 
@@ -11,10 +12,50 @@ import { isSnapshotPath, markdownRewrite } from './src/lib/route'
  */
 interface Env {
   ASSETS: { fetch(request: Request): Promise<Response> }
+  /** `dev` on dev.kinhin.dev: every response the Worker serves is `noindex, nofollow`. */
+  SITE_ENV?: string
+  /** `true` on dev: requests must carry a valid Cloudflare Access token (checked again here, whatever Access at the edge did). */
+  REQUIRE_ACCESS?: string
+  ACCESS_TEAM_DOMAIN?: string
+  ACCESS_AUD?: string
+}
+
+const forbidden = () => new Response('Forbidden', { status: 403, headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' } })
+
+/**
+ * dev.kinhin.dev is behind Cloudflare Access, which stops anonymous visitors at the edge. This second check keeps the pages the
+ * Worker serves closed even if the Access application is removed, disabled or attached to the wrong hostname. (Static files
+ * that the assets layer serves without running the Worker, such as /_next/static, rely on Access at the edge alone.)
+ * It fails closed: Access required but not configured is a 503, never an open site.
+ */
+async function guard(request: Request, env: Env): Promise<Response | null> {
+  if (env.REQUIRE_ACCESS !== 'true') return null
+  if (!env.ACCESS_TEAM_DOMAIN || !env.ACCESS_AUD) return new Response('Access is required but not configured', { status: 503, headers: { 'cache-control': 'no-store' } })
+  const teamDomain = env.ACCESS_TEAM_DOMAIN
+  try {
+    const result = await verifyAccessJwt(accessToken(request.headers), { teamDomain, aud: env.ACCESS_AUD }, (refresh) => fetchAccessKeys(teamDomain, refresh))
+    return result.ok ? null : forbidden()
+  } catch {
+    return forbidden() // the key set could not be fetched: refuse rather than let the request through
+  }
 }
 
 export default {
   async fetch(request: Request, env: Env, ctx: unknown): Promise<Response> {
+    const denied = await guard(request, env)
+    if (denied) return denied
+    if (env.SITE_ENV === 'dev') {
+      const res = await route(request, env, ctx)
+      const out = new Response(res.body, res)
+      out.headers.set('x-robots-tag', 'noindex, nofollow')
+      return out
+    }
+    return route(request, env, ctx)
+  },
+}
+
+async function route(request: Request, env: Env, ctx: unknown): Promise<Response> {
+  {
     const url = new URL(request.url)
     if (!isSnapshotPath(url.pathname, versions)) return (openNext as { fetch: (r: Request, e: Env, c: unknown) => Promise<Response> }).fetch(request, env, ctx)
     const wantsMarkdown = !/\.[a-z0-9]+$/i.test(url.pathname) && prefersMarkdown(request.headers.get('accept'))
@@ -43,5 +84,5 @@ export default {
     const out = new Response(res.body, res)
     if (!isFile) out.headers.append('vary', 'Accept')
     return out
-  },
+  }
 }

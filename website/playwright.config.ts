@@ -14,9 +14,14 @@ const external = process.env.E2E_BASE_URL
 const port = Number(process.env.PORT ?? 8788)
 const baseURL = external ?? `http://localhost:${port}`
 const executablePath = process.env.CHROMIUM_PATH
+// Behind Cloudflare Access (dev.kinhin.dev) a service token lets the tests in: E2E_BASE_URL=https://dev.kinhin.dev E2E_EXPECT_ACCESS=1 …
+const access = process.env.CF_ACCESS_CLIENT_ID && process.env.CF_ACCESS_CLIENT_SECRET
+  ? { 'CF-Access-Client-Id': process.env.CF_ACCESS_CLIENT_ID, 'CF-Access-Client-Secret': process.env.CF_ACCESS_CLIENT_SECRET }
+  : undefined
 
 const use = {
   baseURL,
+  ...(access ? { extraHTTPHeaders: access } : {}),
   trace: 'on-first-retry' as const,
   launchOptions: executablePath ? { executablePath, args: ['--no-sandbox'] } : {},
   contextOptions: { permissions: ['clipboard-read', 'clipboard-write'] },

@@ -2,7 +2,7 @@ name: Docs
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
     paths: ["website/**", "docs/**"]
   # Pull requests build and smoke-test the site but never deploy it.
   pull_request:
@@ -14,15 +14,24 @@ on:
     workflows: ["Release"]
     types: [completed]
   workflow_dispatch:
+    inputs:
+      target:
+        description: Where to deploy the site
+        type: choice
+        options: [dev, production]
+        default: dev
 
 # The site is a Next.js app served by a Cloudflare Worker (OpenNext). One-time setup, outside this repo:
-#   * Repository secrets CLOUDFLARE_API_TOKEN (Workers Scripts: Edit; Workers Routes: Edit; Zone: Read) and CLOUDFLARE_ACCOUNT_ID
+#   * Repository secrets CLOUDFLARE_API_TOKEN (Workers Scripts: Edit; Workers Routes: Edit; Zone: Read and DNS: Edit) and CLOUDFLARE_ACCOUNT_ID
 #   * The kinhin.dev zone on Cloudflare; the Worker takes the custom domain on its first deploy (website/wrangler.jsonc)
+#   * Dev (dev.kinhin.dev, deployed from `develop`) is behind Cloudflare Access: run website/scripts/cloudflare-access.mjs once, then store
+#     the variables DEV_ACCESS_TEAM_DOMAIN and DEV_ACCESS_AUD and the secrets CF_ACCESS_CLIENT_ID / CF_ACCESS_CLIENT_SECRET
+#     (a service token, used only for the post-deploy check). See "Dev environment" in CONTRIBUTING.md.
 permissions:
   contents: read
 
 concurrency:
-  group: site-${{ github.event_name == 'pull_request' && github.ref || 'deploy' }}
+  group: site-${{ github.event_name == 'pull_request' && github.ref || format('deploy-{0}', (github.ref_name == 'develop' || (github.event_name == 'workflow_dispatch' && inputs.target == 'dev')) && 'dev' || 'production') }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -37,7 +46,26 @@ jobs:
       - name: Check toolchain
         # The per-tag worktrees need git (Node comes from setup-node below). Fail with the fix instead of
         # "command not found" after a long build.
-        run: git --version || { echo "::error::git is missing in the container image — re-bake: kinhin image prepare --container"; exit 1; }
+        run: |
+          git --version || { echo "::error::git is missing in the container image; re-bake it with kinhin image prepare --container"; exit 1; }
+
+      # Where this run deploys: `develop` pushes go to dev.kinhin.dev, `main`, a finished Release and a manual run of
+      # "production" go to kinhin.dev, a manual run defaults to dev, and pull requests deploy nowhere.
+      - name: Choose the deploy target
+        id: target
+        env:
+          EVENT: ${{ github.event_name }}
+          REF: ${{ github.ref_name }}
+          INPUT: ${{ inputs.target }}
+        run: |
+          case "$EVENT:$REF" in
+            pull_request:*) target=none ;;
+            push:develop) target=dev ;;
+            workflow_dispatch:*) target=${INPUT:-dev} ;;
+            *) target=production ;;
+          esac
+          echo "target=$target" >> "$GITHUB_OUTPUT"
+          echo "deploy target: $target"
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -63,7 +91,7 @@ jobs:
       # into the latest release, so every site build copies that copy in. Before the first signed release there
       # is none, and the site simply goes out without one.
       - name: Fetch the update feed
-        if: github.event_name != 'pull_request'
+        if: steps.target.outputs.target == 'production'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -91,6 +119,7 @@ jobs:
         working-directory: website
         env:
           SNAPSHOT_STRICT: "1"
+          GITHUB_TOKEN: ${{ github.token }} # the star count is read at build time; the anonymous API limit is easy to hit on a shared runner
         run: scripts/build-site.sh
 
       - name: Check the Worker size and the JavaScript budgets
@@ -125,10 +154,41 @@ jobs:
             website/.e2e-results
           retention-days: 7
 
-      - name: Deploy to Cloudflare
-        if: github.event_name != 'pull_request'
+      - name: Deploy to production (kinhin.dev)
+        if: steps.target.outputs.target == 'production'
         working-directory: website
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npx opennextjs-cloudflare deploy
+
+      # dev.kinhin.dev: the same build under the `dev` wrangler environment. The Worker refuses requests without a valid
+      # Cloudflare Access token (REQUIRE_ACCESS), so it never runs open, even before the Access application exists.
+      - name: Deploy to dev (dev.kinhin.dev)
+        if: steps.target.outputs.target == 'dev'
+        working-directory: website
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          ACCESS_TEAM_DOMAIN: ${{ vars.DEV_ACCESS_TEAM_DOMAIN }}
+          ACCESS_AUD: ${{ vars.DEV_ACCESS_AUD }}
+        run: |
+          [ -n "$ACCESS_TEAM_DOMAIN" ] && [ -n "$ACCESS_AUD" ] || { echo "::error::set the variables DEV_ACCESS_TEAM_DOMAIN and DEV_ACCESS_AUD (node website/scripts/cloudflare-access.mjs prints them)"; exit 1; }
+          npx opennextjs-cloudflare deploy --env dev -- --var "ACCESS_TEAM_DOMAIN:$ACCESS_TEAM_DOMAIN" --var "ACCESS_AUD:$ACCESS_AUD"
+
+      # Behind Access an anonymous request must be turned away, and the service token must get the site.
+      - name: Check dev is closed to the public and open to CI
+        if: steps.target.outputs.target == 'dev'
+        env:
+          CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+        run: |
+          anon=$(curl -s -o /dev/null -w '%{http_code}' --retry 5 --retry-delay 5 --retry-all-errors https://dev.kinhin.dev/)
+          case "$anon" in 302|401|403) echo "anonymous request: $anon (closed)";; *) echo "::error::dev.kinhin.dev answered an anonymous request with $anon"; exit 1;; esac
+          if [ -z "$CLIENT_ID" ] || [ -z "$CLIENT_SECRET" ]; then
+            echo "::warning::CF_ACCESS_CLIENT_ID / CF_ACCESS_CLIENT_SECRET are not set; skipping the authenticated check"
+          else
+            authed=$(curl -s -o /dev/null -w '%{http_code}' --retry 5 --retry-delay 5 -H "CF-Access-Client-Id: $CLIENT_ID" -H "CF-Access-Client-Secret: $CLIENT_SECRET" https://dev.kinhin.dev/guide/quick-start)
+            [ "$authed" = 200 ] || { echo "::error::dev.kinhin.dev answered the service token with $authed"; exit 1; }
+            echo "service token: 200"
+          fi

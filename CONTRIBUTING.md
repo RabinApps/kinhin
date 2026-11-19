@@ -236,6 +236,37 @@ generates `kinhin help`, each `kinhin <command> --help` page and the skills-lint
 - UI: show failures with `AlertKit.present(error:)` (modal) or the form's status label. Never leave a failed user action silent. Load config through `ConfigStore` so a parse error is shown instead of rendering an empty config.
 - CLI: failures end through `fail(_:exit:)` or `fail(error)`; `CLIExit` gives the exit code (1 generic, 2 usage, 3 config, 4 runtime/engine, 5 auth), classified from the error via `ErrorCategory` (KinhinKit). Errors and warnings go to stderr; stdout carries only command output (so `--json` stays parseable).
 
+## Dev environment
+
+`https://dev.kinhin.dev` is the site built from `develop` and deployed by the Docs workflow (`.github/workflows/docs.yml`) as the Worker
+`kinhin-site-dev` (the `dev` environment in `website/wrangler.jsonc`). It is for reviewing changes before they reach `main`, and it is
+closed to the public in two layers: **Cloudflare Access** in front of the hostname, and a second check in the Worker
+(`website/worker.ts`, `website/src/lib/access.ts`) that refuses any page request without a valid Access token (403; 503 if Access is
+required but not configured, so it never runs open). Every page it serves is `noindex, nofollow`. Static files such as `/_next/static` are
+served by Cloudflare's assets layer without running the Worker, so they rely on Access alone.
+
+One-time setup (needs a Cloudflare account with Zero Trust enabled and a team domain chosen):
+
+1. Create an API token with **Account: Access: Apps and Policies Edit**, **Access: Service Tokens Edit**, **Access: Organizations, Identity
+   Providers and Groups Read**, plus the Workers and zone permissions the deploy needs (**Workers Scripts: Edit**, **Workers Routes: Edit**,
+   **Zone: Read**, **Zone: DNS Edit** for the `kinhin.dev` zone). Put it and the account id in the repository secrets
+   `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
+2. Create the Access application, the policy for your team and a service token for CI:
+   ```sh
+   cd website
+   CLOUDFLARE_API_TOKEN=… CLOUDFLARE_ACCOUNT_ID=… \
+     node scripts/cloudflare-access.mjs --email-domain your-company.example --service-token kinhin-ci-dev
+   # --emails a@x.io,b@y.io allows individual people instead; --dry-run prints the requests without sending them
+   ```
+   It is safe to re-run. It prints the values to store: repository **variables** `DEV_ACCESS_TEAM_DOMAIN` and `DEV_ACCESS_AUD`, and
+   (once) the repository **secrets** `CF_ACCESS_CLIENT_ID` and `CF_ACCESS_CLIENT_SECRET`.
+3. Push to `develop`, or run the Docs workflow by hand (it deploys to dev by default). The deploy then checks that an anonymous request is
+   turned away and that the service token gets the site.
+
+Test it yourself: `E2E_BASE_URL=https://dev.kinhin.dev E2E_EXPECT_ACCESS=1 CF_ACCESS_CLIENT_ID=… CF_ACCESS_CLIENT_SECRET=… npm run e2e`
+runs the whole browser suite through Access (the access spec checks that anonymous requests are refused). To exercise the Worker's own check
+locally: `npx wrangler dev --env dev --var ACCESS_TEAM_DOMAIN:team.example.com --var ACCESS_AUD:test` should answer 403 to every page.
+
 ## Website tests
 
 `website/e2e/` is a Playwright suite that drives the built site as a user, a search engine and an agent meet it. It serves
