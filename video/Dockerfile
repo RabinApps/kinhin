@@ -4,7 +4,7 @@
 # The base image's Playwright version must match playwright-core in package.json (a unit test checks it), and the image is
 # pinned by digest (the multi-arch index, so arm64 and amd64 both resolve) so a build today is the build tomorrow. Dependabot
 # does NOT bump this line (.github/dependabot.yml ignores it, because it cannot also bump playwright-core); update both by hand, see docs/making-a-video.md.
-FROM mcr.microsoft.com/playwright:v1.65.0-noble@sha256:9beb546099e11f52d62e505537914870e01a67e0e6b00ae41da4775324e73dbe
+FROM mcr.microsoft.com/playwright:v1.65.1-noble@sha256:1507cbfc550a63a6b7396791ca4f00df17beb56342d2447b3f106c306f525579
 
 # The Playwright image points apt at Azure's Ubuntu mirror over plain HTTP, which the CI runners cannot reach (update
 # succeeds, then every package download fails). Use Canonical's HTTPS mirrors, and retry transient mirror failures.
