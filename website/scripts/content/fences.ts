@@ -118,12 +118,26 @@ export function codeSpans(text: string): CodeSpan[] {
   return spans
 }
 
+// Apply a replacement until the text stops changing, so removing one tag cannot join the pieces around it into a new
+// one (`<scr<script></script>ipt>`): a single pass leaves that behind, and CodeQL flags it as incomplete sanitization.
+function replaceUntilStable(text: string, pattern: RegExp): string {
+  let current = text
+  for (;;) {
+    const next = current.replace(pattern, '')
+    if (next === current) return next
+    current = next
+  }
+}
+
 export function stripVue(content: string): string {
   return outsideFences(content, (chunk) =>
-    chunk
-      .replace(/<script\b[\s\S]*?<\/script>\s*/g, '')
-      .replace(/<style\b[\s\S]*?<\/style>\s*/g, '')
-      .replace(/<!--\s*docs-sync:[^>]*-->\n?/g, ''),
+    replaceUntilStable(
+      replaceUntilStable(
+        replaceUntilStable(chunk, /<script\b[\s\S]*?<\/script\b[^>]*>\s*/gi),
+        /<style\b[\s\S]*?<\/style\b[^>]*>\s*/gi,
+      ),
+      /<!--\s*docs-sync:[^>]*-->\n?/g,
+    ),
   )
 }
 
