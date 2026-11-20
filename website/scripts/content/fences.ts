@@ -133,8 +133,8 @@ export function stripVue(content: string): string {
   return outsideFences(content, (chunk) =>
     replaceUntilStable(
       replaceUntilStable(
-        replaceUntilStable(chunk, /<script\b[\s\S]*?<\/script\s*>\s*/gi),
-        /<style\b[\s\S]*?<\/style\s*>\s*/gi,
+        replaceUntilStable(chunk, /<script\b[\s\S]*?<\/script\b[^>]*>\s*/gi),
+        /<style\b[\s\S]*?<\/style\b[^>]*>\s*/gi,
       ),
       /<!--\s*docs-sync:[^>]*-->\n?/g,
     ),

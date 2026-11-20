@@ -80,6 +80,9 @@ test('stripVue removes script/style blocks outside fences only', () => {
 test('stripVue also removes upper-case tags and ones a first pass would reassemble', () => {
   assert.equal(stripVue('<SCRIPT>a</SCRIPT>keep'), 'keep')
   assert.equal(stripVue('<STYLE>a{}</Style >keep'), 'keep')
+  // A browser ends the element at `</script` plus anything up to `>`, so an end tag can carry junk.
+  assert.equal(stripVue('<script>a</script\t\n bar>keep'), 'keep')
+  assert.equal(stripVue('<style>a{}</style foo=1>keep'), 'keep')
   assert.equal(stripVue('<scr<script>x</script>ipt>y</script>keep'), 'keep')
   assert.equal(stripVue('<sty<style>x</style>le>y</style>keep'), 'keep')
 })
