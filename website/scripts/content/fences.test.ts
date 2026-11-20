@@ -85,4 +85,13 @@ test('stripVue also removes upper-case tags and ones a first pass would reassemb
   assert.equal(stripVue('<style>a{}</style foo=1>keep'), 'keep')
   assert.equal(stripVue('<scr<script>x</script>ipt>y</script>keep'), 'keep')
   assert.equal(stripVue('<sty<style>x</style>le>y</style>keep'), 'keep')
+  // Stripping one kind of block can expose the other.
+  assert.equal(stripVue('<scr<style>x</style>ipt>y</script>keep'), 'keep')
+  assert.equal(stripVue('<sty<script>x</script>le>y</style>keep'), 'keep')
+})
+
+test('stripVue only ends a block at an end tag whose name is followed by a delimiter', () => {
+  assert.equal(stripVue('<script>hidden</script-not>still hidden</script>keep'), 'keep')
+  assert.equal(stripVue('<style>hidden</style-not>still hidden</style>keep'), 'keep')
+  assert.equal(stripVue('<script>a</script/>keep'), 'keep')
 })
