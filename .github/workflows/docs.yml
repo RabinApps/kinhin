@@ -2,8 +2,11 @@ name: Docs
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
     paths: ["website/**", "docs/**"]
+  # Pull requests build and smoke-test the site but never deploy it.
+  pull_request:
+    paths: ["website/**", "docs/**", ".github/workflows/docs.yml", "scripts/website-check.sh", "scripts/e2e-select.sh"]
   # A release (tag push) deploys the site after it is published, so the signed
   # appcast the release made is on the site. Deploying on the tag push itself
   # would race the release and replace the site without it.
@@ -11,83 +14,98 @@ on:
     workflows: ["Release"]
     types: [completed]
   workflow_dispatch:
+    inputs:
+      target:
+        description: Where to deploy the site
+        type: choice
+        options: [dev, production]
+        default: dev
 
-# One-time manual step (required before the first deploy):
-#   Repo Settings → Pages → Build and deployment → Source = "GitHub Actions"
+# The site is a Next.js app served by a Cloudflare Worker (OpenNext). One-time setup, outside this repo:
+#   * Repository secrets CLOUDFLARE_API_TOKEN (Workers Scripts: Edit; Workers Routes: Edit; Zone: Read and DNS: Edit) and CLOUDFLARE_ACCOUNT_ID
+#   * The kinhin.dev zone on Cloudflare; the Worker takes the custom domain on its first deploy (website/wrangler.jsonc)
+#   * Dev (dev.kinhin.dev, deployed from `develop`) is behind Cloudflare Access: run website/scripts/cloudflare-access.mjs once, then store
+#     the variables DEV_ACCESS_TEAM_DOMAIN and DEV_ACCESS_AUD and the secrets CF_ACCESS_CLIENT_ID / CF_ACCESS_CLIENT_SECRET
+#     (a service token, used only for the post-deploy check). See "Dev environment" in CONTRIBUTING.md.
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
-  group: pages
-  cancel-in-progress: false
+  group: site-${{ github.event_name == 'pull_request' && github.ref || format('deploy-{0}', (github.ref_name == 'develop' || (github.event_name == 'workflow_dispatch' && inputs.target == 'dev')) && 'dev' || 'production') }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  build:
+  site:
     if: >-
       (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success')
       && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-    # kinhin's own Apple-container pool (`kinhin-container` is its exclusive
-    # marker). This workflow triggers on push, a finished Release, or dispatch — PRs never run it — so
-    # no fork guard is needed; the Pages deploy job stays on ubuntu-latest.
-    runs-on: kinhin-container
+    # Deploys run on kinhin's own Apple-container pool (`kinhin-container` is its exclusive marker). Pull requests
+    # build on a pooled Blacksmith runner instead, so no PR code ever reaches that pool or the Cloudflare secrets.
+    # 8 vCPU / 160 GB: a pull request builds the current site and every release snapshot, then serves both to Playwright.
+    runs-on: ${{ github.event_name == 'pull_request' && 'blacksmith-8vcpu-ubuntu-2404' || 'kinhin-container' }}
     steps:
       - name: Check toolchain
-        # fetch-depth: 0, the per-tag worktrees and the jq loop below need git
-        # and jq baked into the image (Node comes from setup-node below). Fail
-        # with the fix instead of "command not found" after a long build.
+        # The per-tag worktrees need git (Node comes from setup-node below). Fail with the fix instead of
+        # "command not found" after a long build.
         run: |
-          git --version || { echo "::error::git is missing in the container image — re-bake: kinhin image prepare --container"; exit 1; }
-          jq --version || { echo "::error::jq is missing in the container image — re-bake: kinhin image prepare --container"; exit 1; }
+          git --version || { echo "::error::git is missing in the container image; re-bake it with kinhin image prepare --container"; exit 1; }
+
+      # Where this run deploys: `develop` pushes go to dev.kinhin.dev, `main`, a finished Release and a manual run of
+      # "production" go to kinhin.dev, a manual run defaults to dev, and pull requests deploy nowhere.
+      - name: Choose the deploy target
+        id: target
+        env:
+          EVENT: ${{ github.event_name }}
+          REF: ${{ github.ref_name }}
+          INPUT: ${{ inputs.target }}
+        run: |
+          case "$EVENT:$REF" in
+            pull_request:*) target=none ;;
+            push:develop) target=dev ;;
+            workflow_dispatch:*)
+              target=${INPUT:-dev}
+              # Production is built from main only: a manual run from any other branch may deploy to dev, never to kinhin.dev.
+              if [ "$target" = production ] && [ "$REF" != main ]; then
+                echo "::error::deploying to production is only allowed from main (this run is on $REF); choose target=dev"
+                exit 1
+              fi
+              ;;
+            *) target=production ;;
+          esac
+          echo "target=$target" >> "$GITHUB_OUTPUT"
+          echo "deploy target: $target"
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0 # release tags are built into per-version snapshots below
+          fetch-depth: 0 # release tags are built into per-version snapshots
+          # A finished Release starts this run on the default branch (develop), but the production site is built from main.
+          ref: ${{ github.event_name == 'workflow_run' && 'main' || '' }}
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: website/.nvmrc
           cache: npm
-          cache-dependency-path: website/package.json
+          cache-dependency-path: website/package-lock.json
 
       - name: Install dependencies
         working-directory: website
         run: npm ci
 
-      - name: Typecheck config
+      - name: Typecheck and unit tests
         working-directory: website
-        run: npm run typecheck
-
-      - name: Build site
-        working-directory: website
-        run: npm run build
-
-      # Each version listed in website/versions.json is built from its own tag (its own docs/ and
-      # website/), then served under /<tag>/ next to the latest docs at /. website/snapshot.config.ts
-      # wraps the tag's config: repository links point at the tag, and a dead link frozen in an old
-      # release does not fail the deploy. The tag itself is never modified.
-      - name: Build version snapshots
         run: |
-          for v in $(jq -r '.[]' website/versions.json); do
-            git worktree add "$RUNNER_TEMP/docs-$v" "refs/tags/$v"
-            snap="$RUNNER_TEMP/docs-$v/website/.vitepress"
-            mv "$snap/config.ts" "$snap/config.base.ts"
-            cp website/snapshot.config.ts "$snap/config.ts"
-            versions="$(jq -c . website/versions.json)"
-            (cd "$RUNNER_TEMP/docs-$v/website" && npm ci && DOCS_VERSION="$v" DOCS_VERSIONS="$versions" npm run build)
-            mkdir -p "website/.vitepress/dist/$v"
-            cp -R "$RUNNER_TEMP/docs-$v/website/.vitepress/dist/." "website/.vitepress/dist/$v/"
-          done
+          npm run typecheck
+          npm test
 
       # The updater's feed (SUFeedURL points at https://kinhin.dev/appcast.xml). The release workflow signs it
       # into the latest release, so every site build copies that copy in. Before the first signed release there
       # is none, and the site simply goes out without one.
       - name: Fetch the update feed
+        if: steps.target.outputs.target == 'production'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          out=website/.vitepress/dist/appcast.xml
+          out=website/public/appcast.xml
           # A failed query is not "no appcast": deploying then would drop the live feed on a transient API error.
           # The kinhin-container image has no gh, so query the REST API with curl.
           if ! release=$(curl -fsSL --retry 3 -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
@@ -103,16 +121,166 @@ jobs:
             exit 1
           fi
 
-      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
-        with:
-          path: website/.vitepress/dist
+      # Every version in website/versions.json is rendered from its own tag's docs/ and website/ by the current
+      # site (a static export under /<tag>/), then the latest docs are built as the Worker. A snapshot that fails
+      # to build fails the job (SNAPSHOT_STRICT), so it is caught on the pull request; a listed tag that does not exist yet is
+      # skipped with a warning. The tag itself is never modified.
+      - name: Build the site
+        working-directory: website
+        env:
+          SNAPSHOT_STRICT: "1"
+          GITHUB_TOKEN: ${{ github.token }} # the star count is read at build time; the anonymous API limit is easy to hit on a shared runner
+        run: scripts/build-site.sh
 
-  deploy:
-    needs: build
-    runs-on: kinhin-container
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      - name: Check the Worker size and the JavaScript budgets
+        working-directory: website
+        run: |
+          scripts/check-worker-size.sh
+          node scripts/check-bundle.mjs
+
+      - name: Smoke test the Worker
+        working-directory: website
+        run: scripts/smoke.sh
+
+      # The browser suite (website/e2e): runs on pull requests, on a GitHub-hosted runner that can install Chromium; the
+      # deploy image does not carry one. It serves the same Worker the smoke test just checked (and reuses it if one is still up).
+      # Blacksmith's colocated cache backs actions/cache automatically: this keeps the ~170 MB Chromium build
+      # out of the PR path after the first run. Keyed on the lockfile, so a Playwright bump downloads it again.
+      # A pull request runs only the specs it changes when nothing but specs changed; any other docs/ or website/ change
+      # runs the whole suite (scripts/e2e-select.sh). Pushes to `develop` always run everything (job `e2e` below).
+      - name: Select the end-to-end specs
+        id: e2e_select
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: bash scripts/e2e-select.sh "$BASE_SHA" | tee -a "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        if: github.event_name == 'pull_request' && steps.e2e_select.outputs.e2e != 'none'
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('website/package-lock.json') }}
+
+      - name: Install Chromium for the end-to-end tests
+        if: github.event_name == 'pull_request' && steps.e2e_select.outputs.e2e != 'none'
+        working-directory: website
+        run: npx playwright install --with-deps chromium
+
+      - name: End-to-end tests (Playwright)
+        if: github.event_name == 'pull_request' && steps.e2e_select.outputs.e2e != 'none'
+        working-directory: website
+        env:
+          E2E: ${{ steps.e2e_select.outputs.e2e }}
+          SPECS: ${{ steps.e2e_select.outputs.specs }}
+        run: |
+          if [ "$E2E" = specs ]; then
+            echo "running only: $SPECS"
+            # shellcheck disable=SC2086 # the spec paths are space-separated and contain no spaces
+            npx playwright test $SPECS
+          else
+            npm run e2e
+          fi
+
+      - name: Upload the Playwright report
+        if: failure() && github.event_name == 'pull_request'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-report
+          path: |
+            website/playwright-report
+            website/.e2e-results
+          retention-days: 7
+
+      - name: Deploy to production (kinhin.dev)
+        if: steps.target.outputs.target == 'production'
+        working-directory: website
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx opennextjs-cloudflare deploy
+
+      # dev.kinhin.dev: the same build under the `dev` wrangler environment. The Worker refuses requests without a valid
+      # Cloudflare Access token (REQUIRE_ACCESS), so it never runs open, even before the Access application exists.
+      - name: Deploy to dev (dev.kinhin.dev)
+        if: steps.target.outputs.target == 'dev'
+        working-directory: website
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          ACCESS_TEAM_DOMAIN: ${{ vars.DEV_ACCESS_TEAM_DOMAIN }}
+          ACCESS_AUD: ${{ vars.DEV_ACCESS_AUD }}
+        run: |
+          [ -n "$ACCESS_TEAM_DOMAIN" ] && [ -n "$ACCESS_AUD" ] || { echo "::error::set the variables DEV_ACCESS_TEAM_DOMAIN and DEV_ACCESS_AUD (node website/scripts/cloudflare-access.mjs prints them)"; exit 1; }
+          npx opennextjs-cloudflare deploy --env dev -- --var "ACCESS_TEAM_DOMAIN:$ACCESS_TEAM_DOMAIN" --var "ACCESS_AUD:$ACCESS_AUD"
+
+      # Behind Access an anonymous request must be turned away, and the service token must get the site.
+      - name: Check dev is closed to the public and open to CI
+        if: steps.target.outputs.target == 'dev'
+        env:
+          CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+        run: |
+          anon=$(curl -s -o /dev/null -w '%{http_code}' --retry 5 --retry-delay 5 --retry-all-errors https://dev.kinhin.dev/)
+          case "$anon" in 302|401|403) echo "anonymous request: $anon (closed)";; *) echo "::error::dev.kinhin.dev answered an anonymous request with $anon"; exit 1;; esac
+          if [ -z "$CLIENT_ID" ] || [ -z "$CLIENT_SECRET" ]; then
+            echo "::warning::CF_ACCESS_CLIENT_ID / CF_ACCESS_CLIENT_SECRET are not set; skipping the authenticated check"
+          else
+            authed=$(curl -s -o /dev/null -w '%{http_code}' --retry 5 --retry-delay 5 -H "CF-Access-Client-Id: $CLIENT_ID" -H "CF-Access-Client-Secret: $CLIENT_SECRET" https://dev.kinhin.dev/guide/quick-start)
+            [ "$authed" = 200 ] || { echo "::error::dev.kinhin.dev answered the service token with $authed"; exit 1; }
+            echo "service token: 200"
+          fi
+
+  # The browser suite (website/e2e) also runs on every `develop` push, on a GitHub-hosted runner: the deploy pool has no
+  # Chromium, and a link only a component generates should fail here rather than be found on dev.kinhin.dev. Pull
+  # requests run it inside the `site` job above, against the Worker that job already built.
+  e2e:
+    if: github.event_name == 'push' && github.ref_name == 'develop'
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
-      - id: deployment
-        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # release snapshots are built from tags
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: website/.nvmrc
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+
+      - name: Install dependencies
+        working-directory: website
+        run: npm ci
+
+      # Blacksmith's colocated cache backs actions/cache automatically: this keeps the ~170 MB Chromium build
+      # out of the `develop` path after the first run, keyed on the lockfile so a Playwright bump refreshes it.
+      - name: Cache Playwright browsers
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('website/package-lock.json') }}
+
+      - name: Install Chromium
+        working-directory: website
+        run: npx playwright install --with-deps chromium
+
+      - name: Build the site
+        working-directory: website
+        env:
+          SNAPSHOT_STRICT: "1"
+          GITHUB_TOKEN: ${{ github.token }} # the star count is read at build time; the anonymous API limit is easy to hit on a shared runner
+        run: scripts/build-site.sh
+
+      - name: End-to-end tests (Playwright)
+        working-directory: website
+        run: npm run e2e
+
+      - name: Upload the Playwright report
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-report-develop
+          path: |
+            website/playwright-report
+            website/.e2e-results
+          retention-days: 7

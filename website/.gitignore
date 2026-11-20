@@ -1,0 +1,14 @@
+.next/
+.open-next/
+.wrangler/
+.generated/
+out/
+next-env.d.ts
+tsconfig.tsbuildinfo
+# Images copied from docs/ by scripts/content/build.ts
+/public/_docs/
+.e2e-results/
+playwright-report/
+.snapshots-out/
+# Static-export staging for release snapshots (scripts/build-snapshot.sh)
+.snapshots/

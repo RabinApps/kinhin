@@ -43,7 +43,7 @@ blocks=(
     "exit-codes|website/cli/commands.md"
     "cli-help|website/cli/commands.md"
     "maturity|docs/app.md"
-    "release-title|website/.vitepress/theme/HomeBanners.vue"
+    "release-title|website/src/data/release.ts"
     "release-banner|README.md"
     "release-line|docs/beta-roadmap.md"
 )
@@ -134,11 +134,11 @@ current_version() {
     echo "$v"
 }
 
-# The home page banner title, indented as it sits in HomeBanners.vue's template.
+# The release the home page banner names (website/src/data/release.ts; a `// ` marker pair, since it is TypeScript).
 gen_release-title() {
     local v
     v=$(current_version)
-    echo "      <p class=\"custom-block-title\">Beta (v$v)</p>"
+    echo "export const releaseVersion = \"$v\""
 }
 
 # The README banner. Its forge list is hand-kept, as the home banner's is.
@@ -164,12 +164,12 @@ gen_release-line() {
 render() {
     local file=$1 name=$2 body=$3
     awk -v name="$name" -v body="$body" '
-        $0 == "<!-- docs-sync:begin " name " -->" {
+        $0 == "<!-- docs-sync:begin " name " -->" || $0 == "// <!-- docs-sync:begin " name " -->" {
             if (state != 0) bad = 1
             print; while ((getline line < body) > 0) print line
             close(body); state = 1; seen++; next
         }
-        $0 == "<!-- docs-sync:end " name " -->" {
+        $0 == "<!-- docs-sync:end " name " -->" || $0 == "// <!-- docs-sync:end " name " -->" {
             if (state != 1) bad = 1
             state = 0; print; next
         }

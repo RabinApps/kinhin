@@ -72,6 +72,14 @@ bash scripts/warnings-check.sh     # clean build of Sources/Tests; fails on any 
 bash scripts/rules-lint.sh        # try!, as!, force unwraps, locks, uncommented try?, files over 450 lines (in check.sh too)
 ```
 
+**Which CI jobs a PR runs.** `scripts/ci-changes.sh` (table-tested by `scripts/ci-changes-test.sh`, which `check.sh` runs)
+picks the Swift work from the changed files. A PR that touches only `docs/`, `website/`, `skills/`, `video/`, `design/`,
+`Tests/E2E` or Markdown skips the Swift jobs (except the few files tests read from the repo, such as `video/themes`, `video/music` and `docs/telemetry`, which run everything); one confined to `Sources/kinhin` + `Tests/KinhinCLITests` or `Sources/kinhin-app`
++ `Tests/KinhinAppTests` runs only that test target (`swift test --filter`); anything else (KinhinKit, `KinhinTestSupport`,
+`Package.swift`, `scripts/`, `.github/`, an unrecognized path) runs everything. Pushes to `main`/`develop`, the nightly run and
+manual dispatches always run everything. The `gate` job is the one to require in branch protection: it passes when jobs are
+skipped and fails when any job fails. When you add a test target, a new top-level directory, or a test that reads a file from the repo, update the mapping and its test.
+
 Formatting is configured in `.swift-format` (4 spaces, 120 columns). Run the formatter before committing; CI lints with `--strict`.
 
 ### ThreadSanitizer testing (scripts/tsan.sh)
@@ -136,7 +144,7 @@ slower, since it builds each example. Nothing is uploaded and no store credentia
 - One primary type per file, named after the file. Small, tightly related types (an error enum, a DTO) may share it. Extensions that add a concern go in `Type+Concern.swift`.
 - Files over ~400 lines are a smell: split by responsibility (model / parsing / IO / UI), not by line count.
 - `KinhinKit` is grouped by domain (`Core`, `Config`, `Fleet`, `Forges`, `Runtimes`, `Images`, `Setup`, `Update`, `Cache`, `Benchmarks`). It has no AppKit dependency. UI code lives only in `kinhin-app`.
-- Docs: `docs/` is the single source for the guides and for the website. The VitePress site (`website/`) reads `docs/` in place (`srcDir` and `rewrites` in `website/.vitepress/config.ts`) and rewrites GitHub-style relative links while rendering. Edit a guide once, in `docs/`. `website/` holds only site-only pages (quick start, config, troubleshooting, CLI, home). A new `docs/` page is published by default (add it to the sidebar), or list it in `srcExclude` and `unpublished` (`docsLinks.ts`) to keep it GitHub-only. Check with `cd website && npx vitepress build`, which fails on dead links. The build also writes a `<page>.md` copy of every page plus `llms.txt` and `llms-full.txt` (`website/.vitepress/llms.ts`, latest docs only, never committed); they follow the sidebar, so a new page shows up once it is listed there. Per-forge API notes live in `docs/forges/`. Adding a forge? Follow [docs/adding-a-forge.md](docs/adding-a-forge.md).
+- Docs: `docs/` is the single source for the guides and for the website. The site (`website/`, a Next.js app served by a Cloudflare Worker through OpenNext) reads `docs/` in place at build time (`website/scripts/content/`; the route table is `routes.ts`) and rewrites GitHub-style relative links (`links.ts`). Edit a guide once, in `docs/`. `website/` holds only site-only pages (quick start, config, troubleshooting, CLI, home). A new `docs/` page is published by default (add it to the sidebar), or add it to `unpublished` in `website/scripts/content/routes.ts` to keep it GitHub-only. The sidebar lives in `website/site.config.ts`. Check with `scripts/website-check.sh`, which fails on dead links. The content step also writes a markdown copy of every page plus `llms.txt` and `llms-full.txt` (into `website/.generated/`, never committed). They are served as `<page>.md`, as `Accept: text/markdown` on the page URL, and at `/llms.txt`, and follow the sidebar, so a new page shows up once it is listed there. Per-forge API notes live in `docs/forges/`. Adding a forge? Follow [docs/adding-a-forge.md](docs/adding-a-forge.md).
 - Kit tests mirror the source folders (`Tests/KinhinKitTests/Config/…`); one test class per file, named after its subject (no grab-bag `MiscTests`).
 - Shared doubles live in the `KinhinTestSupport` target (`Tests/KinhinTestSupport`): `FakeShell` (queued responses, `failOn`/`failAll`, records `calls`), `FakeTart`, `FakeGitHub`, `FakeGitea`, `FakeGitLab`, `FakeSSH`, `DockerFakingShell` (stateful `docker ps/run/start/rm`, queued `ps`/`exec` answers), `StubProtocol`, `makeTestStore()`/`makeTestConfig()`. Import it with `@testable import KinhinTestSupport`. Only keep a private double in a test file when it models behavior specific to that test (e.g. `KeygenShell`, the recording shell `GuestSSHKeyTests` needs).
 - Every shared double gets a contract test in `Tests/KinhinKitTests/TestSupport/` named `<Double>ContractTests`, pinning the fake to the real implementation it stands in for: forge fakes run against the real client over `StubProtocol` (same requests, same error cases, same read shapes), `FakeShell` against the real `Shell` over `/bin` tools. The point is drift detection — when the real implementation changes behavior, the contract test fails instead of the fake silently staying stale. Adding a new double to `KinhinTestSupport`? Add its `<Double>ContractTests` in the same change. The rule extends to doubles outside `KinhinTestSupport`: any private double that impersonates a real implementation (a faking shell, an app-service fake) gets a `<Double>ContractTests` in its own test target — see `FakeDockerContractTests` and `FakeFleetServingContractTests` (`Tests/KinhinAppTests/`) and `KeygenShellContractTests` (kit). Spies and fault injectors that only observe or break one test stay private and are asserted by the suite they serve.
@@ -227,6 +235,84 @@ generates `kinhin help`, each `kinhin <command> --help` page and the skills-lint
 - Never swallow `CancellationError`; let it propagate.
 - UI: show failures with `AlertKit.present(error:)` (modal) or the form's status label. Never leave a failed user action silent. Load config through `ConfigStore` so a parse error is shown instead of rendering an empty config.
 - CLI: failures end through `fail(_:exit:)` or `fail(error)`; `CLIExit` gives the exit code (1 generic, 2 usage, 3 config, 4 runtime/engine, 5 auth), classified from the error via `ErrorCategory` (KinhinKit). Errors and warnings go to stderr; stdout carries only command output (so `--json` stays parseable).
+
+## Dev environment
+
+`https://dev.kinhin.dev` is the site built from `develop` and deployed by the Docs workflow (`.github/workflows/docs.yml`) as the Worker
+`kinhin-site-dev` (the `dev` environment in `website/wrangler.jsonc`). It is for reviewing changes before they reach `main`, and it is
+closed to the public in two layers: **Cloudflare Access** in front of the hostname, and a second check in the Worker
+(`website/worker.ts`, `website/src/lib/access.ts`) that refuses any page request without a valid Access token (403; 503 if Access is
+required but not configured, so it never runs open). Every page it serves is `noindex, nofollow`. Static files such as `/_next/static` are
+served by Cloudflare's assets layer without running the Worker, so they rely on Access alone.
+
+One-time setup (needs a Cloudflare account with Zero Trust enabled and a team domain chosen):
+
+1. Create an API token with **Account: Access: Apps and Policies Edit**, **Access: Service Tokens Edit**, **Access: Organizations, Identity
+   Providers and Groups Read**, plus the Workers and zone permissions the deploy needs (**Workers Scripts: Edit**, **Workers Routes: Edit**,
+   **Zone: Read**, **Zone: DNS Edit** for the `kinhin.dev` zone). Put it and the account id in the repository secrets
+   `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
+   Check them before the first deploy: `CLOUDFLARE_API_TOKEN=… CLOUDFLARE_ACCOUNT_ID=… node website/scripts/check-cloudflare.mjs` (read-only: token valid,
+   account reachable, zone on that account, Workers and DNS permissions, and any DNS record that would block attaching a custom domain), or run
+   the manual **Cloudflare check** workflow, which does the same with the repository secrets.
+2. Create the Access application, the policy for your team and a service token for CI:
+   ```sh
+   cd website
+   CLOUDFLARE_API_TOKEN=… CLOUDFLARE_ACCOUNT_ID=… \
+     node scripts/cloudflare-access.mjs --email-domain your-company.example --service-token kinhin-ci-dev
+   # --emails a@x.io,b@y.io allows individual people instead; --dry-run prints the requests without sending them
+   ```
+   It is safe to re-run. It prints the values to store: repository **variables** `DEV_ACCESS_TEAM_DOMAIN` and `DEV_ACCESS_AUD`, and
+   (once) the repository **secrets** `CF_ACCESS_CLIENT_ID` and `CF_ACCESS_CLIENT_SECRET`.
+3. Push to `develop`, or run the Docs workflow by hand (it deploys to dev by default). The deploy then checks that an anonymous request is
+   turned away and that the service token gets the site.
+
+Test it yourself: `E2E_BASE_URL=https://dev.kinhin.dev E2E_EXPECT_ACCESS=1 CF_ACCESS_CLIENT_ID=… CF_ACCESS_CLIENT_SECRET=… npm run e2e`
+runs the whole browser suite through Access (the access spec checks that anonymous requests are refused). To exercise the Worker's own check
+locally: `npx wrangler dev --env dev --var ACCESS_TEAM_DOMAIN:team.example.com --var ACCESS_AUD:test` should answer 403 to every page.
+
+## Website tests
+
+`website/e2e/` is a Playwright suite that drives the built site as a user, a search engine and an agent meet it. It serves
+the real Cloudflare Worker (`wrangler dev`), so the middleware, the static-assets cache and the generated files are the
+ones that ship. It covers every published page (renders, title, canonical, no console errors), the markdown copies and
+`Accept: text/markdown` negotiation, `llms.txt` / the sitemap / `robots.txt` (including sitemap continuity with the old VitePress
+site and the redirects from its `.html` URLs), SEO metadata and structured data, the Cmd+K search, the sidebar, table of contents and pager,
+the audience tabs, Mermaid, copy buttons, the theme toggle, the phone layout, accessibility (axe) in both themes, a crawl of every
+internal link, and release snapshots when the build has them.
+
+```sh
+cd website && npm ci
+npx playwright install chromium     # once; in the cloud sandbox set CHROMIUM_PATH to the preinstalled Chromium instead
+scripts/build-site.sh               # builds website/.open-next (every page is prerendered)
+                                    # (the suite reuses a server already on PORT, default 8788, and starts `wrangler dev` otherwise)
+npm run e2e                         # desktop and phone projects; E2E_BASE_URL=https://… tests a deployed site instead
+npm run e2e -- search               # one spec; add --project=desktop for one project
+../scripts/website-check.sh --e2e     # build, then run only what changed since the previous commit (see below)
+../scripts/website-check.sh --e2e-all # build and run it all
+```
+
+**Only changed specs run.** The specs test the built site, so a spec can break without being edited. `scripts/e2e-select.sh`
+therefore narrows the run only when every change under `docs/` or `website/` is a spec file (`website/e2e/*.spec.ts` or its
+visual baselines): then only those specs run, except that the opt-in visual spec alone selects nothing. Any other `docs/` or `website/` change (source, content, config,
+`e2e/support/`, the lockfile) runs the whole suite, and a change outside both skips the browser tests. `--e2e` compares with
+the previous commit plus uncommitted work; a pull request compares with its base. `scripts/e2e-select-test.sh` is the table
+test. Pushes to `develop` always run everything, as a backstop.
+
+Expectations are read from the same sources as the build (`.generated/manifest.json`, `site.config.ts`,
+`src/data/release.ts`, `versions.json`), never copied into a test, so adding a page or a release does not mean editing tests.
+Screenshot comparisons are opt-in (`E2E_VISUAL=1 npm run e2e -- visual`; `npm run e2e:update` rewrites the baselines on the
+CI image, they are not committed from a laptop). CI runs the suite (narrowed as above) on every `docs/` or `website/` pull request and all of it on every `develop`
+push, and uploads the HTML report on failure. `scripts/smoke.sh` stays as the fast post-build check the deploy job runs.
+
+## Design first (website)
+
+The website follows the same rule. Its design is `design/kinhin-site.fig` (OpenPencil: home, docs, blog, CLI, search,
+404, version banner, mobile and light variants, plus a tokens and components sheet), with PNG exports in
+`design/exports/site/`. It is generated headlessly by `design/src/site/` (`node design/src/site/build.mjs [frame]`,
+which needs the CLI: `npm i -g @open-pencil/cli`; it only bundles Inter, so register Geist and Geist Mono as the
+script's header explains). Rules: one blue accent, solid fills only (no gradients, no glows), Geist and Geist Mono.
+The tokens sheet maps 1:1 to the CSS variables in `website/src/app/globals.css`. Change the design first, then
+implement from the export and compare a screenshot of the built page against it.
 
 ## Design first (desktop app)
 
@@ -349,7 +435,7 @@ Keep mechanical changes (moves, renames, formatting) in separate commits from be
 
 Before opening a PR, run `scripts/check.sh`; it includes `bash scripts/docs-lint.sh` and `bash scripts/docs-sync.sh
 --check`, which you must also run if you touched docs or any code they are generated from. When you edit `docs/` or
-`website/`, verify the site with `cd website && npx vitepress build` (fails on dead links).
+`website/`, verify the site with `scripts/website-check.sh` (fails on dead links).
 
 ## Cutting a release
 
@@ -364,7 +450,7 @@ User-visible changes go under `## Unreleased` in `CHANGELOG.md` in the same PR (
 
 ## Generated doc blocks
 
-Some docs are derived from code, so they are generated instead of hand-copied: the forge IDs (`docs/forges/README.md`), the daemon RPC methods (`docs/architecture.md`), and the CLI exit codes and `kinhin help` screen (`website/cli/commands.md`), and the current release named in the README banner, the roadmap and the home banner (`website/.vitepress/theme/HomeBanners.vue`), which all follow `Version.swift`. Each sits between `<!-- docs-sync:begin NAME -->` and `<!-- docs-sync:end NAME -->` markers. Never edit between the markers; change the Swift source (`ForgeID`, `RPCMethod`, `CLIExit`, `CommandCatalog`, `Version.swift`; for the help screen also refresh `scripts/golden/cli-help.txt`, see "CLI commands"), then run:
+Some docs are derived from code, so they are generated instead of hand-copied: the forge IDs (`docs/forges/README.md`), the daemon RPC methods (`docs/architecture.md`), and the CLI exit codes and `kinhin help` screen (`website/cli/commands.md`), and the current release named in the README banner, the roadmap and the home banner (`website/src/data/release.ts`), which all follow `Version.swift`. Each sits between `<!-- docs-sync:begin NAME -->` and `<!-- docs-sync:end NAME -->` markers. Never edit between the markers; change the Swift source (`ForgeID`, `RPCMethod`, `CLIExit`, `CommandCatalog`, `Version.swift`; for the help screen also refresh `scripts/golden/cli-help.txt`, see "CLI commands"), then run:
 
 ```sh
 scripts/docs-sync.sh           # rewrite stale blocks in place
@@ -382,6 +468,6 @@ Running kinhin in your project or company? See [docs/used-by.md](docs/used-by.md
 
 The site at `/` is built from `main`. A release is snapshotted under `/<tag>/` (with a version picker in the nav):
 after tagging a release, add its tag (for example `"v0.1.0"`) to the top of `website/versions.json` and push. Only list a tag
-that exists: the docs workflow runs `git worktree add` on each listed tag and fails on a missing one. The docs
-workflow builds each listed tag from its own `docs/` and `website/` with `DOCS_VERSION=<tag>`, so a snapshot never
-changes when `main` does.
+that exists: the docs workflow runs `git worktree add` on each listed tag and skips (with a warning) a missing one. The
+workflow renders each listed tag's own `docs/` and `website/` with the *current* site (`website/scripts/build-snapshot.sh`: a static
+export under `/<tag>/`, with `DOCS_VERSION=<tag>`), so a snapshot's content never changes when `main` does; its look follows the site. To retire old releases (for example the beta tags once 0.1.0 ships), delete their entries from `website/versions.json`: they are no longer built or listed in the picker, and their `/<tag>/…` URLs answer with a permanent redirect to the same page on the latest site (`website/worker.ts`). The BETA badge and the home banner follow the version in `website/src/data/release.ts` (a prerelease shows its stage; a stable version shows none), so shipping 0.1.0 needs no site code change. The Worker entry is `website/worker.ts` (OpenNext plus snapshot handling: `Accept: text/markdown` under `/<tag>/` returns that snapshot's `.md`); security headers come from `website/src/middleware.ts` for pages and `website/public/_headers` for static files, and `website/scripts/check-worker-size.sh` guards the Worker's size against Cloudflare's limit (about 1.2 MB gzipped; the diagram libraries are kept out of it), and `website/scripts/check-bundle.mjs` (part of `website-check.sh`) holds each page's first-load JavaScript under 182 KB gzipped and fails if mermaid, cytoscape, katex or dagre reach the server bundle. Mermaid loads only when a diagram nears the viewport, and the search palette loads on first use (`Search.tsx` is the small launcher).

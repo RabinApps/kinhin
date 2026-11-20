@@ -1,0 +1,28 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "kinhin-site",
+  "main": "worker.ts",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  // run_worker_first sends release snapshots (/v0.0.1-beta-6/…) through worker.ts, which maps page URLs to their .html files and
+  // negotiates markdown. Wrangler patterns only support `*`, so this is /v*; worker.ts passes anything that is not a listed
+  // version straight to OpenNext. Snapshot directories are public/v[0-9]*/ (scripts/build-site.sh).
+  "assets": { "directory": ".open-next/assets", "binding": "ASSETS", "html_handling": "none", "not_found_handling": "none", "run_worker_first": ["/v*"] },
+  "observability": { "enabled": true },
+  "routes": [{ "pattern": "kinhin.dev", "custom_domain": true }],
+
+  "env": {
+    // dev.kinhin.dev: the same build, deployed from `develop`, behind Cloudflare Access (see docs: "Dev environment" in
+    // CONTRIBUTING.md). Wrangler does not inherit bindings or vars between environments, so everything is spelled out.
+    // ACCESS_TEAM_DOMAIN and ACCESS_AUD are passed at deploy time (`--var`), from the Access application scripts/cloudflare-access.mjs creates.
+    "dev": {
+      "name": "kinhin-site-dev",
+      "workers_dev": false,
+      "preview_urls": false,
+      "routes": [{ "pattern": "dev.kinhin.dev", "custom_domain": true }],
+      "assets": { "directory": ".open-next/assets", "binding": "ASSETS", "html_handling": "none", "not_found_handling": "none", "run_worker_first": ["/v*"] },
+      "observability": { "enabled": true },
+      "vars": { "SITE_ENV": "dev", "REQUIRE_ACCESS": "true" }
+    }
+  }
+}

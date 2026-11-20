@@ -17,7 +17,7 @@ How kinhin talks to GitHub Actions, and how that compares with GitHub's current 
 
 ## Auth
 
-`Authorization: Bearer <PAT>` (`GitHubClient.swift:157`). Both fine-grained and classic personal access tokens work. Permission lists live in `TokenRequirements.github(scope:instance:)`.
+`Authorization: Bearer <PAT>` (`GitHubClient.swift:163`). Both fine-grained and classic personal access tokens work. Permission lists live in `TokenRequirements.github(scope:instance:)`.
 
 | Token        | Repository scope                                                        | Organization scope                                                                                    |
 | ------------ | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
@@ -31,7 +31,7 @@ GitHub's docs agree: runner endpoints need repository `admin` or organization `a
 |                        | We send                                                                                                                                                                                                             | GitHub documents (verified 2026-10-01)                                                                                                       |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | Base                   | `https://api.github.com` when `instance` is absent. With an enterprise `instance`, the client derives `apiBase` from the host: `https://api.<host>` for `*.ghe.com`, or `https://<host>/api/v3` for any other host. | `https://api.github.com`; GHES uses `{protocol}://{hostname}/api/v3` and GHEC data residency uses `{protocol}://api.SUB.ghe.com`.            |
-| `X-GitHub-Api-Version` | `2022-11-28` (`GitHubClient.swift:160`)                                                                                                                                                                             | Two supported versions: `2022-11-28` (supported until 2028-03-10) and `2026-03-10` (no end date). An absent header defaults to `2022-11-28`. |
+| `X-GitHub-Api-Version` | `2022-11-28` (`GitHubCredentials.swift:104`)                                                                                                                                                                             | Two supported versions: `2022-11-28` (supported until 2028-03-10) and `2026-03-10` (no end date). An absent header defaults to `2022-11-28`. |
 | `Accept`               | `application/vnd.github+json`                                                                                                                                                                                       | Same                                                                                                                                         |
 
 GitHub supports each version for 24 months after the next one ships, signals retirement with `Deprecation` and `Sunset` headers, and answers `410 Gone` once a version is retired.
@@ -42,14 +42,14 @@ GitHub supports each version for 24 months after the next one ships, signals ret
 
 | Method | Path                                                                                           | Purpose                                                        | Code                              |
 | ------ | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------- | --------------------------------- |
-| POST   | `{actionsBase}/runners/registration-token`                                                     | Mint a runner registration token (1 h lifetime)                | `GitHubClient.swift:243`          |
-| GET    | `{actionsBase}/runners?per_page=100&page=N`                                                    | List runners                                                   | `GitHubClient.swift:323`          |
-| DELETE | `{actionsBase}/runners/{id}`                                                                   | Remove a runner                                                | `GitHubClient.swift:344`          |
+| POST   | `{actionsBase}/runners/registration-token`                                                     | Mint a runner registration token (1 h lifetime)                | `GitHubClient.swift:249`          |
+| GET    | `{actionsBase}/runners?per_page=100&page=N`                                                    | List runners                                                   | `GitHubClient.swift:327`          |
+| DELETE | `{actionsBase}/runners/{id}`                                                                   | Remove a runner                                                | `GitHubClient.swift:359`          |
 | GET    | `/repos/{repo}/actions/runs?status=queued\|in_progress&per_page=100&page=N`                    | Demand and running jobs (repo scope; org scope per repository) | `GitHubClient+Runs.swift`         |
 | GET    | `/orgs/{org}/actions/runs`                                                                     | Not used (undocumented)                                        | none                              |
-| GET    | `/repos/{repo}/actions/runs/{id}/jobs?per_page=100` (org mode: `{actionsBase}/runs/{id}/jobs`) | Job labels for matching                                        | `GitHubClient+Runs.swift:139,141` |
-| GET    | `/user/repos?affiliation=owner,collaborator,organization_member`                               | Repository picker                                              | `GitHubClient.swift:270`          |
-| GET    | `/orgs/{org}/repos`, `/users/{owner}/repos`                                                    | Repository picker, org and user                                | `GitHubClient.swift:272,274`      |
+| GET    | `/repos/{repo}/actions/runs/{id}/jobs?per_page=100` (org mode: `{actionsBase}/runs/{id}/jobs`) | Job labels for matching                                        | `GitHubClient+Runs.swift:152,154` |
+| GET    | `/user/repos?affiliation=owner,collaborator,organization_member`                               | Repository picker                                              | `GitHubClient.swift:280`          |
+| GET    | `/orgs/{org}/repos`, `/users/{owner}/repos`                                                    | Repository picker, org and user                                | `GitHubClient.swift:285,267`      |
 
 ## Enterprise instance
 
@@ -84,7 +84,7 @@ accounts:
 but not in effect: it defaults to the lowercase string `default`, which never matches GitHub's
 built-in group `Default`, because the lookup is an exact, case-sensitive name match — every org
 has that one group already, so the fix is spelling, not creation. Take the name from your org's
-runner-groups page and set it verbatim; [Troubleshooting scale sets](#troubleshooting-scale-sets)
+runner-groups page and set it verbatim; [Troubleshooting scale sets](#scale-set-troubleshooting-kinhin-side)
 walks through the error, the fix, and the restart an account-level edit needs.
 
 **Workflows target a scale set by its name.** GitHub keeps only a scale set's name (plus its own
@@ -234,7 +234,7 @@ Step output is sliced from `GET /repos/{repo}/actions/jobs/{id}/logs` (a redirec
 
 - Registration mode `sharedShortLived`, exit semantics `deregisters` (`GitHubForge.swift`).
 - Token lifetime: about one hour, cached per account by `RegistrationTokenCache` (`Fleet/FleetEngine+Accounts.swift`, `token_ttl` in config).
-- The runner starts with `config.sh --url --token --labels --unattended --ephemeral`, then `run.sh` (`Images/RunnerBootstrap/RunnerBootstrap+Linux.swift:127,185`).
+- The runner starts with `config.sh --url --token --labels --unattended --ephemeral`, then `run.sh` (`Images/RunnerBootstrap/RunnerBootstrap+Linux.swift:168,184`).
 - The classic path does **not** use JIT runner configuration; [scale-set mode](#scale-set-mode-in-kinhin) does. GitHub also documents `POST /{orgs|repos}/.../actions/runners/generate-jitconfig` (body: `name`, `runner_group_id`, `labels`), present in every API version and in GHES; using it on the classic path would remove the shared token from the VM.
 
 ## Demand and label matching

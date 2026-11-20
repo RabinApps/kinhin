@@ -38,7 +38,8 @@ concurrency:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # Builds the image and renders a video in it: CPU-bound, so twice the smallest pool size.
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -54,6 +55,11 @@ jobs:
   publish:
     needs: test
     if: github.event_name != 'pull_request'
+    # Two platforms are built at once, arm64 under QEMU, so this needs a runner where the emulator's binfmt handler reaches
+    # the kernel the Docker daemon builds on. GitHub-hosted runners have that (every publish before the Blacksmith move
+    # passed); the Blacksmith runners do not: `docker run --platform linux/arm64` dies with "exec format error" after
+    # `tonistiigi/binfmt --install arm64` reports OK, so every develop push failed here from #117 on. The `test` job needs
+    # no emulation and stays on Blacksmith.
     runs-on: ubuntu-latest
     timeout-minutes: 120
     permissions:
@@ -90,6 +96,12 @@ jobs:
           # Registers the arm64 emulator for buildx. The image is tonistiigi/binfmt (a typo, tonistiiq, made the pull fail);
           # pinned by digest because this container runs --privileged.
           docker run --privileged --rm tonistiigi/binfmt:qemu-v10.2.3@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0 --install arm64
+          # The handler has to reach the kernel the daemon builds on. --install reports OK either way, and the runner's
+          # job container does not mount /proc/sys/fs/binfmt_misc, so looking for the handler there says nothing (it
+          # reported "installing: arm64 OK" and still failed that check on the 8-core pool). Run an arm64 binary
+          # instead: without the handler every arm64 RUN step in video/Dockerfile dies with "exec format error", much
+          # later and mid-build.
+          docker run --rm --platform linux/arm64 alpine:3 true
           docker buildx create --name kinhin-video --driver docker-container --use
 
       - name: Sign in to ghcr.io

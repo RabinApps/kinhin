@@ -22,8 +22,10 @@ file/line annotations. Additional gates, run when they apply:
 - `scripts/tsan.sh` — required when you touch shared state, actors, locks, or
   anything `nonisolated(unsafe)` (serial ThreadSanitizer run, ~5–10 min; never
   `swift test --parallel` under TSan).
-- `cd website && npx vitepress build` — required when you edit `docs/` or
-  `website/`; it fails on dead links.
+- `scripts/website-check.sh` — required when you edit `docs/` or `website/`: the
+  content pipeline (fails on dead links), typecheck, tests and a Next.js build. After
+  changing how pages render, route, or negotiate markdown, also run
+  `scripts/website-check.sh --e2e` (the Playwright suite in `website/e2e`).
 
 Single-suite iteration during development:
 
@@ -44,8 +46,8 @@ swift format lint --strict -r Sources Tests   # or: swift format format -i -r So
 - `Tests/` — `KinhinKitTests` mirrors source folders; shared doubles live in
   `KinhinTestSupport` and every double has a `*ContractTests` in
   `Tests/KinhinKitTests/TestSupport/`.
-- `docs/` — the single source for guides and the website (VitePress reads
-  `docs/` in place). Never copy a guide into `website/`.
+- `docs/` — the single source for guides and the website (the Next.js site in
+  `website/` reads `docs/` in place). Never copy a guide into `website/`.
 - `skills/` — shipped product surface (agent skills for *using* kinhin), not
   contributor docs. Linted by `scripts/skills-lint.sh`.
 

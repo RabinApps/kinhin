@@ -18,7 +18,7 @@ How kinhin talks to Buildkite, and how that compares with Buildkite's current RE
 
 ## Auth
 
-`Authorization: Bearer <token>` (`BuildkiteClient.swift:238`). The token is a REST API access token. `BuildkiteModels.swift:41` requires these scopes and `BuildkiteClient.swift:42` checks them against `GET /v2/access-token`:
+`Authorization: Bearer <token>` (`ForgeTransport.swift:142`). The token is a REST API access token. `BuildkiteModels.swift:41` requires these scopes and `BuildkiteClient.swift:42` checks them against `GET /v2/access-token`:
 
 `read_agents`, `write_agents`, `read_builds`, `read_clusters`, `write_clusters`
 
@@ -67,7 +67,7 @@ Output is `GET /organizations/{org}/pipelines/{slug}/builds/{n}/jobs/{id}/log`, 
 ## Demand and label matching
 
 - Labels are agent tags in `key=value` form. Default: `["queue=kinhin"]`.
-- `tags(_:satisfy:)` (`BuildkiteForge.swift:190`) requires every `agent_query_rule` to match a same-key tag, with `*` as a glob. A job with no `queue` rule is treated as `queue=default`.
+- `tags(_:satisfy:)` (`BuildkiteForge.swift:203`) requires every `agent_query_rule` to match a same-key tag, with `*` as a glob. A job with no `queue` rule is treated as `queue=default`.
 - A `kinhin-runtime` rule is the pool's to satisfy (the router picks the pool), so it is ignored when matching the account's labels.
 - Jobs from another cluster (`cluster_id`) are excluded. Only `script` jobs count.
 - Queued and running jobs and the pipeline view share one cached builds read per interval.
@@ -75,8 +75,8 @@ Output is `GET /organizations/{org}/pipelines/{slug}/builds/{n}/jobs/{id}/log`, 
 
 ## Pagination, rate limits, retries
 
-- `per_page=100` and the RFC 8288 `Link: rel="next"` header, up to 20 pages (`BuildkiteClient.swift:17,164,193`).
-- A `next` link is followed only over https to the API host; anything else throws `untrustedPageLink` (`BuildkiteClient.swift:175`).
+- `per_page=100` and the RFC 8288 `Link: rel="next"` header, up to 20 pages (`BuildkiteClient.swift:17,174,203`).
+- A `next` link is followed only over https to the API host; anything else throws `untrustedPageLink` (`BuildkiteClient.swift:185`).
 - `withTransientRetry` on network errors, 429 and 5xx. No rate-limit header handling.
 
 ## Self-hosted notes and minimum versions

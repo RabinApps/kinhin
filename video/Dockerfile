@@ -6,8 +6,14 @@
 # does NOT bump this line (.github/dependabot.yml ignores it, because it cannot also bump playwright-core); update both by hand, see docs/making-a-video.md.
 FROM mcr.microsoft.com/playwright:v1.65.0-noble@sha256:9beb546099e11f52d62e505537914870e01a67e0e6b00ae41da4775324e73dbe
 
-RUN apt-get update \
- && apt-get install -y --no-install-recommends ffmpeg python3 rsync curl ca-certificates fonts-inter fonts-liberation fonts-comic-neue fonts-dejavu-core \
+# The Playwright image points apt at Azure's Ubuntu mirror over plain HTTP, which the CI runners cannot reach (update
+# succeeds, then every package download fails). Use Canonical's HTTPS mirrors, and retry transient mirror failures.
+RUN sed -i -e 's|http://azure.archive.ubuntu.com|https://archive.ubuntu.com|g' \
+           -e 's|http://security.ubuntu.com|https://security.ubuntu.com|g' \
+           /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources 2>/dev/null || true
+
+RUN apt-get -o Acquire::Retries=3 update \
+ && apt-get -o Acquire::Retries=3 install -y --no-install-recommends ffmpeg python3 rsync curl ca-certificates fonts-inter fonts-liberation fonts-comic-neue fonts-dejavu-core \
  && rm -rf /var/lib/apt/lists/*
 
 # Fonts for the built-in themes: Inter (paper, clean, midnight), DejaVu Sans Mono (blueprint), Comic Neue (chalk).
@@ -18,7 +24,9 @@ RUN printf '<?xml version="1.0"?><!DOCTYPE fontconfig SYSTEM "fonts.dtd"><fontco
 
 WORKDIR /work
 COPY package.json package-lock.json ./
-RUN npm ci
+# onnxruntime-node's install script downloads a CUDA build on linux/x64 (a 404 from Microsoft's release page failed this step).
+# Kokoro runs on the CPU here (device: "cpu" below), so the CUDA provider is never used; skip it.
+RUN npm ci --onnxruntime-node-install-cuda=skip
 
 # Bake the Kokoro model into the image (about 90 MB; the voices ship in the npm package) so a build needs no network.
 # The warm-up is a real module file (not `node -e`, which hides a missing voice) and must print "warm ok": the ONNX runtime

@@ -16,10 +16,38 @@ permissions:
   contents: read
 
 jobs:
+  changes:
+    # Decides how much Swift work a pull request needs (scripts/ci-changes.sh): none for docs/website/skills/video/design
+    # only, one test target for CLI-only or app-only changes, everything otherwise. Pushes, the nightly run and manual
+    # dispatches always run everything. Plain bash and git on a pooled Blacksmith runner, so it is safe for fork PRs too.
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    outputs:
+      swift: ${{ steps.select.outputs.swift }}
+      filter: ${{ steps.select.outputs.filter }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Select Swift work
+        id: select
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ "$EVENT" = "pull_request" ]; then
+            bash scripts/ci-changes.sh "$BASE_SHA" | tee -a "$GITHUB_OUTPUT"
+          else
+            printf 'swift=true\nfilter=\n' | tee -a "$GITHUB_OUTPUT"
+          fi
+
   test:
+    needs: changes
     # The self-hosted runner shares a Mac with the fleet and its Keychain, so
     # it never runs code from fork PRs (they would execute arbitrary tests).
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    # Skipped when a PR touches nothing Swift can see (see `changes`).
+    if: needs.changes.outputs.swift == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: kinhin-xcode
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -49,10 +77,13 @@ jobs:
         # `swift package clean` makes every file recompile so the log carries all of this repo's warnings (an
         # incremental build only re-prints warnings for recompiled files); the scan then fails on any warning in
         # Sources/ or Tests/. pipefail keeps a failing `swift test` failing through the tee.
+        # TEST_FILTER is empty for the full suite; on a CLI-only or app-only PR it names those test targets.
+        env:
+          TEST_FILTER: ${{ needs.changes.outputs.filter }}
         run: |
           set -o pipefail
           swift package clean
-          swift test --build-system swiftbuild --parallel 2>&1 | tee "$RUNNER_TEMP/swift-test.log"
+          swift test --build-system swiftbuild --parallel ${TEST_FILTER:+--filter "$TEST_FILTER"} 2>&1 | tee "$RUNNER_TEMP/swift-test.log"
           bash scripts/warnings-check.sh --scan "$RUNNER_TEMP/swift-test.log"
 
       - name: Build release products
@@ -87,11 +118,12 @@ jobs:
         run: scripts/tsan.sh
 
   fork:
+    needs: changes
     # Fork PRs never reach the self-hosted fleet (the `test` job skips them), so
     # they get the same lint, tests and release build on a GitHub-hosted Mac:
     # contributors see results, and their code never runs on our hardware. No
     # secrets, read-only token, and the checkout keeps no credentials.
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+    if: needs.changes.outputs.swift == 'true' && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
     runs-on: macos-26
     timeout-minutes: 60
     steps:
@@ -116,10 +148,13 @@ jobs:
         # `swift package clean` makes every file recompile so the log carries all of this repo's warnings (an
         # incremental build only re-prints warnings for recompiled files); the scan then fails on any warning in
         # Sources/ or Tests/. pipefail keeps a failing `swift test` failing through the tee.
+        # TEST_FILTER is empty for the full suite; on a CLI-only or app-only PR it names those test targets.
+        env:
+          TEST_FILTER: ${{ needs.changes.outputs.filter }}
         run: |
           set -o pipefail
           swift package clean
-          swift test --build-system swiftbuild --parallel 2>&1 | tee "$RUNNER_TEMP/swift-test.log"
+          swift test --build-system swiftbuild --parallel ${TEST_FILTER:+--filter "$TEST_FILTER"} 2>&1 | tee "$RUNNER_TEMP/swift-test.log"
           bash scripts/warnings-check.sh --scan "$RUNNER_TEMP/swift-test.log"
 
       - name: Build release products
@@ -127,12 +162,12 @@ jobs:
 
   docs:
     # Docs lint, docs-sync --check and skills lint are grep/sed/awk scripts with
-    # no Swift or macOS dependency, so they run on a GitHub-hosted runner, never
+    # no Swift or macOS dependency, so they run on a pooled Blacksmith runner, never
     # on the self-hosted fleet. That makes it safe to run for fork PRs too (no
     # fork guard): the job has read-only contents permission, no secrets, and
     # shares no Keychain or Mac with the fleet. Keep this step list in sync with
     # scripts/check.sh.
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -154,6 +189,41 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
+          # video-check.sh installs video/ when node_modules is absent; keep both on the runner's npm cache.
+          cache: npm
+          cache-dependency-path: video/package-lock.json
 
       - name: Video suite (claims, ci.json, unit tests)
         run: bash scripts/video-check.sh
+
+      - name: Script tests (CI change selection)
+        run: bash scripts/ci-changes-test.sh
+
+      - name: Script tests (e2e spec selection)
+        run: bash scripts/e2e-select-test.sh
+
+  gate:
+    # The one job to mark required in branch protection. The jobs above can be skipped (no Swift changes, fork vs.
+    # self-hosted), and a skipped job reports success, so this fails only when something failed or was cancelled,
+    # including `changes` itself, or when needed Swift work did not run. `if: always()` makes it run (and report) even when a dependency failed.
+    if: always()
+    needs: [changes, test, fork, docs]
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    steps:
+      - name: Require every job that ran to pass
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+          SWIFT: ${{ needs.changes.outputs.swift }}
+          TEST: ${{ needs.test.result }}
+          FORK: ${{ needs.fork.result }}
+        run: |
+          echo "job results: $RESULTS"
+          case " $RESULTS " in
+            *" failure "* | *" cancelled "*) exit 1 ;;
+          esac
+          # A skipped job passes above, so also require that Swift work the `changes` job asked for actually ran:
+          # `test` (self-hosted) or `fork` (fork PRs) must have succeeded. This catches an `if:` edit that skips both.
+          if [ "$SWIFT" = "true" ] && [ "$TEST" != "success" ] && [ "$FORK" != "success" ]; then
+            echo "::error::changes selected Swift work but neither test nor fork succeeded (test=$TEST fork=$FORK)"
+            exit 1
+          fi

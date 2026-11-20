@@ -4,6 +4,11 @@
 
 <!-- changelog: entries for the next release go here -->
 
+**Changed**
+
+- On phones the docs navigation opens as a drawer over the page from the left — from the right in right-to-left locales — with a scrim and a close button in its top corner, instead of opening above the article (where it was out of sight once you had scrolled down). While it is open the page behind it neither scrolls nor takes the keyboard: Tab stays within the drawer, Escape, the close button and the scrim close it, and the keyboard goes back to the ☰ bar. That bar and the site header stay visible over the drawer, and the main menu opens above them both.
+- The website is rebuilt: a new design on Next.js, served from Cloudflare Workers. Every page is also available as markdown (`<page>.md`, `Accept: text/markdown`, `llms.txt`), release docs stay under `/<tag>/`, and the old `.html` URLs redirect to the clean ones. See [contributing](CONTRIBUTING.md#website-tests).
+
 ## v0.0.1-beta-7
 
 **Changed**

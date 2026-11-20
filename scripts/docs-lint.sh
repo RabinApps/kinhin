@@ -7,7 +7,10 @@
 # the removed top-level gitea:/forgejo:/repo: keys) is a pattern below, with
 # a note on what replaced it — so the next rename only needs one new table
 # row. Scans every git-tracked .md file (README, docs/, website/), which by
-# construction excludes generated output like website/.vitepress/dist.
+# construction excludes generated output like website/.next and website/.open-next.
+#
+# It also runs scripts/docs-refs.sh check, so the `File.swift:<line>` citations in
+# docs/forges/*.md cannot drift from the code they cite.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -15,6 +18,7 @@ cd "$(dirname "$0")/.."
 # Each entry is "<pattern>|<why it is stale>", matched as an extended
 # regex. The pattern ends at the first "|", so it cannot use regex alternation:
 # write one entry per alternative. Keep the why human-readable: it is what the CI annotation says.
+# grep matches one line at a time, so anchor a whole-line pattern with "^": a literal "\n" can never match.
 patterns=(
     "Application Support/kinhin|the support directory is \"Kinhin\" (capital K) — see Paths.swift"
     "Runtimes…|the \"Runtimes…\" pane never shipped; routing lives in Advanced → Routing"
@@ -26,9 +30,9 @@ patterns=(
     "Migrating from Orchard|the migrating-from-Orchard page was removed — upgrading is automatic, so the site has no migration guide"
     "compat-sunset|the Orchard compat-sunset plan is retired — the compat layer is gone"
     "Orchard compat|the Orchard compat-sunset plan is retired — the compat layer is gone"
-    "\nrepo:|the top-level repo: key is gone — declare the forge as an accounts: entry"
-    "\ngitea:|the top-level gitea: key is gone — declare the forge as an accounts: entry"
-    "\nforgejo:|the top-level forgejo: key is gone — declare the forge as an accounts: entry"
+    "^repo:|the top-level repo: key is gone — declare the forge as an accounts: entry"
+    "^gitea:|the top-level gitea: key is gone — declare the forge as an accounts: entry"
+    "^forgejo:|the top-level forgejo: key is gone — declare the forge as an accounts: entry"
     "[Oo]nly GitHub Actions with Tart|the beta supports GitHub, Gitea, Forgejo and GitLab CE; see docs/forges.md (What has been tested)"
     "[Oo]nly GitHub Actions has been tested|the beta supports GitHub, Gitea, Forgejo and GitLab CE; see docs/forges.md (What has been tested)"
     "[Oo]nly GitHub Actions has run|the beta supports GitHub, Gitea, Forgejo and GitLab CE; see docs/forges.md (What has been tested)"
@@ -73,6 +77,12 @@ for entry in "${patterns[@]}"; do
         echo "  why: ${reason}"
     fi
 done
+
+# The docs cite exact source lines; scripts/docs-refs.lock keeps them honest.
+if ! bash scripts/docs-refs.sh check; then
+    echo "::error file=scripts/docs-lint.sh::docs lint — stale File.swift:<line> citations; run scripts/docs-refs.sh sync"
+    status=1
+fi
 
 if [[ $status -eq 0 ]]; then
     echo "docs lint: clean (${#files[@]} md files, ${#patterns[@]} patterns)"
