@@ -55,8 +55,12 @@ jobs:
   publish:
     needs: test
     if: github.event_name != 'pull_request'
-    # Two platforms are built at once, arm64 under QEMU: the widest pool size keeps that emulation from dominating.
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    # Two platforms are built at once, arm64 under QEMU, so this needs a runner where the emulator's binfmt handler reaches
+    # the kernel the Docker daemon builds on. GitHub-hosted runners have that (every publish before the Blacksmith move
+    # passed); the Blacksmith runners do not: `docker run --platform linux/arm64` dies with "exec format error" after
+    # `tonistiigi/binfmt --install arm64` reports OK, so every develop push failed here from #117 on. The `test` job needs
+    # no emulation and stays on Blacksmith.
+    runs-on: ubuntu-latest
     timeout-minutes: 120
     permissions:
       contents: read
