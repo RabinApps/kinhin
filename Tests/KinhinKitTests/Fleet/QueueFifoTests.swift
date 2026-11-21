@@ -47,6 +47,23 @@ final class QueueFifoTests: XCTestCase {
         XCTAssertEqual(snapshot.byForge, ["scale": 1])
     }
 
+    func testTakenJobsLeadTheDatesSoTheOldestWaitingJobIsNextInLine() {
+        // github has a waiting job at 10 and one a runner already took at 100; its busy VM covers the taken one.
+        let snapshot = FleetEngine.queueSnapshot([
+            ("github", [job("waiting", at: 10), job("taken", at: 100, assigned: true)]),
+            ("gitea", [job("other", at: 20)]),
+        ])
+        XCTAssertEqual(
+            snapshot.datesByForge["github"], [Date(timeIntervalSince1970: 100), Date(timeIntervalSince1970: 10)])
+        let plan = input(
+            demand: ["github": [.tart: 2], "gitea": [.tart: 1]],
+            dates: snapshot.datesByForge.mapValues {
+                $0.map(\.timeIntervalSince1970)
+            })
+        let totals = ["github": 2, "gitea": 1]
+        XCTAssertEqual(ScalePlan.account(for: .tart, totals: totals, coverage: ["github": 1], input: plan), "github")
+    }
+
     func testOldestWaitingAccountIsServedFirstNotTheLargestQueue() {
         let account = ForgeDemand.assignAccount(
             demand: ["github": 5, "gitea": 1], active: [:], attached: ["github", "gitea"],

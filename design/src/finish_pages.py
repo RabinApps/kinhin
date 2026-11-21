@@ -12,6 +12,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
 PAGES = {"fleet": ["Fleet"], "runtimes": ["Runtimes"], "acct": ["Accounts", "Toolchains"], "diag": ["Diagnostics"],
          "settings": ["Settings"], "setup": ["Setup & Menu"], "sheets": ["Sheets"], "components": ["Components"]}
+if os.environ.get("KFILE"):
+    # KFILE edits the .fig directly; the save step below writes the *running* document over it and would discard them.
+    sys.exit("finish_pages.py drives the live OpenPencil app: unset KFILE, or run <page>.py directly for headless edits")
 scripts = sys.argv[1:] or list(PAGES)
 os.chdir(HERE)
 for s in scripts:

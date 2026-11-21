@@ -8,8 +8,9 @@ extension FleetEngine {
         var entries: [FleetJobsReport.Entry]
         /// Waiting jobs per forge account (every job, not only the capped head).
         var byForge: [String: Int]
-        /// Each account's jobs' created dates, oldest first, for the scale plan's first-in first-out account choice.
-        /// Every job counts (a scale-set runner's job too): the plan's coverage counts them the same way.
+        /// Each account's jobs' created dates for the scale plan's first-in first-out account choice: jobs a
+        /// scale-set runner already took first (their runners count as coverage), then the waiting jobs oldest first,
+        /// so advancing past the covered prefix lands on the oldest job that is still waiting.
         var datesByForge: [String: [Date]]
     }
 
@@ -22,7 +23,9 @@ extension FleetEngine {
         for (account, jobs) in perForge {
             let waiting = jobs.filter { !$0.isAssigned }
             byForge[account] = waiting.count
-            let created = jobs.compactMap { $0.correlation?.enqueuedAt }.sorted()
+            // An undated taken job still occupies a runner, so it keeps its place (as the oldest).
+            let taken = jobs.filter(\.isAssigned).map { $0.correlation?.enqueuedAt ?? .distantPast }.sorted()
+            let created = taken + waiting.compactMap { $0.correlation?.enqueuedAt }.sorted()
             if !created.isEmpty { dates[account] = created }
             for job in waiting {
                 entries.append(
