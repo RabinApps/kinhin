@@ -74,15 +74,27 @@ function rehypeMermaid() {
  */
 function rehypeSameOriginImages() {
   const base = 'https://kinhin.invalid'
+  const sameOrigin = (url: string): boolean => {
+    try {
+      return new URL(url, base).origin === base
+    } catch {
+      return false
+    }
+  }
   return (tree: HastRoot) => {
     visit(tree, 'element', (node: Element) => {
-      if (node.tagName !== 'img' || typeof node.properties?.src !== 'string') return
-      try {
-        if (new URL(node.properties.src, base).origin === base) return
-      } catch {
-        /* unparseable: drop it */
+      const props = node.properties
+      if (!props) return
+      if (node.tagName === 'img' && typeof props.src === 'string' && !sameOrigin(props.src)) delete props.src
+      // `<picture><source srcset>` is allowed too, and takes a list: "url 1x, url 2x". One candidate that leaves the site drops the list.
+      if (node.tagName === 'img' || node.tagName === 'source') {
+        const set = props.srcSet ?? props.srcset
+        const text = Array.isArray(set) ? set.join(', ') : typeof set === 'string' ? set : undefined
+        if (text !== undefined && !text.split(',').every((c) => sameOrigin(c.trim().split(/\s+/)[0] ?? ''))) {
+          delete props.srcSet
+          delete props.srcset
+        }
       }
-      delete node.properties.src
     })
   }
 }
