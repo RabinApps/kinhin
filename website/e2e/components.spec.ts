@@ -121,7 +121,7 @@ test.describe('Mermaid diagrams', () => {
     await page.goto('/' + mermaidRoute)
     await hydrated(page)
     await page.evaluate(() => document.querySelector('figure.mermaid')?.scrollIntoView({ block: 'center' }))
-    const err = page.locator('figure.mermaid:not(.mermaid-source) pre').filter({ hasText: 'notadiagram' })
+    const err = page.getByTestId('mermaid-error').filter({ hasText: 'notadiagram' })
     await expect(err.first()).toBeVisible({ timeout: 20_000 })
     await expect(page.locator('figure.mermaid img[src="x"]')).toHaveCount(0)
     expect(await page.evaluate(() => (window as unknown as { __pwned?: number }).__pwned)).toBeUndefined()

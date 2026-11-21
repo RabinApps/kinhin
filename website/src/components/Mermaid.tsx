@@ -53,7 +53,7 @@ export function Mermaid({ chart }: { chart: string }) {
   return (
     <figure className="mermaid">
       <div ref={host} dangerouslySetInnerHTML={{ __html: svg }} />
-      {error && <pre>{error}</pre>}
+      {error && <pre data-testid="mermaid-error">{error}</pre>}
       {svg && (
         <button type="button" className="mermaid-expand" onClick={() => setOpen(true)} onPointerEnter={() => void loadViewer()} onFocus={() => void loadViewer()}>
           Expand

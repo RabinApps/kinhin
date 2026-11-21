@@ -1,7 +1,7 @@
 # Response headers for static files served by the Worker's assets binding (release snapshots, images, .md copies).
 # Pages served through the Worker get the same set from src/middleware.ts; keep the two in step (e2e/headers.spec.ts checks both).
 /*
-  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  Strict-Transport-Security: max-age=31536000
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
