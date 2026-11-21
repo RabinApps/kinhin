@@ -357,14 +357,23 @@ The automation needs the OpenPencil app open with the document loaded and frontm
 frames in the app, or change `design/src/` and rebuild the page (the scripts clear and redraw it). Save with
 `openpencil documents save`, and export with `openpencil export design/kinhin-app.fig --page <Page> -f png -o <file>`.
 
-**Without the app (headless).** The CLI also edits a `.fig` file directly: `KFILE=design/kinhin-app.fig python3 <page>.py`
-(from `design/src/`) redraws a page into the file, but it does not clear the old frames, so delete them first
-(`openpencil tool call delete_node design/kinhin-app.fig --write --args '{"id":"<id>"}'`; ids renumber after every write, so
-re-read the tree between deletes). Then bind the tokens (`bind.js`, through `tool call eval`) and run
-`openpencil lint design/kinhin-app.fig --fix -o <tmp>.fig`. A headless PNG export has no fonts: copy the CLI package, add
-the installed SF Pro Text and Display `.otf` files to its `BUNDLED_FONTS` (see the header of `design/src/site/build.mjs`),
-and export with that copy. It cannot draw the sidebar's SF Symbol icons, so paste each frame's sidebar from the previous
-export. `finish_pages.py` is app-only and refuses to run with `KFILE` set.
+**Without the app (headless).** The CLI also edits a `.fig` file directly. Run everything from the repository root:
+
+1. Delete the page's old frames, because a headless redraw does not clear them (ids renumber after every write, so
+   re-read the tree between deletes):
+   `openpencil tool call delete_node design/kinhin-app.fig --write --args '{"id":"<id>"}'`.
+2. Redraw the page: `(cd design/src && KFILE=../kinhin-app.fig python3 <page>.py)` (`KFILE` is resolved from the
+   current directory, hence `../`).
+3. Bind the tokens by running `design/src/bind.js` through `openpencil tool call eval design/kinhin-app.fig --write`.
+4. Apply the lint fixes and adopt the result:
+   `openpencil lint design/kinhin-app.fig --fix -o /tmp/kinhin-fixed.fig && cp /tmp/kinhin-fixed.fig design/kinhin-app.fig`.
+5. Export. A headless export has no fonts: copy the CLI package, add the installed SF Pro Text and Display `.otf` files
+   to its `BUNDLED_FONTS` (see the header of `design/src/site/build.mjs`), and export with that copy. It cannot draw the
+   sidebar's SF Symbol icons, so paste each frame's sidebar from the previous export.
+
+`finish_pages.py` is app-only: it refuses to run with `KFILE` set, and after any headless edit you must reopen
+`design/kinhin-app.fig` in OpenPencil first, so the open document matches the file (the script saves the whole open
+document, which would otherwise overwrite the headless edits on every page it does not rebuild).
 
 ## Localization (menu bar app)
 

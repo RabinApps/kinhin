@@ -2,6 +2,8 @@
 
 Usage (from design/src, OpenPencil installed, design/kinhin-app.fig open):
   python3 finish_pages.py diag settings
+After any headless edit of the .fig (KFILE), reopen design/kinhin-app.fig in OpenPencil first: this script saves the whole
+open document and would overwrite those edits on every page it does not rebuild.
 Every page script is one of: fleet runtimes acct diag settings setup sheets components.
 """
 import sys, json, subprocess, time, os
