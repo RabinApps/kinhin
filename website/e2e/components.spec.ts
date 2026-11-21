@@ -111,11 +111,16 @@ test.describe('Mermaid diagrams', () => {
   })
 
   test('a diagram that fails to parse shows its error as text, never as markup', async ({ page }) => {
-    // Mermaid's parse error quotes the diagram source. Break the page's diagrams on the way in (the flight payload carries the
-    // source as a JS string, where \u003c is a "<" that never appears in the raw HTML) and check the quoted payload is inert.
-    await page.route('**/' + mermaidRoute, async (route) => {
+    // Mermaid's parse error quotes the diagram source. No docs page has a broken diagram, so patch the Mermaid component's
+    // chunk to render a hostile one (the page's own data cannot be edited: its flight rows are length-prefixed).
+    let patched = 0
+    await page.route(/\/_next\/static\/.*\.js(\?.*)?$/, async (route) => {
       const res = await route.fetch()
-      const body = (await res.text()).replaceAll('flowchart', 'notadiagram \\u003cimg src=x onerror=window.__pwned=1>')
+      let body = await res.text()
+      if (body.includes('mermaid-expand') && /\.render\([^,]+,\s*[\w$]+\)/.test(body)) {
+        body = body.replace(/(\.render\([^,]+,)\s*[\w$]+\)/, '$1"notadiagram <img src=x onerror=window.__pwned=1>")')
+        patched++
+      }
       await route.fulfill({ response: res, body })
     })
     await page.goto('/' + mermaidRoute)
@@ -123,6 +128,7 @@ test.describe('Mermaid diagrams', () => {
     await page.evaluate(() => document.querySelector('figure.mermaid')?.scrollIntoView({ block: 'center' }))
     const err = page.getByTestId('mermaid-error').filter({ hasText: 'notadiagram' })
     await expect(err.first()).toBeVisible({ timeout: 20_000 })
+    expect(patched, 'the Mermaid component chunk was patched (update the pattern if its minified shape changed)').toBeGreaterThan(0)
     await expect(page.locator('figure.mermaid img[src="x"]')).toHaveCount(0)
     expect(await page.evaluate(() => (window as unknown as { __pwned?: number }).__pwned)).toBeUndefined()
   })
