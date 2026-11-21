@@ -283,7 +283,7 @@
         }
       }
     },
-    "… and %@ more" : {
+    "… and %lld more" : {
       "comment" : "Text in FleetView"
     },
     ".kinhin/config.yml honored" : {

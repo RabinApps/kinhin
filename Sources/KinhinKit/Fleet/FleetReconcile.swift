@@ -247,8 +247,9 @@ extension FleetEngine {
         var failedForges: Set<String> = []
         /// The oldest queue timestamp any forge supplied (nil when none did: the age is then unavailable).
         var oldestEnqueuedAt: Date?
-        /// Each account's longest-waiting job: the scale plan serves the account that has waited longest first.
-        var oldestByForge: [String: Date] = [:]
+        /// Each account's queued jobs' created dates, oldest first: the scale plan serves the account whose next
+        /// uncovered job has waited longest.
+        var queueDatesByForge: [String: [Date]] = [:]
     }
 
     /// Polls every attached forge's queue (and running work) into `Demand`
@@ -329,6 +330,8 @@ extension FleetEngine {
                 await statusBox.modify { $0.setAlert("queue:\(forge.account)", message) }
             }
         }
+        let queue = Self.queueSnapshot(queueOrder)
+        demand.queueDatesByForge = queue.datesByForge
         publishQueueTelemetry(
             byForge: demand.byForge, byPool: demand.byPool, byContainerPool: demand.byContainerPool,
             oldestEnqueuedAt: demand.oldestEnqueuedAt)
@@ -343,7 +346,15 @@ extension FleetEngine {
             // The snapshot keeps queueDepth 0 while paused, but the
             // observation was real: stamp its freshness. An outage leaves
             // the old timestamp, so the age truthfully shows staleness.
-            if answeredQueue { await statusBox.modify { $0.queuePolledAt = Date() } }
+            // The queue detail is published with that timestamp, so a job that left (or arrived) during the pause
+            // never shows under a fresh age. `queueDepth` stays masked and nothing spawns from it.
+            if answeredQueue {
+                await statusBox.modify {
+                    $0.queuePolledAt = Date()
+                    $0.queueByForge = queue.byForge
+                    $0.queuedJobs = queue.entries
+                }
+            }
             // Jobs keep running on the VMs while the pause holds back new ones: refresh Current jobs while some VM
             // shows a job or is busy (a job that started since the last attribution), so it appears and a finished
             // one clears. A persistent runner's VM stays `.ready` while it works, so with those every live VM counts.
@@ -357,8 +368,6 @@ extension FleetEngine {
             return Demand()
         }
         let byRepo = ForgeDemand.mergeQueueByRepo(perForgeJobs)
-        let queue = Self.queueSnapshot(queueOrder)
-        demand.oldestByForge = queue.oldestByForge
         // When no forge answered, keep the last observed queue: publishing 0
         // would show a healthy empty queue during an outage.
         let nothingAnswered = !ordered.isEmpty && !answeredQueue
@@ -390,7 +399,7 @@ extension FleetEngine {
         let routing = routerState.model
         var input = ScalePlan.Input(
             records: store.all, demand: demand.byForgePool, includesRunning: demand.includesRunning,
-            attached: Set(attached.map(\.account)), oldestByAccount: demand.oldestByForge,
+            attached: Set(attached.map(\.account)), queueDatesByAccount: demand.queueDatesByForge,
             failedForges: demand.failedForges,
             runnersPerVM: max(1, config.runnersPerVM), minRunners: config.minRunners,
             maxRunners: config.maxRunners, capacityCap: capacity.maxConcurrent, poolCaps: routerState.caps,

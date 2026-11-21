@@ -98,9 +98,16 @@ extension MCPTool {
             + "are first in, first out: position 1 is the job the forge created first.",
         inputSchema: InputSchema(),
         run: { _ in
-            let status = try? RPCClient().status()  // no daemon answering reads as daemonRunning: false
-            return try mcpEncode(
-                JobsCommand.Document(daemonRunning: status != nil, jobs: status.map { FleetJobsReport(status: $0) }))
+            let status: FleetStatus?
+            do {
+                status = try RPCClient().status()
+            } catch RPCError.connectionFailed {
+                status = nil  // nobody is listening: daemonRunning false
+            }
+            let document = JobsCommand.Document(
+                daemonRunning: status != nil, jobs: status.map { FleetJobsReport(status: $0) })
+            // ISO-8601 dates, as `kinhin jobs --json` prints them.
+            return try CLIJSON.data(document, dates: .iso8601)
         }
     )
 

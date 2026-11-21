@@ -74,7 +74,6 @@ struct CoverageTests {
         "watch": "waived: interactive refresh loop",
         "pipeline": "FeatureTests.readCommandsOnABusyFleet (Gitea: job-level detail only; steps need GitHub)",
         "jobs": "JobsCommandTests (unit: the same status RPC `status` reads, which readCommandsOnABusyFleet covers)",
-        "queue": "JobsCommandTests (unit: `jobs --queued` over the same status RPC)",
         "requeue": "FeatureTests.readCommandsOnABusyFleet (refused on Gitea; GitHub-only, runs once that lane exists)",
         "skip": "FeatureTests.readCommandsOnABusyFleet (refused on Gitea; GitHub-only, runs once that lane exists)",
         "heal": "HealingCLITests.noDaemon, HealingTests.diskPressure (and every HealingTests lane)",

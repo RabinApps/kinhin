@@ -54,7 +54,9 @@ enum JobsCommand {
             } catch {
                 fail(error.localizedDescription, exit: .runtime)
             }
-            let report = status.map { filtered(FleetJobsReport(status: $0), forge: options.forge) }
+            let report = status.map {
+                limited(filtered(FleetJobsReport(status: $0), forge: options.forge), to: options.view)
+            }
             if options.watch, !options.json { print("\u{1B}[2J\u{1B}[H", terminator: "") }
             if options.json {
                 try emitJSON(Document(daemonRunning: status != nil, jobs: report), dates: .iso8601)
@@ -87,6 +89,23 @@ enum JobsCommand {
         out.queueByForge = report.queueByForge.filter { $0.key.caseInsensitiveCompare(forge) == .orderedSame }
         out.queueDepth = out.queueByForge.values.reduce(0, +)
         out.unattributedBusy = []
+        return out
+    }
+
+    /// The report cut down to the one half `--running` or `--queued` asked for; `.all` keeps both.
+    static func limited(_ report: FleetJobsReport, to view: View) -> FleetJobsReport {
+        var out = report
+        switch view {
+        case .all:
+            break
+        case .running:
+            out.queued = []
+            out.queueDepth = 0
+            out.queueByForge = [:]
+        case .queued:
+            out.running = []
+            out.unattributedBusy = []
+        }
         return out
     }
 

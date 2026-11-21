@@ -8,8 +8,9 @@ extension FleetEngine {
         var entries: [FleetJobsReport.Entry]
         /// Waiting jobs per forge account (every job, not only the capped head).
         var byForge: [String: Int]
-        /// Each account's longest-waiting job, for the scale plan's first-in first-out account choice.
-        var oldestByForge: [String: Date]
+        /// Each account's jobs' created dates, oldest first, for the scale plan's first-in first-out account choice.
+        /// Every job counts (a scale-set runner's job too): the plan's coverage counts them the same way.
+        var datesByForge: [String: [Date]]
     }
 
     /// Fold each forge's (already FIFO-ordered) jobs into one queue. A job a scale-set runner already took is
@@ -17,11 +18,12 @@ extension FleetEngine {
     static func queueSnapshot(_ perForge: [(account: String, jobs: [ForgeJob])]) -> QueueSnapshot {
         var entries: [FleetJobsReport.Entry] = []
         var byForge: [String: Int] = [:]
-        var oldest: [String: Date] = [:]
+        var dates: [String: [Date]] = [:]
         for (account, jobs) in perForge {
             let waiting = jobs.filter { !$0.isAssigned }
             byForge[account] = waiting.count
-            if let first = waiting.compactMap({ $0.correlation?.enqueuedAt }).min() { oldest[account] = first }
+            let created = jobs.compactMap { $0.correlation?.enqueuedAt }.sorted()
+            if !created.isEmpty { dates[account] = created }
             for job in waiting {
                 entries.append(
                     FleetJobsReport.Entry(
@@ -31,6 +33,6 @@ extension FleetEngine {
         }
         let ordered = FleetJobsReport.fifo(entries)
         return QueueSnapshot(
-            entries: Array(ordered.prefix(FleetStatus.queuedJobsLimit)), byForge: byForge, oldestByForge: oldest)
+            entries: Array(ordered.prefix(FleetStatus.queuedJobsLimit)), byForge: byForge, datesByForge: dates)
     }
 }

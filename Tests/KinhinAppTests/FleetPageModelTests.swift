@@ -120,6 +120,12 @@ final class FleetPageModelTests: MainWindowTestCase {
         XCTAssertEqual(rows.first?.title, "job 1 — acme/api")
         XCTAssertEqual(rows.first?.detail, "github")
         XCTAssertEqual(models.fleetModel.queueOverflow, 2)
+        // The status lists at most 200 jobs; the overflow counts from the per-forge totals instead.
+        fleet.status = running {
+            $0.queuedJobs = Array(repeating: FleetJobsReport.Entry(name: "j", forge: "github"), count: 200)
+            $0.queueByForge = ["github": 201]
+        }
+        XCTAssertEqual(models.fleetModel.queueOverflow, 201 - FleetModel.queueRowsShown)
         fleet.status = running()
         XCTAssertTrue(models.fleetModel.queueRows.isEmpty, "an older daemon sends no list")
     }

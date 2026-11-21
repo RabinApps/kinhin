@@ -280,9 +280,11 @@ final class FleetModel {
         }
     }
 
-    /// Waiting jobs beyond the rows shown.
+    /// Waiting jobs beyond the rows shown. Counted from the per-forge totals: the status lists at most
+    /// `FleetStatus.queuedJobsLimit` jobs, so the list alone undercounts a long queue.
     var queueOverflow: Int {
-        max(0, (status?.queuedJobs?.count ?? 0) - Self.queueRowsShown)
+        let waiting = status?.queueByForge?.values.reduce(0, +) ?? status?.queuedJobs?.count ?? 0
+        return max(0, waiting - Self.queueRowsShown)
     }
 
     private static let waitFormatter: RelativeDateTimeFormatter = {

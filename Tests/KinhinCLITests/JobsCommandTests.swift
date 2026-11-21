@@ -92,6 +92,17 @@ final class JobsCommandTests: XCTestCase {
         XCTAssertTrue(JobsCommand.filtered(report, forge: "gitea").running.isEmpty)
     }
 
+    func testViewLimitsTheJSONHalves() {
+        let running = JobsCommand.limited(report, to: .running)
+        XCTAssertEqual(running.running.count, 1)
+        XCTAssertTrue(running.queued.isEmpty)
+        XCTAssertEqual(running.queueDepth, 0)
+        let queued = JobsCommand.limited(report, to: .queued)
+        XCTAssertTrue(queued.running.isEmpty)
+        XCTAssertEqual(queued.queued.count, 2)
+        XCTAssertEqual(JobsCommand.limited(report, to: .all), report)
+    }
+
     func testDurationFormats() {
         XCTAssertEqual(JobsCommand.duration(-5), "0s")
         XCTAssertEqual(JobsCommand.duration(59), "59s")

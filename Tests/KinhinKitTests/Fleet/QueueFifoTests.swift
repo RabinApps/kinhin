@@ -35,7 +35,8 @@ final class QueueFifoTests: XCTestCase {
         XCTAssertEqual(snapshot.entries.map(\.position), [1, 2, 3])
         XCTAssertEqual(snapshot.entries.map(\.forge), ["github", "gitea", "github"])
         XCTAssertEqual(snapshot.byForge, ["github": 2, "gitea": 1])
-        XCTAssertEqual(snapshot.oldestByForge["github"], Date(timeIntervalSince1970: 100))
+        XCTAssertEqual(
+            snapshot.datesByForge["github"], [Date(timeIntervalSince1970: 100), Date(timeIntervalSince1970: 300)])
     }
 
     func testAssignedScaleSetJobsAreDemandButNotWaiting() {
@@ -64,6 +65,39 @@ final class QueueFifoTests: XCTestCase {
             demand: ["github": 1, "gitea": 1], active: ["gitea": 1], attached: ["github", "gitea"],
             oldest: ["gitea": Date(timeIntervalSince1970: 1), "github": Date(timeIntervalSince1970: 9)])
         XCTAssertEqual(account, "github")
+    }
+
+    private func input(
+        demand: [String: [RuntimeID: Int]], dates: [String: [TimeInterval]], rpv: Int = 1
+    ) -> ScalePlan.Input {
+        var input = ScalePlan.Input(
+            records: [], demand: demand, attached: Set(demand.keys), runnersPerVM: rpv, maxRunners: 10,
+            capacityCap: 10, existingPools: [.tart, .appleContainer], defaultRuntime: .tart)
+        input.queueDatesByAccount = dates.mapValues { $0.map { Date(timeIntervalSince1970: $0) } }
+        return input
+    }
+
+    func testAccountIsChosenAmongThoseQueuedOnTheChosenRuntime() {
+        // github's older job needs Tart; gitea's two newer jobs need an Apple container. An instance on Apple
+        // container must not be registered with github.
+        let plan = input(
+            demand: ["github": [.tart: 1], "gitea": [.appleContainer: 2]],
+            dates: ["github": [10], "gitea": [20, 30]])
+        let account = ScalePlan.account(
+            for: .appleContainer, totals: ["github": 1, "gitea": 2], coverage: [:], input: plan)
+        XCTAssertEqual(account, "gitea")
+        let tart = ScalePlan.account(for: .tart, totals: ["github": 1, "gitea": 2], coverage: [:], input: plan)
+        XCTAssertEqual(tart, "github")
+    }
+
+    func testTheQueueHeadAdvancesAsPlannedInstancesCoverJobs() {
+        // github jobs at 10 and 100, gitea jobs at 20 and 30: github's job at 10 first, then (github now covered
+        // up to its second job, dated 100) gitea's job at 20.
+        let plan = input(
+            demand: ["github": [.tart: 2], "gitea": [.tart: 2]], dates: ["github": [10, 100], "gitea": [20, 30]])
+        let totals = ["github": 2, "gitea": 2]
+        XCTAssertEqual(ScalePlan.account(for: .tart, totals: totals, coverage: [:], input: plan), "github")
+        XCTAssertEqual(ScalePlan.account(for: .tart, totals: totals, coverage: ["github": 1], input: plan), "gitea")
     }
 
     func testReportSplitsRunningFromQueuedAndFlagsBusyVMsWithoutAJob() {

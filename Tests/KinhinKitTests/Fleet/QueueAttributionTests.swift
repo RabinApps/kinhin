@@ -272,6 +272,27 @@ final class QueueAttributionTests: XCTestCase {
         XCTAssertEqual(status.runningByRepo, ["acme/ios-app": 1])
     }
 
+    func testRunningByRepoLeavesOutJobsOnRunnersOutsideTheFleet() async throws {
+        let github = FakeGitHub()
+        let engine = makeEngine(scope: "acme", github: github)
+        github.queueDepth = 1
+        try await engine.reconcileOnce()
+        try await waitUntil(timeout: 10) {
+            let status = await engine.status()
+            return status.records.first?.phase == .ready
+        }
+        let vmID = await engine.status().records.first!.id
+
+        github.running = [
+            RunningJob(name: "build", runnerName: vmID, repository: "acme/ios-app"),
+            RunningJob(name: "other", runnerName: "someone-elses-runner", repository: "acme/elsewhere"),
+        ]
+        try await engine.reconcileOnce()
+
+        let status = await engine.status()
+        XCTAssertEqual(status.runningByRepo, ["acme/ios-app": 1], "a job on a runner outside this fleet is not ours")
+    }
+
     func testMultiRunnerVMDerivesVMIDFromIndexedRunnerName() async throws {
         let github = FakeGitHub()
         _ = makeEngine(scope: "acme", github: github)
