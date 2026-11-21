@@ -78,11 +78,15 @@ def alert(name,title,msg,btns,w=320):
     return f'<Frame name="{name}" flex="col" w={{{w}}} p={{20}} gap={{10}} rounded={{12}} bg="{SURF}" stroke="{BOR}">{T(title,13,700,fill=True)}{T(msg,12,400,TX2,fill=True)}{vcol(*btns,gap=6)}</Frame>'
 import time
 _cur={"id":None}
-def _act(): subprocess.run(['osascript','-e','tell application "OpenPencil" to activate'],capture_output=True)
+def _act():
+    if os.environ.get("KFILE"): return
+    subprocess.run(['osascript','-e','tell application "OpenPencil" to activate'],capture_output=True)
 def _call(args,tries=4):
     for t in range(tries):
         _act()
-        r=subprocess.run(["openpencil","tool","call"]+args,capture_output=True,text=True)
+        f=os.environ.get("KFILE")
+        cmd=["openpencil","tool","call",args[0]]+([os.path.abspath(f),"--write"] if f else [])+args[1:]
+        r=subprocess.run(cmd,capture_output=True,text=True)
         if "RPC timeout" in (r.stdout+r.stderr) or "MCP discovery" in (r.stdout+r.stderr):
             time.sleep(4); continue
         return r
@@ -135,7 +139,9 @@ def prep(jsx):
     return _name(jsx)
 def render(jsx,x,y,label=""):
     jsx=prep(jsx)
-    r=_call(["render","--page-id",_cur["id"],"--args",json.dumps({"jsx":jsx,"x":x,"y":y})])
+    a={"jsx":jsx,"x":x,"y":y}
+    if os.environ.get("KFILE"): a["parent_id"]=_cur["id"]
+    r=_call(["render","--page-id",_cur["id"],"--args",json.dumps(a)])
     print(label,"ok" if '"id"' in r.stdout else (r.stderr+r.stdout)[-300:])
 def clear(name):
     pid=_pid(name)
