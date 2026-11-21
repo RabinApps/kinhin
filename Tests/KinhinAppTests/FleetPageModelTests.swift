@@ -111,8 +111,8 @@ final class FleetPageModelTests: MainWindowTestCase {
 
     func testQueueRowsListTheOldestJobsFirstAndCountTheRest() {
         fleet.status = running {
-            $0.queuedJobs = (1...10).map {
-                FleetJobsReport.Entry(name: "job \($0)", repo: "acme/api", forge: "github", position: $0)
+            $0.queuedJobs = (1...10).map { (number: Int) in
+                FleetJobsReport.Entry(name: "job \(number)", repo: "acme/api", forge: "github", position: number)
             }
         }
         let rows = models.fleetModel.queueRows
