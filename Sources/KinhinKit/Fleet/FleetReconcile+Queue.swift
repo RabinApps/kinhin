@@ -8,25 +8,39 @@ extension FleetEngine {
         var entries: [FleetJobsReport.Entry]
         /// Waiting jobs per forge account (every job, not only the capped head).
         var byForge: [String: Int]
-        /// Each account's jobs' created dates for the scale plan's first-in first-out account choice: jobs a
-        /// scale-set runner already took first (their runners count as coverage), then the waiting jobs oldest first,
-        /// so advancing past the covered prefix lands on the oldest job that is still waiting.
-        var datesByForge: [String: [Date]]
+        /// Each account's jobs' created dates per runtime, for the scale plan's first-in first-out account choice:
+        /// jobs a scale-set runner already took first (their runners count as coverage), then the waiting jobs
+        /// oldest first, so advancing past the covered prefix lands on the oldest job that is still waiting.
+        var datesByForge: [String: [RuntimeID: [Date]]]
     }
 
     /// Fold each forge's (already FIFO-ordered) jobs into one queue. A job a scale-set runner already took is
     /// counted in demand but is not waiting, so it is left out here.
-    static func queueSnapshot(_ perForge: [(account: String, jobs: [ForgeJob])]) -> QueueSnapshot {
+    static func queueSnapshot(
+        _ perForge: [(account: String, jobs: [ForgeJob])], runtime: (ForgeJob) -> RuntimeID
+    ) -> QueueSnapshot {
         var entries: [FleetJobsReport.Entry] = []
         var byForge: [String: Int] = [:]
-        var dates: [String: [Date]] = [:]
+        var dates: [String: [RuntimeID: [Date]]] = [:]
         for (account, jobs) in perForge {
             let waiting = jobs.filter { !$0.isAssigned }
             byForge[account] = waiting.count
-            // An undated taken job still occupies a runner, so it keeps its place (as the oldest).
-            let taken = jobs.filter(\.isAssigned).map { $0.correlation?.enqueuedAt ?? .distantPast }.sorted()
-            let created = taken + waiting.compactMap { $0.correlation?.enqueuedAt }.sorted()
-            if !created.isEmpty { dates[account] = created }
+            // Per runtime, since an instance only serves jobs routed to its own runtime. An undated taken job still
+            // occupies a runner, so it keeps its place (as the oldest).
+            var taken: [RuntimeID: [Date]] = [:]
+            var waitingDates: [RuntimeID: [Date]] = [:]
+            for job in jobs {
+                let pool = runtime(job)
+                if job.isAssigned {
+                    taken[pool, default: []].append(job.correlation?.enqueuedAt ?? .distantPast)
+                } else if let created = job.correlation?.enqueuedAt {
+                    waitingDates[pool, default: []].append(created)
+                }
+            }
+            for pool in Set(taken.keys).union(waitingDates.keys) {
+                let ordered = (taken[pool] ?? []).sorted() + (waitingDates[pool] ?? []).sorted()
+                if !ordered.isEmpty { dates[account, default: [:]][pool] = ordered }
+            }
             for job in waiting {
                 entries.append(
                     FleetJobsReport.Entry(

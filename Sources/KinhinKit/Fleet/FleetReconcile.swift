@@ -249,7 +249,7 @@ extension FleetEngine {
         var oldestEnqueuedAt: Date?
         /// Each account's queued jobs' created dates, oldest first: the scale plan serves the account whose next
         /// uncovered job has waited longest.
-        var queueDatesByForge: [String: [Date]] = [:]
+        var queueDatesByForge: [String: [RuntimeID: [Date]]] = [:]
     }
 
     /// Polls every attached forge's queue (and running work) into `Demand`
@@ -330,7 +330,7 @@ extension FleetEngine {
                 await statusBox.modify { $0.setAlert("queue:\(forge.account)", message) }
             }
         }
-        let queue = Self.queueSnapshot(queueOrder)
+        let queue = Self.queueSnapshot(queueOrder, runtime: { routerState.model.runtime(for: $0) })
         demand.queueDatesByForge = queue.datesByForge
         publishQueueTelemetry(
             byForge: demand.byForge, byPool: demand.byPool, byContainerPool: demand.byContainerPool,

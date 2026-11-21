@@ -37,7 +37,7 @@ struct ScalePlan: Equatable {
         /// Accounts with a working forge (candidates for a new instance).
         var attached: Set<String>
         /// Each account's queued jobs' created dates, oldest first, for first-in, first-out account choice.
-        var queueDatesByAccount: [String: [Date]] = [:]
+        var queueDatesByAccount: [String: [RuntimeID: [Date]]] = [:]
         /// Accounts whose queue could not be read this pass.
         var failedForges: Set<String> = []
         var runnersPerVM = 1
@@ -335,11 +335,7 @@ struct ScalePlan: Equatable {
 
             // The account for the instance: the one whose queued jobs it can serve, oldest job first (the most
             // unmet demand without queue dates), counting the instances that already cover each account's jobs.
-            var coverage: [String: Int] = [:]
-            for record in sim where covers(record, includesRunning: input.includesRunning) {
-                if let account = record.platform { coverage[account, default: 0] += 1 }
-            }
-            let account = account(for: chosen, totals: totals, coverage: coverage, input: input)
+            let account = account(for: chosen, totals: totals, records: sim, input: input)
 
             // The image for a Tart slot, counting only instances that serve demand (warm ones do not).
             var image: String?

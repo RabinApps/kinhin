@@ -27,41 +27,82 @@ final class QueueFifoTests: XCTestCase {
     }
 
     func testQueueSnapshotMergesForgesOldestFirstWithPositions() {
-        let snapshot = FleetEngine.queueSnapshot([
-            ("github", ForgeJob.fifoOrdered([job("g-new", at: 300), job("g-old", at: 100)])),
-            ("gitea", [job("t-mid", at: 200, repo: "acme/web")]),
-        ])
+        let snapshot = FleetEngine.queueSnapshot(
+            [
+                ("github", ForgeJob.fifoOrdered([job("g-new", at: 300), job("g-old", at: 100)])),
+                ("gitea", [job("t-mid", at: 200, repo: "acme/web")]),
+            ], runtime: { _ in .tart })
         XCTAssertEqual(snapshot.entries.map(\.name), ["g-old", "t-mid", "g-new"])
         XCTAssertEqual(snapshot.entries.map(\.position), [1, 2, 3])
         XCTAssertEqual(snapshot.entries.map(\.forge), ["github", "gitea", "github"])
         XCTAssertEqual(snapshot.byForge, ["github": 2, "gitea": 1])
         XCTAssertEqual(
-            snapshot.datesByForge["github"], [Date(timeIntervalSince1970: 100), Date(timeIntervalSince1970: 300)])
+            snapshot.datesByForge["github"]?[.tart],
+            [Date(timeIntervalSince1970: 100), Date(timeIntervalSince1970: 300)])
     }
 
     func testAssignedScaleSetJobsAreDemandButNotWaiting() {
-        let snapshot = FleetEngine.queueSnapshot([
-            ("scale", [job("running", at: 1, assigned: true), job("waiting", at: 2)])
-        ])
+        let snapshot = FleetEngine.queueSnapshot(
+            [("scale", [job("running", at: 1, assigned: true), job("waiting", at: 2)])], runtime: { _ in .tart })
         XCTAssertEqual(snapshot.entries.map(\.name), ["waiting"])
         XCTAssertEqual(snapshot.byForge, ["scale": 1])
     }
 
     func testTakenJobsLeadTheDatesSoTheOldestWaitingJobIsNextInLine() {
         // github has a waiting job at 10 and one a runner already took at 100; its busy VM covers the taken one.
-        let snapshot = FleetEngine.queueSnapshot([
-            ("github", [job("waiting", at: 10), job("taken", at: 100, assigned: true)]),
-            ("gitea", [job("other", at: 20)]),
-        ])
+        let snapshot = FleetEngine.queueSnapshot(
+            [
+                ("github", [job("waiting", at: 10), job("taken", at: 100, assigned: true)]),
+                ("gitea", [job("other", at: 20)]),
+            ], runtime: { _ in .tart })
         XCTAssertEqual(
-            snapshot.datesByForge["github"], [Date(timeIntervalSince1970: 100), Date(timeIntervalSince1970: 10)])
-        let plan = input(
-            demand: ["github": [.tart: 2], "gitea": [.tart: 1]],
-            dates: snapshot.datesByForge.mapValues {
-                $0.map(\.timeIntervalSince1970)
-            })
+            snapshot.datesByForge["github"]?[.tart],
+            [Date(timeIntervalSince1970: 100), Date(timeIntervalSince1970: 10)])
+        var plan = input(demand: ["github": [.tart: 2], "gitea": [.tart: 1]], dates: [:])
+        plan.queueDatesByAccount = snapshot.datesByForge
         let totals = ["github": 2, "gitea": 1]
-        XCTAssertEqual(ScalePlan.account(for: .tart, totals: totals, coverage: ["github": 1], input: plan), "github")
+        let busy = vm("github", .tart, phase: .busy)  // a scale-set VM's job counts as demand, so it covers
+        plan.includesRunning = ["github"]
+        XCTAssertEqual(ScalePlan.account(for: .tart, totals: totals, records: [busy], input: plan), "github")
+    }
+
+    func testDatesAreKeptPerRuntime() {
+        // github: a Tart job at 10 and an Apple container job at 100; gitea: an Apple container job at 20.
+        let snapshot = FleetEngine.queueSnapshot(
+            [
+                ("github", [job("tart", at: 10), job("container", at: 100)]),
+                ("gitea", [job("other", at: 20)]),
+            ], runtime: { $0.name == "tart" ? .tart : .appleContainer })
+        XCTAssertEqual(snapshot.datesByForge["github"]?[.tart], [Date(timeIntervalSince1970: 10)])
+        XCTAssertEqual(snapshot.datesByForge["github"]?[.appleContainer], [Date(timeIntervalSince1970: 100)])
+    }
+
+    func testTheContainerSlotGoesToTheOldestContainerJobNotTheOldestJobOverall() {
+        // github has Tart@10 and container@100, gitea has container@20: the container slot belongs to gitea.
+        var plan = input(
+            demand: ["github": [.tart: 1, .appleContainer: 1], "gitea": [.appleContainer: 1]], dates: [:])
+        plan.queueDatesByAccount = [
+            "github": [.tart: [Date(timeIntervalSince1970: 10)], .appleContainer: [Date(timeIntervalSince1970: 100)]],
+            "gitea": [.appleContainer: [Date(timeIntervalSince1970: 20)]],
+        ]
+        let totals = ["github": 2, "gitea": 1]
+        XCTAssertEqual(ScalePlan.account(for: .appleContainer, totals: totals, records: [], input: plan), "gitea")
+        XCTAssertEqual(ScalePlan.account(for: .tart, totals: totals, records: [], input: plan), "github")
+    }
+
+    func testAnInstanceOnAnotherRuntimeDoesNotCoverTheJobsHere() {
+        // github's Tart VM is already planned; its container job at 5 is still uncovered, so github wins the
+        // container slot over gitea's job at 20.
+        var plan = input(
+            demand: ["github": [.tart: 1, .appleContainer: 1], "gitea": [.appleContainer: 1]], dates: [:])
+        plan.queueDatesByAccount = [
+            "github": [.tart: [Date(timeIntervalSince1970: 1)], .appleContainer: [Date(timeIntervalSince1970: 5)]],
+            "gitea": [.appleContainer: [Date(timeIntervalSince1970: 20)]],
+        ]
+        let totals = ["github": 2, "gitea": 1]
+        let tartVM = vm("github", .tart)
+        XCTAssertEqual(
+            ScalePlan.account(for: .appleContainer, totals: totals, records: [tartVM], input: plan), "github")
     }
 
     func testOldestWaitingAccountIsServedFirstNotTheLargestQueue() {
@@ -84,13 +125,20 @@ final class QueueFifoTests: XCTestCase {
         XCTAssertEqual(account, "github")
     }
 
+    private func vm(_ account: String, _ runtime: RuntimeID, phase: VMPhase = .ready) -> VMRecord {
+        var record = VMRecord(id: "vm-\(account)-\(runtime.rawValue)", phase: phase)
+        record.platform = account
+        record.runtimeID = runtime
+        return record
+    }
+
     private func input(
         demand: [String: [RuntimeID: Int]], dates: [String: [TimeInterval]], rpv: Int = 1
     ) -> ScalePlan.Input {
         var input = ScalePlan.Input(
             records: [], demand: demand, attached: Set(demand.keys), runnersPerVM: rpv, maxRunners: 10,
             capacityCap: 10, existingPools: [.tart, .appleContainer], defaultRuntime: .tart)
-        input.queueDatesByAccount = dates.mapValues { $0.map { Date(timeIntervalSince1970: $0) } }
+        input.queueDatesByAccount = dates.mapValues { [.tart: $0.map { Date(timeIntervalSince1970: $0) }] }
         return input
     }
 
@@ -101,9 +149,9 @@ final class QueueFifoTests: XCTestCase {
             demand: ["github": [.tart: 1], "gitea": [.appleContainer: 2]],
             dates: ["github": [10], "gitea": [20, 30]])
         let account = ScalePlan.account(
-            for: .appleContainer, totals: ["github": 1, "gitea": 2], coverage: [:], input: plan)
+            for: .appleContainer, totals: ["github": 1, "gitea": 2], records: [], input: plan)
         XCTAssertEqual(account, "gitea")
-        let tart = ScalePlan.account(for: .tart, totals: ["github": 1, "gitea": 2], coverage: [:], input: plan)
+        let tart = ScalePlan.account(for: .tart, totals: ["github": 1, "gitea": 2], records: [], input: plan)
         XCTAssertEqual(tart, "github")
     }
 
@@ -112,7 +160,7 @@ final class QueueFifoTests: XCTestCase {
         // container on the tie, and the instance must go to gitea, not to github on the demand tie.
         let plan = input(demand: ["github": [.tart: 2], "gitea": [.appleContainer: 2]], dates: [:])
         let account = ScalePlan.account(
-            for: .appleContainer, totals: ["github": 2, "gitea": 2], coverage: [:], input: plan)
+            for: .appleContainer, totals: ["github": 2, "gitea": 2], records: [], input: plan)
         XCTAssertEqual(account, "gitea")
     }
 
@@ -130,8 +178,9 @@ final class QueueFifoTests: XCTestCase {
         let plan = input(
             demand: ["github": [.tart: 2], "gitea": [.tart: 2]], dates: ["github": [10, 100], "gitea": [20, 30]])
         let totals = ["github": 2, "gitea": 2]
-        XCTAssertEqual(ScalePlan.account(for: .tart, totals: totals, coverage: [:], input: plan), "github")
-        XCTAssertEqual(ScalePlan.account(for: .tart, totals: totals, coverage: ["github": 1], input: plan), "gitea")
+        XCTAssertEqual(ScalePlan.account(for: .tart, totals: totals, records: [], input: plan), "github")
+        XCTAssertEqual(
+            ScalePlan.account(for: .tart, totals: totals, records: [vm("github", .tart)], input: plan), "gitea")
     }
 
     func testReportSplitsRunningFromQueuedAndFlagsBusyVMsWithoutAJob() {
