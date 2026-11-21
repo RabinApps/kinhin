@@ -681,6 +681,6 @@ extension FleetEngine {
                 Log.warn("engine", "could not fetch \(forge.name) running jobs: \(error)")
             }
         }
-        if answered { await applyRunningAttribution(runningAll) }
+        if answered { await applyRunningAttribution(Self.deduplicated(runningAll)) }
     }
 }

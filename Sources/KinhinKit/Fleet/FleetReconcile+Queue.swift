@@ -35,4 +35,14 @@ extension FleetEngine {
         return QueueSnapshot(
             entries: Array(ordered.prefix(FleetStatus.queuedJobsLimit)), byForge: byForge, datesByForge: dates)
     }
+
+    /// Running jobs with a job two forges both reported counted once: the same runner, job and repository.
+    /// Jobs with no runner name cannot be told apart, so they all stay.
+    static func deduplicated(_ jobs: [RunningJob]) -> [RunningJob] {
+        var seen: Set<String> = []
+        return jobs.filter { job in
+            guard let runner = job.runnerName else { return true }
+            return seen.insert("\(runner)\u{1F}\(job.name)\u{1F}\(job.repository ?? "")").inserted
+        }
+    }
 }

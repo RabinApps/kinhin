@@ -90,6 +90,23 @@ final class QueueFifoTests: XCTestCase {
         XCTAssertEqual(tart, "github")
     }
 
+    func testAccountMatchesTheRuntimeEvenWithoutQueueDates() {
+        // Two Tart jobs on github, two Apple container jobs on gitea, one slot: the runtime selector takes Apple
+        // container on the tie, and the instance must go to gitea, not to github on the demand tie.
+        let plan = input(demand: ["github": [.tart: 2], "gitea": [.appleContainer: 2]], dates: [:])
+        let account = ScalePlan.account(
+            for: .appleContainer, totals: ["github": 2, "gitea": 2], coverage: [:], input: plan)
+        XCTAssertEqual(account, "gitea")
+    }
+
+    func testRunningJobsReportedByTwoForgesCountOnce() {
+        let job = RunningJob(name: "build", runnerName: "vm-1", repository: "acme/api")
+        let other = RunningJob(name: "test", runnerName: "vm-2", repository: "acme/api")
+        let unnamed = RunningJob(name: "x", runnerName: nil, repository: nil)
+        let result = FleetEngine.deduplicated([job, other, job, unnamed, unnamed])
+        XCTAssertEqual(result.map(\.name), ["build", "test", "x", "x"])
+    }
+
     func testTheQueueHeadAdvancesAsPlannedInstancesCoverJobs() {
         // github jobs at 10 and 100, gitea jobs at 20 and 30: github's job at 10 first, then (github now covered
         // up to its second job, dated 100) gitea's job at 20.
