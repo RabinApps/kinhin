@@ -102,10 +102,13 @@ public struct GitHubScaleSetJobEvent: Sendable, Equatable {
     public let eventType: GitHubScaleSetJobEventKind
     /// The runner that took the job (`JobStarted`, `JobCompleted`); absent on earlier events.
     public let runnerName: String?
+    /// When GitHub queued the job (`queueTime` on the wire); nil when the message omits it.
+    public let queueTime: Date?
 
     public init(
         ownerName: String, repositoryName: String, jobDisplayName: String, requestLabels: [String],
-        runnerRequestId: String, eventType: GitHubScaleSetJobEventKind, runnerName: String? = nil
+        runnerRequestId: String, eventType: GitHubScaleSetJobEventKind, runnerName: String? = nil,
+        queueTime: Date? = nil
     ) {
         self.ownerName = ownerName
         self.repositoryName = repositoryName
@@ -114,6 +117,7 @@ public struct GitHubScaleSetJobEvent: Sendable, Equatable {
         self.runnerRequestId = runnerRequestId
         self.eventType = eventType
         self.runnerName = runnerName
+        self.queueTime = queueTime
     }
 }
 
@@ -268,6 +272,8 @@ extension GitHubScaleSetJobEvent: Codable {
             runnerRequestId = String(try c.decode(Int64.self, forKey: .runnerRequestId))
         }
         runnerName = try c.decodeIfPresent(String.self, forKey: .runnerName)
+        // Ordering only: a missing or odd timestamp must not drop the event.
+        queueTime = PipelineParsing.date((try? c.decodeIfPresent(String.self, forKey: .queueTime)) ?? nil)
     }
 
     enum CodingKeys: String, CodingKey {
@@ -278,6 +284,7 @@ extension GitHubScaleSetJobEvent: Codable {
         case requestLabels = "requestLabels"
         case runnerRequestId = "runnerRequestId"
         case runnerName = "runnerName"
+        case queueTime = "queueTime"
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -289,5 +296,6 @@ extension GitHubScaleSetJobEvent: Codable {
         try c.encode(requestLabels, forKey: .requestLabels)
         try c.encode(runnerRequestId, forKey: .runnerRequestId)
         try c.encodeIfPresent(runnerName, forKey: .runnerName)
+        try c.encodeIfPresent(queueTime.map { $0.formatted(.iso8601) }, forKey: .queueTime)
     }
 }

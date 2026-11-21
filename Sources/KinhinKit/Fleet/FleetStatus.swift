@@ -3,6 +3,9 @@ import Foundation
 
 /// Everything the menu bar app and CLI need to know about the fleet.
 public struct FleetStatus: Codable, Sendable, Equatable {
+    /// How many queued jobs a status carries (the rest are only counted).
+    public static let queuedJobsLimit = 200
+
     public var running: Bool
     public var paused: Bool
     /// The engine's `auto_resume` policy. Nil from a daemon predating the
@@ -34,6 +37,11 @@ public struct FleetStatus: Codable, Sendable, Equatable {
     /// Queued jobs grouped by repository (org scope only; empty for a
     /// single-repo fleet where the breakdown carries no information).
     public var queueByRepo: [String: Int]?
+    /// Queued jobs per forge account. Nil from a daemon predating the field.
+    public var queueByForge: [String: Int]?
+    /// The head of the queue, oldest created first (at most `queuedJobsLimit`), with the forge each job came from.
+    /// Nil from a daemon predating the field.
+    public var queuedJobs: [FleetJobsReport.Entry]?
     /// Jobs currently executing, grouped by repository (org scope only;
     /// nil for a single-repo fleet).
     public var runningByRepo: [String: Int]?

@@ -463,6 +463,37 @@ enum CommandCatalog {
             ],
             details: ["Needs a running daemon. With no VM, every busy VM is shown."]),
         CommandSpec(
+            name: "jobs",
+            command: .jobs,
+            group: .running,
+            summary: "Running and queued jobs, and where each came from",
+            flags: [
+                .bool("--running", "Only the running jobs"),
+                .bool("--queued", "Only the queued jobs"),
+                .value("--forge", "NAME", "Only jobs from this forge account"),
+                .bool("--watch", "Refresh every 2s"),
+                jsonFlag,
+            ],
+            details: [
+                "Queued jobs are listed first in, first out: the job the forge created first is #1.",
+                "`kinhin queue` is the same as --queued.",
+                "Exits 0 when a daemon answers, 1 when none is running.",
+            ],
+            docs: "docs/requeue-skip.md"),
+        CommandSpec(
+            name: "queue",
+            command: .queue,
+            group: .running,
+            summary: "The queued jobs, oldest first, with their forge",
+            flags: [
+                .value("--forge", "NAME", "Only jobs from this forge account"),
+                .bool("--watch", "Refresh every 2s"),
+                jsonFlag,
+            ],
+            hidden: true,
+            details: ["Same as `kinhin jobs --queued`. Exits 0 when a daemon answers, 1 when none is running."],
+            docs: "docs/requeue-skip.md"),
+        CommandSpec(
             name: "requeue",
             command: .requeue,
             group: .running,

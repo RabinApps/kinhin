@@ -23,11 +23,12 @@ Scripts can branch on them: `0` success, `1` general, `2` usage (bad command lin
 | `kinhin status [--json]` | Fleet state. JSON includes `daemonRunning`, `paused`, `autoResume`, `pollInterval`, `queueAgeSeconds`. |
 | `kinhin watch` | Live stream (prose only, no JSON) |
 | `kinhin logs [-n N]` | Recent log lines. The log file is `~/Library/Application Support/Kinhin/logs/kinhin.log`. |
+| `kinhin jobs [--running\|--queued] [--forge NAME] [--json]` | Running and queued jobs and the forge each came from; the queue is oldest-created first. Needs the daemon. |
 | `kinhin pipeline [VM] [--job NAME\|ID] [--watch] [--json]` | Job and step view. Add `--step N\|NAME` or `--log [--follow]`. Needs the daemon. |
 | `kinhin runtimes [--json] [--no-health]` | Runtime availability and health |
 | `kinhin heal [--json]` | What the healing agent fixed on its own, fixes waiting for approval, problems only the user can fix. Exits 1 while something waits on the user. Needs the daemon. |
 
-`--json` is supported on `status`, `doctor`, `setup status`, `auth status`, `auth list`, `runtimes`, `pipeline`, `heal`, `workflow test`,
+`--json` is supported on `status`, `doctor`, `setup status`, `auth status`, `auth list`, `runtimes`, `pipeline`, `jobs`, `heal`, `workflow test`,
 `workflow route`, `toolchains detect`, `config validate` and `cleanup` (report-only; it refuses `--yes`). Stdout
 carries only command output, so JSON stays parseable.
 

@@ -143,7 +143,8 @@ extension ScalePlan {
                 for record in sim where covers(record, includesRunning: input.includesRunning) {
                     if let account = record.platform { coverage[account, default: 0] += 1 }
                 }
-                let account = ForgeDemand.assignAccount(demand: totals, active: coverage, attached: input.attached)
+                let account = ForgeDemand.assignAccount(
+                    demand: totals, active: coverage, attached: input.attached, oldest: input.oldestByAccount)
                 let slot = Slot(
                     account: account, runtime: key.runtime, image: key.image.isEmpty ? nil : key.image,
                     pool: key.pool.isEmpty ? nil : key.pool, idle: true)

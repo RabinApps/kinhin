@@ -93,7 +93,9 @@ extension FleetEngine {
                 jobTrace(for: vmID)?.logContext.job = job.name
             }
             jobsByVM[vmID, default: []].append(
-                RunningJobStamp(runner: runnerName, job: job.name, repo: isOrgScope ? job.repository : nil))
+                RunningJobStamp(
+                    runner: runnerName, job: job.name, repo: isOrgScope ? job.repository : nil,
+                    enqueuedAt: job.correlation?.enqueuedAt, startedAt: job.correlation?.startedAt))
         }
 
         await statusBox.modify {

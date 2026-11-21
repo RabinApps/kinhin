@@ -96,6 +96,34 @@ final class FleetPageModelTests: MainWindowTestCase {
         XCTAssertEqual(model.jobLocation(for: multi), "vm-b1 · runner 1 · busy")
     }
 
+    func testBusyVMWithoutAttributionStillListsARow() {
+        var busy = VMRecord(id: "kinhin-1", phase: .busy)
+        busy.runningJobs = nil
+        fleet.status = running { $0.records = [busy] }
+        let rows = models.fleetModel.working
+        XCTAssertEqual(rows.map(\.vmID), ["kinhin-1"])
+        XCTAssertEqual(rows.first?.job, "Running a job")
+        var idle = VMRecord(id: "kinhin-2", phase: .ready)
+        idle.runningJobs = nil
+        fleet.status = running { $0.records = [idle] }
+        XCTAssertTrue(models.fleetModel.working.isEmpty)
+    }
+
+    func testQueueRowsListTheOldestJobsFirstAndCountTheRest() {
+        fleet.status = running {
+            $0.queuedJobs = (1...10).map {
+                FleetJobsReport.Entry(name: "job \($0)", repo: "acme/api", forge: "github", position: $0)
+            }
+        }
+        let rows = models.fleetModel.queueRows
+        XCTAssertEqual(rows.count, FleetModel.queueRowsShown)
+        XCTAssertEqual(rows.first?.title, "job 1 — acme/api")
+        XCTAssertEqual(rows.first?.detail, "github")
+        XCTAssertEqual(models.fleetModel.queueOverflow, 2)
+        fleet.status = running()
+        XCTAssertTrue(models.fleetModel.queueRows.isEmpty, "an older daemon sends no list")
+    }
+
     func testQueueSummaryCountsAndSplitsByRepo() {
         fleet.status = running {
             $0.queueDepth = 3

@@ -76,7 +76,8 @@ final class MCPCommandTests: XCTestCase {
         XCTAssertEqual(
             names,
             [
-                "status", "doctor", "setup_status", "runtimes", "auth_status", "pipeline", "logs", "heal_status",
+                "status", "doctor", "setup_status", "runtimes", "auth_status", "pipeline", "jobs", "logs",
+                "heal_status",
                 "pause", "resume", "stop", "daemon_install",
             ])
         XCTAssertEqual(Set(names).count, names.count, "tool names must be unique")

@@ -3,6 +3,27 @@
 The Fleet tab now lets you re-queue or drop the fleet's queued jobs, per forge, from
 the **Requeue / skip queued** row (one button per attached forge).
 
+## See what is running and what is queued
+
+`kinhin jobs` lists the jobs running now and the jobs waiting, and which forge each came from. It reads the
+daemon's status, so it works whether or not the app is open:
+
+```bash
+kinhin jobs                  # running, then queued
+kinhin jobs --queued         # or: kinhin queue
+kinhin jobs --forge github   # one forge account
+kinhin jobs --json           # for scripts: ISO-8601 dates, queue positions
+```
+
+The queue is first in, first out by the date the forge created each job: `#1` is the job that has waited longest.
+kinhin keeps that order wherever it has a say: the list and the Fleet tab, and which forge account gets the next runner
+when several have work waiting (the one with the longest-waiting job first). It does not assign jobs to runners. The
+forge decides which job a free runner takes, and GitHub, GitLab and the others each have their own rules for that.
+
+A forge that does not report a creation time (Bitbucket) keeps its own order, after the dated jobs. A GitHub
+scale-set account takes its times from GitHub's `queueTime` on each job message. `kinhin jobs` exits 0 when a daemon
+answers and 1 when none is running.
+
 ## Where it appears
 
 Every attached forge gets a row in the "Requeue / skip queued" section with a

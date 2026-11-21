@@ -36,6 +36,8 @@ struct ScalePlan: Equatable {
         var includesRunning: Set<String> = []
         /// Accounts with a working forge (candidates for a new instance).
         var attached: Set<String>
+        /// Each account's longest-waiting queued job, for first-in, first-out account choice.
+        var oldestByAccount: [String: Date] = [:]
         /// Accounts whose queue could not be read this pass.
         var failedForges: Set<String> = []
         var runnersPerVM = 1
@@ -321,7 +323,8 @@ struct ScalePlan: Equatable {
             for record in sim where covers(record, includesRunning: input.includesRunning) {
                 if let account = record.platform { coverage[account, default: 0] += 1 }
             }
-            let account = ForgeDemand.assignAccount(demand: totals, active: coverage, attached: input.attached)
+            let account = ForgeDemand.assignAccount(
+                demand: totals, active: coverage, attached: input.attached, oldest: input.oldestByAccount)
 
             // The pool with the most unmet demand within its capacity.
             let unmet = unmetByPool(records: sim, input: input)

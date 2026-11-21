@@ -176,7 +176,7 @@ struct GitHubScaleSetForge: ForgeWithQueuedJobs, ForgeWithJITConfig, ForgeWithLi
                         name: job.name, runnerName: job.runnerName, repository: job.repository,
                         labels: target.routingLabels, ref: job.ref, sha: job.sha, isFork: job.isFork,
                         forkKnown: job.forkKnown,
-                        runtimeHint: target.runtime))
+                        runtimeHint: target.runtime, correlation: job.correlation, isAssigned: job.isAssigned))
             }
         }
         return jobs
@@ -239,11 +239,17 @@ struct GitHubScaleSetForge: ForgeWithQueuedJobs, ForgeWithJITConfig, ForgeWithLi
         return PipelineLog(text: text, scope: .step, truncated: truncated)
     }
 
-    // MARK: - Running jobs: delegated unchanged
+    // MARK: - Running jobs
 
+    /// A scale-set job's `runs-on:` is the scale-set name (plus GitHub's own `self-hosted`/arch labels), never the
+    /// fleet's `labels`, so filtering on them hid every running job and left the Fleet tab's Current jobs empty
+    /// while a VM was busy. Take every in-progress job instead: attribution keeps only those whose runner name
+    /// maps back to one of this fleet's VMs.
     func runningJobs() async throws -> [ForgeJob] {
-        try await client.runningJobs(matching: Set(labels)).map {
-            ForgeJob(name: $0.name, runnerName: $0.runnerName, repository: $0.repository)
+        try await client.runningJobs(matching: []).map {
+            ForgeJob(
+                name: $0.name, runnerName: $0.runnerName, repository: $0.repository, labels: $0.labels,
+                correlation: $0.correlation)
         }
     }
 

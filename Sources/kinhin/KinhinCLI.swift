@@ -164,6 +164,12 @@ struct KinhinCLI {
         case .pipeline:
             try await PipelineCommand.run(args)
 
+        case .jobs:
+            try await JobsCommand.run(args)
+
+        case .queue:
+            try await JobsCommand.run(args, defaultView: .queued)
+
         case .logs:
             RunCommands.logs(args)
 
