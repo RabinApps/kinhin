@@ -67,6 +67,26 @@ function rehypeMermaid() {
   }
 }
 
+/**
+ * Images are same-origin only. The sanitizer's protocol list stops `https://…` but lets a network-path URL (`//host/x.png`, or
+ * `/\\host/x.png`, which URL parsers read the same way) through, so each `src` is resolved against a throwaway origin and any
+ * that leaves it loses its `src`.
+ */
+function rehypeSameOriginImages() {
+  const base = 'https://kinhin.invalid'
+  return (tree: HastRoot) => {
+    visit(tree, 'element', (node: Element) => {
+      if (node.tagName !== 'img' || typeof node.properties?.src !== 'string') return
+      try {
+        if (new URL(node.properties.src, base).origin === base) return
+      } catch {
+        /* unparseable: drop it */
+      }
+      delete node.properties.src
+    })
+  }
+}
+
 /** A `#` link on h2/h3 so a section can be linked to. */
 function rehypeAnchors() {
   return (tree: HastRoot) => {
@@ -123,6 +143,7 @@ const processor = unified()
   .use(remarkRehype, { allowDangerousHtml: true })
   .use(rehypeRaw, { passThrough: [] })
   .use(rehypeSanitize, sanitizeSchema)
+  .use(rehypeSameOriginImages)
   .use(rehypeMermaid)
   .use(rehypeSlug)
   .use(rehypeAnchors)

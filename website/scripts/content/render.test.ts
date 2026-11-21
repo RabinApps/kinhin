@@ -61,11 +61,20 @@ test('the directive elements are allowed through', async () => {
 })
 
 test('external images are dropped, relative images stay', async () => {
-  const tree = await toHast('![a](https://evil.example/t.gif) <img src="http://evil.example/p.png"> ![b](./shot.png) ![c](/_docs/x.png)')
+  const md = [
+    '![a](https://evil.example/t.gif)',
+    '<img src="http://evil.example/p.png">',
+    '![n](//evil.example/n.gif)',
+    '<img src="/\\evil.example/b.gif">',
+    '<img src="\\\\evil.example/c.gif">',
+    '![b](./shot.png)',
+    '![c](/_docs/x.png)',
+    '![d](shot.png)',
+  ].join(' ')
+  const tree = await toHast(md)
   const srcs: string[] = []
   const find = (n: any) => (n?.tagName === 'img' && srcs.push(String(n.properties?.src ?? '')), (n?.children ?? []).forEach(find))
   find(tree)
-  assert.equal(srcs.length, 4)
-  assert.deepEqual(srcs.filter((s) => /^https?:/i.test(s)), [])
-  assert.deepEqual(srcs.filter(Boolean), ['./shot.png', '/_docs/x.png'])
+  assert.equal(srcs.length, 8)
+  assert.deepEqual(srcs.filter(Boolean), ['./shot.png', '/_docs/x.png', 'shot.png'])
 })
