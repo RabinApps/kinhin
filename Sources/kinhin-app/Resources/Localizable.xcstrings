@@ -283,6 +283,9 @@
         }
       }
     },
+    "… and %lld more" : {
+      "comment" : "Text in FleetView"
+    },
     ".kinhin/config.yml honored" : {
       "comment" : "Toolchains tab row source label; keep .kinhin/config.yml verbatim",
       "localizations" : {
@@ -26978,9 +26981,6 @@
     "Queue %lld · Desired %@ · Cap %lld" : {
       "comment" : "Fleet status headline: queued jobs, desired and maximum VMs"
     },
-    "Queue actions need forge access — not available in daemon mode. Use kinhin CLI or switch to in-process engine." : {
-      "comment" : "StatusText in FleetView"
-    },
     "Queued work" : {
       "comment" : "FormCard in FleetView",
       "localizations" : {
@@ -28732,6 +28732,9 @@
         }
       }
     },
+    "Requeue and Skip need forge access, which the daemon does not give the app. Use kinhin requeue or kinhin skip, or switch to the in-process engine." : {
+      "comment" : "StatusText in FleetView"
+    },
     "Requeue queued jobs on %@" : {
       "comment" : ".accessibilityLabel in FleetView",
       "localizations" : {
@@ -30300,6 +30303,9 @@
     },
     "running ✓" : {
       "comment" : "Diagnostics Docker Hub cache row"
+    },
+    "Running a job" : {
+      "comment" : "Current jobs row for a busy VM whose job the forge has not named yet"
     },
     "running at %@ ✓" : {
       "comment" : "Diagnostics Docker Hub cache row; %@ is the cache's host:port address"

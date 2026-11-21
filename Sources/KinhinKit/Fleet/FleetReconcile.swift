@@ -247,6 +247,9 @@ extension FleetEngine {
         var failedForges: Set<String> = []
         /// The oldest queue timestamp any forge supplied (nil when none did: the age is then unavailable).
         var oldestEnqueuedAt: Date?
+        /// Each account's queued jobs' created dates, oldest first: the scale plan serves the account whose next
+        /// uncovered job has waited longest.
+        var queueDatesByForge: [String: [RuntimeID: [Date]]] = [:]
     }
 
     /// Polls every attached forge's queue (and running work) into `Demand`
@@ -263,6 +266,7 @@ extension FleetEngine {
         }
         var demand = Demand()
         var perForgeJobs: [String: (attribution: Bool, jobs: [ForgeJob])] = [:]
+        var queueOrder: [(account: String, jobs: [ForgeJob])] = []
         var answeredQueue = false
         // Every forge's queue (and its project-image resolution) is read
         // concurrently, bounded; the results are folded in account order so
@@ -292,7 +296,10 @@ extension FleetEngine {
             }
         for (forge, answer) in zip(ordered, answers) {
             switch answer {
-            case .answered(let jobs, let projectDemand):
+            case .answered(let forgeJobs, let projectDemand):
+                // First in, first out: the oldest created job leads, whatever order the forge listed them in.
+                let jobs = ForgeJob.fifoOrdered(forgeJobs)
+                queueOrder.append((forge.account, jobs))
                 answeredQueue = true
                 await statusBox.modify { $0.setAlert("queue:\(forge.account)", nil) }
                 // Org-scope forges contribute repo attribution; repo-scope
@@ -323,6 +330,8 @@ extension FleetEngine {
                 await statusBox.modify { $0.setAlert("queue:\(forge.account)", message) }
             }
         }
+        let queue = Self.queueSnapshot(queueOrder, runtime: { routerState.model.runtime(for: $0) })
+        demand.queueDatesByForge = queue.datesByForge
         publishQueueTelemetry(
             byForge: demand.byForge, byPool: demand.byPool, byContainerPool: demand.byContainerPool,
             oldestEnqueuedAt: demand.oldestEnqueuedAt)
@@ -337,7 +346,15 @@ extension FleetEngine {
             // The snapshot keeps queueDepth 0 while paused, but the
             // observation was real: stamp its freshness. An outage leaves
             // the old timestamp, so the age truthfully shows staleness.
-            if answeredQueue { await statusBox.modify { $0.queuePolledAt = Date() } }
+            // The queue detail is published with that timestamp, so a job that left (or arrived) during the pause
+            // never shows under a fresh age. `queueDepth` stays masked and nothing spawns from it.
+            if answeredQueue {
+                await statusBox.modify {
+                    $0.queuePolledAt = Date()
+                    $0.queueByForge = queue.byForge
+                    $0.queuedJobs = queue.entries
+                }
+            }
             // Jobs keep running on the VMs while the pause holds back new ones: refresh Current jobs while some VM
             // shows a job or is busy (a job that started since the last attribution), so it appears and a finished
             // one clears. A persistent runner's VM stays `.ready` while it works, so with those every live VM counts.
@@ -359,6 +376,8 @@ extension FleetEngine {
             if !nothingAnswered {
                 $0.queueDepth = demand.queueDepth
                 $0.queueByRepo = byRepo
+                $0.queueByForge = queue.byForge
+                $0.queuedJobs = queue.entries
             }
             if answeredQueue { $0.queuePolledAt = Date() }
         }
@@ -380,7 +399,8 @@ extension FleetEngine {
         let routing = routerState.model
         var input = ScalePlan.Input(
             records: store.all, demand: demand.byForgePool, includesRunning: demand.includesRunning,
-            attached: Set(attached.map(\.account)), failedForges: demand.failedForges,
+            attached: Set(attached.map(\.account)), queueDatesByAccount: demand.queueDatesByForge,
+            failedForges: demand.failedForges,
             runnersPerVM: max(1, config.runnersPerVM), minRunners: config.minRunners,
             maxRunners: config.maxRunners, capacityCap: capacity.maxConcurrent, poolCaps: routerState.caps,
             heldRuntimes: held, existingPools: Set(routing.pools.keys), defaultRuntime: routing.defaultRuntime,
@@ -661,6 +681,6 @@ extension FleetEngine {
                 Log.warn("engine", "could not fetch \(forge.name) running jobs: \(error)")
             }
         }
-        if answered { await applyRunningAttribution(runningAll) }
+        if answered { await applyRunningAttribution(Self.deduplicated(runningAll)) }
     }
 }

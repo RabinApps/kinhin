@@ -69,7 +69,7 @@ extension MCPTool {
     /// secret-bearing), and everything that blocks (`start`, `watch`,
     /// `pipeline --follow`).
     static let all: [MCPTool] = [
-        status, doctor, setupStatus, runtimes, authStatus, pipeline, logs, healStatus,
+        status, doctor, setupStatus, runtimes, authStatus, pipeline, jobs, logs, healStatus,
         pause, resume, stop, daemonInstall,
     ]
 
@@ -89,6 +89,26 @@ extension MCPTool {
             "Fleet status as the JSON document `kinhin status --json` prints: daemon reachability, running/paused/autoResume, queue depth and its freshness.",
         inputSchema: InputSchema(),
         run: { _ in try mcpEncode(await RunCommands.statusDocument()) }
+    )
+
+    static let jobs = MCPTool(
+        name: "jobs",
+        description:
+            "Running and queued jobs, and the forge each came from — the `kinhin jobs --json` document. Queued jobs "
+            + "are first in, first out: position 1 is the job the forge created first.",
+        inputSchema: InputSchema(),
+        run: { _ in
+            let status: FleetStatus?
+            do {
+                status = try RPCClient().status()
+            } catch RPCError.connectionFailed {
+                status = nil  // nobody is listening: daemonRunning false
+            }
+            let document = JobsCommand.Document(
+                daemonRunning: status != nil, jobs: status.map { FleetJobsReport(status: $0) })
+            // ISO-8601 dates, as `kinhin jobs --json` prints them.
+            return try CLIJSON.data(document, dates: .iso8601)
+        }
     )
 
     static let doctor = MCPTool(

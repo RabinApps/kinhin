@@ -39,11 +39,19 @@ public struct RunningJobStamp: Codable, Sendable, Equatable {
     public var job: String
     /// Set in org scope only (repo scope stamps the job alone).
     public var repo: String?
+    /// When the forge queued and when it started the job, for the forges that report them. Nil from a daemon
+    /// predating the fields.
+    public var enqueuedAt: Date?
+    public var startedAt: Date?
 
-    public init(runner: String, job: String, repo: String? = nil) {
+    public init(
+        runner: String, job: String, repo: String? = nil, enqueuedAt: Date? = nil, startedAt: Date? = nil
+    ) {
         self.runner = runner
         self.job = job
         self.repo = repo
+        self.enqueuedAt = enqueuedAt
+        self.startedAt = startedAt
     }
 }
 

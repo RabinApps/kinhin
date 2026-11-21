@@ -255,6 +255,44 @@ final class FleetModel {
         return "\(count) · \(FleetStatusFormatter.repoBreakdown(byRepo))"
     }
 
+    /// One waiting job in the first-in, first-out line.
+    struct QueueRow: Identifiable, Equatable {
+        let position: Int
+        let title: String
+        let detail: String
+        var id: Int { position }
+    }
+
+    /// How many waiting jobs the card lists; the rest are counted.
+    static let queueRowsShown = 8
+
+    /// The head of the queue, oldest created first: "#1 build — acme/api" with the forge and how long it has waited.
+    var queueRows: [QueueRow] {
+        let jobs = status?.queuedJobs ?? []
+        return jobs.prefix(Self.queueRowsShown).enumerated().map { index, job in
+            let title = job.repo.map { "\(job.name) — \($0)" } ?? job.name
+            let waited = job.enqueuedAt.map {
+                Self.waitFormatter.localizedString(for: $0, relativeTo: Date())
+            }
+            return QueueRow(
+                position: job.position ?? index + 1, title: title,
+                detail: [job.forge, waited].compactMap { $0 }.joined(separator: " · "))
+        }
+    }
+
+    /// Waiting jobs beyond the rows shown. Counted from the per-forge totals: the status lists at most
+    /// `FleetStatus.queuedJobsLimit` jobs, so the list alone undercounts a long queue.
+    var queueOverflow: Int {
+        let waiting = status?.queueByForge?.values.reduce(0, +) ?? status?.queuedJobs?.count ?? 0
+        return max(0, waiting - Self.queueRowsShown)
+    }
+
+    private static let waitFormatter: RelativeDateTimeFormatter = {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .short
+        return formatter
+    }()
+
     func requeue(_ row: ForgeRow) {
         guard !row.isDemo else { return }
         requeueQueuedJobs(for: row.forge, forAll: row.widens)
@@ -283,6 +321,18 @@ final class FleetModel {
     var working: [JobRow] {
         records.flatMap { record in
             let stamps = FleetStatusFormatter.runningJobs(of: record)
+            // The Runtimes card already shows this VM as busy; keep this card consistent with it even when the
+            // forge has not attributed a job yet.
+            if stamps.isEmpty, record.phase == .busy {
+                let unknown = String(
+                    localized: "Running a job", bundle: .l10n,
+                    comment: "Current jobs row for a busy VM whose job the forge has not named yet")
+                return [
+                    JobRow(
+                        vmID: record.id, runner: record.id, job: unknown, repo: nil, phase: record.phase,
+                        showsRunner: false)
+                ]
+            }
             return stamps.map {
                 JobRow(
                     vmID: record.id, runner: $0.runner, job: $0.job, repo: $0.repo, phase: record.phase,

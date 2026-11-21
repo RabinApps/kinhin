@@ -173,21 +173,48 @@ struct FleetView: View {
             if model.isDaemonMode {
                 VStack(alignment: .leading, spacing: Spacing.xs) {
                     Text(verbatim: model.queueSummary).typeStyle(.emphasis)
+                    queueList
                     StatusText(
                         text:
-                            "Queue actions need forge access — not available in daemon mode. Use kinhin CLI or switch to in-process engine.",
+                            "Requeue and Skip need forge access, which the daemon does not give the app. Use kinhin requeue or kinhin skip, or switch to the in-process engine.",
                         style: .warn)
                 }
             } else if model.forgeRows.isEmpty {
-                StatusText(text: "No forges attached — queue will always be empty.")
+                if model.queueRows.isEmpty {
+                    StatusText(text: "No forges attached — queue will always be empty.")
+                } else {
+                    VStack(alignment: .leading, spacing: Spacing.xs) {
+                        Text(verbatim: model.queueSummary).typeStyle(.emphasis)
+                        queueList
+                    }
+                }
             } else {
                 VStack(alignment: .leading, spacing: Spacing.sm) {
                     Text(verbatim: model.queueSummary).typeStyle(.emphasis)
+                    queueList
                     ForEach(model.forgeRows) { forgeRow($0) }
                 }
             }
         }
         .accessibilityIdentifier("fleet-queued-work")
+    }
+
+    /// The waiting jobs, oldest first (first in, first out).
+    @ViewBuilder
+    private var queueList: some View {
+        ForEach(model.queueRows) { row in
+            HStack(spacing: Spacing.sm) {
+                Text(verbatim: "#\(row.position)").typeStyle(.caption).foregroundStyle(.secondary)
+                    .frame(minWidth: 28, alignment: .leading)
+                Text(verbatim: row.title).typeStyle(.body)
+                Spacer(minLength: Spacing.md)
+                Text(verbatim: row.detail).typeStyle(.caption).foregroundStyle(.secondary)
+            }
+            .accessibilityElement(children: .combine)
+        }
+        if model.queueOverflow > 0 {
+            Text("… and \(model.queueOverflow) more").typeStyle(.caption).foregroundStyle(.secondary)
+        }
     }
 
     private func forgeRow(_ row: FleetModel.ForgeRow) -> some View {

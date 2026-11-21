@@ -56,9 +56,16 @@ enum ForgeDemand {
     /// Account-keyed variant of `assignPlatform`: the account with the
     /// largest unmet demand wins; ties prefer the legacy `github` account,
     /// then alphabetical order. With nothing attached it returns "github".
-    static func assignAccount(demand: [String: Int], active: [String: Int], attached: Set<String>) -> String {
+    ///
+    /// `oldest` (each account's longest-waiting queued job, when its forge reports queue times) makes the choice
+    /// first-in, first-out: among accounts that still have unmet demand, the one whose head-of-queue job was
+    /// created earliest is served first. An account with no timestamp falls back to the unmet-demand rule.
+    static func assignAccount(
+        demand: [String: Int], active: [String: Int], attached: Set<String>, oldest: [String: Date] = [:]
+    ) -> String {
         var best = ForgeID.github.rawValue
         var bestUnmet = Int.min
+        var bestOldest: Date?
         let ordered = attached.sorted { a, b in
             if a == ForgeID.github.rawValue { return true }
             if b == ForgeID.github.rawValue { return false }
@@ -66,8 +73,16 @@ enum ForgeDemand {
         }
         for account in ordered {
             let unmet = (demand[account] ?? 0) - (active[account] ?? 0)
-            if unmet > bestUnmet {
+            let age = unmet > 0 ? oldest[account] : nil
+            let older: Bool
+            if let age, let bestOldest, bestUnmet > 0 {
+                older = age < bestOldest
+            } else {
+                older = unmet > bestUnmet
+            }
+            if older {
                 bestUnmet = unmet
+                bestOldest = age
                 best = account
             }
         }

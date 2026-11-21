@@ -350,13 +350,18 @@ public struct ForgeJob: Sendable, Equatable {
     /// to one runtime. Overrides repo and workflow routes; nil for every
     /// other forge, which routes by labels and config.
     public let runtimeHint: RuntimeID?
+    /// A scale-set listener counts a job from the moment GitHub offers it until it completes, so its demand also
+    /// holds jobs a runner already took. True for those (and for demand the listener could not name): they count
+    /// toward demand but are not waiting in the queue.
+    public let isAssigned: Bool
 
     public init(
         name: String, runnerName: String?, repository: String?, labels: [String]? = nil, ref: String? = nil,
         sha: String? = nil, isFork: Bool = false, forkKnown: Bool = false, runtimeHint: RuntimeID? = nil,
-        correlation: JobCorrelation? = nil
+        correlation: JobCorrelation? = nil, isAssigned: Bool = false
     ) {
         self.correlation = correlation
+        self.isAssigned = isAssigned
         self.name = name
         self.runnerName = runnerName
         self.repository = repository
@@ -366,5 +371,17 @@ public struct ForgeJob: Sendable, Equatable {
         self.isFork = isFork
         self.forkKnown = forkKnown
         self.runtimeHint = runtimeHint
+    }
+}
+
+extension ForgeJob {
+    /// `jobs` first-in, first-out: oldest `correlation.enqueuedAt` first. A job without a date follows the dated
+    /// ones, and equal or missing dates keep the forge's own order (the sort is stable).
+    static func fifoOrdered(_ jobs: [ForgeJob]) -> [ForgeJob] {
+        jobs.enumerated().sorted { a, b in
+            let (x, y) = (a.element.correlation?.enqueuedAt, b.element.correlation?.enqueuedAt)
+            if x == y { return a.offset < b.offset }
+            return FleetJobsReport.earlier(x, y)
+        }.map(\.element)
     }
 }

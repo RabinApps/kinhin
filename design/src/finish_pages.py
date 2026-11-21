@@ -2,6 +2,8 @@
 
 Usage (from design/src, OpenPencil installed, design/kinhin-app.fig open):
   python3 finish_pages.py diag settings
+After any headless edit of the .fig (KFILE), reopen design/kinhin-app.fig in OpenPencil first: this script saves the whole
+open document and would overwrite those edits on every page it does not rebuild.
 Every page script is one of: fleet runtimes acct diag settings setup sheets components.
 """
 import sys, json, subprocess, time, os
@@ -12,6 +14,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
 PAGES = {"fleet": ["Fleet"], "runtimes": ["Runtimes"], "acct": ["Accounts", "Toolchains"], "diag": ["Diagnostics"],
          "settings": ["Settings"], "setup": ["Setup & Menu"], "sheets": ["Sheets"], "components": ["Components"]}
+if os.environ.get("KFILE"):
+    # KFILE edits the .fig directly; the save step below writes the *running* document over it and would discard them.
+    sys.exit("finish_pages.py drives the live OpenPencil app: unset KFILE, or run <page>.py directly for headless edits")
 scripts = sys.argv[1:] or list(PAGES)
 os.chdir(HERE)
 for s in scripts:

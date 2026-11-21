@@ -96,6 +96,40 @@ final class FleetPageModelTests: MainWindowTestCase {
         XCTAssertEqual(model.jobLocation(for: multi), "vm-b1 · runner 1 · busy")
     }
 
+    func testBusyVMWithoutAttributionStillListsARow() {
+        var busy = VMRecord(id: "kinhin-1", phase: .busy)
+        busy.runningJobs = nil
+        fleet.status = running { $0.records = [busy] }
+        let rows = models.fleetModel.working
+        XCTAssertEqual(rows.map(\.vmID), ["kinhin-1"])
+        XCTAssertEqual(rows.first?.job, "Running a job")
+        var idle = VMRecord(id: "kinhin-2", phase: .ready)
+        idle.runningJobs = nil
+        fleet.status = running { $0.records = [idle] }
+        XCTAssertTrue(models.fleetModel.working.isEmpty)
+    }
+
+    func testQueueRowsListTheOldestJobsFirstAndCountTheRest() {
+        fleet.status = running {
+            $0.queuedJobs = (1...10).map { (number: Int) in
+                FleetJobsReport.Entry(name: "job \(number)", repo: "acme/api", forge: "github", position: number)
+            }
+        }
+        let rows = models.fleetModel.queueRows
+        XCTAssertEqual(rows.count, FleetModel.queueRowsShown)
+        XCTAssertEqual(rows.first?.title, "job 1 — acme/api")
+        XCTAssertEqual(rows.first?.detail, "github")
+        XCTAssertEqual(models.fleetModel.queueOverflow, 2)
+        // The status lists at most 200 jobs; the overflow counts from the per-forge totals instead.
+        fleet.status = running {
+            $0.queuedJobs = Array(repeating: FleetJobsReport.Entry(name: "j", forge: "github"), count: 200)
+            $0.queueByForge = ["github": 201]
+        }
+        XCTAssertEqual(models.fleetModel.queueOverflow, 201 - FleetModel.queueRowsShown)
+        fleet.status = running()
+        XCTAssertTrue(models.fleetModel.queueRows.isEmpty, "an older daemon sends no list")
+    }
+
     func testQueueSummaryCountsAndSplitsByRepo() {
         fleet.status = running {
             $0.queueDepth = 3

@@ -145,7 +145,9 @@ public actor GitHubScaleSetListener: ForgeListener {
                 labels: event.requestLabels,
                 ref: nil,
                 sha: nil,
-                isFork: false
+                isFork: false,
+                correlation: event.queueTime.map { JobCorrelation(jobID: event.runnerRequestId, enqueuedAt: $0) },
+                isAssigned: event.eventType != .jobAvailable
             )
         }
     }
@@ -167,7 +169,8 @@ public actor GitHubScaleSetListener: ForgeListener {
                     labels: [],
                     ref: nil,
                     sha: nil,
-                    isFork: false
+                    isFork: false,
+                    isAssigned: true
                 )
             )
             remaining -= 1

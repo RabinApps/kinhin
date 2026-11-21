@@ -12,14 +12,16 @@ def modebadge(s): return f'<Frame flex="row" px={{8}} py={{3}} rounded={{6}} bg=
 def header(state,sc,mode,btns,sub=""):
     return head("Fleet",sub,hrow(chip(state,sc),modebadge(mode),sp(),*btns,fill=False,gap=8))
 STATUSLINES=vcol(T("Queue 3 · Desired 4 · Cap 6 · 8 job slots",13,500),status("Queue age 42s · checking every 15s"),status("Host CPU 34% · RAM 21 / 64 GB"),status("↳ queued: acme/api ×2, acme/web ×1"),status("▶ running: acme/api ×1, acme/web ×2"),gap=3)
+def qrow(pos,title,detail): return f'<Frame flex="row" w="fill" gap={{8}} items="center">{T("#"+str(pos),11,400,TX2)}{T(title,13,400)}{sp()}{T(detail,11,400,TX2)}</Frame>'
+QUEUE=vcol(qrow(1,"build — acme/api","github · acme"),qrow(2,"test — acme/web","github · acme"),qrow(3,"lint — acme/api","github · acme"),T("… and 2 more",11,400,TX2),gap=4)
 def queued(daemon=False):
     if daemon:
-        body=vcol(T("3 queued · acme/api ×2, acme/web ×1",13,500),status("Queue actions need forge access — not available in daemon mode. Use kinhin CLI or switch to in-process engine.","warn"))
+        body=vcol(T("3 queued · acme/api ×2, acme/web ×1",13,500),QUEUE,status("Requeue and Skip need forge access, which the daemon does not give the app. Use kinhin requeue or kinhin skip, or switch to the in-process engine.","warn"),gap=4)
     else:
-        body=row("GitHub · acme",hrow(sbtn("Requeue"),sbtn("Skip"),fill=False),"3 queued")+row("GitLab · group/x",hrow(sbtn("Requeue"),sbtn("Skip"),fill=False),"0 queued")
-    return card("Queued work","Counts per forge; actions apply to every queued job on that forge",body)
+        body=vcol(T("3 queued · acme/api ×2, acme/web ×1",13,500),QUEUE,row("GitHub · acme",hrow(sbtn("Requeue"),sbtn("Skip"),fill=False),"3 queued"),row("GitLab · group/x",hrow(sbtn("Requeue"),sbtn("Skip"),fill=False),"0 queued"),gap=6)
+    return card("Queued work","Oldest first (first in, first out). Counts per forge; actions apply to every queued job on that forge",body)
 def jobs():
-    return card("Current jobs","",vcol(row("build — acme/web","runner-a1 · busy"),row("test — acme/api","vm-b1 · runner 1 · busy"),row("lint — acme/api","vm-b1 · runner 2 · busy"),gap=6))
+    return card("Current jobs","",vcol(row("build — acme/web","runner-a1 · busy"),row("test — acme/api","vm-b1 · runner 1 · busy"),row("lint — acme/api","vm-b1 · runner 2 · busy"),row("Running a job","kinhin-3 · busy"),gap=6))
 def running(daemon):
     c=header("Running",OK,"background daemon" if daemon else "in-process engine",[btn("Pause"),btn("Stop")])
     c+=banner("warn","Disk is almost full — new VMs are held until space frees up.",sbtn("Dismiss"))

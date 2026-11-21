@@ -24,6 +24,8 @@ enum CLICommand: Equatable, Hashable {
     case status
     case watch
     case pipeline
+    case jobs
+    case queue
     case logs
     case daemon
     case cleanup

@@ -36,6 +36,8 @@ struct ScalePlan: Equatable {
         var includesRunning: Set<String> = []
         /// Accounts with a working forge (candidates for a new instance).
         var attached: Set<String>
+        /// Each account's queued jobs' created dates, oldest first, for first-in, first-out account choice.
+        var queueDatesByAccount: [String: [RuntimeID: [Date]]] = [:]
         /// Accounts whose queue could not be read this pass.
         var failedForges: Set<String> = []
         var runnersPerVM = 1
@@ -315,14 +317,6 @@ struct ScalePlan: Equatable {
         // named pool's shape fits what is left of the budget.
         var exhausted: Set<RuntimeID> = []
         while out.count < count {
-            // The account with the most unmet demand (its jobs minus the
-            // instances that can serve them).
-            var coverage: [String: Int] = [:]
-            for record in sim where covers(record, includesRunning: input.includesRunning) {
-                if let account = record.platform { coverage[account, default: 0] += 1 }
-            }
-            let account = ForgeDemand.assignAccount(demand: totals, active: coverage, attached: input.attached)
-
             // The pool with the most unmet demand within its capacity.
             let unmet = unmetByPool(records: sim, input: input)
             var caps = input.poolCaps
@@ -338,6 +332,10 @@ struct ScalePlan: Equatable {
             else { break }  // unmet demand but no pool may take another instance
             if input.heldRuntimes.contains(chosen) { break }  // every pool with demand is backing off
             if exhausted.contains(chosen) { break }  // the fallback runtime is out of room
+
+            // The account for the instance: the one whose queued jobs it can serve, oldest job first (the most
+            // unmet demand without queue dates), counting the instances that already cover each account's jobs.
+            let account = account(for: chosen, totals: totals, records: sim, input: input)
 
             // The image for a Tart slot, counting only instances that serve demand (warm ones do not).
             var image: String?

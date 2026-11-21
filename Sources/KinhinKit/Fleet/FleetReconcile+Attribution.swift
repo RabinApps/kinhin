@@ -81,23 +81,27 @@ extension FleetEngine {
         // Map runner name → VM id. Single-runner VMs register under the VM
         // id itself; multi-runner VMs register as "<vmid>-r1…rN".
         var jobsByVM: [String: [RunningJobStamp]] = [:]
+        var fleetRepos: [String?] = []  // the repo of each job that runs on one of this fleet's VMs
         let records = store.all
         let ids = Set(records.map(\.id))
         for job in running {
             guard let runnerName = job.runnerName,
                 let vmID = Self.vmID(forRunnerName: runnerName, among: ids)
             else { continue }
+            fleetRepos.append(job.repository)
             if let correlation = job.correlation {
                 noteJobCorrelation(vm: vmID, correlation)
             } else {
                 jobTrace(for: vmID)?.logContext.job = job.name
             }
             jobsByVM[vmID, default: []].append(
-                RunningJobStamp(runner: runnerName, job: job.name, repo: isOrgScope ? job.repository : nil))
+                RunningJobStamp(
+                    runner: runnerName, job: job.name, repo: isOrgScope ? job.repository : nil,
+                    enqueuedAt: job.correlation?.enqueuedAt, startedAt: job.correlation?.startedAt))
         }
 
         await statusBox.modify {
-            $0.runningByRepo = isOrgScope ? attributionByRepo(running.compactMap(\.repository)) : nil
+            $0.runningByRepo = isOrgScope ? attributionByRepo(fleetRepos) : nil
         }
 
         // Stamp VMs that exist; clear the stamp on VMs whose jobs finished.

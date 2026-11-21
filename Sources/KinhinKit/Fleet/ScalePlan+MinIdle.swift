@@ -139,11 +139,7 @@ extension ScalePlan {
                     headroom(key.runtime, records: sim, input: input, reserved: reservedHere) > 0,
                     key.pool.isEmpty || containerPoolFits(key.pool, records: sim, input: input)
                 else { continue }
-                var coverage: [String: Int] = [:]
-                for record in sim where covers(record, includesRunning: input.includesRunning) {
-                    if let account = record.platform { coverage[account, default: 0] += 1 }
-                }
-                let account = ForgeDemand.assignAccount(demand: totals, active: coverage, attached: input.attached)
+                let account = account(for: key.runtime, totals: totals, records: sim, input: input)
                 let slot = Slot(
                     account: account, runtime: key.runtime, image: key.image.isEmpty ? nil : key.image,
                     pool: key.pool.isEmpty ? nil : key.pool, idle: true)
