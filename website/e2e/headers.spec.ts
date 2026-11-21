@@ -11,6 +11,7 @@ const expectSecure = (h: Record<string, string>, where: string) => {
   expect(h['x-permitted-cross-domain-policies'], where).toBe('none')
   const csp = h['content-security-policy'] ?? ''
   for (const d of ["default-src 'self'", "object-src 'none'", "frame-ancestors 'none'", "base-uri 'self'"]) expect(csp, `${where}: ${d}`).toContain(d)
+  expect(csp, `${where}: images are same-origin only (no third-party tracking pixels)`).toMatch(/img-src 'self' data:(;|$)/)
   expect(csp, `${where}: the page makes no third-party calls`).toMatch(/connect-src 'self'(;|$)/)
   expect(csp, where).not.toContain('github.com')
 }

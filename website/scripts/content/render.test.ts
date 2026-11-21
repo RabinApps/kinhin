@@ -59,3 +59,13 @@ test('the directive elements are allowed through', async () => {
   assert.ok(tags.has('search-next-steps'))
   assert.ok(attrs.has('kind') && attrs.has('chart'))
 })
+
+test('external images are dropped, relative images stay', async () => {
+  const tree = await toHast('![a](https://evil.example/t.gif) <img src="http://evil.example/p.png"> ![b](./shot.png) ![c](/_docs/x.png)')
+  const srcs: string[] = []
+  const find = (n: any) => (n?.tagName === 'img' && srcs.push(String(n.properties?.src ?? '')), (n?.children ?? []).forEach(find))
+  find(tree)
+  assert.equal(srcs.length, 4)
+  assert.deepEqual(srcs.filter((s) => /^https?:/i.test(s)), [])
+  assert.deepEqual(srcs.filter(Boolean), ['./shot.png', '/_docs/x.png'])
+})

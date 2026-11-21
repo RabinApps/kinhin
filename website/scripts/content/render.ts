@@ -86,6 +86,9 @@ function rehypeAnchors() {
  */
 export const sanitizeSchema: SanitizeOptions = {
   ...defaultSchema,
+  // Images are same-origin only (the CSP's img-src agrees): an absolute http(s) `src` would be a third-party request, i.e. a tracking pixel.
+  // (An empty list would mean "no restriction", so a protocol that never occurs stands in for "none": only relative URLs pass.)
+  protocols: { ...defaultSchema.protocols, src: ['x-no-remote-images'] },
   tagNames: [...(defaultSchema.tagNames ?? []), 'callout', 'audience-tabs', 'audience-panel', 'mermaid-chart', 'search-next-steps'],
   attributes: {
     ...defaultSchema.attributes,
