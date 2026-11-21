@@ -180,7 +180,14 @@ struct FleetView: View {
                         style: .warn)
                 }
             } else if model.forgeRows.isEmpty {
-                StatusText(text: "No forges attached — queue will always be empty.")
+                if model.queueRows.isEmpty {
+                    StatusText(text: "No forges attached — queue will always be empty.")
+                } else {
+                    VStack(alignment: .leading, spacing: Spacing.xs) {
+                        Text(verbatim: model.queueSummary).typeStyle(.emphasis)
+                        queueList
+                    }
+                }
             } else {
                 VStack(alignment: .leading, spacing: Spacing.sm) {
                     Text(verbatim: model.queueSummary).typeStyle(.emphasis)
@@ -198,6 +205,7 @@ struct FleetView: View {
         ForEach(model.queueRows) { row in
             HStack(spacing: Spacing.sm) {
                 Text(verbatim: "#\(row.position)").typeStyle(.caption).foregroundStyle(.secondary)
+                    .frame(minWidth: 28, alignment: .leading)
                 Text(verbatim: row.title).typeStyle(.body)
                 Spacer(minLength: Spacing.md)
                 Text(verbatim: row.detail).typeStyle(.caption).foregroundStyle(.secondary)
