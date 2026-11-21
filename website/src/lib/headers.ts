@@ -8,7 +8,7 @@ const CSP = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline'",
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: https:",
+  "img-src 'self' data:",
   "media-src 'self'",
   "font-src 'self' data:",
   "connect-src 'self'",
@@ -20,6 +20,7 @@ const CSP = [
 
 export const securityHeaders: Record<string, string> = {
   'content-security-policy': CSP,
+  'strict-transport-security': 'max-age=31536000',
   'x-content-type-options': 'nosniff',
   'referrer-policy': 'strict-origin-when-cross-origin',
   'permissions-policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=()',

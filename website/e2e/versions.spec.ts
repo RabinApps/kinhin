@@ -37,6 +37,18 @@ test.describe('removed release snapshots', () => {
     expect((await request.get('/v0.0.0-gone/guide/quick-start?x=1', { maxRedirects: 0 })).headers().location).toBe('/guide/quick-start?x=1')
   })
 
+  test('an unlisted version never redirects to another host (open redirect)', async ({ request }) => {
+    for (const from of ['/v9.9.9//evil.example/x', '/v9.9.9///evil.example', '/v9.9.9//evil.example/', '/v0.0.0-gone//evil.example?a=1']) {
+      const res = await request.get(from, { maxRedirects: 0 })
+      const to = res.headers().location ?? ''
+      expect(res.status(), from).toBe(301)
+      // Resolved against the site, the target must stay on the site: `//host/…` would leave it.
+      expect(new URL(to, 'https://kinhin.dev').host, `${from} -> ${to}`).toBe('kinhin.dev')
+      expect(to, from).toMatch(/^\/(?![/\\])/)
+    }
+    expect((await request.get('/v9.9.9//evil.example/x?a=1', { maxRedirects: 0 })).headers().location).toBe('/evil.example/x?a=1')
+  })
+
   test('the redirect ends on a real page', async ({ request }) => {
     const res = await request.get('/v0.0.0-gone/guide/quick-start')
     expect(res.status()).toBe(200)
