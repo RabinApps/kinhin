@@ -67,6 +67,38 @@ function rehypeMermaid() {
   }
 }
 
+/**
+ * Images are same-origin only. The sanitizer's protocol list stops `https://…` but lets a network-path URL (`//host/x.png`, or
+ * `/\\host/x.png`, which URL parsers read the same way) through, so each `src` is resolved against a throwaway origin and any
+ * that leaves it loses its `src`.
+ */
+function rehypeSameOriginImages() {
+  const base = 'https://kinhin.invalid'
+  const sameOrigin = (url: string): boolean => {
+    try {
+      return new URL(url, base).origin === base
+    } catch {
+      return false
+    }
+  }
+  return (tree: HastRoot) => {
+    visit(tree, 'element', (node: Element) => {
+      const props = node.properties
+      if (!props) return
+      if (node.tagName === 'img' && typeof props.src === 'string' && !sameOrigin(props.src)) delete props.src
+      // `<picture><source srcset>` is allowed too, and takes a list: "url 1x, url 2x". One candidate that leaves the site drops the list.
+      if (node.tagName === 'img' || node.tagName === 'source') {
+        const set = props.srcSet ?? props.srcset
+        const text = Array.isArray(set) ? set.join(', ') : typeof set === 'string' ? set : undefined
+        if (text !== undefined && !text.split(',').every((c) => sameOrigin(c.trim().split(/\s+/)[0] ?? ''))) {
+          delete props.srcSet
+          delete props.srcset
+        }
+      }
+    })
+  }
+}
+
 /** A `#` link on h2/h3 so a section can be linked to. */
 function rehypeAnchors() {
   return (tree: HastRoot) => {
@@ -86,6 +118,9 @@ function rehypeAnchors() {
  */
 export const sanitizeSchema: SanitizeOptions = {
   ...defaultSchema,
+  // Images are same-origin only (the CSP's img-src agrees): an absolute http(s) `src` would be a third-party request, i.e. a tracking pixel.
+  // (An empty list would mean "no restriction", so a protocol that never occurs stands in for "none": only relative URLs pass.)
+  protocols: { ...defaultSchema.protocols, src: ['x-no-remote-images'] },
   tagNames: [...(defaultSchema.tagNames ?? []), 'callout', 'audience-tabs', 'audience-panel', 'mermaid-chart', 'search-next-steps'],
   attributes: {
     ...defaultSchema.attributes,
@@ -120,6 +155,7 @@ const processor = unified()
   .use(remarkRehype, { allowDangerousHtml: true })
   .use(rehypeRaw, { passThrough: [] })
   .use(rehypeSanitize, sanitizeSchema)
+  .use(rehypeSameOriginImages)
   .use(rehypeMermaid)
   .use(rehypeSlug)
   .use(rehypeAnchors)

@@ -110,6 +110,29 @@ test.describe('Mermaid diagrams', () => {
     expect(await page.locator('figure.mermaid-source').count()).toBeLessThan(await page.locator('figure.mermaid').count())
   })
 
+  test('a diagram that fails to parse shows its error as text, never as markup', async ({ page }) => {
+    // Mermaid's parse error quotes the diagram source. No docs page has a broken diagram, so patch the Mermaid component's
+    // chunk to render a hostile one (the page's own data cannot be edited: its flight rows are length-prefixed).
+    let patched = 0
+    await page.route(/\/_next\/static\/.*\.js(\?.*)?$/, async (route) => {
+      const res = await route.fetch()
+      let body = await res.text()
+      if (body.includes('mermaid-expand') && /\.render\([^,]+,\s*[\w$]+\)/.test(body)) {
+        body = body.replace(/(\.render\([^,]+,)\s*[\w$]+\)/, '$1"notadiagram <img src=x onerror=window.__pwned=1>")')
+        patched++
+      }
+      await route.fulfill({ response: res, body })
+    })
+    await page.goto('/' + mermaidRoute)
+    await hydrated(page)
+    await page.evaluate(() => document.querySelector('figure.mermaid')?.scrollIntoView({ block: 'center' }))
+    const err = page.getByTestId('mermaid-error').filter({ hasText: 'notadiagram' })
+    await expect(err.first()).toBeVisible({ timeout: 20_000 })
+    expect(patched, 'the Mermaid component chunk was patched (update the pattern if its minified shape changed)').toBeGreaterThan(0)
+    await expect(page.locator('figure.mermaid img[src="x"]')).toHaveCount(0)
+    expect(await page.evaluate(() => (window as unknown as { __pwned?: number }).__pwned)).toBeUndefined()
+  })
+
   test('expand opens a viewer that zooms, pans and closes with Escape', async ({ page }) => {
     await page.goto('/' + mermaidRoute)
     await hydrated(page)

@@ -2,6 +2,7 @@ import openNext from './.open-next/worker.js'
 import versions from './versions.json'
 import { accessToken, fetchAccessKeys, verifyAccessJwt } from './src/lib/access'
 import { prefersMarkdown } from './src/lib/accept'
+import { securityHeaders } from './src/lib/headers'
 import { isSnapshotPath, markdownRewrite, removedSnapshotRedirect } from './src/lib/route'
 
 /**
@@ -40,17 +41,21 @@ async function guard(request: Request, env: Env): Promise<Response | null> {
   }
 }
 
+function withHsts(res: Response): Response {
+  res.headers.set('strict-transport-security', securityHeaders['strict-transport-security'])
+  return res
+}
+
 export default {
   async fetch(request: Request, env: Env, ctx: unknown): Promise<Response> {
     const denied = await guard(request, env)
-    if (denied) return denied
-    if (env.SITE_ENV === 'dev') {
-      const res = await route(request, env, ctx)
-      const out = new Response(res.body, res)
-      out.headers.set('x-robots-tag', 'noindex, nofollow')
-      return out
-    }
-    return route(request, env, ctx)
+    if (denied) return withHsts(denied)
+    const res = await route(request, env, ctx)
+    // The middleware and public/_headers skip responses the Worker builds itself (markdown, llms.txt, the feed, redirects).
+    const out = new Response(res.body, res)
+    out.headers.set('strict-transport-security', securityHeaders['strict-transport-security'])
+    if (env.SITE_ENV === 'dev') out.headers.set('x-robots-tag', 'noindex, nofollow')
+    return out
   },
 }
 

@@ -39,10 +39,10 @@ jobs:
     if: >-
       (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success')
       && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-    # Deploys run on kinhin's own Apple-container pool (`kinhin-container` is its exclusive marker). Pull requests
-    # build on a pooled Blacksmith runner instead, so no PR code ever reaches that pool or the Cloudflare secrets.
-    # 8 vCPU / 160 GB: a pull request builds the current site and every release snapshot, then serves both to Playwright.
-    runs-on: ${{ github.event_name == 'pull_request' && 'blacksmith-8vcpu-ubuntu-2404' || 'kinhin-container' }}
+    # Runs on kinhin's own Apple-container pool (`kinhin-container` is its exclusive marker), for deploys and pull
+    # requests alike. Pull requests are limited to branches of this repository (the `if` above), and the Cloudflare
+    # secrets are only passed to the deploy steps, which never run for a pull request.
+    runs-on: kinhin-container
     steps:
       - name: Check toolchain
         # The per-tag worktrees need git (Node comes from setup-node below). Fail with the fix instead of

@@ -1,0 +1,5 @@
+Contact: mailto:security@rabinapps.com
+Expires: 2027-11-21T00:00:00.000Z
+Preferred-Languages: en
+Canonical: https://kinhin.dev/.well-known/security.txt
+Policy: https://github.com/RabinApps/kinhin/blob/main/SECURITY.md

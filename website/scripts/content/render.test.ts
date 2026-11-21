@@ -59,3 +59,45 @@ test('the directive elements are allowed through', async () => {
   assert.ok(tags.has('search-next-steps'))
   assert.ok(attrs.has('kind') && attrs.has('chart'))
 })
+
+test('external images are dropped, relative images stay', async () => {
+  const md = [
+    '![a](https://evil.example/t.gif)',
+    '<img src="http://evil.example/p.png">',
+    '![n](//evil.example/n.gif)',
+    '<img src="/\\evil.example/b.gif">',
+    '<img src="\\\\evil.example/c.gif">',
+    '![b](./shot.png)',
+    '![c](/_docs/x.png)',
+    '![d](shot.png)',
+  ].join(' ')
+  const tree = await toHast(md)
+  const srcs: string[] = []
+  const find = (n: any) => (n?.tagName === 'img' && srcs.push(String(n.properties?.src ?? '')), (n?.children ?? []).forEach(find))
+  find(tree)
+  assert.equal(srcs.length, 8)
+  assert.deepEqual(srcs.filter(Boolean), ['./shot.png', '/_docs/x.png', 'shot.png'])
+})
+
+test('picture sources and srcset lists follow the same-origin image policy', async () => {
+  const tree = await toHast(
+    [
+      '<picture><source srcset="https://evil.example/t.gif 1x"><img src="/safe.png"></picture>',
+      '<picture><source srcset="/a.png 1x, //evil.example/b.png 2x"><img src="/safe2.png"></picture>',
+      '<picture><source srcset="/c.png 1x, ./d.png 2x"><img src="/safe3.png"></picture>',
+    ].join('\n\n'),
+  )
+  const sets: unknown[] = []
+  const srcs: string[] = []
+  const find = (n: any) => {
+    if (n?.tagName === 'source') sets.push(n.properties?.srcSet)
+    if (n?.tagName === 'img') srcs.push(String(n.properties?.src))
+    ;(n?.children ?? []).forEach(find)
+  }
+  find(tree)
+  assert.deepEqual(srcs, ['/safe.png', '/safe2.png', '/safe3.png'])
+  assert.equal(sets.length, 3)
+  assert.equal(sets[0], undefined)
+  assert.equal(sets[1], undefined)
+  assert.ok(String(sets[2]).includes('/c.png'), 'a list of local candidates is kept')
+})
