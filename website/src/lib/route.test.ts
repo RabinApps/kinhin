@@ -46,6 +46,14 @@ test('a removed release snapshot redirects to the same page on the latest site',
   assert.equal(removedSnapshotRedirect('/v0.0.1-beta-1/blog/beta-2.md', versions), '/blog/beta-2.md')
 })
 
+test('a removed snapshot never redirects off-site (no protocol-relative Location)', () => {
+  for (const p of ['/v9.9.9//evil.com', '/v9.9.9//evil.com/x', '/v9.9.9///evil.com', '/v9.9.9/\\evil.com', '/v9.9.9/\\/evil.com', '/v9.9.9/\\\\evil.com/', '/v9.9.9/ /evil.com']) {
+    const to = removedSnapshotRedirect(p, versions)
+    assert.ok(to !== null && /^\/(?![/\\])/.test(to), `${JSON.stringify(p)} -> ${JSON.stringify(to)}`)
+  }
+  assert.equal(removedSnapshotRedirect('/v9.9.9//evil.com/x', versions), '/evil.com/x')
+})
+
 test('listed versions and ordinary paths are left alone', () => {
   assert.equal(removedSnapshotRedirect('/v0.0.1-beta-7/guide/x', versions), null)
   assert.equal(removedSnapshotRedirect('/v0.0.1-beta-6', versions), null)

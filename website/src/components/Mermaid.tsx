@@ -11,6 +11,7 @@ export function Mermaid({ chart }: { chart: string }) {
   const id = useId().replace(/:/g, '')
   const host = useRef<HTMLDivElement>(null)
   const [svg, setSvg] = useState('')
+  const [error, setError] = useState('')
   const [open, setOpen] = useState(false)
   const [theme, setTheme] = useState('dark')
 
@@ -32,9 +33,16 @@ export function Mermaid({ chart }: { chart: string }) {
       mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: theme === 'light' ? 'default' : 'dark' })
       try {
         const { svg } = await mermaid.render(`m${id}${theme}`, chart)
-        if (!cancelled) setSvg(svg)
+        if (!cancelled) {
+          setError('')
+          setSvg(svg)
+        }
       } catch (e) {
-        if (!cancelled) setSvg(`<pre>${String(e)}</pre>`)
+        // Mermaid's parse errors quote the diagram source, which is page content: show it as text, never as markup.
+        if (!cancelled) {
+          setSvg('')
+          setError(String(e))
+        }
       }
     })()
     return () => {
@@ -45,6 +53,7 @@ export function Mermaid({ chart }: { chart: string }) {
   return (
     <figure className="mermaid">
       <div ref={host} dangerouslySetInnerHTML={{ __html: svg }} />
+      {error && <pre>{error}</pre>}
       {svg && (
         <button type="button" className="mermaid-expand" onClick={() => setOpen(true)} onPointerEnter={() => void loadViewer()} onFocus={() => void loadViewer()}>
           Expand

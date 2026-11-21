@@ -33,6 +33,8 @@ export function removedSnapshotRedirect(pathname: string, versions: readonly str
   if (!m) return null
   const tag = m[0].slice(1)
   if (versions.includes(tag)) return null
-  const rest = pathname.slice(m[0].length).replace(/\/+$/, '')
-  return rest === '' ? '/' : rest
+  // Leading slashes and backslashes are dropped: `/v9.9.9//evil.com` would otherwise answer `Location: //evil.com`, a
+  // protocol-relative URL (browsers read `/\evil.com` the same way), i.e. an open redirect to another host.
+  const rest = pathname.slice(m[0].length).replace(/\/+$/, '').replace(/^[/\\]+/, '')
+  return rest === '' ? '/' : `/${rest}`
 }

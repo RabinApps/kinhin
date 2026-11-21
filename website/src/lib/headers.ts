@@ -20,6 +20,7 @@ const CSP = [
 
 export const securityHeaders: Record<string, string> = {
   'content-security-policy': CSP,
+  'strict-transport-security': 'max-age=31536000; includeSubDomains',
   'x-content-type-options': 'nosniff',
   'referrer-policy': 'strict-origin-when-cross-origin',
   'permissions-policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=()',

@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test'
 
 /** Security headers on pages (set by src/middleware.ts) and on static files (public/_headers). */
 const expectSecure = (h: Record<string, string>, where: string) => {
+  expect(h['strict-transport-security'], where).toMatch(/^max-age=\d{8,}\b/)
   expect(h['x-content-type-options'], where).toBe('nosniff')
   expect(h['referrer-policy'], where).toBe('strict-origin-when-cross-origin')
   expect(h['permissions-policy'], where).toContain('camera=()')
@@ -23,6 +24,18 @@ test.describe('security headers', () => {
 
   test('static files carry them too', async ({ request }) => {
     for (const path of ['/og.png', '/logo.png', '/favicon.svg']) expectSecure((await request.get(path)).headers(), path)
+  })
+
+  test('security.txt is published with a contact, a policy and an expiry in the future', async ({ request }) => {
+    const res = await request.get('/.well-known/security.txt')
+    expect(res.status()).toBe(200)
+    expect(res.headers()['content-type']).toMatch(/^text\/plain/)
+    const body = await res.text()
+    expect(body).toMatch(/^Contact: mailto:security@rabinapps\.com$/m)
+    expect(body).toMatch(/^Policy: https:\/\/github\.com\/RabinApps\/kinhin\/blob\/main\/SECURITY\.md$/m)
+    expect(body).toMatch(/^Canonical: https:\/\/kinhin\.dev\/\.well-known\/security\.txt$/m)
+    const expires = /^Expires: (.+)$/m.exec(body)?.[1]
+    expect(Date.parse(expires ?? ''), 'Expires must be a date in the future').toBeGreaterThan(Date.now())
   })
 
   test('the markdown copies are served with nosniff', async ({ request }) => {

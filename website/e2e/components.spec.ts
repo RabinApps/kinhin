@@ -110,6 +110,23 @@ test.describe('Mermaid diagrams', () => {
     expect(await page.locator('figure.mermaid-source').count()).toBeLessThan(await page.locator('figure.mermaid').count())
   })
 
+  test('a diagram that fails to parse shows its error as text, never as markup', async ({ page }) => {
+    // Mermaid's parse error quotes the diagram source. Break the page's diagrams on the way in (the flight payload carries the
+    // source as a JS string, where \u003c is a "<" that never appears in the raw HTML) and check the quoted payload is inert.
+    await page.route('**/' + mermaidRoute, async (route) => {
+      const res = await route.fetch()
+      const body = (await res.text()).replaceAll('flowchart', 'notadiagram \\u003cimg src=x onerror=window.__pwned=1>')
+      await route.fulfill({ response: res, body })
+    })
+    await page.goto('/' + mermaidRoute)
+    await hydrated(page)
+    await page.evaluate(() => document.querySelector('figure.mermaid')?.scrollIntoView({ block: 'center' }))
+    const err = page.locator('figure.mermaid:not(.mermaid-source) pre').filter({ hasText: 'notadiagram' })
+    await expect(err.first()).toBeVisible({ timeout: 20_000 })
+    await expect(page.locator('figure.mermaid img[src="x"]')).toHaveCount(0)
+    expect(await page.evaluate(() => (window as unknown as { __pwned?: number }).__pwned)).toBeUndefined()
+  })
+
   test('expand opens a viewer that zooms, pans and closes with Escape', async ({ page }) => {
     await page.goto('/' + mermaidRoute)
     await hydrated(page)
