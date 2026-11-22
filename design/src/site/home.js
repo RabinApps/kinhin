@@ -97,7 +97,7 @@ function desktop(themeName) {
 
 // ---- mobile ----------------------------------------------------------------------------------
 function mobile(themeName) {
-  const W = 390, H = 2480;
+  const W = 390, H = 2520;
   const f = pageFrame(`Home / Mobile / ${themeName}`, W, H, { gridH: 760 });
   glow(f, 195, 250, 560, K.a1, K.glow, "hero glow"); glow(f, 330, 200, 360, K.a2, K.glow * 0.9, "hero glow 2");
   nav(f, W);
@@ -105,17 +105,17 @@ function mobile(themeName) {
   text(f, "Commit it.\nScreenshot it.", 20, 150, { size: 52, weight: 700, ls: -4, w: 350, lh: 56 });
   text(f, "Ship it.", 20, 262, { size: 52, weight: 700, ls: -4, w: 350, lh: 56, color: K.a1 });
   text(f, "Ephemeral runners that scale to your queue, store screenshots in every locale, launch videos rebuilt from your repo. No cloud bill, no watermark.", 20, 344, { size: 16, color: K.mut, lh: 25, w: 350 });
-  button(f, "Get started", 20, 440, { primary: true, w: 350, h: 50 });
-  button(f, "Why kinhin?", 20, 502, { w: 350, h: 50 });
-  codeBlock(f, 20, 580, 350, [["$ curl -fsSL …/install.sh | bash", "#EAEEF6"], ["$ kinhin config init", "#EAEEF6"], ["$ kinhin start", "#EAEEF6"], ["✓ fleet online", K.a1]], { title: "3 commands", glow: true });
-  mono(f, "// WHAT YOU GET", 20, 800, { size: 12, color: K.a1, weight: 500, ls: 8 });
+  button(f, "Get started", 20, 480, { primary: true, w: 350, h: 50 });
+  button(f, "Why kinhin?", 20, 542, { w: 350, h: 50 });
+  codeBlock(f, 20, 620, 350, [["$ curl -fsSL …/install.sh | bash", "#EAEEF6"], ["$ kinhin config init", "#EAEEF6"], ["$ kinhin start", "#EAEEF6"], ["✓ fleet online", K.a1]], { title: "3 commands", glow: true });
+  mono(f, "// WHAT YOU GET", 20, 840, { size: 12, color: K.a1, weight: 500, ls: 8 });
   const feats = [["Parallel jobs, not a queue", "A fleet of ephemeral runners scales to your queue.", "Why kinhin", K.a1], ["Clean every time", "Fresh VM or container per job, deleted when it ends.", "Security", K.a1], ["Multi-forge, multi-runtime", "GitHub, Gitea, Forgejo and GitLab from one pool.", "Runtimes", K.a2], ["Store screenshots", "Localized App Store and Play screenshots in CI.", "Screenshots", K.a1], ["Launch videos from a config", "Narration, captions, music and a vertical cut.", "Add videos", K.a2]];
-  feats.forEach((fe, i) => featureCard(f, 20, 836 + i * 232, 350, 216, fe[0], fe[1], fe[2], fe[3]));
-  const sp = panel(f, "For agents", 20, 2012, 350, 300, { r: 18 }); glow(sp, 300, 40, 300, K.a2, 0.22, "g");
+  feats.forEach((fe, i) => featureCard(f, 20, 876 + i * 232, 350, 216, fe[0], fe[1], fe[2], fe[3]));
+  const sp = panel(f, "For agents", 20, 2052, 350, 300, { r: 18 }); glow(sp, 300, 40, 300, K.a2, 0.22, "g");
   mono(sp, "// FOR AGENTS", 20, 22, { size: 12, color: K.a2, weight: 500, ls: 8 });
   text(sp, "Every page is also markdown.", 20, 48, { size: 24, weight: 700, ls: -1.5, w: 310 });
   codeBlock(sp, 16, 124, 318, [["$ curl -H 'Accept: \\", "#EAEEF6"], ["  text/markdown' kinhin.dev/…", "#EAEEF6"]], { name: "curl" });
-  const ft = frame(f, "Footer", 0, 2370, W, 110, {}); line(ft, 0, 0, W, 1, BORDER(), "border");
+  const ft = frame(f, "Footer", 0, 2410, W, 110, {}); line(ft, 0, 0, W, 1, BORDER(), "border");
   logoMark(ft, 14, 28, 32); text(ft, "kinhin", 50, 32, { size: 17, weight: 700 });
   mono(ft, "Apache-2.0 · Support · Used by", 20, 72, { size: 12, color: K.dim });
   return f;
