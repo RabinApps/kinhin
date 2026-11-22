@@ -4,7 +4,7 @@ layout: home
 hero:
   name: "kinhin ○"
   text: "Commit it. Screenshot it. Ship it."
-  tagline: "Your Mac is your CI, your screenshot studio and your video studio. Ephemeral runners that scale to your queue, store screenshots in every locale, and launch videos that rebuild from your repo. No cloud bill, no watermark."
+  tagline: "Ephemeral runners that scale to your queue, store screenshots in every locale, launch videos rebuilt from your repo. No cloud bill, no watermark."
   actions:
     - theme: brand
       text: Get started

@@ -19,10 +19,10 @@ function desktop(themeName) {
   // hero atmosphere
   glow(f, 720, 330, 1100, K.a1, K.glow, "hero glow"); glow(f, 1080, 260, 760, K.a2, K.glow * 0.9, "hero glow 2");
   nav(f, W, { active: -1 });
-  chip(f, "macOS fleet CI · open source · Apache-2.0", 450, 128, { dot: K.a1 });
+  chip(f, "macOS fleet CI · 4 forges · beta", 520, 128, { dot: K.a1 });
   text(f, "Commit it. Screenshot it.", 0, 186, { size: 84, weight: 700, ls: -4.5, w: W, align: "CENTER", lh: 90, name: "H1 a" });
   text(f, "Ship it.", 0, 276, { size: 84, weight: 700, ls: -4.5, w: W, align: "CENTER", lh: 90, color: K.a1, name: "H1 b" });
-  text(f, "Your Mac is your CI, your screenshot studio and your video studio. Ephemeral runners that scale to your queue, store screenshots in every locale, and launch videos that rebuild from your repo. No cloud bill, no watermark.", 360, 392, { size: 19, color: K.mut, lh: 30, w: 720, align: "CENTER" });
+  text(f, "Ephemeral runners that scale to your queue, store screenshots in every locale, launch videos rebuilt from your repo. No cloud bill, no watermark.", 360, 392, { size: 19, color: K.mut, lh: 30, w: 720, align: "CENTER" });
   button(f, "Get started", 500, 520, { primary: true, w: 140, h: 52 });
   button(f, "Why kinhin?", 656, 520, { w: 140, h: 52 });
   button(f, "CLI reference", 812, 520, { w: 140, h: 52 });
@@ -101,10 +101,10 @@ function mobile(themeName) {
   const f = pageFrame(`Home / Mobile / ${themeName}`, W, H, { gridH: 760 });
   glow(f, 195, 250, 560, K.a1, K.glow, "hero glow"); glow(f, 330, 200, 360, K.a2, K.glow * 0.9, "hero glow 2");
   nav(f, W);
-  chip(f, "macOS fleet CI · open source", 20, 100, { dot: K.a1 });
+  chip(f, "macOS fleet CI · 4 forges · beta", 20, 100, { dot: K.a1 });
   text(f, "Commit it.\nScreenshot it.", 20, 150, { size: 52, weight: 700, ls: -4, w: 350, lh: 56 });
   text(f, "Ship it.", 20, 262, { size: 52, weight: 700, ls: -4, w: 350, lh: 56, color: K.a1 });
-  text(f, "Your Mac is your CI, your screenshot studio and your video studio. No cloud bill, no watermark.", 20, 344, { size: 16, color: K.mut, lh: 25, w: 350 });
+  text(f, "Ephemeral runners that scale to your queue, store screenshots in every locale, launch videos rebuilt from your repo. No cloud bill, no watermark.", 20, 344, { size: 16, color: K.mut, lh: 25, w: 350 });
   button(f, "Get started", 20, 440, { primary: true, w: 350, h: 50 });
   button(f, "Why kinhin?", 20, 502, { w: 350, h: 50 });
   codeBlock(f, 20, 580, 350, [["$ curl -fsSL …/install.sh | bash", "#EAEEF6"], ["$ kinhin config init", "#EAEEF6"], ["$ kinhin start", "#EAEEF6"], ["✓ fleet online", K.a1]], { title: "3 commands", glow: true });
