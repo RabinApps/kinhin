@@ -15,7 +15,7 @@ export function Home({ data }: { data: HomeData }) {
         <div className="orbits" aria-hidden>
           <i /> <i /> <i />
         </div>
-        <p className="pill"><span className="dot" /> macOS fleet CI · open source · Apache-2.0</p>
+        <p className="pill"><span className="dot" /> macOS fleet CI · 4 forges · beta</p>
         <h1>
           {words.join(' ')} <span className="accent">{last}</span>
         </h1>

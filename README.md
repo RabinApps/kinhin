@@ -2,10 +2,10 @@
 
 # kinhin ○
 
-**Commit it. Screenshot it. Ship it.** Your Mac is your CI, your screenshot studio and your video studio.
+**Commit it. Screenshot it. Ship it.**
 
 Ephemeral, autoscaling runners for GitHub Actions, Gitea and Forgejo Actions and GitLab CI/CD, plus store screenshots and
-narrated launch videos built from files in your repo.
+narrated launch videos built from files in your repo. No cloud bill, no watermark.
 
 **[kinhin.dev](https://kinhin.dev)** · [Quick start](https://kinhin.dev/guide/quick-start) ·
 [Beta 7](https://kinhin.dev/blog/beta-7)
